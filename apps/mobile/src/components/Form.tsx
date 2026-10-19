@@ -1,10 +1,12 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { InputAccessoryView, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput as NativeTextInput, TextInputProps, View } from 'react-native';
-import { Square, SquareCheck } from 'lucide-react-native';
-import { KeyboardAccessoryContext, Text, TextInput } from '@/components/AppText';
+import { AlertCircle, Square, SquareCheck } from 'lucide-react-native';
+import { KeyboardAccessoryContext, Text } from '@/components/AppText';
 import { Card } from './ui';
+import { TextArea, TextField } from './Input';
+import { InlineError } from './States';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
-import { colors, fonts, spacing, radius, pageContent, formLabelSpacing } from '@/theme';
+import { colors, spacing, radius, pageContent, typeScale } from '@/theme';
 
 export function FormPage({ children }: { children: React.ReactNode }) {
   const keyboardHeight = useKeyboardHeight();
@@ -36,67 +38,44 @@ export function FormPage({ children }: { children: React.ReactNode }) {
   </KeyboardAccessoryContext.Provider>;
 }
 
-/** Screen-reader name for a field: the visible label plus its required state. */
-export function fieldA11yLabel(label: string, required = false) {
-  return required ? `${label} · จำเป็นต้องกรอก` : label;
-}
-
-/**
- * The visible label above every input and picker (14/600 ink). Section titles stay larger
- * (FormSection, Anuphan 17), so a field never reads as a heading. `required` adds the shared " *".
- */
-export function FieldLabel({ children, required = false, hint }: { children: React.ReactNode; required?: boolean; hint?: string }) {
-  return <View style={styles.labelWrap}>
-    <Text style={styles.fieldLabel}>{children}{required ? ' *' : ''}</Text>
-    {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
-  </View>;
-}
+export { FieldLabel, fieldA11yLabel } from './FieldLabel';
 
 type PassThrough = Pick<TextInputProps, 'keyboardType' | 'secureTextEntry' | 'maxLength' | 'autoCapitalize' | 'autoComplete'
   | 'returnKeyType' | 'onSubmitEditing' | 'textContentType' | 'autoFocus'>;
 
-export function FormField({ label, value, onChange, multiline = false, disabled = false, placeholder, required = false, error, hint, ...input }: {
+/**
+ * Legacy name for the Input family: renders TextField (or TextArea with `multiline`).
+ * New code imports TextField/TextArea from '@/components/Input'.
+ */
+export function FormField({ multiline = false, ...props }: {
   label: string; value: string; onChange: (value: string) => void; multiline?: boolean; disabled?: boolean; placeholder?: string;
-  /** Adds the shared " *" marker to the visible label and announces the field as required. */
-  required?: boolean;
-  /** Inline message shown under the input; also outlines it in the warning color. */
-  error?: string;
-  /** One short helper line under the label (format, limits). */
-  hint?: string;
+  required?: boolean; error?: string; hint?: string;
 } & PassThrough) {
-  return <View style={{ gap: spacing.sm }}>
-    <FieldLabel required={required} hint={hint}>{label}</FieldLabel>
-    <TextInput {...input} accessibilityLabel={fieldA11yLabel(label, required)} accessibilityHint={error || hint || undefined}
-      value={value} onChangeText={onChange} editable={!disabled}
-      multiline={multiline} placeholder={placeholder} placeholderTextColor={colors.faint}
-      style={{ minHeight: multiline ? 100 : 48, textAlignVertical: multiline ? 'top' : 'center', padding: spacing.md,
-        borderWidth: 1, borderColor: error ? colors.warn : colors.line, borderRadius: radius.button,
-        backgroundColor: disabled ? colors.soft : colors.surface, color: colors.text, fontSize: 16 }} />
-    <FieldError message={error} />
-  </View>;
+  return multiline ? <TextArea {...props} /> : <TextField {...props} />;
 }
 
-/** Inline validation next to the field it belongs to, instead of a generic alert. */
+/** Inline validation next to the field it belongs to, instead of a generic alert. Legacy name for InlineError. */
 export function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.warn, fontSize: 14 }}>{message}</Text>;
+  return <InlineError message={message} />;
 }
 
 /** Lists what is still missing, right above the save button where the user is looking. */
 export function MissingSummary({ items }: { items: string[] }) {
   if (!items.length) return null;
-  return <View accessibilityRole="alert" accessibilityLiveRegion="polite"
-    style={{ borderWidth: 1, borderColor: colors.warn, backgroundColor: colors.warnSoft, borderRadius: radius.card, padding: spacing.md, gap: spacing.xs }}>
-    <Text style={{ color: colors.warn, fontWeight: '700' }}>ยังขาดข้อมูลที่ต้องกรอก</Text>
-    {items.map(item => <Text key={item} style={{ color: colors.warn }}>• {item}</Text>)}
+  return <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.missing}>
+    <View style={styles.missingHead}>
+      <AlertCircle size={18} color={colors.warn} />
+      <Text style={{ color: colors.warn, fontWeight: '700', flex: 1 }}>ยังขาดข้อมูลที่ต้องกรอก</Text>
+    </View>
+    {items.map(item => <Text key={item} style={{ color: colors.warn, paddingLeft: 18 + spacing.sm }}>• {item}</Text>)}
   </View>;
 }
 
 export function FormSection({ title, detail, children }: { title: string; detail?: string; children: React.ReactNode }) {
-  return <Card style={{ gap: spacing.sm, marginVertical: spacing.xs, padding: spacing.lg }}>
-    <View style={{ borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: spacing.md }}>
+  return <Card style={styles.section}>
+    <View style={styles.sectionHead}>
       <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
-      {detail ? <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22, marginTop: spacing.sm }}>{detail}</Text> : null}
+      {detail ? <Text style={styles.sectionDetail}>{detail}</Text> : null}
     </View>
     {children}
   </Card>;
@@ -135,10 +114,14 @@ export function CheckRow({ label, detail, checked, onChange, disabled = false }:
 }
 
 const styles = StyleSheet.create({
-  labelWrap: { ...formLabelSpacing, gap: 2 },
-  fieldLabel: { fontSize: 14, lineHeight: 20, fontWeight: '600', color: colors.ink },
   fieldHint: { fontSize: 13, lineHeight: 20, color: colors.muted },
-  sectionTitle: { fontSize: 17, lineHeight: 26, fontFamily: fonts.bold, color: colors.ink },
+  sectionTitle: { ...typeScale.section, color: colors.ink },
+  section: { gap: spacing.sm, marginVertical: spacing.xs, padding: spacing.lg },
+  sectionHead: { borderBottomWidth: 1, borderBottomColor: colors.divider, paddingBottom: spacing.md, marginBottom: spacing.xs },
+  sectionDetail: { color: colors.muted, fontSize: 14, lineHeight: 22, marginTop: spacing.xs },
+  missing: { borderLeftWidth: 3, borderLeftColor: colors.warn, backgroundColor: colors.warnSoft, borderRadius: radius.md,
+    padding: spacing.md, gap: spacing.xs },
+  missingHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   toggleRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xs },
   toggleText: { flex: 1, minWidth: 0, gap: 2 },
   toggleLabel: { fontSize: 15, color: colors.text },

@@ -9,10 +9,10 @@ import { api } from '@/api/client';
 import { useOwnerFinance } from '@/api/hooks';
 import { PAYMENT_METHOD_LABEL, type OwnerFinance, type UnbilledCase } from '@/api/types';
 import { Text } from '@/components/AppText';
-import { Button, EmptyNote, ErrorNote, FilterTabs, Loading, SectionLabel, Tag } from '@/components/ui';
+import { Button, EmptyState, ErrorState, FilterTabs, InlineError, LoadingState, SectionLabel, Tag } from '@/components/ui';
 import type { FinanceView } from '@/components/OwnerFinanceSummary';
 import { bangkokDay, formatMoney, thDate } from '@/format';
-import { colors, fonts, pageContent, radius, spacing, TOUCH } from '@/theme';
+import { CHROME_MAX_SCALE, colors, fonts, pageContent, radius, shadow, spacing, TOUCH, typeScale } from '@/theme';
 
 const VIEWS: Array<{ value: FinanceView; label: string; total: keyof OwnerFinance['totals'] }> = [
   { value: 'receivables', label: 'ลูกหนี้', total: 'receivable' }, { value: 'received', label: 'เงินรับแล้ว', total: 'received' },
@@ -40,6 +40,21 @@ function RowCard({ label, onPress, children }: { label: string; onPress: () => v
   </Pressable>;
 }
 
+/** Second-level switch: a sunken track with a raised selected pill, so it reads below the view tabs. */
+function Segmented({ items, value, onChange }: {
+  items: ReadonlyArray<{ value: string; label: string }>; value: string; onChange: (value: string) => void;
+}) {
+  return <View accessibilityRole="tablist" style={styles.segTrack}>
+    {items.map(item => {
+      const on = item.value === value;
+      return <Pressable key={item.value} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onChange(item.value)}
+        style={({ pressed }) => [styles.segItem, on && styles.segItemOn, pressed && !on && { opacity: 0.7 }]}>
+        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.segText, on && styles.segTextOn]}>{item.label}</Text>
+      </Pressable>;
+    })}
+  </View>;
+}
+
 export default function OwnerFinanceScreen() {
   const params = useLocalSearchParams<{ view?: string }>();
   const { user } = useAuth(), owner = hasFirmCapability(user?.firmRole, 'manageInvoices');
@@ -62,7 +77,7 @@ export default function OwnerFinanceScreen() {
     },
     onError: error => { void finance.refetch(); Alert.alert('สร้างร่างไม่สำเร็จ', `${error.message}\nตรวจรายการร่างล่าสุดก่อนทำอีกครั้ง`); },
   });
-  if (!owner) return <EmptyNote>ข้อมูลการเงินสำนักงานสำหรับเจ้าของและผู้จัดการสำนักงาน</EmptyNote>;
+  if (!owner) return <View style={{ flex: 1, backgroundColor: colors.bg }}><EmptyState>ข้อมูลการเงินสำนักงานสำหรับเจ้าของและผู้จัดการสำนักงาน</EmptyState></View>;
   const data = finance.data;
   const dueRows = data?.receivables.filter(row => row.daysOverdue > 0 || !row.dueAt || !row.collectionOwner || (!!row.collectionNextAt && row.collectionNextAt <= today)) ?? [];
   const rows = (allDebtors ? data?.receivables ?? [] : dueRows).slice()
@@ -73,7 +88,7 @@ export default function OwnerFinanceScreen() {
     return { value: item.value, label: amount > 0 ? `${item.label} ${formatMoney(amount)} ฿` : item.label };
   });
   const monthScoped = MONTH_VIEWS.includes(view);
-  return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.sm }}
+  return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.md }}
     refreshControl={<RefreshControl refreshing={finance.isRefetching} onRefresh={() => finance.refetch()} />}>
     <Stack.Screen options={{ title: 'เงินสำนักงาน / ลูกหนี้' }} />
     <FilterTabs items={tabs} value={view} onChange={value => setView(value as FinanceView)} />
@@ -90,15 +105,21 @@ export default function OwnerFinanceScreen() {
       </Pressable>
     </View>}
     {monthScoped && month !== thisMonth && <Button title="กลับเดือนนี้" variant="link" onPress={() => setMonth(thisMonth)} />}
-    {finance.isError && <ErrorNote message="โหลดข้อมูลการเงินล่าสุดไม่ได้ กรุณาลองใหม่ก่อนทำรายการ" onRetry={() => finance.refetch()} />}
-    {finance.isLoading && <Loading label="กำลังโหลดข้อมูลการเงิน…" />}
+    {/* With cached figures a failed refresh is a line above them; with nothing loaded it is the whole state. */}
+    {finance.isError && (data
+      ? <InlineError message="โหลดข้อมูลการเงินล่าสุดไม่ได้ กรุณาลองใหม่ก่อนทำรายการ" onRetry={() => finance.refetch()} />
+      : <ErrorState message="โหลดข้อมูลการเงินล่าสุดไม่ได้ กรุณาลองใหม่ก่อนทำรายการ" onRetry={() => finance.refetch()} />)}
+    {finance.isLoading && <LoadingState label="กำลังโหลดข้อมูลการเงิน…" />}
     {view === 'receivables' && data && <>
-      <SectionLabel>ยอดค้างทั้งหมด {formatMoney(data.totals.receivable)} ฿</SectionLabel>
-      <FilterTabs items={[{ value: 'due', label: `ต้องตาม (${dueRows.length})` }, { value: 'all', label: `ทั้งหมด (${data.receivables.length})` }]}
+      <View accessible accessibilityRole="header" accessibilityLabel={`ยอดค้างทั้งหมด ${formatMoney(data.totals.receivable)} ฿`} style={styles.hero}>
+        <Text style={styles.heroLabel}>ยอดค้างทั้งหมด</Text>
+        <Text style={styles.heroValue}>{formatMoney(data.totals.receivable)} ฿</Text>
+      </View>
+      <Segmented items={[{ value: 'due', label: `ต้องตาม (${dueRows.length})` }, { value: 'all', label: `ทั้งหมด (${data.receivables.length})` }]}
         value={allDebtors ? 'all' : 'due'} onChange={value => setAllDebtors(value === 'all')} />
       {!allDebtors && <Text style={styles.note}>เกินกำหนด นัดติดตามถึงวันนี้ ยังไม่มีผู้ติดตาม หรือยังไม่ระบุวันครบกำหนด</Text>}
-      {!rows.length && <EmptyNote action={!allDebtors && data.receivables.length ? { title: 'ดูลูกหนี้ทั้งหมด', onPress: () => setAllDebtors(true) } : undefined}>
-        {allDebtors || !data.receivables.length ? 'ไม่มีใบแจ้งหนี้ที่มียอดค้าง' : 'ไม่มีลูกหนี้ที่ต้องตามวันนี้'}</EmptyNote>}
+      {!rows.length && <EmptyState compact action={!allDebtors && data.receivables.length ? { title: 'ดูลูกหนี้ทั้งหมด', onPress: () => setAllDebtors(true) } : undefined}>
+        {allDebtors || !data.receivables.length ? 'ไม่มีใบแจ้งหนี้ที่มียอดค้าง' : 'ไม่มีลูกหนี้ที่ต้องตามวันนี้'}</EmptyState>}
       {rows.map(row => <RowCard key={row.id} label={`${row.customerName ?? 'ยังไม่ระบุผู้จ่าย'} ค้าง ${formatMoney(row.outstanding)} บาท · เปิดใบ ${row.invoiceNumber}`}
         onPress={() => router.push(`/invoice/${row.id}`)}>
         <Text style={styles.rowTitle}>{row.customerName ?? 'ยังไม่ระบุผู้จ่าย'} · {formatMoney(row.outstanding)} ฿</Text>
@@ -111,7 +132,7 @@ export default function OwnerFinanceScreen() {
     </>}
     {view === 'received' && data && <>
       <SectionLabel>รับเงินจริง · {thMonth(month)}</SectionLabel>
-      {!data.receipts.length && <EmptyNote>ไม่มีรายการรับเงินใน {thMonth(month)}</EmptyNote>}
+      {!data.receipts.length && <EmptyState compact>ไม่มีรายการรับเงินใน {thMonth(month)}</EmptyState>}
       {data.receipts.map(payment => <RowCard key={payment.id} label={`รับ ${formatMoney(payment.amount)} บาท ${thDate(payment.receivedAt)} · เปิดใบแจ้งหนี้`}
         onPress={() => router.push(`/invoice/${payment.invoiceId}`)}>
         <Text style={styles.rowTitle}>{formatMoney(payment.amount)} ฿ · {thDate(payment.receivedAt)}</Text>
@@ -121,7 +142,7 @@ export default function OwnerFinanceScreen() {
     </>}
     {view === 'billed' && data && <>
       <SectionLabel>วางบิลแล้ว · {thMonth(month)}</SectionLabel>
-      {!data.billed.length && <EmptyNote>ไม่มีใบแจ้งหนี้วางบิลใน {thMonth(month)}</EmptyNote>}
+      {!data.billed.length && <EmptyState compact>ไม่มีใบแจ้งหนี้วางบิลใน {thMonth(month)}</EmptyState>}
       {data.billed.map(row => <RowCard key={row.id} label={`${row.invoiceNumber} ${formatMoney(row.totalAmount)} บาท · เปิดใบแจ้งหนี้`}
         onPress={() => router.push(`/invoice/${row.id}`)}>
         <Text style={styles.rowTitle}>{row.invoiceNumber} · {formatMoney(row.totalAmount)} ฿</Text>
@@ -131,7 +152,7 @@ export default function OwnerFinanceScreen() {
     </>}
     {view === 'unbilled' && data && <>
       <SectionLabel>ร่างใบแจ้งหนี้ · รอบันทึกวางบิล</SectionLabel>
-      {!data.drafts.length && <EmptyNote>ไม่มีร่างใบแจ้งหนี้ค้าง</EmptyNote>}
+      {!data.drafts.length && <EmptyState compact>ไม่มีร่างใบแจ้งหนี้ค้าง</EmptyState>}
       {data.drafts.map(row => <RowCard key={row.id} label={`ร่าง ${row.invoiceNumber} ${formatMoney(row.totalAmount)} บาท · เปิดตรวจร่าง`}
         onPress={() => router.push(`/invoice/${row.id}`)}>
         <Text style={styles.rowTitle}>{row.invoiceNumber} · {formatMoney(row.totalAmount)} ฿</Text>
@@ -139,7 +160,7 @@ export default function OwnerFinanceScreen() {
       </RowCard>)}
       <SectionLabel>งานที่ยังไม่สร้างใบแจ้งหนี้</SectionLabel>
       <Text style={styles.note}>ยอดจากเวลาและค่าใช้จ่ายที่บันทึกว่าเก็บกับลูกค้าได้ ไม่รวมค่าจ้างที่ยังไม่ได้ลงรายการ</Text>
-      {!data.unbilled.length && <EmptyNote>ไม่มีรายการงานที่ยังไม่วางบิล</EmptyNote>}
+      {!data.unbilled.length && <EmptyState compact>ไม่มีรายการงานที่ยังไม่วางบิล</EmptyState>}
       {data.unbilled.map(group => {
         const open = expanded === group.case.id;
         const busy = draft.isPending && draft.variables?.case.id === group.case.id;
@@ -168,7 +189,7 @@ export default function OwnerFinanceScreen() {
     </>}
     {view === 'payable' && data && <>
       <SectionLabel>ค่าใช้จ่ายอนุมัติแล้วรอจ่าย</SectionLabel>
-      {!data.payable.length && <EmptyNote>ไม่มีรายการอนุมัติแล้วรอจ่าย</EmptyNote>}
+      {!data.payable.length && <EmptyState compact>ไม่มีรายการอนุมัติแล้วรอจ่าย</EmptyState>}
       {data.payable.map(expense => <RowCard key={expense.id}
         label={`${expense.description} ${formatMoney(expense.amount)} บาท · ${expense.claimId ? 'เปิดชุดเบิก' : 'เปิดรายการค่าใช้จ่าย'}`}
         onPress={() => router.push(expense.claimId ? `/expenses/claim/${expense.claimId}` : '/expenses')}>
@@ -181,15 +202,25 @@ export default function OwnerFinanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: TOUCH, padding: spacing.md,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.card },
+  // Matches Card (raised surface, 12 radius, sm shadow).
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: TOUCH, paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.card, ...shadow.sm },
   rowBody: { flex: 1, minWidth: 0, gap: spacing.xs },
-  rowTitle: { fontWeight: '700', fontSize: 16, color: colors.ink },
+  rowTitle: { fontWeight: '700', fontSize: 16, lineHeight: 24, color: colors.ink, fontVariant: ['tabular-nums'] },
   rowMeta: { color: colors.muted, fontSize: 14, lineHeight: 22 },
   groupHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: TOUCH },
   note: { color: colors.muted, fontSize: 13, lineHeight: 20 },
+  // The receivable total leads the view: muted overline, then the big number.
+  hero: { marginTop: spacing.md, gap: 2 },
+  heroLabel: { ...typeScale.overline, color: colors.muted },
+  heroValue: { ...typeScale.stat, color: colors.ink, fontVariant: ['tabular-nums'] },
+  segTrack: { flexDirection: 'row', padding: spacing.xs, gap: spacing.xs, borderRadius: radius.md + spacing.xs, backgroundColor: colors.sunken },
+  segItem: { flex: 1, minHeight: TOUCH, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
+  segItemOn: { backgroundColor: colors.raised, ...shadow.sm },
+  segText: { fontSize: 14, fontWeight: '600', color: colors.muted, textAlign: 'center' },
+  segTextOn: { color: colors.ink, fontWeight: '700' },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.line,
-    borderRadius: radius.button, backgroundColor: colors.surface },
+    borderRadius: radius.button, backgroundColor: colors.surface, ...shadow.sm },
   stepperButton: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center', borderRadius: radius.button },
   stepperLabel: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.bold, color: colors.ink },
 });

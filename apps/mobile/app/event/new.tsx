@@ -10,13 +10,14 @@ import { api } from '@/api/client';
 import { useCreateEvent, useEvent, useCase, useCourts, useLeaves, useMembers } from '@/api/hooks';
 import { Dropdown } from '@/components/Dropdown';
 import { TeamFields } from '@/components/TeamFields';
-import { CheckRow, FieldError, FieldLabel, FormField, FormPage, FormSection, MissingSummary, fieldA11yLabel } from '@/components/Form';
+import { CheckRow, FieldLabel, FormPage, FormSection, MissingSummary, fieldA11yLabel } from '@/components/Form';
+import { TextField } from '@/components/Input';
 import { CasePicker, CaseRef } from '@/components/CasePicker';
 import { DatePicker } from '@/components/DatePicker';
-import { Button, Card, ErrorNote, Loading } from '@/components/ui';
+import { Button, Card, ErrorState, InlineError, LoadingState } from '@/components/ui';
 import { bangkokDay, thDate, thTime } from '@/format';
 import { leaveFlagsForDate, leaveWarning } from '@/lib/leave-flags';
-import { CHROME_MAX_SCALE, colors, radius, spacing } from '@/theme';
+import { CHROME_MAX_SCALE, colors, radius, shadow, spacing, typeScale } from '@/theme';
 
 // Same options as the web's event-type <select> (CalendarEventDialog).
 const EVENT_TYPES = [
@@ -150,8 +151,8 @@ export default function NewEventScreen() {
     finally { setBusy(false); }
   };
 
-  if (id && current.isLoading) return <Loading label="กำลังโหลดนัดหมาย…" />;
-  if (id && (current.isError || !current.data)) return <ErrorNote message="โหลดนัดไม่สำเร็จ" onRetry={() => current.refetch()} />;
+  if (id && current.isLoading) return <LoadingState label="กำลังโหลดนัดหมาย…" />;
+  if (id && (current.isError || !current.data)) return <View style={styles.statePage}><ErrorState message="โหลดนัดไม่สำเร็จ" onRetry={() => current.refetch()} /></View>;
 
   const courtOptions = [...(courtName && !courts.data?.some(item => item.name === courtName) ? [{ value: courtName, label: courtName }] : []),
     ...(courts.data ?? []).map(item => ({ value: item.name, label: item.name }))];
@@ -167,7 +168,7 @@ export default function NewEventScreen() {
             <Text style={{ color: colors.text }}>{caseRef?.label}</Text>
           </View> : <CasePicker label="คดี" required error={shown('case')} value={caseRef} onChange={setCaseRef} disabled={busy} />}
 
-          <FormField label="ชื่อนัดหมาย" required error={shown('title')} placeholder="เช่น นัดสืบพยานโจทก์"
+          <TextField label="ชื่อนัดหมาย" required error={shown('title')} placeholder="เช่น นัดสืบพยานโจทก์"
             value={title} onChange={setTitle} disabled={busy} />
 
           <Dropdown inline label="ประเภท" fieldLabel="ประเภท" value={type} options={EVENT_TYPES} onChange={setType} disabled={busy} />
@@ -177,7 +178,7 @@ export default function NewEventScreen() {
               <Dropdown label="เลือกศาล" fieldLabel="ศาล" required error={shown('court')} value={courtName} onChange={setCourtName}
                 placeholder={courts.isLoading ? 'กำลังโหลดรายชื่อศาล…' : 'เลือกศาล'} disabled={busy || courts.isLoading}
                 options={courtOptions} />
-              {courts.isError && <ErrorNote message="โหลดรายชื่อศาลไม่สำเร็จ" onRetry={() => courts.refetch()} />}
+              {courts.isError && <InlineError message="โหลดรายชื่อศาลไม่สำเร็จ" onRetry={() => courts.refetch()} />}
               <Dropdown label="ชนิดนัดศาล" fieldLabel="ชนิดนัด · ถ้ามี" value={courtEventKind} onChange={value => setCourtEventKind(value as CourtEventKind | '')} disabled={busy}
                 options={[{ value: '', label: 'ไม่ระบุ' }, ...Object.values(CourtEventKind).map(kind => ({ value: kind, label: COURT_EVENT_KIND_LABELS[kind] }))]} />
             </>
@@ -202,30 +203,30 @@ export default function NewEventScreen() {
               <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.chipText, customTime && styles.chipTextOn]}>เวลาอื่น</Text>
             </Pressable>
           </View>
-          {customTime ? <FormField label="ระบุเวลา" hint="ชั่วโมง:นาที แบบ 24 ชั่วโมง เช่น 15:30" placeholder="00:00" keyboardType="numbers-and-punctuation"
+          {customTime ? <TextField label="ระบุเวลา" hint="ชั่วโมง:นาที แบบ 24 ชั่วโมง เช่น 15:30" placeholder="00:00" keyboardType="numbers-and-punctuation"
             maxLength={5} value={time} onChange={setTime} error={shown('time')} disabled={busy} autoFocus />
-            : <FieldError message={shown('time')} />}
+            : <InlineError message={shown('time')} />}
 
           {/* Rescheduling: the reason sits with the new date and time it explains. */}
-          {moving && <FormField label="เหตุผลการเลื่อนนัด" required error={shown('reason')} value={reason} onChange={setReason} disabled={busy} />}
+          {moving && <TextField label="เหตุผลการเลื่อนนัด" required error={shown('reason')} value={reason} onChange={setReason} disabled={busy} />}
           </FormSection>
           <FormSection title="ทีมที่ไปด้วย" detail="เลือกคนหลักและผู้ร่วม ตรวจวันลาก่อนยืนยันนัด">
           <TeamFields ids={ids} onChange={setIds} primaryLabel="คนหลัก" secondaryLabel="คนที่ไปด้วย" disabled={busy}
             required error={shown('team')} />
-          {leaves.isError && <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
+          {leaves.isError && <InlineError message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
           {warnings.length > 0 && <View accessibilityRole="alert" style={styles.leaveBox}>
             <Text style={{ color: colors.warn, fontWeight: '700' }}>มีวันลาตรงกับนัด</Text>
             {warnings.map(line => <Text key={line} style={{ color: colors.warn }}>{line}</Text>)}
             <CheckRow label="ตรวจแล้ว · ยืนยันบันทึกทีมนี้" checked={leaveAck} onChange={setLeaveAck} disabled={busy} />
-            <FieldError message={shown('leave')} />
+            <InlineError message={shown('leave')} />
           </View>}
           </FormSection>
-          {preview && <Card style={{ marginTop: spacing.md, gap: spacing.xs }}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>ตรวจผลกระทบก่อนยืนยันเลื่อนนัด</Text>
-            <Text style={{ color: colors.text }}>เดิม {thDate(preview.oldAt)} {thTime(preview.oldAt)}</Text>
-            <Text style={{ color: colors.text }}>ใหม่ {thDate(preview.newAt)} {thTime(preview.newAt)}</Text>
+          {preview && <Card style={{ marginTop: spacing.md, gap: spacing.xs, borderTopWidth: 3, borderTopColor: colors.ink }}>
+            <Text accessibilityRole="header" style={{ ...typeScale.section, color: colors.ink, marginBottom: spacing.xs }}>ตรวจผลกระทบก่อนยืนยันเลื่อนนัด</Text>
+            <Text style={{ color: colors.muted }}>เดิม {thDate(preview.oldAt)} {thTime(preview.oldAt)}</Text>
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>ใหม่ {thDate(preview.newAt)} {thTime(preview.newAt)}</Text>
             {!preview.impacts.length && <Text style={{ color: colors.muted }}>ไม่มีงานหรือกำหนดที่ผูกกับนัดนี้</Text>}
-            {preview.impacts.map(item => <View key={item.id} style={{ marginTop: spacing.sm }}>
+            {preview.impacts.map(item => <View key={item.id} style={styles.impactRow}>
               <Text style={{ color: colors.text }}>{item.title}</Text>
               <Text style={{ color: colors.muted }}>{thDate(item.oldAt)} → {item.newAt ? thDate(item.newAt) : 'ต้องตรวจเพิ่มเติม'}</Text>
             </View>)}
@@ -233,7 +234,7 @@ export default function NewEventScreen() {
           </Card>}
           <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
             <MissingSummary items={missing} />
-            <FieldError message={saveError} />
+            <InlineError message={saveError || undefined} />
             <Button title={preview ? 'ยืนยันเลื่อนนัดและบันทึก' : moving ? 'ตรวจผลกระทบการเลื่อนนัด' : 'บันทึกนัดหมาย'} onPress={() => void submit()} busy={busy} />
           </View>
         </FormPage>
@@ -250,13 +251,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.button,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.raised,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
-  chipOn: { backgroundColor: colors.soft, borderColor: colors.ink },
-  chipText: { fontSize: 13, color: colors.muted, fontWeight: '600' },
-  chipTextOn: { color: colors.ink },
-  leaveBox: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.card, borderWidth: 1, borderColor: colors.warn, backgroundColor: colors.warnSoft },
+  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink, ...shadow.sm },
+  chipText: { fontSize: 14, color: colors.ink, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  chipTextOn: { color: colors.bg },
+  leaveBox: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, borderLeftWidth: 3, borderLeftColor: colors.warn, backgroundColor: colors.warnSoft },
+  impactRow: { marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
+  statePage: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg },
 });

@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Text } from '@/components/AppText';
-import { FormField, FormPage, FormSection } from '@/components/Form';
-import { Button, ErrorNote } from '@/components/ui';
+import { FormPage, FormSection } from '@/components/Form';
+import { TextField } from '@/components/Input';
+import { Button, InlineError } from '@/components/ui';
 import { api, ApiError } from '@/api/client';
-import { colors, fonts, spacing } from '@/theme';
+import { colors, spacing, typeScale } from '@/theme';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -33,21 +34,21 @@ export default function ForgotPasswordScreen() {
   };
   const backToLogin = () => router.replace('/(auth)/login');
   return <FormPage><View style={{ gap: spacing.md, marginTop: spacing.xl }}>
-    <Text accessibilityRole="header" style={{ fontSize: 26, lineHeight: 38, fontFamily: fonts.bold, color: colors.ink }}>ลืมรหัสผ่าน</Text>
+    <Text accessibilityRole="header" style={{ ...typeScale.display, color: colors.ink }}>ลืมรหัสผ่าน</Text>
     <FormSection title={sent ? 'ตรวจอีเมลของคุณ' : 'ขอลิงก์ตั้งรหัสผ่านใหม่'}>
       {sent ? <>
         <Text accessibilityLiveRegion="polite" style={{ color: colors.text, lineHeight: 24 }}>
           ส่งลิงก์ไปที่ {email.trim()} แล้ว (ถ้ามีบัญชี) ตรวจกล่องจดหมายและสแปม แล้วกลับมาเข้าสู่ระบบด้วยรหัสใหม่
         </Text>
-        {error && <ErrorNote message={error} />}
+        {error && <InlineError message={error} />}
         <Button title="กลับไปเข้าสู่ระบบ" onPress={backToLogin} />
         <Button title="ส่งลิงก์อีกครั้ง" variant="link" busy={busy} onPress={submit} />
       </> : <>
-        <FormField label="อีเมลที่ใช้สมัคร" required value={email} onChange={setEmail} disabled={busy}
+        <TextField label="อีเมลที่ใช้สมัคร" required value={email} onChange={setEmail} disabled={busy}
           error={tried ? emailError : undefined} placeholder="name@firm.co.th"
           keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress"
           returnKeyType="send" onSubmitEditing={submit} />
-        {error && <ErrorNote message={error} />}
+        {error && <InlineError message={error} />}
         <Button title="ส่งลิงก์ตั้งรหัสผ่านใหม่" onPress={submit} busy={busy} />
       </>}
     </FormSection>

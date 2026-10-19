@@ -24,9 +24,9 @@ import {
 import type { AppNotification } from '@/api/types';
 import { actionAppRoute } from '@/workflow';
 import { CATEGORY_META } from '@/notification-categories';
-import { Card, EmptyNote, ErrorNote, FilterTabs, Loading, Tag, TagTone } from '@/components/ui';
+import { Card, EmptyState, ErrorState, FilterTabs, InlineError, LoadingState, Tag, TagTone } from '@/components/ui';
 import { thDate, timeAgo } from '@/format';
-import { CHROME_MAX_SCALE, colors, spacing, pageContent, TOUCH } from '@/theme';
+import { CHROME_MAX_SCALE, colors, radius, spacing, pageContent, TOUCH } from '@/theme';
 
 type IconType = React.ComponentType<{ size?: number; color?: string }>;
 
@@ -84,9 +84,9 @@ function InboxList() {
   const markRead = useMarkNotificationRead();
   const items = inbox.data?.pages.flatMap((page) => page.items) ?? [];
 
-  if (inbox.isLoading) return <Loading label="กำลังโหลดการแจ้งเตือน…" />;
+  if (inbox.isLoading) return <LoadingState label="กำลังโหลดการแจ้งเตือน…" />;
   if (inbox.isError && !items.length) {
-    return <View style={{ padding: spacing.lg }}><ErrorNote message="โหลดการแจ้งเตือนไม่สำเร็จ" onRetry={() => inbox.refetch()} /></View>;
+    return <View style={{ padding: spacing.lg }}><ErrorState message="โหลดการแจ้งเตือนไม่สำเร็จ" onRetry={() => inbox.refetch()} /></View>;
   }
 
   const open = (item: AppNotification) => {
@@ -103,17 +103,19 @@ function InboxList() {
       onRefresh={() => inbox.refetch()}
       onEndReachedThreshold={0.4}
       onEndReached={() => { if (inbox.hasNextPage && !inbox.isFetchingNextPage) inbox.fetchNextPage(); }}
-      ListFooterComponent={inbox.isFetchingNextPage ? <Loading label="กำลังโหลดเพิ่ม…" /> : null}
-      ListHeaderComponent={inbox.isError ? <ErrorNote message="รายการอาจยังไม่ล่าสุด" onRetry={() => inbox.refetch()} /> : null}
-      ListEmptyComponent={<EmptyNote>ยังไม่มีการแจ้งเตือน · งานที่ได้รับมอบหมาย นัดหมาย และข้อความจากลูกความจะมาอยู่ที่นี่</EmptyNote>}
+      ListFooterComponent={inbox.isFetchingNextPage ? <LoadingState inline label="กำลังโหลดเพิ่ม…" /> : null}
+      ListHeaderComponent={inbox.isError ? <InlineError style={{ marginBottom: spacing.md }} message="รายการอาจยังไม่ล่าสุด" onRetry={() => inbox.refetch()} /> : null}
+      ListEmptyComponent={<EmptyState icon={BellRing}>ยังไม่มีการแจ้งเตือน · งานที่ได้รับมอบหมาย นัดหมาย และข้อความจากลูกความจะมาอยู่ที่นี่</EmptyState>}
       renderItem={({ item }) => {
         const meta = CATEGORY_META[item.category] ?? { label: '', Icon: Inbox };
         const unreadRow = !item.readAt;
         // Only a notification with somewhere to go gets a chevron; others just mark themselves read.
         const linked = !!item.appPath;
-        const body = <Card style={unreadRow ? [styles.inboxCard, styles.unreadCard] : styles.inboxCard}>
+        const body = <Card flat={!unreadRow} style={unreadRow ? [styles.inboxCard, styles.unreadCard] : styles.inboxCard}>
           <View style={styles.row}>
-            <meta.Icon size={17} color={unreadRow ? colors.info : colors.muted} />
+            <View style={[styles.iconTile, unreadRow && { backgroundColor: colors.infoSoft }]}>
+              <meta.Icon size={18} color={unreadRow ? colors.info : colors.muted} />
+            </View>
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
               <Text style={[styles.title, !unreadRow && { fontWeight: '400', color: colors.muted }]} numberOfLines={2}>
                 {item.title}
@@ -158,11 +160,11 @@ function PendingList({ items }: { items: ActionItem[] }) {
   const actions = useActions();
   const reviews = useTodos('review');
 
-  if (actions.isLoading) return <Loading label="กำลังโหลดเรื่องรอจัดการ…" />;
+  if (actions.isLoading) return <LoadingState label="กำลังโหลดเรื่องรอจัดการ…" />;
 
   return actions.isError ? (
     <View style={{ padding: spacing.lg }}>
-      <ErrorNote message="โหลดรายการรอจัดการไม่สำเร็จ" onRetry={() => actions.refetch()} />
+      <ErrorState message="โหลดรายการรอจัดการไม่สำเร็จ" onRetry={() => actions.refetch()} />
     </View>
   ) : (
     <FlatList
@@ -172,16 +174,16 @@ function PendingList({ items }: { items: ActionItem[] }) {
       refreshing={actions.isRefetching || reviews.isRefetching}
       onRefresh={() => { actions.refetch(); reviews.refetch(); }}
       ListHeaderComponent={reviews.isError
-        ? <ErrorNote message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />
-        : actions.data?.limited ? <Text style={styles.detail}>แสดงรายการบางส่วน · เปิดคดีเพื่อดูรายการทั้งหมด</Text> : null}
+        ? <InlineError style={{ marginBottom: spacing.md }} message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />
+        : actions.data?.limited ? <Text style={[styles.detail, { marginBottom: spacing.sm }]}>แสดงรายการบางส่วน · เปิดคดีเพื่อดูรายการทั้งหมด</Text> : null}
       renderItem={({ item }) => {
         const meta = KIND_META[item.kind] ?? { label: item.kind, tone: 'plain' as TagTone, Icon: Inbox };
         const route = actionAppRoute(item);
         const metaLine = [item.caseRef, item.owner, item.dueAt ? thDate(item.dueAt) : null].filter(Boolean).join(' · ');
         const body = <Card style={{ marginBottom: spacing.md }}>
           <View style={styles.row}>
-            <meta.Icon size={17} color={colors.muted} />
-            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <View style={styles.iconTile}><meta.Icon size={18} color={colors.ink} /></View>
+            <View style={{ flex: 1, minWidth: 0, gap: spacing.xs }}>
               <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
               <Tag tone={meta.tone}>{meta.label}</Tag>
               {item.detail ? <Text style={styles.detail} numberOfLines={2}>{item.detail}</Text> : null}
@@ -203,7 +205,7 @@ function PendingList({ items }: { items: ActionItem[] }) {
           </Pressable>
         );
       }}
-      ListEmptyComponent={reviews.isLoading ? <Loading label="กำลังโหลดงานรอตรวจ…" /> : !reviews.isError ? <EmptyNote>ไม่มีเรื่องรอจัดการ</EmptyNote> : null}
+      ListEmptyComponent={reviews.isLoading ? <LoadingState label="กำลังโหลดงานรอตรวจ…" /> : !reviews.isError ? <EmptyState>ไม่มีเรื่องรอจัดการ</EmptyState> : null}
     />
   );
 }
@@ -214,10 +216,12 @@ const styles = StyleSheet.create({
   headerAction: { minWidth: TOUCH, minHeight: TOUCH, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center' },
   tabs: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   row: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
-  inboxCard: { marginBottom: spacing.sm },
-  unreadCard: { borderColor: colors.info, backgroundColor: colors.surface },
-  dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.info, marginTop: 5 },
-  title: { color: colors.text, fontWeight: '600', fontSize: 14 },
-  detail: { color: colors.muted, fontSize: 12 },
-  meta: { color: colors.faint, fontSize: 12 },
+  iconTile: { width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  inboxCard: { marginBottom: spacing.sm, paddingVertical: spacing.md },
+  // Unread rows stay raised with an info edge; read rows sit flat so the new ones lead.
+  unreadCard: { borderColor: colors.info, borderLeftWidth: 3, backgroundColor: colors.raised },
+  dot: { width: 9, height: 9, borderRadius: radius.full, backgroundColor: colors.info, marginTop: 6 },
+  title: { color: colors.text, fontWeight: '600', fontSize: 15, lineHeight: 22 },
+  detail: { color: colors.muted, fontSize: 13, lineHeight: 20 },
+  meta: { color: colors.faint, fontSize: 12, lineHeight: 18 },
 });

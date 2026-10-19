@@ -23,8 +23,9 @@ export function WorkloadSummary({ candidate, onTask }: { candidate?: AssignmentC
     {counts.length > 0 && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
       {counts.map(([label, count, tone]) => <Tag key={label} tone={tone}>{`${label} ${count}`}</Tag>)}
     </View>}
-    {candidate.member.onLeave && <Text style={{ color: colors.warn }}>ลาวันที่เลือก · ตรวจเงื่อนไขก่อนมอบหมาย</Text>}
-    {candidate.queue.filter(t => t.latestUpdate || t.blocker || t.holdReason || t.blockedBy).sort((a, b) => Number(!!(b.blocker || b.holdReason || b.blockedBy)) - Number(!!(a.blocker || a.holdReason || a.blockedBy))).slice(0, 3).map(task => <View key={task.id} style={{ gap: 2 }}>
+    {candidate.member.onLeave && <Text style={{ color: colors.warn, fontSize: 14, fontWeight: '600' }}>ลาวันที่เลือก · ตรวจเงื่อนไขก่อนมอบหมาย</Text>}
+    {candidate.queue.filter(t => t.latestUpdate || t.blocker || t.holdReason || t.blockedBy).sort((a, b) => Number(!!(b.blocker || b.holdReason || b.blockedBy)) - Number(!!(a.blocker || a.holdReason || a.blockedBy))).slice(0, 3).map(task => <View key={task.id}
+      style={{ gap: 2, paddingLeft: spacing.md, borderLeftWidth: 2, borderLeftColor: task.blocker || task.holdReason || task.blockedBy ? colors.warn : colors.divider }}>
       {onTask ? <Button title={task.title} variant="link" onPress={() => onTask(task.id)} /> : <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>{task.title}</Text>}
       {task.latestUpdate && <Text style={{ color: colors.muted, fontSize: 13 }}>{task.latestUpdate.body}{'\n'}อัปเดต {thDate(task.latestUpdate.createdAt)} {thTime(task.latestUpdate.createdAt)} · {task.latestUpdate.authorName}</Text>}
       {(task.blocker || task.holdReason || task.blockedBy) && <Text style={{ color: colors.warn, fontSize: 13 }}>จุดติดขัดล่าสุด: {task.holdReason || task.blocker || `รอ ${task.blockedBy}`}</Text>}

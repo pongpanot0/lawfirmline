@@ -2,23 +2,25 @@ import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronRight, X } from 'lucide-react-native';
+import { AlertTriangle, ChevronRight, Users, X } from 'lucide-react-native';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useCalendarRange, useLeaves, useWorkload } from '@/api/hooks';
 import type { WorkloadMember } from '@/api/types';
 import {
   Button,
   Card,
-  EmptyNote,
-  ErrorNote,
-  Loading,
+  EmptyState,
+  ErrorState,
+  InlineError,
+  LoadingState,
   SectionLabel,
+  StatCard,
   Tag,
   TagTone,
 } from '@/components/ui';
 import { bangkokDay, initials } from '@/format';
 import { leaveFlagsForDate, LeaveFlag } from '@/lib/leave-flags';
-import { CHROME_MAX_SCALE, colors, radius, spacing, pageContent } from '@/theme';
+import { CHROME_MAX_SCALE, colors, fonts, radius, spacing, typeScale, pageContent } from '@/theme';
 import { useAuth } from '@/api/auth';
 
 /**
@@ -73,7 +75,7 @@ function MemberCard({ member, max, leave, todayEvents, onDetail, onTasks, onCale
       </View>}
       <View style={styles.actions}>
         {links.map(link => <Pressable key={link.label} accessibilityRole="link" accessibilityLabel={link.a11y}
-          style={({ pressed }) => [styles.action, pressed && { backgroundColor: colors.soft }]} onPress={link.onPress}>
+          style={({ pressed }) => [styles.action, pressed && { backgroundColor: colors.infoSoft }]} onPress={link.onPress}>
           <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.actionText}>{link.label}</Text>
         </Pressable>)}
       </View>
@@ -91,7 +93,7 @@ export default function TeamScreen() {
   const events = useCalendarRange(today, today);
   const flags = leaveFlagsForDate(leaves.data ?? [], today);
 
-  if (workload.isLoading) return <Loading label="กำลังโหลดภาระงานทีม…" />;
+  if (workload.isLoading) return <View style={styles.screen}><LoadingState label="กำลังโหลดภาระงานทีม…" /></View>;
 
   const data = workload.data;
   const max = Math.max(...(data?.members.map((m) => m.openTasks) ?? [0]), 1);
@@ -116,16 +118,23 @@ export default function TeamScreen() {
       }
     >
       {!data && workload.isError ? (
-        <ErrorNote message="โหลดภาระงานทีมไม่สำเร็จ" onRetry={() => workload.refetch()} />
+        <ErrorState message="โหลดภาระงานทีมไม่สำเร็จ" onRetry={() => workload.refetch()} />
       ) : failed.length > 0 ? (
-        <ErrorNote message="บางข้อมูลยังโหลดไม่ได้" onRetry={() => failed.forEach(query => void query.refetch())} />
+        <InlineError style={{ marginBottom: spacing.md }} message="บางข้อมูลยังโหลดไม่ได้" onRetry={() => failed.forEach(query => void query.refetch())} />
       ) : null}
 
       {data ? (
         <>
-          {!memberId && <View style={{ gap: spacing.xs }}>
-            <Text style={styles.summary}>{teamSummary}</Text>
-            {overloaded > 0 && <Text style={styles.overloaded}>{overloaded} คนมีงานเกินกำหนด · พิจารณาเกลี่ยงาน</Text>}
+          {/* Team totals lead as count tiles; an idle team reads as one plain sentence instead of zeros. */}
+          {!memberId && <View style={{ gap: spacing.sm }}>
+            {data.totals.openTasks > 0 ? <View style={styles.statRow}>
+              <StatCard label="งานเปิดทั้งทีม" value={data.totals.openTasks} />
+              <StatCard label="นัดศาล 7 วัน" value={data.totals.hearingsThisWeek} tone="court" hideZero />
+            </View> : <Text style={styles.summary}>{teamSummary}</Text>}
+            {overloaded > 0 && <View style={styles.overloadedRow}>
+              <AlertTriangle size={16} color={colors.warn} />
+              <Text style={styles.overloaded}>{overloaded} คนมีงานเกินกำหนด · พิจารณาเกลี่ยงาน</Text>
+            </View>}
           </View>}
 
           {!memberId && (hasFirmCapability(user?.firmRole, 'runOperations') || user?.firmRole === 'SENIOR_LAWYER') && <View style={{ marginTop: spacing.sm }}>
@@ -139,7 +148,7 @@ export default function TeamScreen() {
             <X size={16} color={colors.info} />
           </Pressable>}
           {members.length === 0 ? (
-            <EmptyNote>{memberId ? 'ไม่พบสมาชิกคนนี้ในทีม' : 'ยังไม่มีสมาชิกทีม'}</EmptyNote>
+            <EmptyState icon={Users}>{memberId ? 'ไม่พบสมาชิกคนนี้ในทีม' : 'ยังไม่มีสมาชิกทีม'}</EmptyState>
           ) : (
             members.map((member) => (
               <MemberCard key={member.id} member={member} max={max} leave={flags.get(member.id)}
@@ -159,36 +168,37 @@ export default function TeamScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  statRow: { flexDirection: 'row', gap: spacing.md },
+  overloadedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   avatar: {
-    backgroundColor: colors.soft,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    backgroundColor: colors.infoSoft,
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: colors.ink, fontWeight: '700', fontSize: 12 },
-  name: { flex: 1, fontWeight: '600', color: colors.text, fontSize: 15 },
+  avatarText: { color: colors.info, fontFamily: fonts.bold, fontSize: 14 },
+  name: { flex: 1, fontFamily: fonts.semibold, color: colors.ink, fontSize: 16, lineHeight: 24 },
   count: {
-    fontWeight: '700',
+    ...typeScale.title,
     color: colors.ink,
-    fontSize: 17,
     fontVariant: ['tabular-nums'],
   },
   progressTrack: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.soft,
-    marginTop: spacing.sm,
+    backgroundColor: colors.sunken,
+    marginTop: spacing.md,
     overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 3 },
-  detail: { color: colors.faint, fontSize: 12, marginTop: 2 },
-  countLabel: { color: colors.faint, fontSize: 11 },
+  detail: { ...typeScale.meta, color: colors.muted },
+  countLabel: { fontSize: 12, color: colors.muted },
   summary: { color: colors.muted, fontSize: 14, lineHeight: 22 },
-  overloaded: { color: colors.warn, fontSize: 14, lineHeight: 22, fontWeight: '600' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
-  action: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button },
+  overloaded: { flex: 1, color: colors.warn, fontSize: 14, lineHeight: 22, fontWeight: '600' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
+  action: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.button, backgroundColor: colors.surface },
   actionText: { color: colors.info, fontWeight: '600' },
   filter: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start' },
   filterText: { color: colors.info, fontWeight: '600' },

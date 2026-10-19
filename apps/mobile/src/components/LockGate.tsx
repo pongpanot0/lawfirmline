@@ -4,8 +4,9 @@ import { Text } from '@/components/AppText';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { LockKeyhole } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
-import { Button } from './ui';
-import { colors, fonts, spacing } from '@/theme';
+import { Button } from './Button';
+import { InlineError } from './States';
+import { colors, radius, shadow, spacing, typeScale } from '@/theme';
 
 /** Re-lock after this long in the background — a pocketed phone at court. */
 const RELOCK_AFTER_MS = 60 * 1000;
@@ -84,10 +85,10 @@ export function LockGate({ children }: { children: React.ReactNode }) {
   return (
     <View style={styles.screen}>
       <View style={styles.body}>
-        <LockKeyhole color={colors.ink} size={36} />
+        <View style={styles.iconTile}><LockKeyhole color={colors.ink} size={30} /></View>
         <Text accessibilityRole="header" style={styles.title}>Samnuan ถูกล็อกไว้</Text>
         <Text style={styles.detail}>ยืนยันตัวตนด้วยสแกนหรือรหัสเครื่องเพื่อกลับไปทำงานต่อ</Text>
-        {failed && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.failed}>ยืนยันตัวตนไม่สำเร็จ · แตะปลดล็อกเพื่อลองใหม่</Text>}
+        {failed && <InlineError style={styles.failed} message="ยืนยันตัวตนไม่สำเร็จ · แตะปลดล็อกเพื่อลองใหม่" />}
         <View style={styles.actions}>
           <Button title="ปลดล็อก" onPress={challenge} />
           <View style={{ alignItems: 'center' }}><Button title="ออกจากระบบและเข้าสู่ระบบใหม่" variant="link" onPress={logout} /></View>
@@ -106,8 +107,10 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   body: { width: '100%', maxWidth: 360, alignItems: 'center', gap: spacing.md },
-  title: { color: colors.ink, fontSize: 22, lineHeight: 32, fontFamily: fonts.bold, textAlign: 'center' },
-  detail: { color: colors.muted, fontSize: 14, lineHeight: 22, textAlign: 'center' },
-  failed: { color: colors.warn, fontSize: 14, textAlign: 'center' },
+  iconTile: { width: 64, height: 64, borderRadius: radius.xl, backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.line,
+    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs, ...shadow.sm },
+  title: { ...typeScale.display, color: colors.ink, textAlign: 'center' },
+  detail: { color: colors.muted, fontSize: 15, lineHeight: 24, textAlign: 'center' },
+  failed: { alignSelf: 'stretch' },
   actions: { alignSelf: 'stretch', gap: spacing.xs, marginTop: spacing.sm, alignItems: 'stretch' },
 });

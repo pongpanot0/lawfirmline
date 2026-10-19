@@ -1,9 +1,17 @@
 import React from 'react';
-import { Pressable } from 'react-native';
+import { ColorValue, Pressable, View } from 'react-native';
 import { router, Tabs } from 'expo-router';
-import { CalendarDays, Plus, Scale, SquareCheckBig, Sun, Users } from 'lucide-react-native';
-import { CHROME_MAX_SCALE, colors, fonts, spacing, TOUCH } from '@/theme';
+import { CalendarDays, LucideIcon, Plus, Scale, SquareCheckBig, Sun, Users } from 'lucide-react-native';
+import { CHROME_MAX_SCALE, colors, fonts, radius, shadow, spacing, TOUCH } from '@/theme';
 import { Text, useDisplayPreferences } from '@/components/AppText';
+
+/** The selected tab sits on a tinted pill with a heavier stroke, so the state reads without relying on colour alone. */
+function TabIcon({ Icon, color, size, focused }: { Icon: LucideIcon; color: ColorValue; size: number; focused: boolean }) {
+  return <View style={{ width: 56, height: 30, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: focused ? colors.infoSoft : 'transparent' }}>
+    <Icon color={color as string} size={Math.min(size, 24)} strokeWidth={focused ? 2.4 : 1.8} />
+  </View>;
+}
 
 export default function TabsLayout() {
   const { scale } = useDisplayPreferences();
@@ -19,9 +27,8 @@ export default function TabsLayout() {
         tabBarAllowFontScaling: false,
         tabBarLabelStyle: { fontSize: 11 * Math.min(scale, CHROME_MAX_SCALE), fontWeight: '600' },
         tabBarActiveTintColor: colors.ink,
-        tabBarActiveBackgroundColor: colors.soft,
         tabBarInactiveTintColor: colors.faint,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, elevation: 0 },
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, elevation: 0, ...shadow.md },
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
@@ -29,14 +36,14 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'วันนี้',
-          tabBarIcon: ({ color, size }) => <Sun color={color} size={size} />,
+          tabBarIcon: props => <TabIcon Icon={Sun} {...props} />,
         }}
       />
       <Tabs.Screen
         name="cases"
         options={{
           title: 'คดี',
-          tabBarIcon: ({ color, size }) => <Scale color={color} size={size} />,
+          tabBarIcon: props => <TabIcon Icon={Scale} {...props} />,
           // The list's only create action lives in the header, so search sits directly above the cases.
           headerRight: () => (
             <Pressable accessibilityRole="button" accessibilityLabel="รับเคสใหม่" onPress={() => router.push('/case/new')}
@@ -52,21 +59,21 @@ export default function TabsLayout() {
         name="calendar"
         options={{
           title: 'ปฏิทิน',
-          tabBarIcon: ({ color, size }) => <CalendarDays color={color} size={size} />,
+          tabBarIcon: props => <TabIcon Icon={CalendarDays} {...props} />,
         }}
       />
       <Tabs.Screen
         name="tasks"
         options={{
           title: 'งาน',
-          tabBarIcon: ({ color, size }) => <SquareCheckBig color={color} size={size} />,
+          tabBarIcon: props => <TabIcon Icon={SquareCheckBig} {...props} />,
         }}
       />
       <Tabs.Screen
         name="team"
         options={{
           title: 'ทีม',
-          tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
+          tabBarIcon: props => <TabIcon Icon={Users} {...props} />,
         }}
       />
     </Tabs>

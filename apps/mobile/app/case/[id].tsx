@@ -20,16 +20,16 @@ import { CaseEmailTab } from '@/components/CaseEmailTab';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
   Card,
-  EmptyNote,
-  ErrorNote,
-  Loading,
+  EmptyState,
+  ErrorState,
+  LoadingState,
   Button,
   Tag,
   TagTone,
   TASK_STATUS_LABEL,
 } from '@/components/ui';
 import { formatMoney, thDate, thTime } from '@/format';
-import { CHROME_MAX_SCALE, colors, fonts, radius, spacing, pageContent, TOUCH } from '@/theme';
+import { CHROME_MAX_SCALE, colors, radius, shadow, spacing, pageContent, TOUCH, typeScale } from '@/theme';
 
 const TABS = ['ภาพรวม', 'นัดหมาย', 'งาน', 'เอกสาร', 'อีเมล'] as const;
 type TabName = (typeof TABS)[number];
@@ -62,15 +62,16 @@ interface DocumentItem {
   updatedAt?: string;
 }
 
-function InfoRow({ label, value, onPress }: { label: string; value: string | null | undefined; onPress?: () => void }) {
+/** Label/value row; every row after the first sits under a divider hairline. */
+function InfoRow({ label, value, onPress, first = false }: { label: string; value: string | null | undefined; onPress?: () => void; first?: boolean }) {
   if (onPress && value) return <Pressable accessibilityRole="button" accessibilityLabel={`${label} ${value}`} accessibilityHint="เปิดรายละเอียด" onPress={onPress}
-    style={({ pressed }) => [styles.infoRow, { minHeight: TOUCH, alignItems: 'center' }, pressed && { opacity: 0.6 }]}>
+    style={({ pressed }) => [styles.infoRow, !first && styles.infoRowRule, { minHeight: TOUCH, alignItems: 'center' }, pressed && { opacity: 0.6 }]}>
     <Text style={styles.infoLabel}>{label}</Text>
-    <Text style={[styles.infoValue, { color: colors.info }]}>{value}</Text>
+    <Text style={[styles.infoValue, { color: colors.info, fontWeight: '600' }]}>{value}</Text>
     <ChevronRight size={16} color={colors.info} />
   </Pressable>;
   return (
-    <View style={styles.infoRow}>
+    <View style={[styles.infoRow, !first && styles.infoRowRule]}>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>
         {value || '—'}
@@ -107,11 +108,11 @@ export default function CaseDetailScreen() {
     enabled: !!id && tab === 'เอกสาร',
   });
 
-  if (caseQuery.isLoading) return <Loading label="กำลังโหลดคดี…" />;
+  if (caseQuery.isLoading) return <View style={styles.screen}><LoadingState label="กำลังโหลดคดี…" /></View>;
   if (caseQuery.isError || !caseQuery.data)
     return (
       <View style={[styles.screen, { padding: spacing.lg }]}>
-        <ErrorNote message="โหลดข้อมูลคดีไม่สำเร็จ" onRetry={() => caseQuery.refetch()} />
+        <ErrorState message="โหลดข้อมูลคดีไม่สำเร็จ" onRetry={() => caseQuery.refetch()} />
       </View>
     );
 
@@ -142,10 +143,12 @@ export default function CaseDetailScreen() {
           />
         }
       >
-        <Text accessibilityRole="header" style={styles.caseTitle}>{detail.title}</Text>
-        <View style={styles.meta}>
-          <Text style={styles.metaText}>{detail.ownRef}</Text>
-          <Tag tone={status.tone}>{status.label}</Tag>
+        <View style={styles.header}>
+          <Text accessibilityRole="header" style={styles.caseTitle}>{detail.title}</Text>
+          <View style={styles.meta}>
+            <Text style={styles.metaText}>{detail.ownRef}</Text>
+            <Tag tone={status.tone}>{status.label}</Tag>
+          </View>
         </View>
         <View accessibilityRole="tablist" style={styles.segment}>
           {TABS.map((name) => (
@@ -153,7 +156,7 @@ export default function CaseDetailScreen() {
               key={name}
               accessibilityRole="tab"
               accessibilityState={{ selected: tab === name }}
-              style={[styles.segmentItem, tab === name && styles.segmentItemOn]}
+              style={({ pressed }) => [styles.segmentItem, tab === name ? styles.segmentItemOn : pressed && { backgroundColor: colors.soft }]}
               onPress={() => setTab(name)}
             >
               <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.segmentText, tab === name && styles.segmentTextOn]}>
@@ -167,6 +170,7 @@ export default function CaseDetailScreen() {
           <>
           <Card>
             <InfoRow
+              first
               label="คนหลัก"
               onPress={detail.leadLawyer?.id ? () => router.push({ pathname: '/person/[id]', params: { id: detail.leadLawyer!.id } }) : undefined}
               value={
@@ -201,25 +205,25 @@ export default function CaseDetailScreen() {
             {detail.description ? (
               <>
                 <View style={styles.divider} />
-                <Text style={{ color: colors.text, fontSize: 14, lineHeight: 22 }}>
+                <Text style={styles.description}>
                   {detail.description}
                 </Text>
               </>
             ) : null}
           </Card>
           <Card style={{ marginTop: spacing.md }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={styles.cardHead}>
               <Text accessibilityRole="header" style={styles.cardTitle}>คู่ความ</Text>
               <Button title="เพิ่มคู่ความ" variant="link" onPress={() => router.push(`/case/${id}/party`)} />
             </View>
             {(detail.participants ?? []).length === 0
-              ? <EmptyNote>ยังไม่มีคู่ความ</EmptyNote>
-              : groupParticipantsBySide(detail.participants ?? []).map(group => <View key={group.side} style={{ marginTop: spacing.sm }}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>{group.label}</Text>
-                  {group.items.map(p => {
+              ? <EmptyState compact>ยังไม่มีคู่ความ</EmptyState>
+              : groupParticipantsBySide(detail.participants ?? []).map(group => <View key={group.side} style={{ marginTop: spacing.md }}>
+                  <Text style={styles.groupLabel}>{group.label}</Text>
+                  {group.items.map((p, index) => {
                     const role = PARTICIPANT_ROLE_LABELS[p.role as ParticipantRole] ?? p.role;
                     return <Pressable key={p.id} accessibilityRole="button" accessibilityLabel={`${p.name} · ${role}`} accessibilityHint="แก้ไขคู่ความ"
-                      style={({ pressed }) => [styles.partyRow, pressed && { backgroundColor: colors.soft }]}
+                      style={({ pressed }) => [styles.partyRow, index > 0 && styles.infoRowRule, pressed && { backgroundColor: colors.soft }]}
                       onPress={() => router.push(`/case/${id}/party?participantId=${p.id}`)}>
                       <Text style={{ flex: 1, color: colors.text, fontSize: 15 }}>{p.name} · {role}</Text>
                       <ChevronRight size={16} color={colors.faint} />
@@ -233,19 +237,18 @@ export default function CaseDetailScreen() {
         {/* 404 means the case has no insurance claim; only a real failure is shown. */}
         {tab === 'ภาพรวม' && insurance.isError && !(insurance.error instanceof ApiError && insurance.error.status === 404) ? (
           <View style={{ marginTop: spacing.md }}>
-            <ErrorNote message="โหลดข้อมูลสินไหมประกันภัยไม่ได้" onRetry={() => insurance.refetch()} />
+            <ErrorState message="โหลดข้อมูลสินไหมประกันภัยไม่ได้" onRetry={() => insurance.refetch()} />
           </View>
         ) : null}
         {tab === 'ภาพรวม' && insurance.data ? (
           <Card style={{ marginTop: spacing.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <ShieldCheck size={16} color={colors.accentInk} />
-              <Text style={[styles.rowStrong, { flex: 1 }]}>สินไหมประกันภัย</Text>
+            <View style={[styles.cardHead, { gap: spacing.sm, paddingBottom: spacing.sm }]}>
+              <View style={styles.iconTile}><ShieldCheck size={18} color={colors.accentInk} /></View>
+              <Text accessibilityRole="header" style={[styles.cardTitle, { flex: 1 }]}>สินไหมประกันภัย</Text>
               <Tag tone="court">
                 {INSURANCE_STAGE_LABEL[insurance.data.stage] ?? insurance.data.stage}
               </Tag>
             </View>
-            <View style={styles.divider} />
             <InfoRow label="บริษัทประกัน" value={insurance.data.insurerName} />
             <InfoRow label="เลขเคลม" value={insurance.data.claimNumber} />
             <InfoRow label="เลขกรมธรรม์" value={insurance.data.policyNumber} />
@@ -271,21 +274,21 @@ export default function CaseDetailScreen() {
           <>
             <Button title="เพิ่มนัดหมาย" onPress={() => router.push(`/event/new?caseId=${id}`)} />
             {events.isLoading ? (
-              <Loading label="กำลังโหลดนัดหมาย…" />
+              <LoadingState label="กำลังโหลดนัดหมาย…" />
             ) : events.isError ? (
               <View style={{ marginTop: spacing.md }}>
-                <ErrorNote message="โหลดนัดหมายของคดีไม่ได้" onRetry={() => events.refetch()} />
+                <ErrorState message="โหลดนัดหมายของคดีไม่ได้" onRetry={() => events.refetch()} />
               </View>
             ) : (events.data?.length ?? 0) === 0 ? (
-              <EmptyNote>คดีนี้ยังไม่มีนัดหมาย</EmptyNote>
+              <EmptyState compact>คดีนี้ยังไม่มีนัดหมาย</EmptyState>
             ) : (
-              <Card style={{ marginTop: spacing.md }}>
+              <Card style={{ marginTop: spacing.md, paddingVertical: spacing.sm }}>
                 {events.data!.map((event, index) => {
                   const court = event.type === 'COURT_DATE';
                   const others = event.assignees?.filter((person) => person.userId !== event.assigneeId).length ?? 0;
                   const body = <>
-                    <View style={{ width: 74 }}>
-                      <Text style={styles.rowStrong}>{thDate(event.startAt)}</Text>
+                    <View style={[styles.dateTile, court && styles.dateTileCourt]}>
+                      <Text style={[styles.rowStrong, court && { color: colors.accentInk }]}>{thDate(event.startAt)}</Text>
                       <Text style={styles.rowFaint}>{thTime(event.startAt)}</Text>
                     </View>
                     <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -307,7 +310,7 @@ export default function CaseDetailScreen() {
                             onPress={() => router.push(`/court-day/${event.id}`)}>{body}</Pressable>
                         : <View style={styles.listRow}>{body}</View>}
                       <Pressable accessibilityRole="button" accessibilityLabel={`ทีมที่ไปด้วย ${event.title}`}
-                        onPress={() => router.push(`/event/${event.id}/team`)} style={{ minHeight: 44, justifyContent: 'center', paddingLeft: 86 }}>
+                        onPress={() => router.push(`/event/${event.id}/team`)} style={{ minHeight: 44, justifyContent: 'center', paddingLeft: 84 + spacing.md }}>
                         <Text style={{ color: colors.info }}>ทีมที่ไปด้วย ›</Text>
                       </Pressable>
                     </View>
@@ -322,15 +325,15 @@ export default function CaseDetailScreen() {
           <>
             <Button title="เพิ่มงาน" onPress={() => router.push(`/task/new?caseId=${id}`)} />
             {tasks.isLoading ? (
-              <Loading label="กำลังโหลดงาน…" />
+              <LoadingState label="กำลังโหลดงาน…" />
             ) : tasks.isError ? (
               <View style={{ marginTop: spacing.md }}>
-                <ErrorNote message="โหลดงานของคดีไม่ได้" onRetry={() => tasks.refetch()} />
+                <ErrorState message="โหลดงานของคดีไม่ได้" onRetry={() => tasks.refetch()} />
               </View>
             ) : (tasks.data?.length ?? 0) === 0 ? (
-              <EmptyNote>คดีนี้ยังไม่มีงาน</EmptyNote>
+              <EmptyState compact>คดีนี้ยังไม่มีงาน</EmptyState>
             ) : (
-              <Card style={{ marginTop: spacing.md }}>
+              <Card style={{ marginTop: spacing.md, paddingVertical: spacing.sm }}>
                 {tasks.data!.map((task, index) => {
                   const done = task.status === 'DONE';
                   const canToggle = user ? canToggleTask({ ...task, caseId: id, case: caseRef }, user) : false;
@@ -389,7 +392,7 @@ export default function CaseDetailScreen() {
               accessibilityRole="button"
               accessibilityLabel="แนบเอกสาร ถ่ายรูปหรือเลือกไฟล์"
               onPress={() => router.push(`/scan/${id}`)}
-              style={({ pressed }) => [styles.scanButton, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [styles.scanButton, pressed && { backgroundColor: colors.inkPressed, ...shadow.none }]}
             >
               <Camera size={18} color={colors.bg} />
               <Text style={styles.scanText}>แนบเอกสาร · ถ่ายรูปหรือเลือกไฟล์</Text>
@@ -404,13 +407,14 @@ export default function CaseDetailScreen() {
                 <Text style={styles.docLinkText}>รอเอกสารจากภายนอก ›</Text>
               </Pressable>
             </View>
-            {documents.isError && <ErrorNote message="โหลดรายการเอกสารล่าสุดไม่ได้ ลองโหลดอีกครั้ง" onRetry={() => documents.refetch()} />}
+            {/* A failed refresh keeps any list already loaded below the error; "ยังไม่มี…" only shows after a successful load. */}
+            {documents.isError && <ErrorState message="โหลดรายการเอกสารล่าสุดไม่ได้ ลองโหลดอีกครั้ง" onRetry={() => documents.refetch()} style={{ marginBottom: spacing.md }} />}
             {documents.isLoading ? (
-              <Loading label="กำลังโหลดเอกสาร…" />
-            ) : documents.isError && !documents.data ? null : (documents.data?.length ?? 0) === 0 ? (
-              <EmptyNote>ยังไม่มีเอกสารในคดีนี้ · กด “แนบเอกสาร” ด้านบนเพื่อเพิ่ม</EmptyNote>
+              <LoadingState label="กำลังโหลดเอกสาร…" />
+            ) : (documents.data?.length ?? 0) === 0 ? (
+              documents.isError ? null : <EmptyState compact>ยังไม่มีเอกสารในคดีนี้ · กด “แนบเอกสาร” ด้านบนเพื่อเพิ่ม</EmptyState>
             ) : (
-              <Card>
+              <Card style={{ paddingVertical: spacing.sm }}>
                 {documents.data!.map((doc, index) => {
                   const filename = doc.filename ?? doc.name ?? doc.fileName ?? 'เอกสาร';
                   return (
@@ -436,8 +440,8 @@ export default function CaseDetailScreen() {
                           }
                         }}
                       >
-                        <FileText size={16} color={colors.muted} />
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.iconTile}><FileText size={18} color={colors.info} /></View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={styles.rowStrong} numberOfLines={2}>
                             {filename}
                           </Text>
@@ -472,43 +476,54 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   headerAction: { minWidth: TOUCH, minHeight: TOUCH, justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: spacing.xs },
   headerActionText: { color: colors.ink, fontWeight: '600', fontSize: 16 },
-  caseTitle: { fontSize: 22, lineHeight: 32, fontFamily: fonts.bold, color: colors.ink },
-  meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
-  metaText: { color: colors.muted, fontSize: 14 },
+  header: { gap: spacing.sm, paddingTop: spacing.xs },
+  caseTitle: { ...typeScale.display, color: colors.ink },
+  meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
+  metaText: { ...typeScale.meta, color: colors.muted, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  /** Sunken track; the selected tab is a raised pill lifted by shadow.sm. */
   segment: {
     flexDirection: 'row',
-    backgroundColor: colors.soft,
-    borderRadius: radius.button,
-    padding: 3,
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
+    backgroundColor: colors.sunken,
+    borderRadius: radius.lg,
+    padding: spacing.xs,
+    gap: 2,
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
   segmentItem: {
     flex: 1,
-    minHeight: 44,
+    minHeight: TOUCH,
     justifyContent: 'center',
-    paddingVertical: 9,
-    borderRadius: radius.button - 2,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 2,
+    borderRadius: radius.md,
     alignItems: 'center',
   },
   segmentItemOn: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
+    backgroundColor: colors.raised,
+    ...shadow.sm,
   },
   segmentText: { fontSize: 13, fontWeight: '600', color: colors.muted },
-  segmentTextOn: { color: colors.ink },
-  cardTitle: { fontSize: 15, fontFamily: fonts.semibold, color: colors.ink },
+  segmentTextOn: { color: colors.ink, fontWeight: '700' },
+  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitle: { ...typeScale.section, color: colors.ink },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'baseline',
     gap: spacing.md,
-    paddingVertical: 7,
+    paddingVertical: spacing.md,
   },
-  infoLabel: { color: colors.faint, fontSize: 12, fontWeight: '600', maxWidth: '35%' },
-  infoValue: { color: colors.text, fontSize: 14, flex: 1, textAlign: 'right' },
-  divider: { height: 1, backgroundColor: colors.soft, marginVertical: 6 },
-  partyRow: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  infoRowRule: { borderTopWidth: 1, borderTopColor: colors.divider },
+  infoLabel: { ...typeScale.overline, color: colors.muted, maxWidth: '35%' },
+  infoValue: { color: colors.text, fontSize: 15, lineHeight: 22, flex: 1, textAlign: 'right' },
+  description: { color: colors.text, fontSize: 14, lineHeight: 22, paddingTop: spacing.xs },
+  divider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.xs },
+  groupLabel: { ...typeScale.overline, color: colors.muted, marginBottom: spacing.xs },
+  iconTile: { width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+  dateTile: { width: 84, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.md, backgroundColor: colors.sunken },
+  dateTileCourt: { backgroundColor: colors.accentSoft },
+  partyRow: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   lifecycle: { marginTop: spacing.xl, gap: spacing.xs },
   listRow: {
     flexDirection: 'row',
@@ -544,6 +559,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginBottom: spacing.xs,
     minHeight: 48,
+    ...shadow.sm,
   },
   scanText: { fontWeight: '700', color: colors.bg, fontSize: 15, flexShrink: 1, textAlign: 'center' },
   docLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,13 +7,27 @@ import { FileText } from 'lucide-react-native';
 import { api } from '@/api/client';
 import { openEmailAttachment } from '@/api/files';
 import type { EmailThreadDetail, EmailThreadItem } from '@/api/types';
-import { Button, Card, ErrorNote, Loading, Tag } from '@/components/ui';
+import { Button, Card, ErrorState, LoadingState, Tag } from '@/components/ui';
 import { Disclosure } from '@/components/Disclosure';
 import { emailThreadsKey } from '@/components/CaseEmailTab';
 import { thDate, thTime } from '@/format';
-import { colors, fonts, spacing, pageContent, TOUCH } from '@/theme';
+import { colors, radius, spacing, pageContent, TOUCH, typeScale } from '@/theme';
 
 type Message = EmailThreadDetail['messages'][number];
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  subject: { ...typeScale.title, color: colors.ink },
+  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  avatar: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+  avatarOut: { backgroundColor: colors.soft },
+  avatarText: { ...typeScale.section, color: colors.info },
+  sender: { fontWeight: '700', fontSize: 15, lineHeight: 22, color: colors.text },
+  when: { ...typeScale.meta, color: colors.muted },
+  body: { color: colors.text, fontSize: 15, lineHeight: 24 },
+  attachment: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
+  fileTile: { width: 32, height: 32, borderRadius: radius.md, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+});
 
 export default function EmailThreadScreen() {
   const { id, threadId } = useLocalSearchParams<{ id: string; threadId: string }>();
@@ -52,8 +66,8 @@ export default function EmailThreadScreen() {
     }
   };
 
-  if (thread.isLoading) return <Loading label="กำลังโหลดอีเมล…" />;
-  if (thread.isError || !thread.data) return <View style={{ flex: 1, padding: spacing.lg, backgroundColor: colors.bg }}><ErrorNote message="โหลดอีเมลไม่สำเร็จ" onRetry={() => thread.refetch()} /></View>;
+  if (thread.isLoading) return <View style={styles.screen}><LoadingState label="กำลังโหลดอีเมล…" /></View>;
+  if (thread.isError || !thread.data) return <View style={[styles.screen, { padding: spacing.lg }]}><ErrorState message="โหลดอีเมลไม่สำเร็จ" onRetry={() => thread.refetch()} /></View>;
   const messages = [...thread.data.messages].sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
   const latest = messages[messages.length - 1];
   const older = messages.slice(0, -1);
@@ -63,12 +77,18 @@ export default function EmailThreadScreen() {
   const renderMessage = (m: Message, isLatest: boolean) => {
     const hasMore = m.toAddresses.length + m.ccAddresses.length > 0;
     const unsaved = m.attachments.filter((a) => !a.savedDocumentId);
+    const sender = m.fromName || m.fromAddress || '—';
     return <Card key={m.id} style={{ gap: spacing.sm }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
-        <Text style={{ flex: 1, fontWeight: '700', color: colors.text }} numberOfLines={2}>{m.fromName || m.fromAddress || '—'}</Text>
+      <View style={styles.head}>
+        <View style={[styles.avatar, m.direction === 'OUTBOUND' && styles.avatarOut]} accessible={false} importantForAccessibility="no-hide-descendants">
+          <Text style={[styles.avatarText, m.direction === 'OUTBOUND' && { color: colors.muted }]}>{sender.trim().replace(/^[เแโใไ]/, '').charAt(0).toUpperCase() || '—'}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.sender} numberOfLines={2}>{sender}</Text>
+          <Text style={styles.when}>{thDate(m.receivedAt)} {thTime(m.receivedAt)}</Text>
+        </View>
         {m.direction === 'OUTBOUND' && <Tag tone="info">ส่งออก</Tag>}
       </View>
-      <Text style={{ color: colors.faint, fontSize: 12 }}>{thDate(m.receivedAt)} {thTime(m.receivedAt)}</Text>
       {hasMore && <Pressable accessibilityRole="button" accessibilityState={{ expanded: !!showRecipients[m.id] }}
         onPress={() => setShowRecipients((s) => ({ ...s, [m.id]: !s[m.id] }))} style={{ minHeight: TOUCH, justifyContent: 'center', alignSelf: 'flex-start' }}>
         <Text style={{ color: colors.info, fontSize: 13 }}>{showRecipients[m.id] ? 'ซ่อนผู้รับ' : `ถึง ${m.toAddresses.length} คน${m.ccAddresses.length ? ` · สำเนา ${m.ccAddresses.length}` : ''} · ดูผู้รับ`}</Text>
@@ -77,8 +97,8 @@ export default function EmailThreadScreen() {
         <Text style={{ color: colors.muted, fontSize: 13 }}>ถึง: {m.toAddresses.join(', ') || '—'}</Text>
         {m.ccAddresses.length > 0 && <Text style={{ color: colors.muted, fontSize: 13 }}>สำเนา: {m.ccAddresses.join(', ')}</Text>}
       </View>}
-      <Text style={{ color: colors.text, fontSize: 15, lineHeight: 22 }} selectable>{m.bodyText?.trim() || '(ไม่มีข้อความ)'}</Text>
-      {m.attachments.map((a) => <View key={a.id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.soft }}>
+      <Text style={styles.body} selectable>{m.bodyText?.trim() || '(ไม่มีข้อความ)'}</Text>
+      {m.attachments.map((a) => <View key={a.id} style={styles.attachment}>
         <Pressable accessibilityRole="button" accessibilityLabel={`เปิดไฟล์แนบ ${a.filename}`} accessibilityState={{ busy: opening === a.id }} disabled={opening === a.id}
           onPress={async () => {
             setOpening(a.id);
@@ -87,7 +107,7 @@ export default function EmailThreadScreen() {
             finally { setOpening(null); }
           }}
           style={({ pressed }) => [{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48 }, pressed && { opacity: 0.6 }]}>
-          <FileText size={16} color={colors.muted} />
+          <View style={styles.fileTile}><FileText size={16} color={colors.info} /></View>
           <Text style={{ flex: 1, color: colors.info }} numberOfLines={2}>{opening === a.id ? 'กำลังดาวน์โหลด…' : a.filename}</Text>
         </Pressable>
         {a.savedDocumentId
@@ -109,9 +129,9 @@ export default function EmailThreadScreen() {
 
   return <>
     <Stack.Screen options={{ title: 'อีเมล' }} />
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.md }}
+    <ScrollView style={styles.screen} contentContainerStyle={{ ...pageContent, gap: spacing.md }}
       refreshControl={<RefreshControl refreshing={thread.isRefetching} onRefresh={() => { thread.refetch(); list.refetch(); }} />}>
-      <Text accessibilityRole="header" style={{ fontSize: 20, lineHeight: 30, fontFamily: fonts.bold, color: colors.ink }}>{thread.data.subject || '(ไม่มีหัวเรื่อง)'}</Text>
+      <Text accessibilityRole="header" style={styles.subject}>{thread.data.subject || '(ไม่มีหัวเรื่อง)'}</Text>
       {awaiting && latest && <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm }}>
         <Tag tone="due">รอตอบ</Tag>
         <Button title="ไม่ต้องตอบ" variant="link" busy={dismiss.isPending} disabled={dismiss.isPending} onPress={() => dismiss.mutate(true)} />

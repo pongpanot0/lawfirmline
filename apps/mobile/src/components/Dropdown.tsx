@@ -3,9 +3,10 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleShee
 import { Text, TextInput } from '@/components/AppText';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Check, ChevronDown, X } from 'lucide-react-native';
-import { Button } from './ui';
-import { FieldError, FieldLabel, fieldA11yLabel } from './Form';
-import { CHROME_MAX_SCALE, colors, fonts, radius, spacing, TOUCH } from '@/theme';
+import { Button } from './Button';
+import { FieldLabel, fieldA11yLabel } from './FieldLabel';
+import { InlineError as FieldError } from './States';
+import { CHROME_MAX_SCALE, colors, control, fonts, radius, shadow, spacing, TOUCH } from '@/theme';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 
 /**
@@ -48,8 +49,8 @@ export function Dropdown({ label, value, options, onChange, disabled = false, fi
             accessibilityState={{ checked: on, selected: on, disabled }} disabled={disabled} onPress={() => onChange(option.value)}
             style={({ pressed }) => [styles.chip, on && styles.chipOn, error && !value ? { borderColor: colors.warn } : null,
               pressed && { opacity: 0.7 }, disabled && { opacity: 0.5 }]}>
-            {on ? <Check size={16} color={colors.ink} /> : null}
-            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.chipText, on && { color: colors.ink, fontWeight: '600' }]}>{option.label}</Text>
+            {on ? <Check size={16} color={colors.bg} /> : null}
+            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.chipText, on && { color: colors.bg, fontWeight: '600' }]}>{option.label}</Text>
           </Pressable>;
         })}
       </View>
@@ -64,8 +65,8 @@ export function Dropdown({ label, value, options, onChange, disabled = false, fi
       accessibilityValue={{ text: selected?.label ?? 'ยังไม่ได้เลือก' }}
       disabled={disabled} onPress={() => { setSearch(''); setOpen(true); }}
       style={({ pressed }) => [styles.field, error ? { borderColor: colors.warn } : null,
-        disabled && { backgroundColor: colors.soft }, pressed && { backgroundColor: colors.soft }]}>
-      <Text style={{ flex: 1, color: selected ? colors.text : colors.muted }}>
+        disabled && styles.fieldDisabled, pressed && { borderColor: colors.ink, ...(error ? shadow.focusWarn : shadow.focus) }]}>
+      <Text style={{ flex: 1, fontSize: 16, color: selected && !disabled ? colors.text : colors.muted }}>
         {selected?.label ?? placeholder ?? label}
       </Text>
       <ChevronDown size={18} color={colors.muted} />
@@ -106,18 +107,19 @@ export function Dropdown({ label, value, options, onChange, disabled = false, fi
 
 const styles = StyleSheet.create({
   group: { gap: spacing.sm },
-  field: { minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button,
-    backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  field: { minHeight: control.height, padding: spacing.md, borderWidth: control.borderWidth, borderColor: colors.lineStrong, borderRadius: radius.button,
+    backgroundColor: colors.raised, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  fieldDisabled: { backgroundColor: colors.sunken, borderColor: colors.line },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md,
-    borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface },
-  chipOn: { borderColor: colors.ink, backgroundColor: colors.soft },
-  chipText: { fontSize: 14, color: colors.muted },
+    borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.button, backgroundColor: colors.raised },
+  chipOn: { borderColor: colors.ink, backgroundColor: colors.ink, ...shadow.sm },
+  chipText: { fontSize: 14, color: colors.ink },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.lg, paddingRight: spacing.sm, paddingVertical: spacing.sm },
   sheetTitle: { flex: 1, fontSize: 20, lineHeight: 30, fontFamily: fonts.bold, color: colors.ink },
   close: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' },
-  search: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, minHeight: 48, padding: spacing.md, borderWidth: 1,
-    borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text },
-  option: { padding: spacing.lg, minHeight: 52, borderBottomWidth: 1, borderColor: colors.line, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  search: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, minHeight: control.height, padding: spacing.md, borderWidth: 1,
+    borderColor: colors.lineStrong, borderRadius: radius.button, backgroundColor: colors.raised, color: colors.text },
+  option: { padding: spacing.lg, minHeight: 52, borderBottomWidth: 1, borderColor: colors.divider, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   empty: { textAlign: 'center', color: colors.muted, paddingVertical: spacing.xl },
 });

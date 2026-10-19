@@ -5,10 +5,11 @@ import { Text, TextInput } from '@/components/AppText';
 import { Check, ChevronDown, X } from 'lucide-react-native';
 import { useCases } from '@/api/hooks';
 import type { CaseListItem } from '@/api/types';
-import { colors, fonts, radius, spacing, TOUCH } from '@/theme';
+import { colors, control, radius, shadow, spacing, TOUCH, typeScale } from '@/theme';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
-import { ErrorNote } from './ui';
-import { FieldError, FieldLabel, fieldA11yLabel } from './Form';
+import { EmptyState, ErrorState, InlineError, LoadingState } from './States';
+import { FieldLabel, fieldA11yLabel } from './FieldLabel';
+import { fieldFrame } from './Input';
 
 export interface CaseRef {
   id: string;
@@ -43,6 +44,7 @@ export function CasePicker({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const keyboardHeight = useKeyboardHeight();
   // Wait for a pause in typing before searching, instead of one request per keystroke.
   useEffect(() => {
@@ -68,7 +70,8 @@ export function CasePicker({
         accessibilityValue={{ text: value?.label ?? (allowNone ? 'ไม่ผูกกับคดี' : 'ยังไม่ได้เลือก') }}
         accessibilityState={{ disabled, expanded: open }}
         disabled={disabled}
-        style={({ pressed }) => [styles.field, error ? { borderColor: colors.warn } : null, (pressed || disabled) && { backgroundColor: colors.soft }]}
+        style={({ pressed }) => [styles.field, error ? { borderColor: colors.warn } : null, pressed && { backgroundColor: colors.soft },
+          disabled && styles.fieldDisabled]}
         onPress={() => setOpen(true)}
       >
         <Text style={[styles.fieldText, !value && { color: colors.muted }]} numberOfLines={1}>
@@ -76,7 +79,7 @@ export function CasePicker({
         </Text>
         <ChevronDown size={18} color={colors.muted} />
       </Pressable>
-      <FieldError message={error} />
+      <InlineError message={error} />
 
       <Modal visible={open} animationType="slide" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={() => setOpen(false)}>
         <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -88,7 +91,9 @@ export function CasePicker({
             </Pressable>
           </View>
           <TextInput
-            style={styles.search}
+            style={fieldFrame({ focused: searchFocused })}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             accessibilityLabel="ค้นหาคดี"
             placeholder="ค้นหาเลขคดี ชื่อคดี หรือลูกความ…"
             placeholderTextColor={colors.faint}
@@ -98,9 +103,11 @@ export function CasePicker({
             onSubmitEditing={() => setQuery(search.trim())}
             autoFocus
           />
-          {cases.isError && <ErrorNote message="โหลดรายชื่อคดีไม่สำเร็จ" onRetry={() => cases.refetch()} />}
+          {cases.isError && <ErrorState message="โหลดรายชื่อคดีไม่สำเร็จ" onRetry={() => cases.refetch()} />}
           <FlatList
-            data={cases.data ?? []}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            data={cases.isError ? [] : cases.data ?? []}
             keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
@@ -114,9 +121,9 @@ export function CasePicker({
               ) : null
             }
             ListEmptyComponent={
-              cases.isError ? null : <Text style={styles.empty}>
-                {cases.isLoading || search.trim() !== query ? 'กำลังค้นหา…' : query ? 'ไม่พบคดีที่ค้นหา' : 'ยังไม่มีคดีที่คุณเปิดดูได้'}
-              </Text>
+              cases.isError ? null : cases.isLoading || search.trim() !== query
+                ? <View style={styles.loadingRow}><LoadingState inline label="กำลังค้นหา…" /></View>
+                : <EmptyState compact>{query ? 'ไม่พบคดีที่ค้นหา' : 'ยังไม่มีคดีที่คุณเปิดดูได้'}</EmptyState>
             }
             renderItem={({ item }) => {
               const on = value?.id === item.id;
@@ -151,51 +158,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
+    backgroundColor: colors.raised,
+    borderColor: colors.lineStrong,
+    borderWidth: control.borderWidth,
     borderRadius: radius.button,
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    minHeight: 48,
+    paddingVertical: spacing.md,
+    minHeight: control.height,
   },
-  fieldText: { flex: 1, fontSize: 15, color: colors.text },
-  sheet: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg, gap: spacing.sm },
+  fieldDisabled: { backgroundColor: colors.sunken, borderColor: colors.line },
+  fieldText: { flex: 1, fontSize: 16, color: colors.text },
+  sheet: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg, gap: spacing.md },
   sheetHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  sheetTitle: { fontSize: 20, lineHeight: 30, fontFamily: fonts.bold, color: colors.ink },
+  sheetTitle: { ...typeScale.title, color: colors.ink },
   closeButton: {
     width: TOUCH,
     height: TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  search: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.button,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 11,
-    minHeight: 48,
-    fontSize: 15,
-    color: colors.text,
-  },
+  // Results sit on one raised card, rows split by hairline dividers.
+  list: { flexGrow: 0, flexShrink: 1, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line,
+    ...shadow.sm },
+  listContent: { paddingHorizontal: spacing.lg },
+  loadingRow: { alignItems: 'center' },
   row: {
     minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.soft,
+    borderBottomColor: colors.divider,
   },
   pressed: { backgroundColor: colors.soft },
   rowTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
   rowMeta: { fontSize: 13, color: colors.muted },
-  empty: { textAlign: 'center', color: colors.muted, paddingVertical: spacing.xl },
 });

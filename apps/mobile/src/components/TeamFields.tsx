@@ -5,8 +5,9 @@ import { Text, TextInput } from '@/components/AppText';
 import { useMembers } from '@/api/hooks';
 import { Dropdown } from './Dropdown';
 import { Disclosure } from './Disclosure';
-import { FieldLabel } from './Form';
-import { ErrorNote } from './ui';
+import { FieldLabel } from './FieldLabel';
+import { fieldFrame } from './Input';
+import { InlineError, LoadingState } from './States';
 import { CHROME_MAX_SCALE, colors, radius, spacing, TOUCH } from '@/theme';
 
 /** Unselected people shown before searching; the search reveals everyone else. */
@@ -28,6 +29,7 @@ export function TeamFields({ ids, onChange, primaryLabel = 'ผู้รับ�
 }) {
   const members = useMembers();
   const [search, setSearch] = React.useState('');
+  const [focused, setFocused] = React.useState(false);
   const primary = ids[0] ?? '';
   const companions = ids.slice(1).filter(Boolean);
   const full = !!primary && ids.length >= max;
@@ -44,9 +46,10 @@ export function TeamFields({ ids, onChange, primaryLabel = 'ผู้รับ�
   const hidden = term ? 0 : others.length - matches.length;
   const chips = <>
     <TextInput value={search} onChangeText={setSearch} placeholder="ค้นหาชื่อในทีม" placeholderTextColor={colors.faint} accessibilityLabel={`ค้นหา${secondaryLabel}`}
-      style={styles.search} />
+      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      editable={!disabled} style={fieldFrame({ focused, disabled })} />
     {!primary && <Text style={styles.note}>ยังไม่มี{primaryLabel} · คนแรกที่แตะจะเป็น{primaryLabel}</Text>}
-    {members.isLoading && <Text style={styles.note}>กำลังโหลดรายชื่อ…</Text>}
+    {members.isLoading && <LoadingState inline label="กำลังโหลดรายชื่อ…" />}
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
       {matches.map(person => {
         const selected = ids.includes(person.id);
@@ -56,8 +59,8 @@ export function TeamFields({ ids, onChange, primaryLabel = 'ผู้รับ�
           disabled={disabled || blocked}
           onPress={() => toggle(person.id, selected)}
           style={({ pressed }) => [styles.chip, selected && styles.chipOn, (blocked || disabled) && { opacity: 0.45 }, pressed && { opacity: 0.7 }]}>
-          {selected ? <Check size={16} color={colors.ink} /> : null}
-          <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={{ color: colors.ink, fontWeight: selected ? '600' : '400' }}>{person.firstName} {person.lastName}</Text>
+          {selected ? <Check size={16} color={colors.bg} /> : null}
+          <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={{ color: selected ? colors.bg : colors.ink, fontWeight: selected ? '600' : '400' }}>{person.firstName} {person.lastName}</Text>
         </Pressable>;
       })}
     </View>
@@ -74,7 +77,7 @@ export function TeamFields({ ids, onChange, primaryLabel = 'ผู้รับ�
       disabled={disabled || members.isLoading || members.isError}
       options={(members.data ?? []).map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }))}
       onChange={id => onChange([id, ...ids.slice(1).filter(value => value && value !== id)])} />
-    {members.isError && <ErrorNote message="โหลดรายชื่อไม่สำเร็จ" onRetry={() => members.refetch()} />}
+    {members.isError && <InlineError message="โหลดรายชื่อไม่สำเร็จ" onRetry={() => members.refetch()} />}
     {collapseSecondary
       ? <Disclosure title={`${secondaryLabel} · ถ้ามี`} summary={companions.length ? `เลือกแล้ว ${companions.length} คน` : 'เพิ่มคนร่วมทำงานในแฟ้มนี้'}
           defaultOpen={companions.length > 0}>
@@ -88,10 +91,9 @@ export function TeamFields({ ids, onChange, primaryLabel = 'ผู้รับ�
 }
 
 const styles = StyleSheet.create({
-  search: { minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button,
-    backgroundColor: colors.surface, color: colors.text },
   note: { color: colors.muted, fontSize: 14 },
   chip: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md,
     borderWidth: 1, borderRadius: radius.button, borderColor: colors.line, backgroundColor: colors.surface },
-  chipOn: { borderColor: colors.ink, backgroundColor: colors.soft },
+  // Selected people read as filled navy chips, matching the FilterTabs selected state.
+  chipOn: { borderColor: colors.ink, backgroundColor: colors.ink },
 });

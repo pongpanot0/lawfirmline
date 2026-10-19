@@ -5,11 +5,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/api/auth';
 import { useEvent, useMembers, useLeaves, useUpdateEventTeam } from '@/api/hooks';
 import { TeamFields } from '@/components/TeamFields';
-import { CheckRow, FieldError, FormSection } from '@/components/Form';
-import { Button, Card, ErrorNote, Loading, Tag } from '@/components/ui';
+import { CheckRow, FormSection } from '@/components/Form';
+import { Button, Card, ErrorState, EVENT_KIND_LABEL, InlineError, LoadingState, Tag } from '@/components/ui';
 import { bangkokDay, thDate, thTime } from '@/format';
 import { leaveFlagsForDate, leaveWarning } from '@/lib/leave-flags';
-import { colors, radius, spacing, pageContent } from '@/theme';
+import { colors, radius, spacing, pageContent, typeScale } from '@/theme';
 
 const MAX_TEAM = 10;
 
@@ -37,9 +37,9 @@ export default function EventTeamScreen() {
   const conflictKey = (ids ?? []).filter(personId => flags.has(personId)).join('|');
   useEffect(() => { setLeaveAck(false); }, [conflictKey]);
   // Still seeding the team from a loaded event is a wait, not a failure.
-  if (event.isLoading || members.isLoading || (event.data && members.data && !ids)) return <Loading label="กำลังโหลดทีม…" />;
-  if (!event.data || !members.data || !ids) return <View style={{ padding: spacing.lg }}>
-    <ErrorNote message="โหลดทีมไม่สำเร็จ" onRetry={() => { event.refetch(); members.refetch(); }} />
+  if (event.isLoading || members.isLoading || (event.data && members.data && !ids)) return <LoadingState label="กำลังโหลดทีม…" />;
+  if (!event.data || !members.data || !ids) return <View style={{ flex: 1, backgroundColor: colors.bg, padding: spacing.lg }}>
+    <ErrorState message="โหลดทีมไม่สำเร็จ" onRetry={() => { event.refetch(); members.refetch(); }} />
   </View>;
   const data = event.data;
   const names = new Map(members.data.map((member) => [member.id, `${member.firstName} ${member.lastName}`]));
@@ -62,32 +62,35 @@ export default function EventTeamScreen() {
     update.mutate(ids, { onSuccess: () => router.back() });
   };
   const when = data.type === 'DEADLINE' ? `${thDate(data.startAt)} · ทั้งวัน` : `${thDate(data.startAt)} ${thTime(data.startAt)}`;
+  const kind = EVENT_KIND_LABEL[data.type];
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.sm }} keyboardShouldPersistTaps="handled">
-    <Card style={{ gap: spacing.xs }}>
-      <Text style={{ color: colors.ink, fontWeight: '700' }}>{data.title}</Text>
+    <Card style={{ gap: spacing.xs, borderLeftWidth: 3, borderLeftColor: data.type === 'COURT_DATE' ? colors.accent : colors.ink }}>
+      {kind ? <Tag tone={kind.tone}>{kind.label}</Tag> : null}
+      <Text accessibilityRole="header" style={{ ...typeScale.title, color: colors.ink }}>{data.title}</Text>
       <Text style={{ color: colors.muted }}>{[data.case?.ownRef, data.courtName].filter(Boolean).join(' · ') || '—'}</Text>
-      <Text style={{ color: colors.muted }}>{when}</Text>
+      <Text style={{ color: colors.ink, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{when}</Text>
       {editable && <Button variant="link" title="แก้ไขนัดหมาย ›" onPress={() => router.push(`/event/new?id=${id}`)} />}
     </Card>
-    {(event.isError || members.isError) && <ErrorNote message="ข้อมูลทีมอาจยังไม่ล่าสุด" onRetry={() => { event.refetch(); members.refetch(); }} />}
-    {leaves.isError && <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
+    {(event.isError || members.isError) && <InlineError message="ข้อมูลทีมอาจยังไม่ล่าสุด" onRetry={() => { event.refetch(); members.refetch(); }} />}
+    {leaves.isError && <InlineError message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
     <FormSection title="ทีมของนัดนี้" detail={editable ? `คนหลัก 1 คนและผู้ร่วมไป รวมไม่เกิน ${MAX_TEAM} คน · เปลี่ยนเฉพาะนัดนี้` : 'ให้ทนายหรือเจ้าของสำนักงานจัดทีมสำหรับนัดนี้'}>
       <TeamFields ids={ids} onChange={setIds} primaryLabel="ผู้รับผิดชอบหลัก" secondaryLabel="ผู้ร่วมไป" max={MAX_TEAM}
         disabled={!editable || update.isPending} required error={teamError} />
-      {former.map(personId => <View key={personId} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+      {former.map(personId => <View key={personId} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+        paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider }}>
         <Text style={{ flex: 1, color: colors.text }}>{names.get(personId) ?? 'สมาชิกเดิม'} · ไม่อยู่ในรายชื่อทีมแล้ว</Text>
         {editable && <Button variant="link" title="เอาออก" disabled={update.isPending} onPress={() => setIds(ids.filter(item => item !== personId))} />}
       </View>)}
-      {warnings.length > 0 && <View accessibilityRole="alert" style={{ gap: spacing.xs, padding: spacing.md, borderRadius: radius.card,
-        borderWidth: 1, borderColor: colors.warn, backgroundColor: colors.warnSoft }}>
+      {warnings.length > 0 && <View accessibilityRole="alert" style={{ gap: spacing.xs, padding: spacing.md, borderRadius: radius.md,
+        borderLeftWidth: 3, borderLeftColor: colors.warn, backgroundColor: colors.warnSoft }}>
         <Tag tone="due">มีวันลาตรงกับนัด</Tag>
         {warnings.map(line => <Text key={line} style={{ color: colors.warn }}>{line}</Text>)}
         {editable && <CheckRow label="ตรวจแล้ว · ยืนยันบันทึกทีมนี้" checked={leaveAck} onChange={setLeaveAck} disabled={update.isPending} />}
-        <FieldError message={ackError} />
+        <InlineError message={ackError || undefined} />
       </View>}
     </FormSection>
     {editable && <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-      <FieldError message={update.isError ? `บันทึกไม่สำเร็จ · ${update.error.message}` : undefined} />
+      <InlineError message={update.isError ? `บันทึกไม่สำเร็จ · ${update.error.message}` : undefined} />
       {!!waitReason && <Text style={{ color: colors.muted, fontSize: 13 }}>{waitReason}</Text>}
       <Button title="บันทึกทีมที่ไปด้วย" onPress={save} busy={update.isPending}
         disabled={event.isError || members.isError || leaves.isError || leaves.isLoading} />

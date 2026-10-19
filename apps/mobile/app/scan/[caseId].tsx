@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { uploadCaseDocument } from '@/api/files';
 import { Attachments, AttachmentFile } from '@/components/Attachments';
 import { FormPage, FormSection } from '@/components/Form';
-import { Button, ErrorNote } from '@/components/ui';
+import { Button, InlineError } from '@/components/ui';
 
 export default function CaseFilesScreen() {
   const { caseId } = useLocalSearchParams<{ caseId: string }>();
@@ -50,7 +50,7 @@ export default function CaseFilesScreen() {
     <FormSection title="เอกสารเข้าคดี" detail="ถ่ายรูปหรือแนบไฟล์ที่มีอยู่ เก็บไฟล์ต้นฉบับเข้าคดี">
       <Attachments files={files} onChange={(next) => { setFiles(next); setFailure(''); }} disabled={busy} />
     </FormSection>
-    {!!failure && <ErrorNote message={failure} onRetry={busy ? undefined : upload} retryLabel="ส่งไฟล์ที่เหลือ" />}
+    <InlineError message={failure || undefined} onRetry={busy ? undefined : upload} retryLabel="ส่งไฟล์ที่เหลือ" />
     {files.length > 0 && <Button title={`ส่ง ${files.length} ไฟล์เข้าคดี`} busy={busy} onPress={upload} />}
   </FormPage>;
 }

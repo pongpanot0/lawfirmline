@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronRight, X } from 'lucide-react-native';
+import { ChevronRight, Scale, Search, X } from 'lucide-react-native';
 import { useCases, useWorkload } from '@/api/hooks';
 import type { CaseListItem } from '@/api/types';
-import { Card, EmptyNote, ErrorNote, FilterTabs, Loading, SearchBox, Tag, TagTone } from '@/components/ui';
-import { colors, spacing, pageContent } from '@/theme';
+import { Card, EmptyState, ErrorState, FilterTabs, LoadingState, SearchBox, Tag, TagTone } from '@/components/ui';
+import { colors, fonts, spacing, typeScale, pageContent } from '@/theme';
 
 const STATUS_LABEL: Record<string, { label: string; tone: TagTone }> = {
   OPEN: { label: 'เปิด', tone: 'info' },
@@ -27,26 +27,28 @@ const STATUS_FILTERS = [
 ] as const;
 type StatusFilter = typeof STATUS_FILTERS[number]['value'];
 
+/** Raised case card: the office ref is the overline, the case title leads, status is a tinted chip. */
 function CaseRow({ item, onPress }: { item: CaseListItem; onPress: () => void }) {
+  // Statuses outside the map (e.g. ACTIVE, INTAKE) fall back to the raw value; see notes-B.md.
   const status = STATUS_LABEL[item.status] ?? { label: item.status, tone: 'plain' as TagTone };
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`เปิดคดี ${item.ownRef} ${item.title} · ${status.label}`} onPress={onPress}
-      style={({ pressed }) => pressed && { opacity: 0.7 }}>
-      <Card style={{ marginBottom: spacing.md }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-          <Text style={styles.ownRef}>{item.ownRef}</Text>
-          <View style={{ flex: 1 }} />
+      style={{ marginBottom: spacing.md }}>
+      {({ pressed }) => <Card style={[styles.card, pressed && { backgroundColor: colors.soft }]}>
+        <View style={styles.head}>
+          <Text style={styles.ownRef} numberOfLines={1}>{item.ownRef}</Text>
           <Tag tone={status.tone}>{status.label}</Tag>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><Text style={[styles.title, { flex: 1 }]}>
-          {item.title}
-        </Text><ChevronRight size={18} color={colors.faint} /></View>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{item.title}</Text>
+          <ChevronRight size={18} color={colors.muted} />
+        </View>
         <Text style={styles.meta}>
           {[item.clientName, item.courtName, item.blackCaseNumber]
             .filter(Boolean)
             .join(' · ') || '—'}
         </Text>
-      </Card>
+      </Card>}
     </Pressable>
   );
 }
@@ -76,32 +78,32 @@ export default function CasesScreen() {
       </Pressable>}
       <SearchBox value={search} onChange={setSearch} onSearch={() => setCommitted(search.trim())} onClear={() => setCommitted('')} placeholder="ค้นหาเลขคดี ชื่อคดี หรือลูกความ" />
       {!memberId && <FilterTabs items={STATUS_FILTERS} value={statusFilter} onChange={value => setStatusFilter(value as StatusFilter)} />}
-      {cases.data && !cases.isError ? <Text style={{ color: colors.muted, fontSize: 12 }}>
+      {cases.data && !cases.isError ? <Text style={styles.count}>
         {`${rows.length} คดี${!memberId && statusFilter !== 'all' ? ` · ${filterLabel}` : ''}${committed ? ` · “${committed}”` : ''}`}
       </Text> : null}
       </View>
 
       {cases.isLoading ? (
-        <Loading label="กำลังโหลดคดี…" />
+        <LoadingState label="กำลังโหลดคดี…" />
       ) : cases.isError ? (
-        <View style={{ padding: spacing.lg }}>
-          <ErrorNote message="โหลดรายการคดีไม่สำเร็จ" onRetry={() => cases.refetch()} />
+        <View style={{ ...pageContent, maxWidth: 760 }}>
+          <ErrorState message="โหลดรายการคดีไม่สำเร็จ" onRetry={() => cases.refetch()} />
         </View>
       ) : (
         <FlatList
           data={rows}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={pageContent}
+          contentContainerStyle={{ ...pageContent, maxWidth: 760 }}
           refreshing={cases.isRefetching}
           onRefresh={() => cases.refetch()}
           renderItem={({ item }) => (
             <CaseRow item={item} onPress={() => router.push(`/case/${item.id}`)} />
           )}
           ListEmptyComponent={
-            committed ? <EmptyNote>{`ไม่พบคดีที่ตรงกับ "${committed}"`}</EmptyNote>
-              : memberId ? <EmptyNote>ไม่มีคดีหลักที่ยังเปิดของคนนี้</EmptyNote>
-                : statusFilter !== 'all' ? <EmptyNote action={{ title: 'ดูคดีทั้งหมด', onPress: () => setStatusFilter('all') }}>{`ไม่มีคดี${filterLabel}`}</EmptyNote>
-                  : <EmptyNote action={{ title: 'รับเคสใหม่', onPress: () => router.push('/case/new') }}>ยังไม่มีคดี</EmptyNote>
+            committed ? <EmptyState icon={Search}>{`ไม่พบคดีที่ตรงกับ "${committed}"`}</EmptyState>
+              : memberId ? <EmptyState icon={Scale}>ไม่มีคดีหลักที่ยังเปิดของคนนี้</EmptyState>
+                : statusFilter !== 'all' ? <EmptyState icon={Scale} action={{ title: 'ดูคดีทั้งหมด', onPress: () => setStatusFilter('all') }}>{`ไม่มีคดี${filterLabel}`}</EmptyState>
+                  : <EmptyState icon={Scale} action={{ title: 'รับเคสใหม่', onPress: () => router.push('/case/new') }}>ยังไม่มีคดี</EmptyState>
           }
         />
       )}
@@ -113,7 +115,11 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   filter: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start' },
   filterText: { color: colors.info, fontWeight: '600', flexShrink: 1 },
-  ownRef: { fontWeight: '700', color: colors.ink, fontSize: 14 },
-  title: { color: colors.text, marginTop: spacing.sm, fontSize: 16, lineHeight: 24, fontWeight: '600' },
-  meta: { color: colors.faint, fontSize: 14, lineHeight: 22, marginTop: spacing.sm },
+  count: { ...typeScale.meta, color: colors.muted },
+  card: { gap: spacing.sm },
+  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  ownRef: { flex: 1, minWidth: 0, ...typeScale.overline, color: colors.muted, fontVariant: ['tabular-nums'] },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  title: { flex: 1, minWidth: 0, color: colors.ink, fontSize: 17, lineHeight: 26, fontFamily: fonts.bold },
+  meta: { ...typeScale.meta, color: colors.muted },
 });

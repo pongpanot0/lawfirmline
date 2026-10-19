@@ -7,14 +7,13 @@ import { canAssignFirmRole, FirmRole, hasFirmCapability, HEAVY_DAY_POINTS, type 
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { Text } from '@/components/AppText';
-import { Button, Card, EmptyNote, ErrorNote, FilterTabs, Loading, PageIntro, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, FilterTabs, InlineError, LoadingState, PageIntro, Tag } from '@/components/ui';
 import { DatePicker } from '@/components/DatePicker';
 import { Disclosure } from '@/components/Disclosure';
-import { FieldError } from '@/components/Form';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import type { TaskItem } from '@/api/types';
 import { bangkokDay, initials, thDate, thTime } from '@/format';
-import { CHROME_MAX_SCALE, colors, pageContent, radius, spacing } from '@/theme';
+import { CHROME_MAX_SCALE, colors, pageContent, radius, spacing, typeScale } from '@/theme';
 
 const TH_DOW_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 /** A calendar day (YYYY-MM-DD) read on the Bangkok wall clock. */
@@ -60,7 +59,7 @@ export default function TeamWeek() {
   useFocusEffect(useCallback(() => {
     if (canView) { void radar.refetch(); if (person) void detail.refetch(); }
   }, [canView, start, person, radar.refetch, detail.refetch]));
-  if (!canView) return <EmptyNote>หน้านี้สำหรับ Owner ผู้จัดการสำนักงาน และ Senior</EmptyNote>;
+  if (!canView) return <View style={{ flex: 1, backgroundColor: colors.bg, padding: spacing.lg }}><EmptyState>หน้านี้สำหรับ Owner ผู้จัดการสำนักงาน และ Senior</EmptyState></View>;
   const members = [...(radar.data?.members ?? [])].sort((a, b) => (lightFirst ? 1 : -1) * (a.openPoints - b.openPoints || a.reviewCount - b.reviewCount));
   const openMove = async (taskId: string) => {
     setOpening(taskId); setMoveError(null);
@@ -76,8 +75,8 @@ export default function TeamWeek() {
     <FilterTabs items={[{ value: 'heavy', label: 'ภาระมากก่อน' }, { value: 'light', label: 'ภาระน้อยก่อน' }]}
       value={lightFirst ? 'light' : 'heavy'} onChange={value => setLightFirst(value === 'light')} />
     <Text style={styles.legend}>ตัวเลขใต้วันที่ = งานและนัดของวันนั้น · จุดสีทอง = มีนัดศาล</Text>
-    {radar.isLoading && <Loading label="กำลังตรวจภาระงานทีม…" />}
-    {radar.isError && <ErrorNote message="ตรวจภาระงานล่าสุดไม่ได้ ลองโหลดใหม่ก่อนมอบหมาย" onRetry={() => radar.refetch()} />}
+    {radar.isLoading && <LoadingState label="กำลังตรวจภาระงานทีม…" />}
+    {radar.isError && <ErrorState message="ตรวจภาระงานล่าสุดไม่ได้ ลองโหลดใหม่ก่อนมอบหมาย" onRetry={() => radar.refetch()} style={{ marginTop: spacing.md }} />}
     {members.map(member => {
       const name = `${member.firstName} ${member.lastName}`;
       const facts = [
@@ -105,14 +104,14 @@ export default function TeamWeek() {
         <Disclosure variant="plain" title={`งานและนัดของ ${member.firstName}`} summary={expanded ? undefined : 'ดูงานรายชิ้น ย้ายงาน หรือมอบหมายเพิ่ม'}
           open={expanded} onToggle={open => setPerson(open ? member.userId : '')}>
           {expanded && <>
-            {detail.isLoading && <Loading label="กำลังโหลดรายละเอียด…" />}
-            {detail.isError && <ErrorNote message="โหลดรายละเอียดไม่ได้" onRetry={() => detail.refetch()} />}
-            {detail.data && !detail.data.events.length && !detail.data.tasks.length && <EmptyNote>ไม่มีงานหรือนัดในช่วงนี้</EmptyNote>}
-            {!!detail.data?.events.length && <SectionLabel style={styles.subhead}>นัดหมาย</SectionLabel>}
+            {detail.isLoading && <LoadingState inline label="กำลังโหลดรายละเอียด…" />}
+            {detail.isError && <InlineError message="โหลดรายละเอียดไม่ได้" onRetry={() => detail.refetch()} />}
+            {detail.data && !detail.data.events.length && !detail.data.tasks.length && <EmptyState compact>ไม่มีงานหรือนัดในช่วงนี้</EmptyState>}
+            {!!detail.data?.events.length && <Text accessibilityRole="header" style={styles.subhead}>นัดหมาย</Text>}
             {detail.data?.events.map(event => <Text key={event.id} style={styles.eventLine}>
               {thDate(event.startAt)} {thTime(event.startAt)} · {event.title}{event.courtName ? ` · ${event.courtName}` : ''}
             </Text>)}
-            {!!detail.data?.tasks.length && <SectionLabel style={styles.subhead}>งาน</SectionLabel>}
+            {!!detail.data?.tasks.length && <Text accessibilityRole="header" style={styles.subhead}>งาน</Text>}
             {detail.data?.tasks.map(task => {
               const when = task.scheduledFor ? thDate(noonOf(task.scheduledFor)) : task.dueDate ? `กำหนด ${thDate(task.dueDate)}` : 'ยังไม่ลงวัน';
               const openable = owner || !!task.case || person === user?.id;
@@ -134,7 +133,7 @@ export default function TeamWeek() {
                   style={({ pressed }) => [styles.move, (!!opening || detail.isFetching) && { opacity: 0.5 }, pressed && { backgroundColor: colors.soft }]}>
                   <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.moveText}>{opening === task.id ? '…' : 'ย้าย'}</Text>
                 </Pressable>}
-                {moveError?.taskId === task.id ? <View style={{ width: '100%' }}><FieldError message={moveError.message} /></View> : null}
+                {moveError?.taskId === task.id ? <View style={{ width: '100%', paddingBottom: spacing.sm }}><InlineError message={moveError.message} /></View> : null}
               </View>;
             })}
             {canAssign && <Button variant="link" title={`มอบหมายงานให้ ${member.firstName}`}
@@ -143,30 +142,30 @@ export default function TeamWeek() {
         </Disclosure>
       </Card>;
     })}
-    {radar.data?.members.length === 0 && <EmptyNote>ยังไม่มีสมาชิกทีม</EmptyNote>}
+    {radar.data?.members.length === 0 && <EmptyState>ยังไม่มีสมาชิกทีม</EmptyState>}
   </ScrollView><ReassignSheet task={moving} caseId={moving?.caseId} onClose={() => { setMoving(null); void radar.refetch(); void detail.refetch(); }} /></>;
 }
 
 const styles = StyleSheet.create({
   legend: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48 },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.ink, fontWeight: '700', fontSize: 12 },
-  name: { color: colors.ink, fontWeight: '600', fontSize: 15 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48 },
+  avatar: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: colors.info, fontWeight: '700', fontSize: 13 },
+  name: { color: colors.ink, fontWeight: '700', fontSize: 16 },
   meta: { color: colors.muted, fontSize: 13 },
   strip: { flexDirection: 'row', gap: 4 },
   day: { flex: 1, minWidth: 0, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 1, paddingVertical: spacing.xs,
-    borderRadius: radius.button, backgroundColor: colors.soft, borderWidth: 1, borderColor: 'transparent' },
+    borderRadius: radius.md, backgroundColor: colors.sunken, borderWidth: 1, borderColor: 'transparent' },
   dayDow: { color: colors.muted, fontSize: 11 },
-  dayNum: { color: colors.ink, fontWeight: '700', fontSize: 14, fontVariant: ['tabular-nums'] },
+  dayNum: { color: colors.ink, fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },
   dayMark: { color: colors.muted, fontSize: 11, fontWeight: '600' },
-  courtDot: { position: 'absolute', top: 4, right: 4, width: 5, height: 5, borderRadius: 3, backgroundColor: colors.accent },
-  subhead: { marginTop: spacing.sm, marginBottom: 0, fontSize: 14 },
-  eventLine: { color: colors.text, fontSize: 14, lineHeight: 22 },
-  taskRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.soft },
+  courtDot: { position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
+  subhead: { ...typeScale.overline, color: colors.muted, marginTop: spacing.md, marginBottom: spacing.xs },
+  eventLine: { color: colors.text, fontSize: 14, lineHeight: 22, paddingVertical: spacing.xs },
+  taskRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
   taskOpen: { flex: 1, minWidth: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   taskTitle: { color: colors.text, fontWeight: '600', fontSize: 14 },
   move: { minHeight: 44, minWidth: 56, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md,
-    borderWidth: 1, borderColor: colors.line, borderRadius: radius.button },
+    borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.button, backgroundColor: colors.surface },
   moveText: { color: colors.info, fontWeight: '600' },
 });

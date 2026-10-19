@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { Text } from '@/components/AppText';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
 /**
  * Optional detail stays one tap away without burying today's work.
@@ -29,7 +29,7 @@ export function Disclosure({ title, summary, children, defaultOpen = false, open
   return <View style={plain ? styles.plain : styles.section}>
     <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityHint={summary ? `${summary} · แตะเพื่อ${open ? 'ซ่อน' : 'ดู'}` : undefined}
       accessibilityState={{ expanded: open }}
-      onPress={() => setOpen(value => !value)} style={({ pressed }) => [styles.header, plain && styles.plainHeader, pressed && { backgroundColor: colors.soft }]}>
+      onPress={() => setOpen(value => !value)} style={({ pressed }) => [styles.header, !plain && { borderRadius: radius.card }, plain && styles.plainHeader, pressed && { backgroundColor: colors.soft }]}>
       <View style={styles.text}><Text style={styles.title}>{title}</Text>{summary ? <Text style={styles.summary}>{summary}</Text> : null}</View>
       <Icon size={20} color={colors.info} />
     </Pressable>
@@ -38,8 +38,8 @@ export function Disclosure({ title, summary, children, defaultOpen = false, open
 }
 
 const styles = StyleSheet.create({
-  section: { marginTop: spacing.md, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, overflow: 'hidden' },
-  plain: { marginTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line },
+  section: { marginTop: spacing.md, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, ...shadow.sm },
+  plain: { marginTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
   header: { minHeight: 56, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   plainHeader: { paddingHorizontal: 0, minHeight: 52 },
   text: { flex: 1, minWidth: 0, gap: spacing.xs },

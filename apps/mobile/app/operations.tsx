@@ -5,9 +5,9 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, PauseCircle } from 'lucide-react-native';
 import { ApiError } from '@/api/client';
 import { useOnHoldTasks } from '@/api/hooks';
-import { Card, EmptyNote, ErrorNote, Loading, PageIntro, Tag } from '@/components/ui';
+import { Card, EmptyState, ErrorState, LoadingState, PageIntro, Tag } from '@/components/ui';
 import { bangkokDay, thDate } from '@/format';
-import { colors, spacing, pageContent } from '@/theme';
+import { colors, radius, spacing, pageContent } from '@/theme';
 
 /**
  * Firm Owner's on-hold queue: work parked waiting on someone else, sorted by
@@ -18,13 +18,14 @@ export default function OperationsScreen() {
   const router = useRouter();
   const onhold = useOnHoldTasks();
 
-  if (onhold.isLoading) return <Loading label="กำลังโหลดงานพักไว้…" />;
+  if (onhold.isLoading) return <LoadingState label="กำลังโหลดงานพักไว้…" />;
 
   if (onhold.isError) {
     const forbidden = onhold.error instanceof ApiError && onhold.error.status === 403;
+    // A 403 is a permission notice, so it gets no retry; any other failure retries the query.
     return (
       <View style={[styles.screen, { padding: spacing.lg }]}>
-        <ErrorNote
+        <ErrorState
           message={
             forbidden
               ? 'หน้านี้สำหรับเจ้าของและผู้จัดการสำนักงาน'
@@ -71,9 +72,11 @@ export default function OperationsScreen() {
               onPress={() => router.push(`/task/new?id=${item.taskId}`)}
               style={({ pressed }) => pressed && { opacity: 0.7 }}
             >
-              <Card style={{ marginBottom: spacing.sm }}>
+              <Card style={{ marginBottom: spacing.md }}>
                 <View style={styles.row}>
-                  <PauseCircle size={16} color={colors.muted} style={{ marginTop: 3 }} />
+                  <View style={[styles.iconTile, overdue && { backgroundColor: colors.warnSoft }]}>
+                    <PauseCircle size={18} color={overdue ? colors.warn : colors.ink} />
+                  </View>
                   <View style={{ flex: 1, minWidth: 0, gap: spacing.xs }}>
                     <Text style={styles.title}>{item.taskTitle}</Text>
                     {item.nextFollowUpAt ? <Tag tone={overdue ? 'due' : 'plain'}>ติดตาม {thDate(item.nextFollowUpAt)}</Tag> : null}
@@ -88,7 +91,7 @@ export default function OperationsScreen() {
             </Pressable>
           );
         }}
-        ListEmptyComponent={<EmptyNote>ไม่มีงานพักไว้</EmptyNote>}
+        ListEmptyComponent={<EmptyState icon={PauseCircle}>ไม่มีงานพักไว้</EmptyState>}
       />
     </View>
   );
@@ -97,7 +100,8 @@ export default function OperationsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  title: { fontSize: 15, fontWeight: '600', color: colors.text },
+  iconTile: { width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 16, lineHeight: 24, fontWeight: '600', color: colors.text },
   reason: { fontSize: 14, color: colors.text, lineHeight: 22 },
   meta: { fontSize: 13, color: colors.muted, lineHeight: 20 },
 });

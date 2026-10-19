@@ -6,9 +6,10 @@ import { Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { ApiError } from '@/api/client';
-import { Button, Card } from '@/components/ui';
+import { Button, Card, InlineError } from '@/components/ui';
 import { FieldLabel } from '@/components/Form';
-import { colors, fonts, radius, spacing, TOUCH } from '@/theme';
+import { fieldFrame, TextField } from '@/components/Input';
+import { colors, fonts, shadow, spacing, TOUCH } from '@/theme';
 
 export default function LoginScreen() {
   const { login, verifyMfa } = useAuth();
@@ -18,6 +19,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [busy, setBusy] = useState(false);
   const keyboardHeight = useKeyboardHeight();
   const [error, setError] = useState<string | null>(null);
@@ -61,19 +63,14 @@ export default function LoginScreen() {
         {/* One subtitle per step: the MFA step replaces the product line with its instruction. */}
         <Text style={styles.subtitle}>{mfaToken ? 'กรอกรหัสยืนยันที่ส่งไปยังอีเมลของคุณ' : 'ระบบบริหารสำนักงานกฎหมาย'}</Text>
 
-        {mfaToken ? <View style={styles.field}>
-          <FieldLabel>รหัสยืนยัน 6 หลัก</FieldLabel>
-          <TextInput style={styles.input} accessibilityLabel="รหัสยืนยัน 6 หลัก" placeholder="000000" placeholderTextColor={colors.faint}
+        {mfaToken ? <TextField label="รหัสยืนยัน 6 หลัก" accessibilityLabel="รหัสยืนยัน 6 หลัก" placeholder="000000"
             keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={6} value={code} autoFocus
-            onChangeText={(value) => setCode(value.replace(/\D/g, ''))} onSubmitEditing={submit} />
-        </View> : <>
-        <View style={styles.field}>
-          <FieldLabel>อีเมล</FieldLabel>
-          <TextInput
+            onChange={(value) => setCode(value.replace(/\D/g, ''))} onSubmitEditing={submit} inputStyle={styles.codeInput} />
+        : <>
+        <TextField
+            label="อีเมล"
             accessibilityLabel="อีเมล"
-            style={styles.input}
             placeholder="name@firm.co.th"
-            placeholderTextColor={colors.faint}
             autoCapitalize="none"
             keyboardType="email-address"
             autoComplete="email"
@@ -82,16 +79,17 @@ export default function LoginScreen() {
             blurOnSubmit={false}
             onSubmitEditing={() => passwordRef.current?.focus()}
             value={email}
-            onChangeText={setEmail}
+            onChange={setEmail}
           />
-        </View>
         <View style={styles.field}>
           <FieldLabel>รหัสผ่าน</FieldLabel>
           <View style={styles.passwordRow}>
             <TextInput
               ref={passwordRef}
               accessibilityLabel="รหัสผ่าน"
-              style={[styles.input, styles.passwordInput]}
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
+              style={[fieldFrame({ focused: passwordFocused }), styles.passwordInput]}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoComplete="password"
@@ -115,7 +113,7 @@ export default function LoginScreen() {
           </View>
         </View>
         </>}
-        {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
+        <InlineError message={error ?? undefined} />
         <Button title={mfaToken ? 'ยืนยันรหัส' : 'เข้าสู่ระบบ'} onPress={submit} busy={busy}
           disabled={mfaToken ? code.length !== 6 : !email || !password} />
         {mfaToken ? <View style={{ alignItems: 'center' }}>
@@ -153,7 +151,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.xl,
   },
-  form: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: spacing.md, padding: spacing.xl },
+  // The sign-in card is the one surface on this screen, so it lifts a step above resting cards.
+  form: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: spacing.lg, padding: spacing.xl, ...shadow.md },
   brand: {
     color: colors.ink,
     fontSize: 36,
@@ -164,20 +163,13 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.muted,
     textAlign: 'center',
-    marginBottom: spacing.sm,
-    fontSize: 14,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.xs,
+    fontSize: 15,
+    lineHeight: 24,
   },
   field: { gap: spacing.sm },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
-    borderRadius: radius.button,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: colors.text,
-  },
+  codeInput: { fontSize: 22, letterSpacing: 6, textAlign: 'center', fontVariant: ['tabular-nums'] },
   passwordRow: { position: 'relative', justifyContent: 'center' },
   passwordInput: { paddingRight: TOUCH + 4 },
   eyeButton: {
@@ -190,6 +182,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   link: { minHeight: TOUCH, justifyContent: 'center' },
-  footer: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: spacing.sm, paddingTop: spacing.xs },
-  error: { color: colors.warn, fontSize: 14, textAlign: 'center' },
+  footer: { borderTopWidth: 1, borderTopColor: colors.divider, marginTop: spacing.xs, paddingTop: spacing.xs },
 });

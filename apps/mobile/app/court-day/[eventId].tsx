@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,14 +13,37 @@ import { draftScope, saveDraft } from '@/api/drafts';
 import { useCourtDay, useSaveCourtDay, useCompleteCourtDay } from '@/api/hooks';
 import type { CourtDayResponse, CourtDayState } from '@/api/types';
 import { openCaseDocument } from '@/api/files';
-import { Button, Card, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
-import { CheckRow, FieldError, FieldLabel, FormField, MissingSummary, SwitchRow } from '@/components/Form';
-import { DatePicker } from '@/components/DatePicker';
-import { Dropdown } from '@/components/Dropdown';
+import { Button, Card, EmptyState, ErrorState, InlineError, LoadingState, SectionLabel, Tag } from '@/components/ui';
+import { CheckRow, FieldLabel, MissingSummary, SwitchRow } from '@/components/Form';
+import { DateField, SelectField, TextArea, TextField, fieldFrame } from '@/components/Input';
 import { bangkokDay, formatMoney, formatMoneyInput, thDateLong, thTime } from '@/format';
 import { expenseError } from '@/workflow';
-import { colors, fonts, radius, spacing, formLabelSpacing, pageContent, TOUCH } from '@/theme';
+import { CHROME_MAX_SCALE, colors, radius, shadow, spacing, formLabelSpacing, pageContent, TOUCH, typeScale } from '@/theme';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  title: { ...typeScale.display, color: colors.ink },
+  meta: { color: colors.muted, fontSize: 15, lineHeight: 22 },
+  when: { color: colors.accentInk, fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  /** Sunken track; the current phase is a raised pill. */
+  track: { flexDirection: 'row', gap: 2, padding: spacing.xs, borderRadius: radius.lg, backgroundColor: colors.sunken, marginVertical: spacing.sm },
+  phase: { flex: 1, minHeight: TOUCH, borderRadius: radius.md, justifyContent: 'center', padding: spacing.sm },
+  phaseOn: { backgroundColor: colors.raised, ...shadow.sm },
+  phaseText: { color: colors.muted, fontWeight: '600', textAlign: 'center', fontSize: 14 },
+  phaseTextOn: { color: colors.ink, fontWeight: '700' },
+  teamRow: { flexDirection: 'row', gap: spacing.md, paddingVertical: spacing.sm },
+  teamRule: { borderTopWidth: 1, borderTopColor: colors.divider },
+  teamLabel: { ...typeScale.overline, color: colors.muted, width: 40, paddingTop: 2 },
+  teamValue: { flex: 1, minWidth: 0, color: colors.text, fontSize: 15, lineHeight: 22 },
+  listCard: { paddingVertical: spacing.xs },
+  docRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  rule: { borderTopWidth: 1, borderTopColor: colors.divider },
+  reviewCard: { gap: spacing.sm, borderColor: colors.ink, ...shadow.md },
+  reviewTitle: { ...typeScale.section, color: colors.ink },
+  reviewLine: { color: colors.text, fontSize: 15, lineHeight: 22, paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: colors.divider },
+  status: { color: colors.muted, fontSize: 14, lineHeight: 22 },
+});
 
 type Draft = { version: number; eventUpdatedAt: string; state: CourtDayState };
 type Document = { id: string; filename: string; version: number };
@@ -54,7 +77,8 @@ export default function CourtDayScreen() {
   const [reviewing, setReviewing] = useState(false);
   const [timeError, setTimeError] = useState('');
   const [submitError, setSubmitError] = useState('');
-  const key = user ? `${draftScope(user)}court:${eventId}` : '';
+  const [timeFocused, setTimeFocused] = useState(false);
+  const key =user ? `${draftScope(user)}court:${eventId}` : '';
   const documents = useQuery({
     queryKey: ['case-documents', court.data?.event.caseId],
     queryFn: () => api<Document[]>(`/cases/${court.data!.event.caseId}/documents`),
@@ -86,15 +110,15 @@ export default function CourtDayScreen() {
     style={({ pressed }) => [{ width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center', marginLeft: -spacing.md }, pressed && { opacity: 0.6 }]}>
     <ChevronLeft size={26} color={colors.ink} />
   </Pressable>;
-  if (!court.data) return court.isLoading ? <Loading label="กำลังโหลดนัด…" /> : <SafeAreaView style={{ flex: 1, padding: spacing.lg, gap: spacing.md, backgroundColor: colors.bg }}>
+  if (!court.data) return court.isLoading ? <View style={styles.screen}><LoadingState label="กำลังโหลดนัด…" /></View> : <SafeAreaView style={[styles.screen, { padding: spacing.lg, gap: spacing.md }]}>
     {back}
-    <ErrorNote message="ยังโหลดนัดนี้ไม่ได้ กรุณาต่ออินเทอร์เน็ตและลองใหม่" onRetry={() => court.refetch()} />
+    <ErrorState message="ยังโหลดนัดนี้ไม่ได้ กรุณาต่ออินเทอร์เน็ตและลองใหม่" onRetry={() => court.refetch()} />
   </SafeAreaView>;
-  if (readError) return <SafeAreaView style={{ flex: 1, padding: spacing.lg, gap: spacing.md, backgroundColor: colors.bg }}>
+  if (readError) return <SafeAreaView style={[styles.screen, { padding: spacing.lg, gap: spacing.md }]}>
     {back}
-    <ErrorNote message={readError} onRetry={() => setReadAttempt(readAttempt + 1)} />
+    <ErrorState message={readError} onRetry={() => setReadAttempt(readAttempt + 1)} />
   </SafeAreaView>;
-  if (!draft) return <Loading label="กำลังเปิดร่าง…" />;
+  if (!draft) return <View style={styles.screen}><LoadingState label="กำลังเปิดร่าง…" /></View>;
   const { event, workspace } = court.data;
   const state = draft.state;
   const done = !!workspace.completedAt;
@@ -159,62 +183,67 @@ export default function CourtDayScreen() {
       setDraft({ version: result.data.workspace.version, eventUpdatedAt: result.data.event.updatedAt, state: result.data.workspace.state });
     } },
   ]);
-  const input = { minHeight: 48, padding: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderRadius: radius.button, color: colors.text, fontSize: 16 };
   const nextAtField = (value: string, onChange: (value: string) => void, error?: string) => <View style={{ gap: spacing.sm }}>
-    {editable ? <DatePicker label="วันนัดครั้งหน้า" required error={error} minDate={bangkokDay(event.startAt)} value={value ? bangkokDay(value) : ''}
+    {editable ? <DateField label="วันนัดครั้งหน้า" required error={error} minDate={bangkokDay(event.startAt)} value={value ? bangkokDay(value) : ''}
       onChange={(day) => onChange(new Date(`${day}T${value ? thTime(value) : '09:00'}:00+07:00`).toISOString())} />
       : <Text style={{ color: colors.muted }}>{value ? thDateLong(value) : 'ไม่ระบุวันที่'}</Text>}
     <FieldLabel required hint="แบบ 24 ชั่วโมง เช่น 09:00">เวลา</FieldLabel>
     <TextInput key={value} accessibilityLabel="เวลานัดครั้งหน้า · จำเป็นต้องกรอก" accessibilityHint={timeError || undefined}
-      style={[input, { borderColor: timeError ? colors.warn : colors.line }]} placeholder="09:00" placeholderTextColor={colors.faint} maxLength={5}
+      style={fieldFrame({ focused: timeFocused, error: !!timeError, disabled: !editable })} placeholder="09:00" placeholderTextColor={colors.faint} maxLength={5}
       defaultValue={value ? thTime(value) : '09:00'} editable={editable} keyboardType="numbers-and-punctuation"
+      onFocus={() => setTimeFocused(true)} onBlur={() => setTimeFocused(false)}
       onEndEditing={({ nativeEvent }) => {
         if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(nativeEvent.text)) return setTimeError('กรอกเวลาแบบ 09:00');
         setTimeError('');
         onChange(new Date(`${value ? bangkokDay(value) : bangkokDay(event.startAt)}T${nativeEvent.text}:00+07:00`).toISOString());
       }} />
-    <FieldError message={timeError} />
+    <InlineError message={timeError || undefined} />
   </View>;
   const isPicked = (id: string) => state.documents.some((item) => item.id === id);
   const lead = event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : 'ยังไม่ระบุ';
   const others = event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => `${person.user.firstName} ${person.user.lastName}`) ?? [];
   const savedToServer = workspace.version > 0 && !stale && JSON.stringify(workspace.state) === JSON.stringify(state);
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+  return <SafeAreaView style={styles.screen}>
     <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ ...pageContent, paddingTop: spacing.sm, gap: spacing.sm, paddingBottom: spacing.xl + keyboardHeight }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
         {back}
         <View style={{ flex: 1, minWidth: 0, gap: spacing.xs, paddingTop: spacing.xs }}>
-          <Text accessibilityRole="header" style={{ fontSize: 22, lineHeight: 32, fontFamily: fonts.bold, color: colors.ink }}>{event.title}</Text>
-          <Text style={{ color: colors.muted, lineHeight: 22 }}>{[event.case?.ownRef, event.courtName ?? event.case?.courtName].filter(Boolean).join(' · ')}</Text>
-          <Text style={{ color: colors.muted, lineHeight: 22 }}>{thDateLong(event.startAt)} · {thTime(event.startAt)}</Text>
+          <Text accessibilityRole="header" style={styles.title}>{event.title}</Text>
+          <Text style={styles.when}>{thDateLong(event.startAt)} · {thTime(event.startAt)}</Text>
+          <Text style={styles.meta}>{[event.case?.ownRef, event.courtName ?? event.case?.courtName].filter(Boolean).join(' · ')}</Text>
           {done && <View style={{ alignSelf: 'flex-start' }}><Tag tone="ok">ยืนยันผลแล้ว</Tag></View>}
         </View>
       </View>
-      <View accessibilityRole="tablist" style={{ flexDirection: 'row', gap: spacing.sm, marginVertical: spacing.sm }}>
+      <View accessibilityRole="tablist" style={styles.track}>
         {PHASES.map((label, index) => <Pressable key={label} accessibilityRole="tab" accessibilityState={{ selected: phase === index }}
-          onPress={() => setPhase(index)} style={{ flex: 1, minHeight: TOUCH, backgroundColor: phase === index ? colors.soft : colors.surface, borderWidth: 1,
-            borderColor: phase === index ? colors.ink : colors.line, borderRadius: radius.button, justifyContent: 'center', padding: spacing.sm }}>
-          <Text style={{ color: colors.ink, fontWeight: phase === index ? '700' : '400', textAlign: 'center' }}>{label}</Text>
+          onPress={() => setPhase(index)}
+          style={({ pressed }) => [styles.phase, phase === index ? styles.phaseOn : pressed && { backgroundColor: colors.soft }]}>
+          <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.phaseText, phase === index && styles.phaseTextOn]}>{label}</Text>
         </Pressable>)}
       </View>
-      {court.isError && <ErrorNote message="โหลดข้อมูลล่าสุดไม่ได้ แสดงข้อมูลที่เก็บไว้" onRetry={() => court.refetch()} />}
+      {court.isError && <InlineError message="โหลดข้อมูลล่าสุดไม่ได้ แสดงข้อมูลที่เก็บไว้" onRetry={() => court.refetch()} />}
       {stale && !done && <>
-        <ErrorNote message="มีข้อมูลใหม่ในระบบ ร่างในเครื่องยังอยู่ กรุณาตรวจข้อมูลล่าสุดก่อนบันทึก" />
+        <InlineError message="มีข้อมูลใหม่ในระบบ ร่างในเครื่องยังอยู่ กรุณาตรวจข้อมูลล่าสุดก่อนบันทึก" />
         <Button title="โหลดข้อมูลล่าสุด" variant="secondary" onPress={reload} disabled={busy} />
       </>}
       {phase === 0 ? <>
         <SectionLabel style={formLabelSpacing}>ใครไปด้วย</SectionLabel>
-        <Text style={{ color: colors.ink }}>หลัก: {lead}</Text>
-        <Text style={{ color: colors.muted }}>ร่วม: {others.join(', ') || 'ไม่มี'}</Text>
-        <Button title="จัดทีมที่ไปด้วย" variant="link" onPress={() => router.push(`/event/${eventId}/team`)} disabled={busy} />
+        <Card style={styles.listCard}>
+          <View style={styles.teamRow}><Text style={styles.teamLabel}>หลัก:</Text><Text style={[styles.teamValue, { fontWeight: '600' }]}>{lead}</Text></View>
+          <View style={[styles.teamRow, styles.teamRule]}><Text style={styles.teamLabel}>ร่วม:</Text><Text style={[styles.teamValue, !others.length && { color: colors.muted }]}>{others.join(', ') || 'ไม่มี'}</Text></View>
+          <View style={styles.teamRule}><Button title="จัดทีมที่ไปด้วย" variant="link" onPress={() => router.push(`/event/${eventId}/team`)} disabled={busy} /></View>
+        </Card>
         <SectionLabel style={formLabelSpacing}>เตรียมก่อนเดินทาง</SectionLabel>
-        {state.checklist.map((item) => <CheckRow key={item.id} label={item.title} checked={item.done} disabled={!editable}
-          onChange={() => change({ checklist: state.checklist.map((row) => row.id === item.id ? { ...row, done: !row.done } : row) })} />)}
+        {state.checklist.length > 0 && <Card style={styles.listCard}>
+          {state.checklist.map((item, index) => <View key={item.id} style={index > 0 && styles.rule}><CheckRow label={item.title} checked={item.done} disabled={!editable}
+            onChange={() => change({ checklist: state.checklist.map((row) => row.id === item.id ? { ...row, done: !row.done } : row) })} /></View>)}
+        </Card>}
         <SectionLabel style={formLabelSpacing}>เอกสารคดี · เลือกฉบับที่จะใช้</SectionLabel>
-        {documents.isLoading && <Text style={{ color: colors.muted }}>กำลังโหลดเอกสาร…</Text>}
-        {documents.isError && <ErrorNote message="โหลดเอกสารไม่ได้" onRetry={() => documents.refetch()} />}
-        {documents.data?.map((doc) => <View key={doc.id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+        {documents.isLoading && <LoadingState inline label="กำลังโหลดเอกสาร…" />}
+        {documents.isError && <InlineError message="โหลดเอกสารไม่ได้" onRetry={() => documents.refetch()} />}
+        {!!documents.data?.length && <Card style={styles.listCard}>
+        {documents.data.map((doc, index) => <View key={doc.id} style={[styles.docRow, index > 0 && styles.rule]}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <CheckRow label={doc.filename} detail={`ฉบับ ${doc.version}`} checked={isPicked(doc.id)} disabled={!editable}
               onChange={() => change({ documents: isPicked(doc.id) ? state.documents.filter((item) => item.id !== doc.id) : [...state.documents, { id: doc.id, version: doc.version }] })} />
@@ -229,13 +258,14 @@ export default function CourtDayScreen() {
             <ExternalLink size={20} color={colors.info} />
           </Pressable>
         </View>)}
-        {!documents.isLoading && !documents.isError && !documents.data?.length && <Text style={{ color: colors.muted }}>ยังไม่มีเอกสารในคดี</Text>}
+        </Card>}
+        {!documents.isLoading && !documents.isError && !documents.data?.length && <EmptyState compact>ยังไม่มีเอกสารในคดี</EmptyState>}
         <Button title="เปิดแฟ้มคดี · เอกสารทั้งหมด" variant="link" onPress={() => router.push(`/case/${event.caseId}?section=documents`)} />
-      </> : <Text style={{ color: colors.muted }}>ไปด้วย: {lead}{others.length ? ` และอีก ${others.length} คน` : ''}</Text>}
+      </> : <Text style={styles.status}>ไปด้วย: {lead}{others.length ? ` และอีก ${others.length} คน` : ''}</Text>}
       {phase !== 0 && <>
-        <FormField label={phase === 1 ? 'จดสั้นที่ศาล' : 'บันทึกรายละเอียด'} multiline disabled={!editable} maxLength={10000}
+        <TextArea label={phase === 1 ? 'จดสั้นที่ศาล' : 'บันทึกรายละเอียด'} disabled={!editable} maxLength={10000}
           placeholder="จดสิ่งสำคัญไว้ก่อน เช่น ศาลสั่งอะไร ต้องส่งเอกสารอะไร" value={state.notes} onChange={(notes) => change({ notes })} />
-        <FormField label="ผลนัด" required hint="เติมภายหลังได้ · ต้องกรอกก่อนยืนยันผล" multiline disabled={!editable} maxLength={10000}
+        <TextArea label="ผลนัด" required hint="เติมภายหลังได้ · ต้องกรอกก่อนยืนยันผล" disabled={!editable} maxLength={10000}
           placeholder="ผลที่เกิดขึ้นในนัดนี้" value={state.outcome} onChange={(outcome) => change({ outcome })} error={shown('outcome')} />
         <Button title="เก็บใบเสร็จ / ค่าใช้จ่ายของคดีนี้" variant="link" disabled={busy}
           onPress={() => router.push({ pathname: '/expenses/new', params: { caseId: event.caseId, caseLabel: event.case?.ownRef, eventId } })} />
@@ -244,24 +274,24 @@ export default function CourtDayScreen() {
         <SectionLabel style={formLabelSpacing}>สิ่งที่สร้างต่อเมื่อยืนยันผล</SectionLabel>
         <SwitchRow label="มีนัดครั้งหน้า" value={state.nextHearing} onValueChange={(nextHearing) => change({ nextHearing })} disabled={!editable} />
         {state.nextHearing && <>
-          <FormField label="ชื่อนัดครั้งหน้า" required value={state.nextTitle} maxLength={200} disabled={!editable}
+          <TextField label="ชื่อนัดครั้งหน้า" required value={state.nextTitle} maxLength={200} disabled={!editable}
             onChange={(nextTitle) => change({ nextTitle })} error={shown('nextTitle')} />
           {nextAtField(state.nextAt, (nextAt) => change({ nextAt }), shown('nextAt'))}
         </>}
         <SwitchRow label="สร้างงานที่ต้องทำต่อให้ฉัน" value={state.followUp} onValueChange={(followUp) => change({ followUp })} disabled={!editable} />
         {state.followUp && <>
-          <FormField label="งานที่ต้องทำต่อ" required maxLength={200} disabled={!editable} value={state.taskTitle}
+          <TextField label="งานที่ต้องทำต่อ" required maxLength={200} disabled={!editable} value={state.taskTitle}
             onChange={(taskTitle) => change({ taskTitle })} error={shown('taskTitle')} />
-          {editable ? <DatePicker label="กำหนดส่ง · ถ้ามี" value={state.taskDue ? bangkokDay(state.taskDue) : ''}
+          {editable ? <DateField label="กำหนดส่ง · ถ้ามี" value={state.taskDue ? bangkokDay(state.taskDue) : ''}
             onChange={(day) => change({ taskDue: new Date(`${day}T${state.taskDue ? thTime(state.taskDue) : '09:00'}:00+07:00`).toISOString() })} onClear={() => change({ taskDue: '' })} />
-            : <Text style={{ color: colors.muted }}>กำหนดส่ง: {state.taskDue ? thDateLong(state.taskDue) : 'ไม่ระบุ'}</Text>}
+            : <Text style={styles.status}>กำหนดส่ง: {state.taskDue ? thDateLong(state.taskDue) : 'ไม่ระบุ'}</Text>}
         </>}
         {/* Expenses are recorded through "เก็บใบเสร็จ"; this switch only lets older drafts that turned it on keep or drop it. */}
         {state.expense && <>
           <SwitchRow label="บันทึกค่าใช้จ่ายพร้อมผลนัด" value={state.expense} onValueChange={(expense) => change({ expense })} disabled={!editable} />
-          <Dropdown label="เบิกค่าอะไร" fieldLabel="เบิกค่าอะไร" required value={state.expenseCategory ?? ''} options={EXPENSE_CATEGORIES.map((value) => ({ value, label: value }))}
+          <SelectField label="เบิกค่าอะไร" required value={state.expenseCategory ?? ''} options={EXPENSE_CATEGORIES.map((value) => ({ value, label: value }))}
             onChange={(expenseCategory) => change({ expenseCategory })} disabled={!editable} error={shown('expenseCategory')} />
-          <FormField label="ยอดเงิน (บาท)" required value={formatMoneyInput(state.amount) ?? state.amount} disabled={!editable} keyboardType="decimal-pad"
+          <TextField label="ยอดเงิน (บาท)" required value={formatMoneyInput(state.amount) ?? state.amount} disabled={!editable} keyboardType="decimal-pad"
             error={shown('amount')} onChange={(amount) => {
               const formatted = formatMoneyInput(amount);
               if (formatted !== null) change({ amount: formatted.replace(/,/g, '') });
@@ -273,22 +303,24 @@ export default function CourtDayScreen() {
           {triedConfirm && <MissingSummary items={missing.map((field) => FIELD_NAME[field])} />}
           <Button title="ตรวจทานและยืนยันผลนัด" onPress={review} busy={busy} disabled={stale || court.isError || court.isFetching} />
         </>}
-        {writer && !done && reviewing && <Card style={{ gap: spacing.sm, borderColor: colors.ink }}>
-          <Text accessibilityRole="header" style={{ fontSize: 17, lineHeight: 26, fontFamily: fonts.bold, color: colors.ink }}>ตรวจทานก่อนยืนยันผลนัด</Text>
-          {summary.map((line) => <Text key={line} style={{ color: colors.text, lineHeight: 22 }}>{line}</Text>)}
+        {writer && !done && reviewing && <Card style={styles.reviewCard}>
+          <Text accessibilityRole="header" style={styles.reviewTitle}>ตรวจทานก่อนยืนยันผลนัด</Text>
+          <View>{summary.map((line) => <Text key={line} style={styles.reviewLine}>{line}</Text>)}</View>
           <Button title="ยืนยันผลนัด" onPress={record} busy={busy} disabled={stale || court.isError || court.isFetching} />
           <Button title="กลับไปแก้" variant="secondary" onPress={() => setReviewing(false)} disabled={busy} />
         </Card>}
-        {submitError ? <ErrorNote message={submitError} /> : null}
+        <InlineError message={submitError || undefined} />
       </>}
       {!done && <View style={{ gap: spacing.xs, marginTop: spacing.md }}>
-        <Text accessibilityLiveRegion="polite" style={{ color: localStatus.includes('ไม่สำเร็จ') ? colors.warn : colors.muted }}>
-          {savedToServer ? 'บันทึกร่างเข้าระบบแล้ว · ยังไม่ยืนยันผล' : localStatus}
-        </Text>
+        {!savedToServer && localStatus.includes('ไม่สำเร็จ')
+          ? <InlineError message={localStatus} />
+          : <Text accessibilityLiveRegion="polite" style={styles.status}>
+            {savedToServer ? 'บันทึกร่างเข้าระบบแล้ว · ยังไม่ยืนยันผล' : localStatus}
+          </Text>}
         {writer && <Button title="บันทึกร่างเข้าระบบ · ยังไม่ยืนยันผล" variant="secondary"
           onPress={() => { setSubmitError(''); sync().catch((error) => setSubmitError(`บันทึกไม่สำเร็จ · ${error instanceof Error ? error.message : 'ลองใหม่อีกครั้ง'}`)); }}
           busy={save.isPending && !complete.isPending} disabled={busy || stale || court.isError || court.isFetching} />}
-        {phase !== 2 && submitError ? <ErrorNote message={submitError} /> : null}
+        {phase !== 2 && submitError ? <InlineError message={submitError} /> : null}
       </View>}
     </ScrollView>
   </SafeAreaView>;

@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/AppText';
-import { FormField, FormPage, FormSection, MissingSummary } from '@/components/Form';
-import { Button, ErrorNote } from '@/components/ui';
+import { FormPage, FormSection, MissingSummary } from '@/components/Form';
+import { TextField } from '@/components/Input';
+import { Button, InlineError } from '@/components/ui';
 import { useAuth } from '@/api/auth';
 import { ApiError } from '@/api/client';
-import { colors, fonts, spacing } from '@/theme';
+import { colors, radius, spacing, typeScale } from '@/theme';
 import { passwordError } from '@/account-validation';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -64,30 +65,31 @@ export default function RegisterScreen() {
 
   return <FormPage>
     <View style={{ gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.sm }}>
-      <Text accessibilityRole="header" style={{ color: colors.ink, fontFamily: fonts.bold, fontSize: 28, lineHeight: 40 }}>สมัคร Samnuan</Text>
-      <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>สร้างสำนักงานใหม่ สำหรับเจ้าของสำนักงาน</Text>
-      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 14, lineHeight: 22 }}>พนักงานไม่ต้องสมัคร — เปิดลิงก์ในอีเมลเชิญจากสำนักงานของคุณ</Text>
+      <Text accessibilityRole="header" style={{ ...typeScale.display, color: colors.ink }}>สมัคร Samnuan</Text>
+      <Text style={{ color: colors.muted, fontSize: 15, lineHeight: 24 }}>สร้างสำนักงานใหม่ สำหรับเจ้าของสำนักงาน</Text>
+      <Text style={{ color: colors.info, backgroundColor: colors.infoSoft, borderRadius: radius.md, padding: spacing.md, fontWeight: '600',
+        fontSize: 14, lineHeight: 22 }}>พนักงานไม่ต้องสมัคร — เปิดลิงก์ในอีเมลเชิญจากสำนักงานของคุณ</Text>
     </View>
     <FormSection title="สำนักงานและชื่อของคุณ">
-      <FormField label="ชื่อสำนักงาน" required value={firmName} onChange={setFirmName} disabled={busy} error={shown('firmName')}
+      <TextField label="ชื่อสำนักงาน" required value={firmName} onChange={setFirmName} disabled={busy} error={shown('firmName')}
         maxLength={200} returnKeyType="next" />
-      <FormField label="ชื่อ" required value={firstName} onChange={setFirstName} disabled={busy} error={shown('firstName')}
+      <TextField label="ชื่อ" required value={firstName} onChange={setFirstName} disabled={busy} error={shown('firstName')}
         maxLength={100} autoComplete="given-name" textContentType="givenName" returnKeyType="next" />
-      <FormField label="นามสกุล" required value={lastName} onChange={setLastName} disabled={busy} error={shown('lastName')}
+      <TextField label="นามสกุล" required value={lastName} onChange={setLastName} disabled={busy} error={shown('lastName')}
         maxLength={100} autoComplete="family-name" textContentType="familyName" returnKeyType="next" />
     </FormSection>
     <FormSection title="ข้อมูลเข้าสู่ระบบ" detail="ใช้อีเมลนี้สำหรับเข้าระบบและตั้งรหัสผ่านใหม่">
-      <FormField label="อีเมล" required value={email} onChange={setEmail} disabled={busy} error={shown('email')} placeholder="name@firm.co.th"
+      <TextField label="อีเมล" required value={email} onChange={setEmail} disabled={busy} error={shown('email')} placeholder="name@firm.co.th"
         keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress" returnKeyType="next" />
-      <FormField label="รหัสผ่าน" required hint="อย่างน้อย 8 ตัวอักษร" value={password} onChange={setPassword} disabled={busy} error={shown('password')}
+      <TextField label="รหัสผ่าน" required hint="อย่างน้อย 8 ตัวอักษร" value={password} onChange={setPassword} disabled={busy} error={shown('password')}
         secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" returnKeyType="next" />
-      <FormField label="ยืนยันรหัสผ่าน" required value={confirmation} onChange={setConfirmation} disabled={busy} error={shown('confirmation')}
+      <TextField label="ยืนยันรหัสผ่าน" required value={confirmation} onChange={setConfirmation} disabled={busy} error={shown('confirmation')}
         secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="new-password" textContentType="newPassword"
         returnKeyType="done" onSubmitEditing={submit} />
       <Button title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} variant="link" onPress={() => setShowPassword(!showPassword)} />
     </FormSection>
     <MissingSummary items={missing} />
-    {error && <ErrorNote message={error} />}
+    {error && <InlineError message={error} />}
     <Button title="สร้างบัญชีและสำนักงาน" onPress={submit} busy={busy} />
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.md }}>
       <Button variant="link" title="มีบัญชีแล้ว · เข้าสู่ระบบ" onPress={() => router.replace('/(auth)/login')} disabled={busy} />

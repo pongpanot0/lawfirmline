@@ -5,9 +5,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, UserPlus } from 'lucide-react-native';
 import { api } from '@/api/client';
 import { useClients } from '@/api/hooks';
-import { Button, ErrorNote } from '@/components/ui';
-import { FieldError, FieldLabel, fieldA11yLabel } from './Form';
-import { colors, radius, spacing } from '@/theme';
+import { Button } from './Button';
+import { InlineError, LoadingState } from './States';
+import { FieldLabel, fieldA11yLabel } from './FieldLabel';
+import { fieldFrame } from './Input';
+import { colors, control, radius, shadow, spacing } from '@/theme';
 
 export type PickedClient = { id: string; name: string };
 
@@ -36,6 +38,7 @@ export function ClientPicker({ value, onChange, disabled = false, allowClear = t
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [focused, setFocused] = useState(false);
   const cache = useQueryClient();
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 300);
@@ -78,10 +81,11 @@ export function ClientPicker({ value, onChange, disabled = false, allowClear = t
       editable={!disabled && !busy} placeholder="พิมพ์ชื่อเพื่อค้นหา หรือสร้างลูกความใหม่"
       accessibilityLabel={fieldA11yLabel(label ?? 'ค้นหาชื่อลูกความ', required)} accessibilityHint={error || undefined}
       placeholderTextColor={colors.faint} returnKeyType="search" onSubmitEditing={() => setQuery(search.trim())}
-      style={[styles.input, error ? { borderColor: colors.warn } : null]} />
-    <FieldError message={error} />
-    {!!typed && !settled && !clients.isError && <Text style={styles.note}>กำลังค้นหา…</Text>}
-    {clients.isError && !!typed && <ErrorNote message="โหลดรายชื่อลูกความไม่สำเร็จ" onRetry={() => clients.refetch()} />}
+      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      style={fieldFrame({ focused, error: !!error, disabled: disabled || busy })} />
+    <InlineError message={error} />
+    {!!typed && !settled && !clients.isError && <LoadingState inline label="กำลังค้นหา…" />}
+    {clients.isError && !!typed && <InlineError message="โหลดรายชื่อลูกความไม่สำเร็จ" onRetry={() => clients.refetch()} />}
     {rows.length > 0 && <View style={styles.list}>
       {rows.map((c, index) => (
         <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`เลือกลูกความ ${c.name}`} disabled={disabled}
@@ -100,13 +104,13 @@ export function ClientPicker({ value, onChange, disabled = false, allowClear = t
           <Button title={type.label} variant="secondary" disabled={disabled || busy} onPress={() => create(type.value)} />
         </View>)}
       </View>
-      {busy ? <Text style={styles.note}>กำลังสร้างลูกความ…</Text> : <Button title="ยกเลิก" variant="link" onPress={() => setCreating(false)} />}
+      {busy ? <LoadingState inline label="กำลังสร้างลูกความ…" /> : <Button title="ยกเลิก" variant="link" onPress={() => setCreating(false)} />}
     </View> : <Pressable accessibilityRole="button" accessibilityLabel={`สร้างลูกความใหม่ ${typed}`} disabled={disabled}
       onPress={() => setCreating(true)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.soft }]}>
       <UserPlus size={18} color={colors.info} />
       <Text style={{ flex: 1, color: colors.info, fontWeight: '600' }}>{`สร้างลูกความใหม่ "${typed}"`}</Text>
     </Pressable>)}
-    {!!createError && <Text accessibilityRole="alert" style={{ color: colors.warn }}>{createError}</Text>}
+    <InlineError message={createError} />
     {changing && <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.lg }}>
       <Button title={`ใช้ลูกความเดิม · ${value?.name ?? ''}`} variant="link" disabled={disabled || busy}
         onPress={() => { setChanging(false); setCreating(false); setSearch(''); }} />
@@ -118,14 +122,14 @@ export function ClientPicker({ value, onChange, disabled = false, allowClear = t
 
 const styles = StyleSheet.create({
   group: { gap: spacing.sm },
-  picked: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.md, minHeight: 48,
-    paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface },
-  pickedName: { flex: 1, minWidth: 120, color: colors.ink, fontWeight: '600', fontSize: 15 },
-  input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, padding: spacing.md, minHeight: 48,
-    backgroundColor: colors.surface, color: colors.text },
-  list: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, overflow: 'hidden' },
+  picked: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.md, minHeight: control.height,
+    paddingHorizontal: spacing.md, borderWidth: control.borderWidth, borderColor: colors.lineStrong, borderRadius: radius.button,
+    backgroundColor: colors.raised },
+  pickedName: { flex: 1, minWidth: 120, color: colors.ink, fontWeight: '600', fontSize: 16 },
+  // Results drop down as a raised popover list under the field.
+  list: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: colors.raised, overflow: 'hidden', ...shadow.md },
   row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md },
-  rowLine: { borderTopWidth: 1, borderTopColor: colors.soft },
+  rowLine: { borderTopWidth: 1, borderTopColor: colors.divider },
   note: { color: colors.muted, fontSize: 14 },
-  createBox: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface },
+  createBox: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: colors.surface },
 });

@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useRouter } from 'expo-router';
-import { ChevronDown, ChevronRight } from 'lucide-react-native';
+import { BookOpen, ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useKnowledge } from '@/api/hooks';
-import { Button, Card, EmptyNote, ErrorNote, FilterTabs, Loading, PageIntro, SearchBox, Tag } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, FilterTabs, LoadingState, PageIntro, SearchBox, Tag } from '@/components/ui';
 import { thDate } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
 
@@ -34,16 +34,16 @@ export default function KnowledgeScreen() {
         <FilterTabs items={CATEGORY_TABS} value={category} onChange={setCategory} />
       </View>
       {knowledge.isLoading ? (
-        <Loading label="กำลังโหลดคลังความรู้…" />
+        <LoadingState label="กำลังโหลดคลังความรู้…" />
       ) : knowledge.isError ? (
-        <View style={{ padding: spacing.lg }}>
-          <ErrorNote message="โหลดคลังความรู้ไม่สำเร็จ" onRetry={() => knowledge.refetch()} />
+        <View style={{ ...pageContent, maxWidth: 760 }}>
+          <ErrorState message="โหลดคลังความรู้ไม่สำเร็จ" onRetry={() => knowledge.refetch()} />
         </View>
       ) : (
         <FlatList
           data={rows}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ ...pageContent, maxWidth: 760 }}
+          contentContainerStyle={{ ...pageContent, maxWidth: 760, paddingTop: spacing.md }}
           refreshing={knowledge.isRefetching}
           onRefresh={() => knowledge.refetch()}
           renderItem={({ item }) => {
@@ -51,7 +51,7 @@ export default function KnowledgeScreen() {
             const categoryLabel = CATEGORY_LABEL[item.category] ?? item.category;
             // Tapping reads the entry in place; the case link appears once it is open.
             return (
-              <Card style={{ marginBottom: spacing.sm, paddingVertical: spacing.sm }}>
+              <Card style={{ marginBottom: spacing.md, paddingVertical: spacing.md }}>
                 <Pressable
                   accessibilityRole="button" accessibilityState={{ expanded: open }}
                   accessibilityLabel={`${item.title} · ${categoryLabel}`} accessibilityHint={open ? 'แตะเพื่อย่อ' : 'แตะเพื่ออ่านต่อ'}
@@ -74,9 +74,9 @@ export default function KnowledgeScreen() {
             );
           }}
           ListEmptyComponent={
-            <EmptyNote>
+            <EmptyState icon={BookOpen}>
               {committed ? `ไม่พบความรู้ที่ตรงกับ “${committed}”` : category ? `ยังไม่มีรายการ${CATEGORY_LABEL[category]}` : 'ยังไม่มีรายการความรู้ · บันทึกได้บนเว็บ'}
-            </EmptyNote>
+            </EmptyState>
           }
         />
       )}
@@ -87,7 +87,7 @@ export default function KnowledgeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, minHeight: 44, paddingVertical: spacing.xs },
-  title: { fontSize: 15, fontWeight: '600', color: colors.text },
-  summary: { fontSize: 14, color: colors.muted, lineHeight: 22 },
-  meta: { fontSize: 13, color: colors.muted },
+  title: { fontSize: 16, lineHeight: 24, fontWeight: '600', color: colors.text },
+  summary: { fontSize: 14, color: colors.text, lineHeight: 22 },
+  meta: { fontSize: 13, lineHeight: 20, color: colors.muted },
 });

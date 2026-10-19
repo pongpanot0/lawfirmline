@@ -2,16 +2,16 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronRight } from 'lucide-react-native';
+import { Check, ChevronRight, FileText } from 'lucide-react-native';
 import { api } from '@/api/client';
 import { useAuth } from '@/api/auth';
 import { taskDraftScope } from '@/api/drafts';
 import { useTaskDraft } from '@/hooks/useTaskDraft';
 import { Text } from '@/components/AppText';
 import { CasePicker, CaseRef } from '@/components/CasePicker';
-import { FormField, FormPage, FormSection, MissingSummary } from '@/components/Form';
-import { DatePicker } from '@/components/DatePicker';
-import { Button, Card, EmptyNote, ErrorNote, FilterTabs, Loading, PageIntro, Tag } from '@/components/ui';
+import { FormPage, FormSection, MissingSummary } from '@/components/Form';
+import { DateField, TextArea, TextField } from '@/components/Input';
+import { Button, Card, EmptyState, ErrorState, FilterTabs, InlineError, LoadingState, PageIntro, Tag } from '@/components/ui';
 import { bangkokDay, thDate } from '@/format';
 import { CHROME_MAX_SCALE, colors, radius, spacing, TOUCH } from '@/theme';
 
@@ -54,7 +54,8 @@ export default function DocumentWaiting() {
   };
   const waiting = (query.data ?? []).filter(isOpen);
   const rows = showClosed ? query.data ?? [] : waiting;
-  if (!draft.ready) return draft.error ? <FormPage><ErrorNote message={draft.error} onRetry={draft.retry} /></FormPage> : <Loading label="กำลังเปิดร่าง…" />;
+  if (!draft.ready) return draft.error ? <FormPage><ErrorState message={draft.error} onRetry={draft.retry} /></FormPage>
+    : <View style={{ flex: 1, backgroundColor: colors.bg }}><LoadingState label="กำลังเปิดร่าง…" /></View>;
 
   const problems = {
     case: !selectedCase ? 'เลือกคดี' : '',
@@ -87,38 +88,41 @@ export default function DocumentWaiting() {
     <Stack.Screen options={{ title: 'รอเอกสารจากภายนอก' }} />
     <PageIntro detailOnly title="รอเอกสารจากภายนอก" detail="เอกสารจากลูกความและหน่วยงานภายนอก · แตะรายการเพื่อแก้วันติดตาม" />
     {adding ? <FormSection title={editId ? 'แก้รายการติดตาม' : 'รายการเอกสารใหม่'}>
-      {!caseId && (busy || !!editId ? <Text>{selectedCase?.label}</Text>
+      {!caseId && (busy || !!editId ? <Text style={styles.caseLabel}>{selectedCase?.label}</Text>
         : <CasePicker label="คดี" required value={selectedCase} onChange={setSelectedCase} error={triedSave ? problems.case || undefined : undefined} />)}
-      <FormField label="เอกสารที่รอ" required value={name} onChange={setName} disabled={busy} error={triedSave ? problems.name || undefined : undefined} />
-      <FormField label="รอจากใคร" required hint="ชื่อคนหรือหน่วยงาน" value={requestedFrom} onChange={setRequestedFrom} disabled={busy}
+      <TextField label="เอกสารที่รอ" required value={name} onChange={setName} disabled={busy} error={triedSave ? problems.name || undefined : undefined} />
+      <TextField label="รอจากใคร" required hint="ชื่อคนหรือหน่วยงาน" value={requestedFrom} onChange={setRequestedFrom} disabled={busy}
         error={triedSave ? problems.from || undefined : undefined} />
-      <DatePicker label="วันติดตามครั้งถัดไป" value={date} onChange={setDate} />
-      <FormField label="บันทึกการติดตาม · เติมทีหลังได้" value={note} onChange={setNote} multiline disabled={busy} />
+      <DateField label="วันติดตามครั้งถัดไป" value={date} onChange={setDate} />
+      <TextArea label="บันทึกการติดตาม · เติมทีหลังได้" value={note} onChange={setNote} disabled={busy} />
       {triedSave && <MissingSummary items={missing} />}
       <Button title={editId ? 'บันทึกการติดตาม' : 'เพิ่มรายการรอเอกสาร'} busy={busy} onPress={save} />
       <Button title="ย่อแบบฟอร์ม · ร่างยังอยู่" variant="link" disabled={busy} onPress={() => setAdding(false)} />
     </FormSection>
       : <Button title="เพิ่มรายการเอกสารที่รอ" disabled={busy} onPress={() => { draft.resume(); setBlockedNote(''); setAdding(true); }} />}
-    {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
-    {!!error && <ErrorNote message={error} />}
-    {!!blockedNote && <Text accessibilityRole="alert" style={{ color: colors.warn }}>{blockedNote}</Text>}
+    {!!draft.error && <InlineError message={draft.error} onRetry={draft.retry} />}
+    <InlineError message={error || undefined} />
+    <InlineError message={blockedNote || undefined} />
     <FilterTabs value={showClosed ? 'all' : 'open'} onChange={v => setShowClosed(v === 'all')}
       items={[{ value: 'open', label: query.data ? `ยังรอ ${waiting.length}` : 'ยังรอ' }, { value: 'all', label: 'ทั้งหมด' }]} />
-    {query.isLoading && <Loading label="กำลังโหลดรายการ…" />}
-    {query.isError && <ErrorNote message="โหลดรายการรอเอกสารไม่ได้" onRetry={() => query.refetch()} />}
-    {query.data && rows.length === 0 && <EmptyNote>{showClosed ? 'ยังไม่มีรายการ'
-      : caseId ? 'คดีนี้ไม่มีเอกสารที่ยังรอ' : 'ไม่มีเอกสารที่ยังรอในคดีที่คุณเข้าถึงได้'}</EmptyNote>}
+    {query.isLoading && <LoadingState label="กำลังโหลดรายการ…" />}
+    {query.isError && <ErrorState message="โหลดรายการรอเอกสารไม่ได้" onRetry={() => query.refetch()} />}
+    {query.data && !query.isError && rows.length === 0 && <EmptyState compact>{showClosed ? 'ยังไม่มีรายการ'
+      : caseId ? 'คดีนี้ไม่มีเอกสารที่ยังรอ' : 'ไม่มีเอกสารที่ยังรอในคดีที่คุณเข้าถึงได้'}</EmptyState>}
     {rows.length > 0 && <Card style={{ paddingVertical: 0 }}>
       {rows.map((row, index) => {
         const open = isOpen(row);
         const overdue = open && !!row.dueDate && bangkokDay(row.dueDate) < today;
+        const tint = overdue ? colors.warnSoft : open ? colors.infoSoft : row.status === 'RECEIVED' ? colors.goodSoft : colors.soft;
+        const ink = overdue ? colors.warn : open ? colors.info : row.status === 'RECEIVED' ? colors.good : colors.muted;
         return <View key={row.id} style={[styles.row, index > 0 && styles.rowLine]}>
           <Pressable accessibilityRole="button" accessibilityLabel={`${row.name} · ${row.case.ownRef}`}
             accessibilityHint={open ? 'แก้ข้อมูลและวันติดตาม' : 'เปิดเอกสารในคดี'}
             onPress={() => (open ? startEdit(row) : openCase(row))} disabled={busy}
             style={({ pressed }) => [styles.body, pressed && { opacity: 0.6 }]}>
+            <View style={[styles.tile, { backgroundColor: tint }]}><FileText size={18} color={ink} /></View>
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-              <Text style={{ fontWeight: '700', color: colors.ink }}>{row.name}</Text>
+              <Text style={styles.name}>{row.name}</Text>
               <Text style={styles.meta}>รอจาก {row.requestedFrom || '— ยังไม่ระบุ'} · {row.case.ownRef}</Text>
               {open
                 ? <Text style={[styles.meta, overdue && { color: colors.warn }]}>{row.dueDate ? `ติดตาม ${thDate(row.dueDate)}${overdue ? ' · เลยกำหนด' : ''}` : 'ยังไม่ลงวันติดตาม'}</Text>
@@ -146,11 +150,14 @@ export default function DocumentWaiting() {
 }
 
 const styles = StyleSheet.create({
-  row: { paddingVertical: spacing.sm, gap: spacing.xs },
-  rowLine: { borderTopWidth: 1, borderTopColor: colors.line },
-  body: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: TOUCH },
+  row: { paddingVertical: spacing.md, gap: spacing.xs },
+  rowLine: { borderTopWidth: 1, borderTopColor: colors.divider },
+  body: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: TOUCH },
+  tile: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start', marginTop: 2 },
+  name: { fontWeight: '700', color: colors.ink, fontSize: 15, lineHeight: 22 },
+  caseLabel: { color: colors.ink, fontWeight: '600', fontSize: 15, lineHeight: 22 },
   meta: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, paddingLeft: 36 + spacing.md },
   check: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md,
     borderWidth: 1, borderColor: colors.good, borderRadius: radius.button },
 });

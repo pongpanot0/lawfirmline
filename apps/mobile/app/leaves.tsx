@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { CalendarOff, CircleCheck } from 'lucide-react-native';
 import { Text } from '@/components/AppText';
 import { useAuth } from '@/api/auth';
 import { useLeaves, useRequestLeave } from '@/api/hooks';
 import type { LeaveItem } from '@/api/types';
 import { DatePicker } from '@/components/DatePicker';
 import { Dropdown } from '@/components/Dropdown';
-import { FieldError, FormSection, SwitchRow } from '@/components/Form';
-import { Button, Card, EmptyNote, ErrorNote, Loading, PageIntro, SectionLabel, Tag } from '@/components/ui';
+import { FormSection, SwitchRow } from '@/components/Form';
+import { Button, Card, EmptyState, ErrorState, InlineError, LoadingState, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay, thDate } from '@/format';
-import { colors, spacing, pageContent } from '@/theme';
+import { colors, radius, spacing, pageContent } from '@/theme';
 
 const TYPES = [
   { value: 'SICK', label: 'ลาป่วย' },
@@ -57,23 +58,38 @@ export default function LeavesScreen() {
         onChange={(value) => { setStart(value); if (end < value) setEnd(value); }} />
       <SwitchRow label="ลาหลายวัน" value={multiple} onValueChange={setMultiple} disabled={request.isPending} />
       {multiple && <DatePicker label="ถึงวันที่" required value={end} minDate={start} error={endError} onChange={setEnd} disabled={request.isPending} />}
-      <FieldError message={request.isError ? `ส่งไม่สำเร็จ · ${request.error.message}` : undefined} />
-      {!!sent && <Text accessibilityLiveRegion="polite" style={{ color: colors.good, fontWeight: '600' }}>{sent}</Text>}
+      <InlineError message={request.isError ? `ส่งไม่สำเร็จ · ${request.error.message}` : undefined} />
+      {!!sent && <View accessibilityLiveRegion="polite" style={styles.sent}>
+        <CircleCheck size={18} color={colors.good} style={{ marginTop: 2 }} />
+        <Text style={{ flex: 1, color: colors.good, fontWeight: '600' }}>{sent}</Text>
+      </View>}
       <View style={{ marginTop: spacing.sm }}><Button title="ส่งคำขอลา" onPress={submit} busy={request.isPending} disabled={!!startError || !!endError} /></View>
     </FormSection>
     <SectionLabel>คำขอของฉัน · วันนี้เป็นต้นไป</SectionLabel>
-    {history.isLoading ? <Loading label="กำลังโหลดคำขอ…" />
-      : history.isError && !history.data ? <ErrorNote message="โหลดคำขอไม่สำเร็จ" onRetry={() => history.refetch()} />
-        : !mine.length ? <EmptyNote>ยังไม่มีคำขอ</EmptyNote> : null}
-    {history.isError && !!history.data && <ErrorNote message="รายการอาจยังไม่ล่าสุด" onRetry={() => history.refetch()} />}
-    {mine.map((item) => <Card key={item.id} style={{ marginBottom: spacing.md, gap: spacing.sm }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <Text style={{ flex: 1, color: colors.ink, fontWeight: '600' }}>{TYPES.find((option) => option.value === item.type)?.label ?? 'ลา'}</Text>
+    {history.isLoading ? <LoadingState inline label="กำลังโหลดคำขอ…" />
+      : history.isError && !history.data ? <ErrorState message="โหลดคำขอไม่สำเร็จ" onRetry={() => history.refetch()} />
+        : !mine.length ? <Card><EmptyState compact>ยังไม่มีคำขอ</EmptyState></Card> : null}
+    {history.isError && !!history.data && <InlineError message="รายการอาจยังไม่ล่าสุด" onRetry={() => history.refetch()} style={{ marginBottom: spacing.sm }} />}
+    {mine.length > 0 && <Card style={styles.list}>
+      {mine.map((item, index) => <View key={item.id} style={[styles.row, index > 0 && styles.divided]}>
+        <View style={styles.iconTile}><CalendarOff size={18} color={colors.info} /></View>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>{TYPES.find((option) => option.value === item.type)?.label ?? 'ลา'}</Text>
+          <Text style={{ color: colors.muted, fontSize: 14 }}>{dateRange(item.startDate, item.endDate)}</Text>
+        </View>
         <Tag tone={item.status === 'APPROVED' ? 'ok' : item.status === 'REJECTED' ? 'due' : 'info'}>
           {item.status === 'APPROVED' ? 'อนุมัติแล้ว' : item.status === 'REJECTED' ? 'ไม่อนุมัติ' : 'รออนุมัติ'}
         </Tag>
-      </View>
-      <Text style={{ color: colors.muted }}>{dateRange(item.startDate, item.endDate)}</Text>
-    </Card>)}
+      </View>)}
+    </Card>}
   </ScrollView>;
 }
+
+const styles = StyleSheet.create({
+  sent: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.goodSoft,
+    borderLeftWidth: 3, borderLeftColor: colors.good },
+  list: { paddingVertical: spacing.xs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
+  divided: { borderTopWidth: 1, borderTopColor: colors.divider },
+  iconTile: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+});

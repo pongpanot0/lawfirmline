@@ -4,6 +4,7 @@ import { Text } from '@/components/AppText';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
+  AlertTriangle,
   BarChart3,
   Bell,
   ChevronRight,
@@ -27,9 +28,11 @@ import type { AgendaItem } from '@/api/types';
 import {
   Button,
   Card,
-  EmptyNote,
-  ErrorNote,
+  EmptyState,
+  ErrorState,
   EVENT_KIND_LABEL,
+  InlineError,
+  LoadingState,
   SectionLabel,
   Tag,
   TagTone,
@@ -37,7 +40,7 @@ import {
 import { bangkokDay, formatMoney, initials, thDateLong, thTime } from '@/format';
 import { agendaIncludesPerson } from '@/workflow';
 import { leaveFlagsForDate } from '@/lib/leave-flags';
-import { CHROME_MAX_SCALE, colors, fonts, radius, spacing, pageContent } from '@/theme';
+import { CHROME_MAX_SCALE, colors, fonts, radius, shadow, spacing, typeScale, pageContent } from '@/theme';
 
 // The most-used destinations from the "อื่นๆ" menu, surfaced one tap away.
 const SHORTCUTS = [
@@ -55,7 +58,7 @@ const SHORTCUTS = [
  * The whole row is one target (court → วันขึ้นศาล, other events → ทีมที่ไปด้วย, tasks → งาน). People are read here and
  * opened from "กำลังคนวันนี้" or the ทีม tab, so small name links nested in the row can no longer misroute a tap.
  */
-function AgendaRow({ item, onPress }: { item: AgendaItem; onPress: () => void }) {
+function AgendaRow({ item, onPress, overdue = false }: { item: AgendaItem; onPress: () => void; overdue?: boolean }) {
   const kind = EVENT_KIND_LABEL[item.kind] ?? EVENT_KIND_LABEL.OTHER;
   const companions = (Array.isArray(item.assignees) ? item.assignees : []).filter((person) => person.id !== item.assigneeId);
   const when = item.allDay ? 'ทั้งวัน' : thTime(item.at);
@@ -66,7 +69,7 @@ function AgendaRow({ item, onPress }: { item: AgendaItem; onPress: () => void })
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${kind.label} ${when} ${item.title}${item.caseRef ? ` · ${item.caseRef}` : ''} · ${people}`}
       onPress={onPress} style={({ pressed }) => [styles.agendaRow, pressed && { backgroundColor: colors.soft }]}>
-      <Text style={styles.agendaTime}>{when}</Text>
+      <Text style={[styles.agendaTime, overdue && { color: colors.warn }]}>{when}</Text>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text style={styles.agendaTitle} numberOfLines={2}>{item.title}</Text>
         {item.caseRef ? (
@@ -77,7 +80,7 @@ function AgendaRow({ item, onPress }: { item: AgendaItem; onPress: () => void })
         ) : null}
         {item.location ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <MapPin size={11} color={colors.faint} />
+            <MapPin size={12} color={colors.faint} />
             <Text style={styles.agendaCase} numberOfLines={1}>{item.location}</Text>
           </View>
         ) : null}
@@ -195,11 +198,11 @@ export default function MyDayScreen() {
     >
       {/* No price, link or "renew on the web" here: App Store anti-steering. Owners get the billing link by email. */}
       {user?.subscriptionStatus && !subscriptionAllowsWrites(user.subscriptionStatus) ? (
-        <ErrorNote message="สำนักงานอยู่ในโหมดดูอย่างเดียว · การใช้งานหมดอายุแล้ว ยังเปิดดูคดีและเอกสารได้ แต่สร้างหรือแก้ไขข้อมูลไม่ได้" />
+        <InlineError style={{ marginBottom: spacing.md }} message="สำนักงานอยู่ในโหมดดูอย่างเดียว · การใช้งานหมดอายุแล้ว ยังเปิดดูคดีและเอกสารได้ แต่สร้างหรือแก้ไขข้อมูลไม่ได้" />
       ) : null}
       <View style={styles.headerRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.hello}>สวัสดี คุณ{user?.firstName ?? ''}</Text>
+          <Text accessibilityRole="header" style={styles.hello}>สวัสดี คุณ{user?.firstName ?? ''}</Text>
           <Text style={styles.date}>{thDateLong(new Date())}{openCases ? ` · คดีเปิด ${openCases}` : ''}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="เมนูเพิ่มเติม" style={styles.bell} hitSlop={8} onPress={() => router.push('/more')}>
@@ -246,24 +249,29 @@ export default function MyDayScreen() {
         </View>
       </Disclosure>
 
+      {/* With nothing cached the failure is the whole story; with cached data it is a one-line note above it. */}
       {myDay.isError ? (
         <View style={{ marginTop: spacing.md }}>
-          <ErrorNote
-            message="โหลดข้อมูลวันนี้ไม่สำเร็จ — แสดงข้อมูลล่าสุดที่บันทึกไว้"
-            onRetry={() => myDay.refetch()}
-          />
+          {myDay.data ? (
+            <InlineError message="โหลดข้อมูลวันนี้ไม่สำเร็จ — แสดงข้อมูลล่าสุดที่บันทึกไว้" onRetry={() => myDay.refetch()} />
+          ) : (
+            <ErrorState message="โหลดข้อมูลวันนี้ไม่สำเร็จ — แสดงข้อมูลล่าสุดที่บันทึกไว้" onRetry={() => myDay.refetch()} />
+          )}
         </View>
       ) : null}
 
       {/* Overdue work comes first: it is the one thing on this screen that is already late. */}
       {overdue.length > 0 ? (
         <>
-          <SectionLabel>{`เกินกำหนด · ${overdue.length}`}</SectionLabel>
-          <Card style={{ borderColor: colors.warn, paddingVertical: spacing.xs }}>
+          <View style={styles.overdueHead}>
+            <AlertTriangle size={18} color={colors.warn} />
+            <SectionLabel style={{ marginTop: 0, marginBottom: 0, color: colors.warn }}>{`เกินกำหนด · ${overdue.length}`}</SectionLabel>
+          </View>
+          <Card style={styles.overdueCard}>
             {overdue.map((item, index) => (
               <View key={item.id}>
                 {index > 0 && <View style={styles.divider} />}
-                <AgendaRow item={item} onPress={() => openItem(item)} />
+                <AgendaRow overdue item={item} onPress={() => openItem(item)} />
               </View>
             ))}
           </Card>
@@ -273,9 +281,9 @@ export default function MyDayScreen() {
       {(myDay.data?.warnings.length ?? 0) > 0 ? (
         <>
           <SectionLabel>คำเตือน</SectionLabel>
-          <Card style={{ borderColor: colors.warnSoft, gap: spacing.xs }}>
+          <Card style={styles.warningCard}>
             {myDay.data!.warnings.map((warning, index) => (
-              <Text key={index} style={{ color: colors.warn, fontSize: 13 }}>
+              <Text key={index} style={{ color: colors.warn, fontSize: 14, lineHeight: 22 }}>
                 {warning.message}
               </Text>
             ))}
@@ -285,28 +293,28 @@ export default function MyDayScreen() {
 
       {decisionTiles.length > 0 && <>
         <SectionLabel>คิวตัดสินใจวันนี้</SectionLabel>
-        <Card style={{ gap: spacing.sm }}>
-          {/* Each tile is the link to its queue, so no separate "ดูทั้งหมด" row repeats them. */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>{decisionTiles.map(item =>
-            <Pressable key={item.view} accessibilityRole="button"
-              accessibilityLabel={`${item.label} ${item.count === undefined ? 'ยังโหลดไม่ได้' : `${item.count} รายการ`}`} accessibilityHint="เปิดรายการ"
-              style={({ pressed }) => [styles.decisionTile, pressed && { backgroundColor: colors.soft }]}
-              onPress={() => router.push(`/owner-decisions?view=${item.view}`)}>
-              <View style={styles.decisionHead}>
-                <Text style={{ flex: 1, color: colors.muted, fontSize: 12 }}>{item.label}</Text>
-                <ChevronRight size={16} color={colors.muted} />
-              </View>
-              <Text style={{ color: item.count ? colors.ink : colors.muted, fontSize: 26, fontFamily: fonts.bold }}>{item.count ?? '—'}</Text>
-            </Pressable>)}</View>
-          {isOwner && reviews.isError && <ErrorNote message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
-          {canLeave && pendingLeaves.isError && <ErrorNote message="โหลดลารออนุมัติไม่ได้" onRetry={() => pendingLeaves.refetch()} />}
-          {canClaim && claims.isError && <ErrorNote message="โหลดชุดเบิกไม่ได้" onRetry={() => claims.refetch()} />}
-        </Card>
+        {/* Each tile is the link to its queue, so no separate "ดูทั้งหมด" row repeats them. */}
+        <View style={styles.tileRow}>{decisionTiles.map(item =>
+          <Pressable key={item.view} accessibilityRole="button"
+            accessibilityLabel={`${item.label} ${item.count === undefined ? 'ยังโหลดไม่ได้' : `${item.count} รายการ`}`} accessibilityHint="เปิดรายการ"
+            style={({ pressed }) => [styles.decisionTile, !!item.count && styles.decisionTileActive, pressed && { backgroundColor: colors.soft }]}
+            onPress={() => router.push(`/owner-decisions?view=${item.view}`)}>
+            <View style={styles.decisionHead}>
+              <Text style={styles.tileLabel}>{item.label}</Text>
+              <ChevronRight size={16} color={colors.muted} />
+            </View>
+            <Text style={[styles.tileValue, { color: item.count ? colors.ink : colors.muted }]}>{item.count ?? '—'}</Text>
+          </Pressable>)}</View>
+        {(isOwner && reviews.isError) || (canLeave && pendingLeaves.isError) || (canClaim && claims.isError) ? <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+          {isOwner && reviews.isError && <InlineError message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
+          {canLeave && pendingLeaves.isError && <InlineError message="โหลดลารออนุมัติไม่ได้" onRetry={() => pendingLeaves.refetch()} />}
+          {canClaim && claims.isError && <InlineError message="โหลดชุดเบิกไม่ได้" onRetry={() => claims.refetch()} />}
+        </View> : null}
       </>}
       {canFinance && <>
         <Disclosure title="เงินสำนักงาน" summary={finance.data ? `ลูกหนี้ ${formatMoney(finance.data.totals.receivable)} ฿ · ดูรายการ` : 'ลูกหนี้และรายการที่ต้องตาม'}>
           <View style={{ gap: spacing.sm }}>
-            {finance.isError && <ErrorNote message="โหลดข้อมูลการเงินล่าสุดไม่ได้" onRetry={() => finance.refetch()} />}
+            {finance.isError && <InlineError message="โหลดข้อมูลการเงินล่าสุดไม่ได้" onRetry={() => finance.refetch()} />}
             <OwnerFinanceSummary data={finance.data} onOpen={view => router.push(`/owner-finance?view=${view}`)} />
           </View>
         </Disclosure>
@@ -314,15 +322,15 @@ export default function MyDayScreen() {
       {owner && (decisions.length > 0 || daily.isLoading || daily.isError) && <>
         <SectionLabel>งานที่ต้องเข้าไปช่วย</SectionLabel>
         <Card style={{ paddingVertical: spacing.xs }}>
-          {daily.isError ? <ErrorNote message="ยังตรวจงานทีมล่าสุดไม่ได้" onRetry={() => daily.refetch()} />
-            : daily.isLoading ? <EmptyNote>กำลังตรวจงานทีม…</EmptyNote>
+          {daily.isError ? <View style={{ paddingVertical: spacing.sm }}><InlineError message="ยังตรวจงานทีมล่าสุดไม่ได้" onRetry={() => daily.refetch()} /></View>
+            : daily.isLoading ? <LoadingState inline label="กำลังตรวจงานทีม…" />
               : decisions.slice(0, 4).map(({ task, reason }, index) => <View key={task.id}>
                 {index > 0 && <View style={styles.divider} />}
                 <Pressable accessibilityRole="button" accessibilityLabel={`${task.title} · ${reason}`}
                   style={({ pressed }) => [styles.linkRow, pressed && { backgroundColor: colors.soft }]} onPress={() => router.push(`/task/new?id=${task.id}`)}>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ color: colors.text, fontWeight: '600' }}>{task.title}</Text>
-                    <Text style={{ color: colors.warn, fontSize: 12 }}>{reason}</Text>
+                    <Text style={styles.rowTitle}>{task.title}</Text>
+                    <Text style={styles.rowWarn}>{reason}</Text>
                   </View>
                   <ChevronRight size={18} color={colors.faint} />
                 </Pressable>
@@ -340,15 +348,15 @@ export default function MyDayScreen() {
             accessibilityLabel={item.count ? `${item.label} ${item.count} งาน` : item.label}
             style={({ pressed }) => [styles.viewChip, pressed && { opacity: 0.7 }]}
             onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { view: item.view } })}>
-            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={{ color: colors.info, fontWeight: '600' }}>{item.label}{item.count ? ` · ${item.count}` : ''}</Text>
+            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.viewChipText}>{item.label}{item.count ? ` · ${item.count}` : ''}</Text>
           </Pressable>)}
         </View>
-        {!isOwner && reviews.isError && <ErrorNote message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
+        {!isOwner && reviews.isError && <InlineError message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
         {(!owner ? reviews.data ?? [] : []).slice(0, 3).map(task => <Pressable key={task.id} accessibilityRole="button" accessibilityLabel={`ตรวจงาน ${task.title}`}
-          style={({ pressed }) => [styles.linkRow, pressed && { backgroundColor: colors.soft }]} onPress={() => router.push(`/task/new?id=${task.id}`)}>
+          style={({ pressed }) => [styles.linkRow, styles.linkRowRule, pressed && { backgroundColor: colors.soft }]} onPress={() => router.push(`/task/new?id=${task.id}`)}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: colors.text }}>{task.title}</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>รอคุณตรวจ</Text>
+            <Text style={styles.rowTitle}>{task.title}</Text>
+            <Text style={styles.agendaCase}>รอคุณตรวจ</Text>
           </View>
           <ChevronRight size={18} color={colors.faint} />
         </Pressable>)}
@@ -361,22 +369,24 @@ export default function MyDayScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel={`ทำร่างต่อ ${item.name}`}
             style={({ pressed }) => [styles.linkRow, pressed && { backgroundColor: colors.soft }]} onPress={() => router.push(item.route as never)}>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{item.name}</Text>
+              <Text style={styles.rowTitle}>{item.name}</Text>
               <Text style={styles.agendaCase}>เก็บร่าง {thTime(item.savedAt)} · ยังไม่ส่งข้อมูลส่วนนี้</Text>
             </View>
             <ChevronRight size={18} color={colors.faint} />
           </Pressable>
         </View>)}</Card>
       </>}
-      {localDrafts.isError && <ErrorNote message="โหลดร่างในเครื่องไม่ได้" onRetry={() => localDrafts.refetch()} />}
+      {localDrafts.isError && <InlineError style={{ marginTop: spacing.md }} message="โหลดร่างในเครื่องไม่ได้" onRetry={() => localDrafts.refetch()} />}
 
       {owner && <>
         <SectionLabel>กำลังคนวันนี้ · ใครทำอะไร</SectionLabel>
-        {workload.isError && <ErrorNote message="โหลดกำลังคนไม่ได้" onRetry={() => workload.refetch()} />}
-        {leaves.isError && <ErrorNote message="โหลดข้อมูลวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
+        {(workload.isError || leaves.isError) && <View style={{ gap: spacing.sm, marginBottom: spacing.sm }}>
+          {workload.isError && <InlineError message="โหลดกำลังคนไม่ได้" onRetry={() => workload.refetch()} />}
+          {leaves.isError && <InlineError message="โหลดข้อมูลวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
+        </View>}
         {daily.data && <Text style={styles.agendaCase}>ข้อมูลภาระงาน {thTime(daily.data.fetchedAt)} · ดึงลงเพื่ออัปเดต</Text>}
         <Card style={{ marginTop: spacing.sm, paddingVertical: spacing.xs }}>
-          {workload.isLoading ? <EmptyNote>กำลังโหลดกำลังคน…</EmptyNote> : workload.data?.members.length === 0 ? <EmptyNote>ยังไม่มีสมาชิกทีม</EmptyNote> : null}
+          {workload.isLoading ? <LoadingState inline label="กำลังโหลดกำลังคน…" /> : workload.data?.members.length === 0 ? <EmptyState compact>ยังไม่มีสมาชิกทีม</EmptyState> : null}
           {workload.data?.members.slice(0, showAllPeople ? undefined : 3).map((member, index) => {
             const events = courtToday.filter((item) => agendaIncludesPerson(item, member.id));
             const tasks = otherToday.filter((item) => item.assigneeId === member.id);
@@ -400,7 +410,7 @@ export default function MyDayScreen() {
                   { label: 'รอตรวจ', count: load?.reviews.length, tone: 'court' },
                 ]} />
                 {leave?.kind === 'ON_LEAVE' && (events.length > 0 || tasks.length > 0)
-                  ? <Text style={{ color: colors.warn, fontSize: 12 }}>มีนัดหรืองานตรงวันลา · ตรวจผู้รับผิดชอบ</Text> : null}
+                  ? <Text style={styles.rowWarn}>มีนัดหรืองานตรงวันลา · ตรวจผู้รับผิดชอบ</Text> : null}
               </Pressable>
             </View>;
           })}
@@ -419,19 +429,19 @@ export default function MyDayScreen() {
               style={({ pressed }) => [styles.linkRow, pressed && { backgroundColor: colors.soft }]}
               onPress={() => router.push({ pathname: '/task/new', params: { assigneeId: person.member.userId } })}>
               <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                <Text style={{ color: colors.ink, fontWeight: '600' }}>{person.member.firstName} {person.member.lastName}</Text>
+                <Text style={styles.rowTitle}>{person.member.firstName} {person.member.lastName}</Text>
                 <Text style={styles.personSummary}>{[
                   person.queue.length ? `คิว ${person.queue.length}` : '',
                   person.reviews.length ? `รอตรวจ ${person.reviews.length}` : '',
                   person.member.appointments.length ? `นัด ${person.member.appointments.length}` : '',
                 ].filter(Boolean).join(' · ') || 'ไม่มีคิวค้าง'}</Text>
-                <Text style={{ color: colors.warn, fontSize: 12 }}>{person.queue.find(task => task.blocker || task.holdReason || task.blockedBy)
+                <Text style={styles.rowWarn}>{person.queue.find(task => task.blocker || task.holdReason || task.blockedBy)
                   ? followUpReason(person.queue.find(task => task.blocker || task.holdReason || task.blockedBy)!, today)
                   : assignmentWarnings(person)[0] ?? 'ตรวจรายละเอียดและเวลานัดก่อนเพิ่มงาน'}</Text>
               </View>
               <ChevronRight size={18} color={colors.faint} />
             </Pressable>)}
-            {!assignmentPeople.length && <EmptyNote>ยังไม่มีคนที่ตั้งประเภทงานนี้และไม่ตรงวันลา · เทียบทั้งทีมได้ในหน้ามอบหมายงาน</EmptyNote>}
+            {!assignmentPeople.length && <EmptyState compact>ยังไม่มีคนที่ตั้งประเภทงานนี้และไม่ตรงวันลา · เทียบทั้งทีมได้ในหน้ามอบหมายงาน</EmptyState>}
           </View>
         </Disclosure>
       </>}
@@ -439,7 +449,9 @@ export default function MyDayScreen() {
       <SectionLabel>{owner ? 'งานครบกำหนดวันนี้ของทีม' : 'งานครบกำหนดวันนี้'}</SectionLabel>
       <Card style={{ paddingVertical: spacing.xs }}>
         {otherToday.length === 0 ? (
-          <EmptyNote>{myDay.isLoading ? 'กำลังโหลดงานวันนี้…' : myDay.data ? 'ไม่มีงานครบกำหนดวันนี้' : 'ยังโหลดงานวันนี้ไม่ได้'}</EmptyNote>
+          myDay.isLoading ? <LoadingState inline label="กำลังโหลดงานวันนี้…" />
+            : myDay.data ? <EmptyState compact>ไม่มีงานครบกำหนดวันนี้</EmptyState>
+              : <View style={{ paddingVertical: spacing.sm }}><InlineError message="ยังโหลดงานวันนี้ไม่ได้" onRetry={() => myDay.refetch()} /></View>
         ) : (
           otherToday.map((item, index) => (
             <View key={item.id}>
@@ -452,10 +464,11 @@ export default function MyDayScreen() {
       </Card>
 
       <SectionLabel>{owner ? 'นัดวันนี้ของสำนักงาน' : 'นัดวันนี้'}</SectionLabel>
-      {appointments.isError && <ErrorNote message={courtToday.length ? 'นัดวันนี้อาจยังไม่ล่าสุด' : 'โหลดนัดวันนี้ไม่สำเร็จ'} onRetry={() => appointments.refetch()} />}
+      {appointments.isError && <InlineError style={courtToday.length ? { marginBottom: spacing.sm } : undefined}
+        message={courtToday.length ? 'นัดวันนี้อาจยังไม่ล่าสุด' : 'โหลดนัดวันนี้ไม่สำเร็จ'} onRetry={() => appointments.refetch()} />}
       {!(appointments.isError && courtToday.length === 0) && <Card style={{ paddingVertical: spacing.xs }}>
         {courtToday.length === 0 ? (
-          <EmptyNote>{appointments.isLoading ? 'กำลังโหลดนัดวันนี้…' : 'วันนี้ไม่มีนัดหมาย'}</EmptyNote>
+          appointments.isLoading ? <LoadingState inline label="กำลังโหลดนัดวันนี้…" /> : <EmptyState compact>วันนี้ไม่มีนัดหมาย</EmptyState>
         ) : (
           courtToday.map((item, index) => (
             <View key={item.id}>
@@ -470,15 +483,15 @@ export default function MyDayScreen() {
       {canClaim && !claims.isError && <>
         <SectionLabel>ชุดเบิกที่ต้องจัดการ</SectionLabel>
         <Card>
-          <View style={{ flexDirection: 'row', gap: spacing.md }}>
-            {(['PENDING', 'APPROVED'] as const).map((status) => {
+          <View style={{ flexDirection: 'row', gap: spacing.lg }}>
+            {(['PENDING', 'APPROVED'] as const).map((status, index) => {
               const rows = claims.data?.filter((item) => item.status === status);
               const label = status === 'PENDING' ? 'รออนุมัติ' : 'รอจ่าย';
               return <Pressable key={status} accessibilityRole="button" accessibilityLabel={`ดูชุดเบิก${label}${rows ? ` ${rows.length} ชุด` : ''}`}
-                onPress={() => router.push(`/expenses/claims?status=${status}`)} style={({ pressed }) => [{ flex: 1, minHeight: 64, gap: 2 }, pressed && { opacity: 0.7 }]}>
-                <Text style={{ color: colors.muted }}>{label}</Text>
-                <Text style={{ color: rows?.length ? colors.ink : colors.muted, fontSize: 22, fontFamily: fonts.bold }}>{rows ? (rows.length ? `${rows.length} ชุด` : 'ไม่มี') : '—'}</Text>
-                <Text style={{ color: colors.info }}>{rows ? (rows.length ? `${formatMoney(rows.reduce((sum, item) => sum + item.totalAmount, 0))} ฿ ›` : 'ดูรายการ ›') : 'กำลังโหลด…'}</Text>
+                onPress={() => router.push(`/expenses/claims?status=${status}`)} style={({ pressed }) => [styles.claimTile, index > 0 && styles.claimTileRule, pressed && { opacity: 0.7 }]}>
+                <Text style={styles.tileLabel}>{label}</Text>
+                <Text style={[styles.claimValue, { color: rows?.length ? colors.ink : colors.muted }]}>{rows ? (rows.length ? `${rows.length} ชุด` : 'ไม่มี') : '—'}</Text>
+                <Text style={{ color: colors.info, fontWeight: '600', fontSize: 14 }}>{rows ? (rows.length ? `${formatMoney(rows.reduce((sum, item) => sum + item.totalAmount, 0))} ฿ ›` : 'ดูรายการ ›') : 'กำลังโหลด…'}</Text>
               </Pressable>;
             })}
           </View>
@@ -494,10 +507,11 @@ const styles = StyleSheet.create({
   bell: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: radius.full,
     backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadow.sm,
   },
   // Width follows the number so "99+" and enlarged text never spill out of a fixed box.
   bellBadge: {
@@ -516,18 +530,35 @@ const styles = StyleSheet.create({
   },
   bellBadgeText: { color: colors.surface, fontSize: 10, lineHeight: 14, fontWeight: '700' },
   bellDot: { position: 'absolute', top: 8, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.warn, borderWidth: 1.5, borderColor: colors.bg },
-  hello: { fontSize: 24, fontFamily: fonts.bold, color: colors.ink },
-  date: { fontSize: 13, color: colors.muted, marginTop: 2 },
-  decisionTile: { flexBasis: '30%', flexGrow: 1, minWidth: 92, minHeight: 64, gap: 4, padding: spacing.sm, borderRadius: radius.card },
-  decisionHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  viewChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, backgroundColor: colors.soft, borderRadius: radius.button },
-  linkRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
+  hello: { ...typeScale.display, color: colors.ink },
+  date: { ...typeScale.meta, color: colors.muted, marginTop: 2 },
+  overdueHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.sm },
+  // Late work is the one red-edged card on the screen: warn top rule plus a warn hairline, on a raised surface.
+  overdueCard: { borderColor: colors.warn, borderTopWidth: 3, paddingVertical: spacing.xs, ...shadow.md },
+  warningCard: { gap: spacing.xs, borderLeftWidth: 3, borderLeftColor: colors.warn, backgroundColor: colors.warnSoft, borderColor: colors.warnSoft },
+  tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  // Raised count tiles: the number leads, the label is a muted overline above it.
+  decisionTile: { flexBasis: '30%', flexGrow: 1, minWidth: 96, minHeight: 96, justifyContent: 'space-between', gap: spacing.xs,
+    padding: spacing.md, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, ...shadow.sm },
+  decisionTileActive: { borderTopWidth: 3, borderTopColor: colors.ink },
+  decisionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
+  tileLabel: { flex: 1, ...typeScale.overline, color: colors.muted },
+  tileValue: { ...typeScale.stat, fontVariant: ['tabular-nums'] },
+  claimTile: { flex: 1, minHeight: 72, gap: spacing.xs },
+  claimTileRule: { borderLeftWidth: 1, borderLeftColor: colors.divider, paddingLeft: spacing.lg },
+  claimValue: { ...typeScale.title, fontVariant: ['tabular-nums'] },
+  viewChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, backgroundColor: colors.infoSoft, borderRadius: radius.button },
+  viewChipText: { color: colors.info, fontWeight: '600', fontSize: 14 },
+  linkRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
+  linkRowRule: { borderTopWidth: 1, borderTopColor: colors.divider },
+  rowTitle: { color: colors.ink, fontWeight: '600', fontSize: 15, lineHeight: 22 },
+  rowWarn: { color: colors.warn, fontSize: 13, lineHeight: 20, fontWeight: '600' },
   personDay: { paddingVertical: spacing.md, gap: spacing.xs, minHeight: 56 },
   personHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  personAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+  personAvatar: { width: 36, height: 36, borderRadius: radius.full, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
   personInitials: { color: colors.info, fontFamily: fonts.bold, fontSize: 12 },
   personName: { flex: 1, minWidth: 0, color: colors.ink, fontFamily: fonts.semibold, fontSize: 15 },
-  personSummary: { color: colors.muted, fontSize: 13 },
+  personSummary: { ...typeScale.meta, color: colors.muted },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   peopleActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.md },
   shortcutRow: {
@@ -539,7 +570,7 @@ const styles = StyleSheet.create({
   shortcutIcon: {
     width: 46,
     height: 46,
-    borderRadius: 23,
+    borderRadius: radius.lg,
     backgroundColor: colors.infoSoft,
     borderWidth: 1,
     borderColor: colors.line,
@@ -561,7 +592,7 @@ const styles = StyleSheet.create({
     width: 48,
     fontSize: 14,
   },
-  agendaTitle: { color: colors.text, fontWeight: '600', fontSize: 14 },
-  agendaCase: { color: colors.faint, fontSize: 12 },
-  divider: { height: 1, backgroundColor: colors.soft },
+  agendaTitle: { color: colors.ink, fontWeight: '600', fontSize: 15, lineHeight: 22 },
+  agendaCase: { ...typeScale.meta, color: colors.muted },
+  divider: { height: 1, backgroundColor: colors.divider },
 });

@@ -13,14 +13,18 @@ import { uploadCaseDocument } from '@/api/files';
 import { Attachments, AttachmentFile } from '@/components/Attachments';
 import { TeamFields } from '@/components/TeamFields';
 import { ClientPicker, PickedClient } from '@/components/ClientPicker';
-import { Dropdown } from '@/components/Dropdown';
-import { FormPage, FormField, FormSection, MissingSummary } from '@/components/Form';
+import { SelectField, TextArea, TextField } from '@/components/Input';
+import { FormPage, FormSection, MissingSummary } from '@/components/Form';
 import { Disclosure } from '@/components/Disclosure';
-import { Button, Card, ErrorNote, Loading, PageIntro } from '@/components/ui';
-import { colors, spacing, TOUCH } from '@/theme';
+import { Button, Card, ErrorState, InlineError, LoadingState, PageIntro } from '@/components/ui';
+import { colors, spacing, TOUCH, typeScale } from '@/theme';
 
 const styles = StyleSheet.create({
   remove: { width: TOUCH, height: 48, alignItems: 'center', justifyContent: 'center' },
+  conflict: { gap: spacing.sm, borderTopWidth: 3, borderTopColor: colors.warn },
+  conflictTitle: { ...typeScale.section, color: colors.warn },
+  conflictRow: { paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider, color: colors.text },
+  saved: { color: colors.info, fontWeight: '600' },
 });
 
 export default function CaseFormScreen() {
@@ -121,8 +125,8 @@ export default function CaseFormScreen() {
       setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ');
     } finally { setBusy(false); }
   };
-  if (id && current.isLoading) return <Loading label="กำลังโหลดคดี…" />;
-  if (id && (!current.data || current.isError)) return <FormPage><ErrorNote message="โหลดคดีไม่สำเร็จ" onRetry={() => current.refetch()} /></FormPage>;
+  if (id && current.isLoading) return <View style={{ flex: 1, backgroundColor: colors.bg }}><LoadingState label="กำลังโหลดคดี…" /></View>;
+  if (id && (!current.data || current.isError)) return <FormPage><ErrorState message="โหลดคดีไม่สำเร็จ" onRetry={() => current.refetch()} /></FormPage>;
   const locked = busy || !!savedId;
   const closedCase = ['CLOSED', 'ARCHIVED'].includes(current.data?.status ?? '');
   const reasonShortBy = Math.max(0, 10 - overrideReason.trim().length);
@@ -135,14 +139,14 @@ export default function CaseFormScreen() {
     <Stack.Screen options={{ title: id ? 'แก้ไขคดี' : 'รับเคสใหม่' }} />
     <PageIntro detailOnly title={id ? 'แก้ไขคดี' : 'รับเคสใหม่'} detail="กรอกช่องที่มี * ก็บันทึกได้ ข้อมูลอื่นเติมทีหลังได้" />
     <FormSection title="ข้อมูลหลัก">
-    <FormField label="ชื่อคดี" required value={title} onChange={setTitle} disabled={locked}
+    <TextField label="ชื่อคดี" required value={title} onChange={setTitle} disabled={locked}
       error={triedSave && titleMissing ? 'ใส่ชื่อคดี' : undefined} />
     <TeamFields ids={ids} onChange={setIds} primaryLabel="คนรับผิดชอบหลัก" secondaryLabel="คนรอง" required collapseSecondary={!id}
       error={triedSave && primaryMissing ? 'เลือกคนรับผิดชอบหลัก 1 คน' : undefined}
       max={999} disabled={locked || (!!id && !canReassign)} />
     <ClientPicker label="ลูกความ" value={pickedClient} onChange={client => { setPickedClient(client); resetConflict(); }} disabled={locked}
       allowClear={!(id && current.data?.client)} />
-    {id && <Dropdown label="สถานะคดี" fieldLabel="สถานะคดี" value={status} onChange={setStatus}
+    {id && <SelectField label="สถานะคดี" value={status} onChange={setStatus}
       hint={closedCase ? 'คดีปิดแล้ว · เปิดคดีอีกครั้งจากหน้าคดี' : undefined}
       disabled={locked || closedCase}
       options={[{ value: 'OPEN', label: 'เปิดคดี' }, { value: 'DRAFTING', label: 'ร่างเอกสาร' },
@@ -150,12 +154,12 @@ export default function CaseFormScreen() {
         { value: 'PENDING', label: 'รอดำเนินการ' }]} />}
     </FormSection>
     <Disclosure title="คู่ความ · ถ้ามี" summary={partySummary || 'ฝ่ายของเรา และคู่ความฝ่ายตรงข้าม'}>
-      <Dropdown label="เราเป็นฝ่าย" fieldLabel="เราเป็นฝ่าย" value={partyRole} onChange={setPartyRole} disabled={locked}
+      <SelectField label="เราเป็นฝ่าย" value={partyRole} onChange={setPartyRole} disabled={locked}
         options={[{ value: '', label: 'ยังไม่ระบุ' }, ...Object.values(PartyRole).map(role => ({ value: role, label: PARTY_ROLE_LABELS[role] }))]} />
       {!id && <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
         {opponents.map((name, index) => <View key={index} style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <FormField label={`คู่ความฝ่ายตรงข้าม รายที่ ${index + 1}`} value={name} disabled={locked}
+            <TextField label={`คู่ความฝ่ายตรงข้าม รายที่ ${index + 1}`} value={name} disabled={locked}
               onChange={next => { setOpponents(rows => rows.map((row, i) => i === index ? next : row)); resetConflict(); }} placeholder="ชื่อบุคคลหรือบริษัท" />
           </View>
           {(opponents.length > 1 || !!name.trim()) && <Pressable accessibilityRole="button" accessibilityLabel={`ลบคู่ความรายที่ ${index + 1}`} disabled={locked}
@@ -168,30 +172,32 @@ export default function CaseFormScreen() {
       </View>}
     </Disclosure>
     <Disclosure title="ศาลและประเภทคดี · ถ้ามี" summary={courtSummary || 'ประเภทคดี ศาล และชั้นศาล'}>
-      <Dropdown label="ประเภทคดี" fieldLabel="ประเภทคดี" value={caseTypeId} onChange={setCaseTypeId} disabled={locked || types.isLoading}
+      <SelectField label="ประเภทคดี" value={caseTypeId} onChange={setCaseTypeId} disabled={locked || types.isLoading}
         placeholder={types.isLoading ? 'กำลังโหลด…' : undefined}
         options={[{ value: '', label: 'ยังไม่ระบุ' }, ...(types.data ?? []).map(item => ({ value: item.id, label: item.name }))]} />
-      {types.isError && <ErrorNote message="โหลดประเภทคดีไม่ได้" onRetry={() => types.refetch()} />}
-      <Dropdown label="ศาล" fieldLabel="ศาล" value={courtName} onChange={setCourtName} disabled={locked || levelSwitching || courts.isLoading}
+      {types.isError && <InlineError message="โหลดประเภทคดีไม่ได้" onRetry={() => types.refetch()} />}
+      <SelectField label="ศาล" value={courtName} onChange={setCourtName} disabled={locked || levelSwitching || courts.isLoading}
         placeholder={courts.isLoading ? 'กำลังโหลด…' : undefined}
         hint={levelSwitching ? 'เปลี่ยนชั้นศาลแล้วบันทึกก่อน แล้วจึงแก้ศาลและเลขคดีของศาลชั้นนั้น' : undefined}
         options={[{ value: '', label: 'ยังไม่ระบุศาล' },
           ...(courtName && !courts.data?.some(item => item.name === courtName) ? [{ value: courtName, label: courtName }] : []),
           ...(courts.data ?? []).map(item => ({ value: item.name, label: item.name }))]} />
-      {courts.isError && <ErrorNote message="โหลดรายชื่อศาลไม่ได้" onRetry={() => courts.refetch()} />}
-      <Dropdown label="ชั้นศาล" fieldLabel="ชั้นศาล" value={courtLevel} onChange={setCourtLevel} disabled={locked}
+      {courts.isError && <InlineError message="โหลดรายชื่อศาลไม่ได้" onRetry={() => courts.refetch()} />}
+      <SelectField label="ชั้นศาล" value={courtLevel} onChange={setCourtLevel} disabled={locked}
         options={Object.entries(COURT_LEVEL_LABELS).map(([value, label]) => ({ value: value as CourtLevel, label }))} />
     </Disclosure>
     <Disclosure title="รายละเอียดและไฟล์ · ถ้ามี" summary={detailSummary || 'รายละเอียดคดี และไฟล์ที่ได้รับ'}>
-      <FormField label="รายละเอียด" hint="เติมทีหลังได้" value={description} onChange={setDescription} multiline disabled={locked} />
+      <TextArea label="รายละเอียด" hint="เติมทีหลังได้" value={description} onChange={setDescription} disabled={locked} />
       <Attachments files={files} onChange={setFiles} disabled={busy} />
     </Disclosure>
-    {!!savedId && <Text style={{ color: colors.info }}>คดีบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อได้โดยไม่สร้างคดีซ้ำ</Text>}
-    {!!error && <ErrorNote message={error} />}
-    {conflict && <Card style={{ gap: spacing.xs }}>
-      <Text accessibilityRole="alert" style={{ color: colors.warn, fontWeight: '700' }}>พบชื่อที่อาจขัดกัน</Text>
-      {conflict.map((m, i) => <Text key={i} style={{ marginTop: 4 }}>{m.name}{m.side ? ` — ${PARTICIPANT_SIDE_LABELS[m.side as ParticipantSide] ?? m.side}` : ''}{m.ownRef ? ` ในคดี ${m.ownRef}` : ''}</Text>)}
-      <FormField label="เหตุผลที่เปิดต่อ" required value={overrideReason} onChange={setOverrideReason} multiline disabled={busy}
+    {!!savedId && <Text style={styles.saved}>คดีบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อได้โดยไม่สร้างคดีซ้ำ</Text>}
+    <InlineError message={error || undefined} />
+    {conflict && <Card style={styles.conflict}>
+      <Text accessibilityRole="alert" style={styles.conflictTitle}>พบชื่อที่อาจขัดกัน</Text>
+      <View>
+        {conflict.map((m, i) => <Text key={i} style={styles.conflictRow}>{m.name}{m.side ? ` — ${PARTICIPANT_SIDE_LABELS[m.side as ParticipantSide] ?? m.side}` : ''}{m.ownRef ? ` ในคดี ${m.ownRef}` : ''}</Text>)}
+      </View>
+      <TextArea label="เหตุผลที่เปิดต่อ" required value={overrideReason} onChange={setOverrideReason} disabled={busy}
         hint={reasonShortBy ? `อย่างน้อย 10 ตัวอักษร · อีก ${reasonShortBy} ตัวอักษร` : 'ครบแล้ว · บันทึกต่อได้'} />
     </Card>}
     {triedSave && !savedId && <MissingSummary items={missing} />}

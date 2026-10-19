@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { canAssignFirmRole, dailyUpdateParts, FirmRole } from '@lawfirm/shared';
@@ -9,12 +10,13 @@ import { taskDraftScope } from '@/api/drafts';
 import type { TaskItem } from '@/api/types';
 import { useTaskDraft } from '@/hooks/useTaskDraft';
 import { Text } from '@/components/AppText';
-import { FieldError, FormField, FormPage, FormSection, MissingSummary } from '@/components/Form';
+import { FormPage, FormSection, MissingSummary } from '@/components/Form';
+import { TextArea, TextField } from '@/components/Input';
 import { DatePicker } from '@/components/DatePicker';
 import { Dropdown } from '@/components/Dropdown';
-import { Button, Card, EmptyNote, ErrorNote, Loading } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, InlineError, LoadingState } from '@/components/ui';
 import { bangkokDay } from '@/format';
-import { colors, spacing } from '@/theme';
+import { colors, spacing, typeScale } from '@/theme';
 
 export default function BlockerRequest() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -39,29 +41,36 @@ export default function BlockerRequest() {
   }, !!(title.trim() || description.trim() || assigneeId), { name: title || 'เรื่องที่ต้องการคนช่วยแก้', route: `/task/blocker?id=${id}` });
   const candidates = (members.data ?? []).filter(p => p.firmRole === 'OWNER' || p.id === user?.id ||
     (!!user?.firmRole && !!p.firmRole && canAssignFirmRole(user.firmRole as FirmRole, p.firmRole)));
-  if (!id) return <EmptyNote>เปิดจากงานที่มีจุดติดขัด</EmptyNote>;
-  if (task.isLoading || !draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading label="กำลังโหลดงาน…" />;
-  if (task.isError || !task.data) return <ErrorNote message="โหลดงานไม่ได้" onRetry={() => task.refetch()} />;
-  if (task.data.assigneeId !== user?.id && user?.firmRole !== 'OWNER') return <EmptyNote>ผู้รับงานหรือ Owner เท่านั้นที่ส่งจุดติดขัดได้</EmptyNote>;
+  if (!id) return <View style={statePage}><EmptyState>เปิดจากงานที่มีจุดติดขัด</EmptyState></View>;
+  if (task.isLoading || !draft.ready) return draft.error
+    ? <View style={statePage}><ErrorState message={draft.error} onRetry={draft.retry} /></View>
+    : <LoadingState label="กำลังโหลดงาน…" />;
+  if (task.isError || !task.data) return <View style={statePage}><ErrorState message="โหลดงานไม่ได้" onRetry={() => task.refetch()} /></View>;
+  if (task.data.assigneeId !== user?.id && user?.firmRole !== 'OWNER') return <View style={statePage}><EmptyState>ผู้รับงานหรือ Owner เท่านั้นที่ส่งจุดติดขัดได้</EmptyState></View>;
   const existing = task.data.followUps?.find(f => f.followUpSourceCommentId === source?.id);
   const assigneeError = triedSave && (!assigneeId || !candidates.some(p => p.id === assigneeId)) ? 'เลือกคนรับแก้หรือ Owner' : undefined;
   return <FormPage>
     <Stack.Screen options={{ title: 'ส่งจุดติดขัดให้คนแก้' }} />
-    <Card style={{ gap: spacing.sm }}><Text style={{ fontWeight: '700', color: colors.ink }}>{task.data.title}</Text><Text>{quote || 'ยังไม่มีรายงาน “ติดอะไร” ของงานนี้'}</Text></Card>
+    <Card style={{ gap: spacing.sm }}>
+      <Text accessibilityRole="header" style={{ ...typeScale.section, color: colors.ink }}>{task.data.title}</Text>
+      {quote
+        ? <Text style={{ color: colors.text, borderLeftWidth: 3, borderLeftColor: colors.lineStrong, paddingLeft: spacing.md }}>{quote}</Text>
+        : <Text style={{ color: colors.muted }}>ยังไม่มีรายงาน “ติดอะไร” ของงานนี้</Text>}
+    </Card>
     {/* No blocker recorded yet: point back to the report instead of leaving an empty page. */}
-    {!existing && !quote && <EmptyNote action={{ title: 'กลับไปบันทึกรายงาน', onPress: () => router.back() }}>บันทึกรายงาน “ติดอะไร” ที่หน้างานก่อน แล้วค่อยส่งเรื่องนี้</EmptyNote>}
+    {!existing && !quote && <EmptyState compact action={{ title: 'กลับไปบันทึกรายงาน', onPress: () => router.back() }}>บันทึกรายงาน “ติดอะไร” ที่หน้างานก่อน แล้วค่อยส่งเรื่องนี้</EmptyState>}
     {existing ? <Button title={`เปิดเรื่องที่ส่งแล้ว · ${existing.title}`} onPress={() => router.replace({ pathname: '/task/new', params: { id: existing.id } })} /> : !!quote && <FormSection title="คนรับแก้และสิ่งที่ต้องการ"
       detail="เลือก Owner ให้ช่วยจัดคนแก้ หรือคนที่คุณมีสิทธิ์มอบหมาย งานต้นทางจะรอเรื่องนี้จนคนแก้ปิดงาน">
-      {members.isError && <ErrorNote message="โหลดคนรับแก้ไม่ได้" onRetry={() => members.refetch()} />}
+      {members.isError && <InlineError message="โหลดคนรับแก้ไม่ได้" onRetry={() => members.refetch()} />}
       <Dropdown label="เลือกคนรับแก้ / Owner" fieldLabel="คนรับแก้" required error={assigneeError}
         placeholder={members.isLoading ? 'กำลังโหลดรายชื่อ…' : 'เลือกคนรับแก้ / Owner'}
         value={assigneeId} onChange={setAssigneeId} disabled={busy || members.isError || members.isLoading}
         options={candidates.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}${p.firmRole === 'OWNER' ? ' · Owner' : ''}` }))} />
-      <FormField label="เรื่องที่ต้องการให้ช่วยแก้ · ถ้ามี" hint="ว่างไว้ระบบตั้งชื่อให้อัตโนมัติ" value={title} onChange={setTitle} placeholder={`แก้จุดติดขัด: ${task.data.title}`} disabled={busy} />
-      <FormField label="สิ่งที่อยากให้คนรับแก้ทำ · ถ้ามี" value={description} onChange={setDescription} multiline disabled={busy} />
+      <TextField label="เรื่องที่ต้องการให้ช่วยแก้ · ถ้ามี" hint="ว่างไว้ระบบตั้งชื่อให้อัตโนมัติ" value={title} onChange={setTitle} placeholder={`แก้จุดติดขัด: ${task.data.title}`} disabled={busy} />
+      <TextArea label="สิ่งที่อยากให้คนรับแก้ทำ · ถ้ามี" value={description} onChange={setDescription} disabled={busy} />
       <DatePicker label="วันติดตาม" value={date} onChange={setDate} disabled={busy} />
       <MissingSummary items={assigneeError ? ['คนรับแก้'] : []} />
-      <FieldError message={error} />
+      <InlineError message={error || undefined} />
       <Button title="ส่งเรื่องและติดตามจากงานนี้" busy={busy} onPress={async () => {
         setTriedSave(true);
         if (!assigneeId || !candidates.some(p => p.id === assigneeId)) return;
@@ -80,7 +89,9 @@ export default function BlockerRequest() {
         finally { setBusy(false); }
       }} />
     </FormSection>}
-    {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
+    {!!draft.error && <InlineError message={draft.error} onRetry={draft.retry} />}
     {!!draft.message && <Text style={{ color: colors.muted, fontSize: 13 }}>{draft.message}</Text>}
   </FormPage>;
 }
+
+const statePage = { flex: 1, backgroundColor: colors.bg, padding: spacing.lg } as const;

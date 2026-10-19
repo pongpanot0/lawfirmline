@@ -5,9 +5,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react-native';
 import { useCalendarRange, useWorkload } from '@/api/hooks';
 import type { CalendarEventItem } from '@/api/types';
-import { Button, Card, EmptyNote, ErrorNote, EVENT_KIND_LABEL, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, EVENT_KIND_LABEL, InlineError, LoadingState, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay, isoDay, thDate, thTime } from '@/format';
-import { colors, radius, spacing, TOUCH, pageContent } from '@/theme';
+import { colors, radius, shadow, spacing, TOUCH, typeScale, pageContent } from '@/theme';
 
 const TH_MONTHS_FULL = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -90,7 +90,7 @@ export default function CalendarScreen() {
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="เดือนก่อนหน้า"
-            style={styles.navButton}
+            style={({ pressed }) => [styles.navButton, pressed && { backgroundColor: colors.soft }]}
             onPress={() => goMonth(-1)}
           >
             <ChevronLeft size={20} color={colors.ink} />
@@ -108,7 +108,7 @@ export default function CalendarScreen() {
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="เดือนถัดไป"
-            style={styles.navButton}
+            style={({ pressed }) => [styles.navButton, pressed && { backgroundColor: colors.soft }]}
             onPress={() => goMonth(1)}
           >
             <ChevronRight size={20} color={colors.ink} />
@@ -138,20 +138,23 @@ export default function CalendarScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`${date.getDate()} ${TH_MONTHS_FULL[cursor.m]} ${cursor.y + 543}${isToday ? ' วันนี้' : ''}${dayEvents ? ` มีนัด ${dayEvents.length} รายการ${hasCourt ? ' รวมนัดศาล' : ''}` : ''}`}
                     accessibilityState={{ selected: isSelected }}
-                    style={[styles.cell, isSelected && styles.cellSelected, isToday && styles.cellToday]}
+                    style={({ pressed }) => [styles.cell, isToday && styles.cellToday, isSelected && styles.cellSelected,
+                      pressed && !isSelected && { backgroundColor: colors.soft }]}
                     onPress={() => setSelected(key)}
                   >
                     <Text
                       style={[
                         styles.cellText,
                         isToday && { color: colors.ink, fontWeight: '700' },
-                        isSelected && !isToday && { color: colors.ink, fontWeight: '700' },
+                        isSelected && styles.cellTextSelected,
                       ]}
                     >
                       {date.getDate()}
                     </Text>
-                    {/* Brass marks a court date; other appointments get a muted dot. */}
-                    {dayEvents ? <View style={[styles.dot, { backgroundColor: hasCourt ? colors.accent : colors.muted }]} /> : null}
+                    {/* Brass marks a court date; other appointments get a muted dot (both lighten on the navy selection). */}
+                    {dayEvents ? <View style={[styles.dot, { backgroundColor: isSelected
+                      ? (hasCourt ? colors.accentSoft : colors.line)
+                      : (hasCourt ? colors.accent : colors.muted) }]} /> : null}
                   </Pressable>
                 );
               })}
@@ -170,7 +173,7 @@ export default function CalendarScreen() {
           </Pressable>}
         </View>
         <Pressable
-          style={({ pressed }) => [styles.addButton, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [styles.addButton, pressed && { backgroundColor: colors.inkPressed, ...shadow.none }]}
           accessibilityRole="button"
           accessibilityLabel={`เพิ่มนัดหมาย ${thDate(new Date(selected))}`}
           hitSlop={8}
@@ -180,12 +183,14 @@ export default function CalendarScreen() {
           <Text style={styles.addText}>เพิ่มนัด</Text>
         </Pressable>
       </View>
-      {events.isError && <ErrorNote message={events.data ? 'นัดหมายอาจยังไม่ล่าสุด' : 'โหลดนัดหมายไม่สำเร็จ'} onRetry={() => events.refetch()} />}
+      {events.isError && (events.data
+        ? <InlineError style={{ marginBottom: spacing.sm }} message="นัดหมายอาจยังไม่ล่าสุด" onRetry={() => events.refetch()} />
+        : <ErrorState message="โหลดนัดหมายไม่สำเร็จ" onRetry={() => events.refetch()} />)}
       {!(events.isError && !events.data) && <Card style={{ paddingVertical: spacing.xs }}>
         {events.isLoading ? (
-          <EmptyNote>กำลังโหลดนัดหมาย…</EmptyNote>
+          <LoadingState inline label="กำลังโหลดนัดหมาย…" />
         ) : selectedEvents.length === 0 ? (
-          <EmptyNote>{selected === todayKey ? 'ไม่มีนัดหมายวันนี้' : 'ไม่มีนัดหมายในวันที่เลือก'}</EmptyNote>
+          <EmptyState compact>{selected === todayKey ? 'ไม่มีนัดหมายวันนี้' : 'ไม่มีนัดหมายในวันที่เลือก'}</EmptyState>
         ) : (
           selectedEvents.map((event, index) => {
             const kind = EVENT_KIND_LABEL[event.type] ?? EVENT_KIND_LABEL.OTHER;
@@ -237,16 +242,19 @@ const styles = StyleSheet.create({
     height: TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.raised,
   },
-  monthTitle: { textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.ink },
+  monthTitle: { textAlign: 'center', ...typeScale.section, color: colors.ink },
   grid: { gap: spacing.xs },
-  week: { flexDirection: 'row', alignItems: 'center' },
+  week: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   dow: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.faint,
+    ...typeScale.overline,
+    color: colors.muted,
     paddingBottom: 4,
   },
   cell: {
@@ -256,9 +264,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.button,
   },
-  cellSelected: { backgroundColor: colors.soft },
-  cellToday: { borderWidth: 1, borderColor: colors.ink },
-  cellText: { fontSize: 13, color: colors.text, fontVariant: ['tabular-nums'] },
+  // Selected day is the filled navy cell (like the selected filter); today keeps a navy outline.
+  cellSelected: { backgroundColor: colors.ink, ...shadow.sm },
+  cellToday: { borderWidth: 1.5, borderColor: colors.ink },
+  cellText: { fontSize: 14, color: colors.text, fontVariant: ['tabular-nums'] },
+  cellTextSelected: { color: colors.bg, fontWeight: '700' },
   dot: {
     position: 'absolute',
     bottom: 4,
@@ -284,9 +294,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: TOUCH,
     justifyContent: 'center',
+    ...shadow.sm,
   },
-  addText: { color: colors.bg, fontSize: 13, fontWeight: '600' },
-  divider: { height: 1, backgroundColor: colors.soft },
+  addText: { color: colors.bg, fontSize: 14, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: colors.divider },
   filter: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start' },
   filterText: { color: colors.info, fontWeight: '600', flexShrink: 1 },
   eventRow: {
@@ -303,6 +314,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontVariant: ['tabular-nums'],
   },
-  eventTitle: { color: colors.text, fontWeight: '600', fontSize: 14 },
-  eventMeta: { color: colors.faint, fontSize: 12 },
+  eventTitle: { color: colors.ink, fontWeight: '600', fontSize: 15, lineHeight: 22 },
+  eventMeta: { ...typeScale.meta, color: colors.muted },
 });

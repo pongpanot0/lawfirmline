@@ -4,9 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/api/auth';
 import { api, ApiError } from '@/api/client';
 import type { AccountDeletionRequest } from '@/api/types';
-import { FormField, FormPage, FormSection } from '@/components/Form';
+import { FormPage, FormSection } from '@/components/Form';
+import { TextField } from '@/components/Input';
 import { Text } from '@/components/AppText';
-import { ActionRow, Button, Card, ErrorNote, Loading, PageIntro } from '@/components/ui';
+import { ActionRow, Button, Card, ErrorState, InlineError, LoadingState, PageIntro } from '@/components/ui';
 import { colors, spacing } from '@/theme';
 
 export default function DeleteAccountScreen() {
@@ -44,29 +45,31 @@ export default function DeleteAccountScreen() {
   };
   return <FormPage>
     <PageIntro title="ลบบัญชีและข้อมูล" detailOnly detail={user?.email} />
-    <Card style={{ gap: spacing.sm }}>
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>การส่งคำขอยังไม่ลบบัญชีทันที</Text>
+    <Card style={{ gap: spacing.sm, borderLeftWidth: 3, borderLeftColor: colors.warn }}>
+      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>การส่งคำขอยังไม่ลบบัญชีทันที</Text>
       <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>คำขอครอบคลุมบัญชีของคุณในทุกสำนักงาน เจ้าหน้าที่ตรวจและลบให้เสร็จภายใน 30 วันนับจากวันที่ส่งคำขอ ข้อมูลคดีของสำนักงานพิจารณาแยกจากข้อมูลบัญชีส่วนตัว</Text>
     </Card>
-    {deletion.isLoading ? <Loading label="กำลังตรวจสถานะคำขอ…" /> : deletion.isError ?
-      <ErrorNote message="โหลดสถานะคำขอไม่สำเร็จ กรุณาลองใหม่ก่อนส่งคำขอ" onRetry={() => deletion.refetch()} /> : deletion.data ?
+    {deletion.isLoading ? <LoadingState label="กำลังตรวจสถานะคำขอ…" /> : deletion.isError ?
+      <ErrorState message="โหลดสถานะคำขอไม่สำเร็จ กรุณาลองใหม่ก่อนส่งคำขอ" onRetry={() => deletion.refetch()} /> : deletion.data ?
       <View accessibilityLiveRegion="polite">
         <FormSection title="รับคำขอแล้ว · รอตรวจดำเนินการ">
           <Text selectable style={{ color: colors.ink }}>หมายเลข {deletion.data.id}</Text>
           <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>บัญชียังไม่ถูกลบ จะดำเนินการให้เสร็จภายใน 30 วันนับจากวันที่ส่งคำขอ ติดตามได้ที่ hello@samnuan.com</Text>
         </FormSection>
       </View> : <FormSection title="ยืนยันว่าเป็นบัญชีของคุณ" detail="กรอกรหัสผ่านปัจจุบันเพื่อส่งคำขอ">
-        <FormField label="รหัสผ่านปัจจุบัน" required value={password} onChange={setPassword} disabled={busy}
+        <TextField label="รหัสผ่านปัจจุบัน" required value={password} onChange={setPassword} disabled={busy}
           error={tried && !password ? 'กรอกรหัสผ่านปัจจุบันก่อนส่งคำขอ' : undefined}
           secureTextEntry autoCapitalize="none" autoComplete="current-password" textContentType="password"
           returnKeyType="send" onSubmitEditing={confirm} />
-        {error ? <ErrorNote message={error} /> : null}
+        <InlineError message={error} />
         <Button title="ส่งคำขอลบบัญชี" variant="danger" busy={busy} disabled={deletion.isFetching} onPress={confirm} />
       </FormSection>}
-    <View style={{ marginTop: spacing.sm }}>
+    <Card style={{ marginTop: spacing.sm, paddingVertical: 0 }}>
       {/* The web route is the fallback when the in-app request cannot be sent. */}
-      {(deletion.isError || !!error) && <ActionRow title="ขอลบบัญชีผ่านเว็บไซต์" onPress={() => Linking.openURL('https://samnuan.com/delete-account')} />}
+      {(deletion.isError || !!error) && <View style={{ borderBottomWidth: 1, borderBottomColor: colors.divider }}>
+        <ActionRow title="ขอลบบัญชีผ่านเว็บไซต์" onPress={() => Linking.openURL('https://samnuan.com/delete-account')} />
+      </View>}
       <ActionRow title="นโยบายความเป็นส่วนตัว" onPress={() => Linking.openURL('https://samnuan.com/privacy')} />
-    </View>
+    </Card>
   </FormPage>;
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
@@ -8,10 +8,17 @@ import { taskDraftScope } from '@/api/drafts';
 import { useTaskDraft } from '@/hooks/useTaskDraft';
 import { useCase } from '@/api/hooks';
 import { Text } from '@/components/AppText';
-import { FormField, FormPage, FormSection } from '@/components/Form';
-import { Dropdown } from '@/components/Dropdown';
-import { Button, EmptyNote, ErrorNote, Loading } from '@/components/ui';
-import { colors } from '@/theme';
+import { FormPage, FormSection } from '@/components/Form';
+import { SelectField, TextArea } from '@/components/Input';
+import { Button, EmptyState, ErrorState, InlineError, LoadingState } from '@/components/ui';
+import { colors, radius, spacing } from '@/theme';
+
+const styles = StyleSheet.create({
+  caseRef: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.sunken },
+  caseRefOwn: { color: colors.ink, fontWeight: '700', fontSize: 15, lineHeight: 22 },
+  caseRefTitle: { color: colors.text, fontSize: 15, lineHeight: 22, flexShrink: 1 },
+  detail: { color: colors.muted, fontSize: 14, lineHeight: 22 },
+});
 
 type Template = { id: string; name: string };
 type Rendered = { name: string; content: string; missingFields: string[] };
@@ -46,27 +53,28 @@ export default function DocumentTemplate() {
     } catch (e) { setError(e instanceof Error ? e.message : 'โหลดร่างไม่ได้'); }
     finally { setBusy(false); }
   };
-  if (!caseId) return <FormPage><EmptyNote action={{ title: 'กลับ', onPress: () => router.back() }}>เปิดจากแท็บเอกสารในคดีที่ต้องการ</EmptyNote></FormPage>;
-  if (!draft.ready) return draft.error ? <FormPage><ErrorNote message={draft.error} onRetry={draft.retry} /></FormPage> : <Loading label="กำลังเปิดร่าง…" />;
+  if (!caseId) return <FormPage><EmptyState action={{ title: 'กลับ', onPress: () => router.back() }}>เปิดจากแท็บเอกสารในคดีที่ต้องการ</EmptyState></FormPage>;
+  if (!draft.ready) return draft.error ? <FormPage><ErrorState message={draft.error} onRetry={draft.retry} /></FormPage>
+    : <View style={{ flex: 1, backgroundColor: colors.bg }}><LoadingState label="กำลังเปิดร่าง…" /></View>;
   // Placeholders still in the text block the file; name them instead of silently disabling the button.
   const blanks = [...new Set([...content.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)].map(match => match[1]))];
   const caseLoading = legalCase.isLoading;
   return <FormPage>
     <Stack.Screen options={{ title: 'สร้างเอกสารจากแบบ' }} />
     <FormSection title="แบบเอกสารของคดี">
-    {caseLoading ? <Text style={{ color: colors.muted }}>กำลังโหลดคดี…</Text>
-      : legalCase.data ? <Text>{legalCase.data.ownRef} · {legalCase.data.title}</Text> : null}
-    {legalCase.isError && <ErrorNote message="โหลดข้อมูลคดีไม่ได้" onRetry={() => legalCase.refetch()} />}
-    {templates.isError && <ErrorNote message="โหลดแบบเอกสารไม่ได้" onRetry={() => templates.refetch()} />}
-    {templates.data?.length === 0 && <EmptyNote>ยังไม่มีแบบเอกสารสำหรับคดีนี้ ให้ Owner เพิ่มแบบในเมนูแบบเอกสารบนเว็บ</EmptyNote>}
-    <Dropdown label="แบบเอกสาร" fieldLabel="แบบเอกสาร" required value={templateId} options={(templates.data ?? []).map(t => ({ value: t.id, label: t.name }))}
+    {caseLoading ? <LoadingState inline label="กำลังโหลดคดี…" />
+      : legalCase.data ? <View style={styles.caseRef}><Text style={styles.caseRefOwn}>{legalCase.data.ownRef}</Text><Text style={styles.caseRefTitle}>· {legalCase.data.title}</Text></View> : null}
+    {legalCase.isError && <InlineError message="โหลดข้อมูลคดีไม่ได้" onRetry={() => legalCase.refetch()} />}
+    {templates.isError && <InlineError message="โหลดแบบเอกสารไม่ได้" onRetry={() => templates.refetch()} />}
+    {templates.data?.length === 0 && <EmptyState compact>ยังไม่มีแบบเอกสารสำหรับคดีนี้ ให้ Owner เพิ่มแบบในเมนูแบบเอกสารบนเว็บ</EmptyState>}
+    <SelectField label="แบบเอกสาร" required value={templateId} options={(templates.data ?? []).map(t => ({ value: t.id, label: t.name }))}
       placeholder={caseLoading || templates.isLoading ? 'กำลังโหลด…' : 'เลือกแบบเอกสาร'}
       disabled={busy || caseLoading || !legalCase.data || templates.isError || templates.isLoading || !templates.data?.length}
       onChange={id => { if (content.trim()) Alert.alert('เปลี่ยนแบบเอกสาร', 'ข้อความในร่างจะถูกแทนด้วยแบบที่เลือก', [{ text: 'กลับ', style: 'cancel' }, { text: 'เปลี่ยนแบบ', onPress: () => void select(id) }]); else void select(id); }} />
     </FormSection>
     {!!content && <FormSection title="ตรวจร่างก่อนสร้างไฟล์">
-      <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>ข้อมูลคดีและลูกความเติมแล้ว ตรวจข้อความและแทนช่อง {'{{ข้อมูล}}'} ที่ยังขาด ไฟล์จะเก็บในคดีเพื่อเปิดตรวจต่อ</Text>
-      <FormField label="ร่างเอกสาร" value={content} onChange={setContent} multiline disabled={busy}
+      <Text style={styles.detail}>ข้อมูลคดีและลูกความเติมแล้ว ตรวจข้อความและแทนช่อง {'{{ข้อมูล}}'} ที่ยังขาด ไฟล์จะเก็บในคดีเพื่อเปิดตรวจต่อ</Text>
+      <TextArea label="ร่างเอกสาร" value={content} onChange={setContent} disabled={busy}
         error={blanks.length ? `ยังต้องเติม: ${blanks.join(', ')}` : undefined} />
       <Button title="สร้างไฟล์ DOCX เก็บในคดี" busy={busy} disabled={blanks.length > 0}
         accessibilityHint={blanks.length ? `ยังต้องเติม ${blanks.join(', ')}` : 'กดเมื่อตรวจร่างแล้ว'} onPress={async () => {
@@ -81,8 +89,8 @@ export default function DocumentTemplate() {
         finally { setBusy(false); }
       }} />
     </FormSection>}
-    {!!draft.message && <Text style={{ color: colors.muted }}>{draft.message}</Text>}
-    {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
-    {!!error && <ErrorNote message={error} />}
+    {!!draft.message && <Text style={styles.detail}>{draft.message}</Text>}
+    {!!draft.error && <InlineError message={draft.error} onRetry={draft.retry} />}
+    <InlineError message={error || undefined} />
   </FormPage>;
 }

@@ -3,12 +3,14 @@ import { Alert, Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/api/auth';
 import { api, ApiError } from '@/api/client';
-import { FormField, FormPage, FormSection } from '@/components/Form';
+import { FormPage, FormSection } from '@/components/Form';
+import { TextField } from '@/components/Input';
 import { Disclosure } from '@/components/Disclosure';
 import { Text } from '@/components/AppText';
-import { ActionRow, Button, Card, ErrorNote } from '@/components/ui';
+import { ActionRow, Button, Card, InlineError } from '@/components/ui';
 import { passwordError } from '@/account-validation';
-import { colors, spacing } from '@/theme';
+import { initials } from '@/format';
+import { colors, fonts, radius, spacing, typeScale } from '@/theme';
 
 function failure(error: unknown) {
   if (error instanceof ApiError) {
@@ -77,36 +79,41 @@ export default function AccountScreen() {
   };
 
   return <FormPage>
-    <Card style={{ gap: spacing.xs }}>
-      <Text style={{ color: colors.ink, fontWeight: '700' }}>{user?.email}</Text>
-      {user?.firmName ? <Text style={{ color: colors.muted }}>{user.firmName}</Text> : null}
+    <Card style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+      <View style={{ width: 48, height: 48, borderRadius: radius.full, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: colors.info, fontFamily: fonts.bold, fontSize: 17 }}>{initials(`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || user?.email || '')}</Text>
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <Text style={{ ...typeScale.section, color: colors.ink }}>{user?.email}</Text>
+        {user?.firmName ? <Text style={{ color: colors.muted, fontSize: 14 }}>{user.firmName}</Text> : null}
+      </View>
     </Card>
     <FormSection title="ชื่อที่แสดงในทีม">
-      <FormField label="ชื่อ" required value={firstName} onChange={editName(setFirstName)} disabled={!!busy}
+      <TextField label="ชื่อ" required value={firstName} onChange={editName(setFirstName)} disabled={!!busy}
         error={triedProfile ? profileErrors.firstName : undefined} maxLength={100} autoComplete="given-name" textContentType="givenName" />
-      <FormField label="นามสกุล" required value={lastName} onChange={editName(setLastName)} disabled={!!busy}
+      <TextField label="นามสกุล" required value={lastName} onChange={editName(setLastName)} disabled={!!busy}
         error={triedProfile ? profileErrors.lastName : undefined} maxLength={100} autoComplete="family-name" textContentType="familyName" />
-      {error?.section === 'profile' && <ErrorNote message={error.message} />}
-      {saved && !changed && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.good }}>บันทึกชื่อแล้ว</Text>}
+      {error?.section === 'profile' && <InlineError message={error.message} />}
+      {saved && !changed && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.good, fontWeight: '600' }}>บันทึกชื่อแล้ว</Text>}
       <Button title="บันทึกชื่อของฉัน" onPress={saveProfile} busy={busy === 'profile'} disabled={!!busy || !changed}
         accessibilityHint={changed ? undefined : 'แก้ชื่อหรือนามสกุลก่อนบันทึก'} />
     </FormSection>
 
     <Disclosure title="เปลี่ยนรหัสผ่าน" summary="ยืนยันรหัสผ่านปัจจุบันก่อนเปลี่ยน">
       <View style={{ gap: spacing.sm }}>
-        <FormField label="รหัสผ่านปัจจุบัน" required value={currentPassword} onChange={setCurrentPassword} disabled={!!busy}
+        <TextField label="รหัสผ่านปัจจุบัน" required value={currentPassword} onChange={setCurrentPassword} disabled={!!busy}
           error={triedPassword ? passwordErrors.current : undefined}
           secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="current-password" textContentType="password" />
-        <FormField label="รหัสผ่านใหม่" required hint="อย่างน้อย 8 ตัวอักษร" value={password} onChange={setPassword} disabled={!!busy}
+        <TextField label="รหัสผ่านใหม่" required hint="อย่างน้อย 8 ตัวอักษร" value={password} onChange={setPassword} disabled={!!busy}
           error={triedPassword ? passwordErrors.password : undefined}
           secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" />
-        <FormField label="ยืนยันรหัสผ่านใหม่" required value={confirmation} onChange={setConfirmation} disabled={!!busy}
+        <TextField label="ยืนยันรหัสผ่านใหม่" required value={confirmation} onChange={setConfirmation} disabled={!!busy}
           error={triedPassword ? passwordErrors.confirmation : undefined}
           secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="new-password" textContentType="newPassword"
           returnKeyType="done" onSubmitEditing={changePassword} />
         <Button title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} variant="link" onPress={() => setShowPassword(!showPassword)} />
         <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>หลังเปลี่ยนรหัสผ่าน คุณจะต้องเข้าสู่ระบบใหม่ในโทรศัพท์เครื่องนี้</Text>
-        {error?.section === 'password' && <ErrorNote message={error.message} />}
+        {error?.section === 'password' && <InlineError message={error.message} />}
         <Button title="เปลี่ยนรหัสผ่าน" variant="secondary" onPress={changePassword} busy={busy === 'password'} disabled={!!busy} />
       </View>
     </Disclosure>

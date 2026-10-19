@@ -6,9 +6,9 @@ import { hasFirmCapability, ownerDecisionTasks } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { useDailyWorkboard, useDecideLeave, useExpenseClaims, usePendingLeaves, useTodos } from '@/api/hooks';
 import { Text } from '@/components/AppText';
-import { Button, Card, EmptyNote, ErrorNote, FilterTabs, Loading, PageIntro, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, EmptyState, FilterTabs, InlineError, LoadingState, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay, formatMoney, thDate, thTime } from '@/format';
-import { colors, pageContent, radius, spacing, TOUCH } from '@/theme';
+import { colors, pageContent, radius, shadow, spacing, TOUCH } from '@/theme';
 
 const LEAVE_TYPES = { SICK: 'ลาป่วย', PERSONAL: 'ลากิจ', VACATION: 'ลาพักร้อน' };
 const FILTERS = [{ value: 'all', label: 'ทั้งหมด' }, { value: 'review', label: 'งานรอตรวจ' }, { value: 'leave', label: 'ลารออนุมัติ' }, { value: 'claim', label: 'เบิกรออนุมัติ' }, { value: 'risk', label: 'ต้องตัดสินใจ' }];
@@ -64,19 +64,19 @@ export default function OwnerDecisions() {
       { text: 'ยืนยัน', style: result === 'REJECTED' ? 'destructive' : 'default', onPress: () => { setDecideError(null); decision.mutate({ id: leave.id, decision: result }, {
         onError: error => setDecideError({ id: leave.id, message: `ตัดสินใจไม่สำเร็จ · ${error.message}` }) }); } },
     ]);
-  if (!anyQueue) return <EmptyNote>คิวนี้สำหรับเจ้าของและผู้จัดการสำนักงาน</EmptyNote>;
-  return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.sm }}
+  if (!anyQueue) return <View style={{ flex: 1, backgroundColor: colors.bg }}><EmptyState>คิวนี้สำหรับเจ้าของและผู้จัดการสำนักงาน</EmptyState></View>;
+  return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.md }}
     refreshControl={<RefreshControl refreshing={reviews.isRefetching || leaves.isRefetching || claims.isRefetching || daily.isRefetching} onRefresh={refresh} />}>
     <Stack.Screen options={{ title: 'คิวตัดสินใจวันนี้' }} />
     <PageIntro title="คิวตัดสินใจวันนี้" detailOnly detail="เปิดผลงานหรือหลักฐานก่อนตัดสินใจ" />
     <FilterTabs items={filters} value={filter} onChange={setFilter} />
-    {filter === 'all' && anyLoading && <Loading label="กำลังโหลดคิว…" />}
-    {allClear && <EmptyNote>ไม่มีเรื่องรอตัดสินใจ</EmptyNote>}
+    {filter === 'all' && anyLoading && <LoadingState label="กำลังโหลดคิว…" />}
+    {allClear && <EmptyState>ไม่มีเรื่องรอตัดสินใจ</EmptyState>}
     {show('review') && <>
       <SectionLabel>รอ Owner ตรวจ · {reviews.data?.length ?? '—'} งาน</SectionLabel>
-      {reviews.isError && <ErrorNote message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
-      {reviews.isLoading && filter !== 'all' && <Loading />}
-      {reviews.data && !reviews.data.length && <EmptyNote>ไม่มีงานรอคุณตรวจ</EmptyNote>}
+      {reviews.isError && <InlineError message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
+      {reviews.isLoading && filter !== 'all' && <LoadingState inline />}
+      {reviews.data && !reviews.data.length && <EmptyState compact>ไม่มีงานรอคุณตรวจ</EmptyState>}
       {reviews.data?.map(task => <RowCard key={task.id} label={`${task.title} · เปิดผลงานเพื่อตรวจรับหรือส่งกลับ`} onPress={() => router.push(`/task/new?id=${task.id}`)}>
         <Text style={styles.rowTitle}>{task.title}</Text>
         <Text style={styles.rowMeta}>{task.case?.ownRef ?? 'งานสำนักงาน'}{task.dueDate ? ` · ส่งภายใน ${thDate(task.dueDate)}` : ''}</Text>
@@ -84,9 +84,9 @@ export default function OwnerDecisions() {
     </>}
     {show('leave') && <>
       <SectionLabel>ลารออนุมัติ · {leaves.data?.length ?? '—'} รายการ</SectionLabel>
-      {leaves.isError && <ErrorNote message="โหลดคำขอลาไม่ได้" onRetry={() => leaves.refetch()} />}
-      {leaves.isLoading && filter !== 'all' && <Loading />}
-      {leaves.data && !leaves.data.length && <EmptyNote>ไม่มีคำขอลารออนุมัติ</EmptyNote>}
+      {leaves.isError && <InlineError message="โหลดคำขอลาไม่ได้" onRetry={() => leaves.refetch()} />}
+      {leaves.isLoading && filter !== 'all' && <LoadingState inline />}
+      {leaves.data && !leaves.data.length && <EmptyState compact>ไม่มีคำขอลารออนุมัติ</EmptyState>}
       {leaves.data?.map(leave => {
         const busy = decision.isPending && decision.variables?.id === leave.id;
         const result = busy ? decision.variables?.decision : undefined;
@@ -103,7 +103,7 @@ export default function OwnerDecisions() {
             </Pressable>)}
           </> : null}
           <Button title="เทียบกำลังคนช่วงวันลา" variant="link" onPress={() => router.push(`/team-week?date=${leave.startDate.slice(0, 10)}`)} />
-          {decideError?.id === leave.id && <ErrorNote message={decideError.message} />}
+          {decideError?.id === leave.id && <InlineError message={decideError.message} />}
           <View style={styles.decide}>
             <Button title="ไม่อนุมัติ" variant="danger" inline busy={result === 'REJECTED'} disabled={leaves.isFetching || leaves.isError || (decision.isPending && !busy) || result === 'APPROVED'}
               onPress={() => decide(leave, 'REJECTED')} />
@@ -115,9 +115,9 @@ export default function OwnerDecisions() {
     </>}
     {show('claim') && <>
       <SectionLabel>เบิกรออนุมัติ · {pendingClaims?.length ?? '—'} ชุด</SectionLabel>
-      {claims.isError && <ErrorNote message="โหลดชุดเบิกไม่ได้" onRetry={() => claims.refetch()} />}
-      {claims.isLoading && filter !== 'all' && <Loading />}
-      {pendingClaims && !pendingClaims.length && <EmptyNote>ไม่มีชุดเบิกรออนุมัติ</EmptyNote>}
+      {claims.isError && <InlineError message="โหลดชุดเบิกไม่ได้" onRetry={() => claims.refetch()} />}
+      {claims.isLoading && filter !== 'all' && <LoadingState inline />}
+      {pendingClaims && !pendingClaims.length && <EmptyState compact>ไม่มีชุดเบิกรออนุมัติ</EmptyState>}
       {pendingClaims?.map(claim => <RowCard key={claim.id} label={`${claim.submittedBy.firstName} ${claim.submittedBy.lastName} เบิก ${formatMoney(claim.totalAmount)} บาท · เปิดใบเสร็จเพื่ออนุมัติ`}
         onPress={() => router.push(`/expenses/claim/${claim.id}`)}>
         <Text style={styles.rowTitle}>{claim.submittedBy.firstName} {claim.submittedBy.lastName} · {formatMoney(claim.totalAmount)} ฿</Text>
@@ -126,12 +126,12 @@ export default function OwnerDecisions() {
     </>}
     {show('risk') && <>
       <SectionLabel>งานที่ต้องเข้าไปช่วย · {daily.data ? risks.length : '—'} เรื่อง</SectionLabel>
-      {daily.isError && <ErrorNote message="โหลดงานที่ต้องตัดสินใจไม่ได้" onRetry={() => daily.refetch()} />}
-      {daily.isLoading && filter !== 'all' && <Loading />}
-      {daily.data && !risks.length && <EmptyNote>ไม่มีเรื่องต้องตามจากงานที่บันทึกไว้</EmptyNote>}
+      {daily.isError && <InlineError message="โหลดงานที่ต้องตัดสินใจไม่ได้" onRetry={() => daily.refetch()} />}
+      {daily.isLoading && filter !== 'all' && <LoadingState inline />}
+      {daily.data && !risks.length && <EmptyState compact>ไม่มีเรื่องต้องตามจากงานที่บันทึกไว้</EmptyState>}
       {risks.map(({ task, reason }) => <RowCard key={task.id} label={`${task.title} · ${reason} · เปิดงาน`} onPress={() => router.push(`/task/new?id=${task.id}`)}>
         <Text style={styles.rowTitle}>{task.title}</Text>
-        <Text style={{ color: colors.warn, fontSize: 14 }}>{reason}</Text>
+        <Tag tone="due">{reason}</Tag>
         <Text style={styles.rowMeta}>{task.case?.ownRef ?? 'งานสำนักงาน'}</Text>
       </RowCard>)}
     </>}
@@ -139,11 +139,12 @@ export default function OwnerDecisions() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: TOUCH, padding: spacing.md,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.card },
+  // Matches Card (raised surface, 12 radius, sm shadow) so pressable rows and decision cards read as one list.
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: TOUCH, paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.card, ...shadow.sm },
   rowBody: { flex: 1, minWidth: 0, gap: spacing.xs },
-  rowTitle: { fontWeight: '700', fontSize: 16, color: colors.ink },
+  rowTitle: { fontWeight: '700', fontSize: 16, lineHeight: 24, color: colors.ink },
   rowMeta: { color: colors.muted, fontSize: 14, lineHeight: 22 },
-  conflict: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: TOUCH, borderTopWidth: 1, borderTopColor: colors.line },
+  conflict: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: TOUCH, borderTopWidth: 1, borderTopColor: colors.divider },
   decide: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.md, marginTop: spacing.xs },
 });

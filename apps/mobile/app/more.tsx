@@ -58,45 +58,48 @@ export default function MoreScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={pageContent}>
       <PageIntro title="อื่น ๆ" detailOnly detail={user?.firmName} />
       {GROUPS.map(group => <View key={group.title}>
-        <SectionLabel style={{ marginTop: spacing.sm }}>{group.title}</SectionLabel>
-        <Card style={{ marginBottom: spacing.md, paddingVertical: 0 }}>
+        <SectionLabel style={{ marginTop: spacing.md }}>{group.title}</SectionLabel>
+        <Card style={styles.menuCard}>
           {ITEMS.filter(item => group.routes.includes(item.route) && (item.route !== '/operations' || hasFirmCapability(user?.firmRole, 'runOperations'))).map((item, index) => (
-            <Pressable
-              accessibilityRole="button" accessibilityLabel={item.title} accessibilityHint={item.detail}
-              key={item.route}
-              onPress={() => router.push(item.route as never)}
-              style={({ pressed }) => [styles.menuRow, index > 0 && { borderTopWidth: 1, borderTopColor: colors.line }, pressed && { backgroundColor: colors.soft }]}
-            >
-              <View style={styles.row}>
-                <View style={styles.icon}><item.Icon size={20} color={colors.ink} /></View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.title}>{item.title}</Text>
-                  <Text style={styles.detail}>{item.detail}</Text>
+            <View key={item.route}>
+              {index > 0 ? <View style={styles.divider} /> : null}
+              <Pressable
+                accessibilityRole="button" accessibilityLabel={item.title} accessibilityHint={item.detail}
+                onPress={() => router.push(item.route as never)}
+                style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: colors.soft }]}
+              >
+                <View style={styles.row}>
+                  <View style={styles.icon}><item.Icon size={20} color={colors.ink} /></View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.title}>{item.title}</Text>
+                    <Text style={styles.detail}>{item.detail}</Text>
+                  </View>
+                  <ChevronRight size={18} color={colors.muted} />
                 </View>
-                <ChevronRight size={18} color={colors.muted} />
-              </View>
-            </Pressable>
+              </Pressable>
+            </View>
           ))}
         </Card>
       </View>)}
 
       {/* Leaving and deleting sit together at the end, away from everyday tools. */}
-      <Card style={{ marginTop: spacing.lg, paddingVertical: 0 }}>
+      <Card style={[styles.menuCard, { marginTop: spacing.xl }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="ออกจากระบบ" accessibilityHint={user?.email} onPress={confirmLogout}
           style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: colors.soft }]}>
           <View style={styles.row}>
-            <View style={styles.icon}><LogOut size={20} color={colors.warn} /></View>
+            <View style={[styles.icon, styles.iconWarn]}><LogOut size={20} color={colors.warn} /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.title, { color: colors.warn }]}>ออกจากระบบ</Text>
               {user?.email ? <Text style={styles.detail}>{user.email}</Text> : null}
             </View>
           </View>
         </Pressable>
+        <View style={styles.divider} />
         <Pressable accessibilityRole="button" accessibilityLabel="ลบบัญชีและข้อมูล" accessibilityHint="ส่งคำขอและติดตามสถานะ"
           onPress={() => router.push('/delete-account')}
-          style={({ pressed }) => [styles.menuRow, { borderTopWidth: 1, borderTopColor: colors.line }, pressed && { backgroundColor: colors.soft }]}>
+          style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: colors.soft }]}>
           <View style={styles.row}>
-            <View style={styles.icon}><Trash2 size={20} color={colors.warn} /></View>
+            <View style={[styles.icon, styles.iconWarn]}><Trash2 size={20} color={colors.warn} /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.title, { color: colors.warn }]}>ลบบัญชีและข้อมูล</Text>
               <Text style={styles.detail}>ส่งคำขอและติดตามสถานะ · ยังไม่ลบทันที</Text>
@@ -111,9 +114,15 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  menuRow: { minHeight: 68, justifyContent: 'center', paddingVertical: spacing.md },
-  icon: { width: 36, height: 36, borderRadius: radius.button, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  // Rows run edge to edge inside the card so the pressed tint fills the row; the card keeps its raised shadow.
+  // (No overflow:hidden: on iOS it would clip the card's shadow.)
+  menuCard: { marginBottom: spacing.md, paddingVertical: 0, paddingHorizontal: 0 },
+  menuRow: { minHeight: 68, justifyContent: 'center', paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+  // Hairline inset to the text column, so the icon tiles read as one column.
+  divider: { height: 1, backgroundColor: colors.divider, marginLeft: spacing.lg + 40 + spacing.md },
+  icon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+  iconWarn: { backgroundColor: colors.warnSoft },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  title: { fontSize: 15, fontWeight: '600', color: colors.text },
+  title: { fontSize: 16, fontWeight: '600', color: colors.text },
   detail: { fontSize: 13, lineHeight: 20, color: colors.muted, marginTop: 2 },
 });

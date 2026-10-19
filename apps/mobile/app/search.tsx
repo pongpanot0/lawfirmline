@@ -7,9 +7,9 @@ import { FileText } from 'lucide-react-native';
 import { api, API_URL, getTokens } from '@/api/client';
 import { openCaseDocument, openTaskAttachment } from '@/api/files';
 import { FormPage } from '@/components/Form';
-import { Button, Card, EmptyNote, ErrorNote, Loading, PageIntro, SearchBox } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, InlineError, LoadingState, PageIntro, SearchBox } from '@/components/ui';
 import { thDate } from '@/format';
-import { colors, spacing, TOUCH } from '@/theme';
+import { colors, radius, spacing, TOUCH } from '@/theme';
 
 interface FileResult { id: string; filename: string; mimeType: string; size: number | null; updatedAt: string;
   source: 'CASE' | 'TASK'; case: { id: string; ownRef: string; title: string } | null;
@@ -60,10 +60,10 @@ export default function FileSearchScreen() {
   return <FormPage>
     <PageIntro detailOnly title="ค้นหาไฟล์" detail="ค้นชื่อไฟล์ในคดีและงานที่คุณมีสิทธิ์เข้าถึง · แตะไฟล์เพื่อเปิด" />
     <SearchBox value={text} onChange={setText} onSearch={search} onClear={() => { setQuery(''); setExpanded(null); }} placeholder="พิมพ์ชื่อไฟล์บางส่วน" />
-    {files.isLoading && !!query && <Loading label="กำลังค้นหา…" />}
-    {files.isError && <ErrorNote message="ค้นไฟล์ไม่สำเร็จ" onRetry={() => files.refetch()} />}
-    {files.data && !!rows.length && <Text style={{ color: colors.muted }}>พบ {rows.length} ไฟล์{files.hasNextPage ? ' · ยังมีผลค้นหาเพิ่มเติม' : ''}</Text>}
-    {files.data && !rows.length && <EmptyNote>ไม่พบชื่อไฟล์ที่ตรงกัน · ลองชื่อสั้นลง</EmptyNote>}
+    {files.isLoading && !!query && <LoadingState label="กำลังค้นหา…" />}
+    {files.isError && <ErrorState message="ค้นไฟล์ไม่สำเร็จ" onRetry={() => files.refetch()} />}
+    {files.data && !!rows.length && <Text style={styles.count}>พบ {rows.length} ไฟล์{files.hasNextPage ? ' · ยังมีผลค้นหาเพิ่มเติม' : ''}</Text>}
+    {files.data && !rows.length && <EmptyState compact>ไม่พบชื่อไฟล์ที่ตรงกัน · ลองชื่อสั้นลง</EmptyState>}
     {rows.length > 0 && <Card style={{ paddingVertical: 0 }}>
       {rows.map((file, index) => {
         const key = `${file.source}:${file.id}`;
@@ -71,26 +71,26 @@ export default function FileSearchScreen() {
         return <View key={key} style={[styles.row, index > 0 && styles.rowLine]}>
           <Pressable accessibilityRole="button" accessibilityLabel={`เปิด ${file.filename}`} accessibilityState={{ busy: opening === file.id }}
             disabled={!!opening} onPress={() => open(file)} style={({ pressed }) => [styles.body, pressed && { opacity: 0.6 }]}>
-            <FileText size={18} color={colors.muted} />
+            <View style={styles.iconTile}><FileText size={18} color={colors.info} /></View>
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }} numberOfLines={2}>{file.filename}</Text>
+              <Text style={styles.filename} numberOfLines={2}>{file.filename}</Text>
               <Text style={styles.meta} numberOfLines={2}>
                 {opening === file.id ? 'กำลังเปิด…' : `${kindLabel(file.mimeType)} · ${file.case ? `${file.case.ownRef} · ${file.case.title}` : 'งานทั่วไป'}${file.task ? ` · งาน: ${file.task.title}` : ''}`}
               </Text>
             </View>
           </Pressable>
-          {openError === file.id && <Text accessibilityRole="alert" style={{ color: colors.warn, fontSize: 13 }}>เปิดไฟล์ไม่ได้ · ลองใหม่อีกครั้ง</Text>}
+          {openError === file.id && <InlineError message="เปิดไฟล์ไม่ได้ · ลองใหม่อีกครั้ง" />}
           <View style={styles.links}>
             <Button title={isOpen ? 'ซ่อนรายละเอียด' : 'รายละเอียด'} variant="link" onPress={() => { setImageError(null); setExpanded(isOpen ? null : key); }} />
             {file.task
               ? <Button title="เปิดงาน" variant="link" onPress={() => router.push(`/task/new?id=${file.task!.id}`)} />
               : file.case ? <Button title="เข้าแฟ้มคดี" variant="link" onPress={() => router.push(`/case/${file.case!.id}?section=documents`)} /> : null}
           </View>
-          {isOpen && <View style={{ gap: spacing.sm, paddingBottom: spacing.sm }}>
+          {isOpen && <View style={{ gap: spacing.sm, paddingBottom: spacing.md }}>
             <Text style={styles.meta}>{kindLabel(file.mimeType)}{file.size != null ? ` · ${(file.size / 1024).toFixed(0)} KB` : ''} · แก้ล่าสุด {thDate(file.updatedAt)}</Text>
             {file.mimeType.startsWith('image/') && !!headers.Authorization && <Image accessibilityLabel={`ตัวอย่าง ${file.filename}`}
               source={{ uri: `${API_URL}${file.task ? `/tasks/${file.task.id}/attachments/${file.id}/download` : `/cases/${file.case!.id}/documents/${file.id}/download`}`, headers }} onError={() => setImageError(file.id)} resizeMode="contain" style={{ width: '100%', height: 200 }} />}
-            {imageError === file.id && <Text style={{ color: colors.warn }}>ตัวอย่างรูปโหลดไม่ได้ · แตะชื่อไฟล์เพื่อเปิดต้นฉบับ</Text>}
+            {imageError === file.id && <InlineError message="ตัวอย่างรูปโหลดไม่ได้ · แตะชื่อไฟล์เพื่อเปิดต้นฉบับ" />}
           </View>}
         </View>;
       })}
@@ -100,9 +100,13 @@ export default function FileSearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  row: { paddingTop: spacing.sm },
-  rowLine: { borderTopWidth: 1, borderTopColor: colors.line },
+  row: { paddingTop: spacing.md, gap: spacing.xs },
+  rowLine: { borderTopWidth: 1, borderTopColor: colors.divider },
   body: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: TOUCH },
+  iconTile: { width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+  filename: { color: colors.ink, fontWeight: '700', fontSize: 15, lineHeight: 22 },
+  count: { fontSize: 13, lineHeight: 20, color: colors.muted },
   meta: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  links: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  // Links line up under the filename, past the icon tile.
+  links: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, paddingLeft: 36 + spacing.md },
 });

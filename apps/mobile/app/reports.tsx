@@ -5,9 +5,9 @@ import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { useOwnerKpis, useReportsSummary, useOwnerFinance } from '@/api/hooks';
 import { useRouter } from 'expo-router';
-import { ActionRow, Card, ErrorNote, Loading, PageIntro, SectionLabel, StatCard } from '@/components/ui';
+import { ActionRow, Card, EmptyState, ErrorState, InlineError, LoadingState, PageIntro, SectionLabel, StatCard } from '@/components/ui';
 import { formatMoney } from '@/format';
-import { colors, spacing, pageContent } from '@/theme';
+import { colors, fonts, radius, spacing, pageContent, typeScale } from '@/theme';
 
 /** Read-only summary cards — the full report builder stays on web. */
 export default function ReportsScreen() {
@@ -18,11 +18,11 @@ export default function ReportsScreen() {
   const finance = useOwnerFinance(canViewFirm);
   const router = useRouter();
 
-  if (reports.isLoading) return <Loading label="กำลังโหลดรายงาน…" />;
+  if (reports.isLoading) return <LoadingState label="กำลังโหลดรายงาน…" />;
   if (reports.isError || !reports.data)
     return (
       <View style={[styles.screen, { padding: spacing.lg }]}>
-        <ErrorNote message="โหลดรายงานไม่สำเร็จ" onRetry={() => reports.refetch()} />
+        <ErrorState message="โหลดรายงานไม่สำเร็จ" onRetry={() => reports.refetch()} />
       </View>
     );
 
@@ -48,13 +48,13 @@ export default function ReportsScreen() {
 
       {canViewFirm && (
         <>
-          <SectionLabel>ภาพรวมเจ้าของสำนักงาน</SectionLabel>
+          <SectionLabel style={{ marginTop: spacing.md }}>ภาพรวมเจ้าของสำนักงาน</SectionLabel>
           {/* One link to the finance screen instead of repeating its four totals here. */}
           <Card style={{ paddingVertical: 0 }}>
             <ActionRow title="การเงินสำนักงาน" detail={financeDetail} onPress={() => router.push('/owner-finance')} />
           </Card>
-          {ownerKpis.isError && <View style={{ marginTop: spacing.sm }}><ErrorNote message="โหลดตัวชี้วัดการเงินไม่ได้" onRetry={() => ownerKpis.refetch()} /></View>}
-          <View style={styles.statRow}>
+          {ownerKpis.isError && <InlineError style={{ marginTop: spacing.sm }} message="โหลดตัวชี้วัดการเงินไม่ได้" onRetry={() => ownerKpis.refetch()} />}
+          {ownerKpis.isLoading ? <LoadingState inline label="กำลังโหลด…" /> : <View style={styles.statRow}>
             <StatCard
               label="อัตราเก็บเงินได้"
               value={owner?.collectionRate.value != null ? `${Math.round(owner.collectionRate.value * 100)}%` : '—'}
@@ -67,7 +67,7 @@ export default function ReportsScreen() {
               value={owner?.avgDaysOutstanding != null ? `${owner.avgDaysOutstanding} วัน` : '—'}
               onPress={() => router.push('/owner-finance')}
             />
-          </View>
+          </View>}
           <SectionLabel>ผลคดี</SectionLabel>
         </>
       )}
@@ -77,7 +77,7 @@ export default function ReportsScreen() {
           hint={change ? `${change > 0 ? '+' : ''}${change} จากปีก่อน` : undefined} tone={change < 0 ? 'warn' : undefined} />
         <StatCard label="อัตราปิดคดี" value={`${kpis.winRate}%`} hint="ปิดแล้ว ÷ คดีทั้งหมด" />
       </View>
-      <View style={[styles.statRow, { marginTop: spacing.sm }]}>
+      <View style={styles.statRow}>
         <StatCard
           label="ระยะเวลาเฉลี่ย"
           value={kpis.avgCaseDurationMonths != null ? `${kpis.avgCaseDurationMonths} เดือน` : '—'}
@@ -85,13 +85,13 @@ export default function ReportsScreen() {
       </View>
 
       <SectionLabel>คดีตามประเภท</SectionLabel>
-      <Card>
+      <Card style={{ paddingVertical: spacing.xs }}>
         {caseVolumeByType.length === 0 ? (
-          <Text style={styles.empty}>ยังไม่มีข้อมูล</Text>
+          <EmptyState compact>ยังไม่มีข้อมูล</EmptyState>
         ) : (
-          caseVolumeByType.map((row) => (
-            <View key={row.label} style={styles.volumeRow} accessible accessibilityLabel={`${row.label} ${row.count} คดี`}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          caseVolumeByType.map((row, index) => (
+            <View key={row.label} style={[styles.volumeRow, index > 0 && styles.rowLine]} accessible accessibilityLabel={`${row.label} ${row.count} คดี`}>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm }}>
                 <Text style={styles.volumeLabel}>{row.label}</Text>
                 <Text style={styles.count}>{row.count}</Text>
               </View>
@@ -106,15 +106,14 @@ export default function ReportsScreen() {
       {revenueByLawyer.length > 0 ? (
         <>
           <SectionLabel>ชั่วโมงงานตามทนาย</SectionLabel>
-          <Card>
+          <Card style={{ paddingVertical: spacing.xs }}>
             {revenueByLawyer.map((row, index) => (
-              <View key={row.lawyerName}>
-                {index > 0 && <View style={styles.divider} />}
-                <View style={styles.lawyerRow}>
+              <View key={row.lawyerName} style={[styles.lawyerRow, index > 0 && styles.rowLine]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.volumeLabel}>{row.lawyerName}</Text>
                   <Text style={styles.meta}>{row.hours.toLocaleString('th-TH')} ชม.</Text>
-                  {canViewFirm && <Text style={styles.count}>{formatMoney(row.revenue)} ฿</Text>}
                 </View>
+                {canViewFirm && <Text style={styles.money}>{formatMoney(row.revenue)} ฿</Text>}
               </View>
             ))}
           </Card>
@@ -126,29 +125,29 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  statRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  empty: { color: colors.muted, textAlign: 'center', paddingVertical: spacing.lg },
+  statRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
   volumeRow: {
     gap: spacing.sm,
     paddingVertical: spacing.md,
   },
-  volumeLabel: { flex: 1, minWidth: 0, fontSize: 14, color: colors.text, fontWeight: '600' },
+  rowLine: { borderTopWidth: 1, borderTopColor: colors.divider },
+  volumeLabel: { flex: 1, minWidth: 0, fontSize: 15, lineHeight: 22, color: colors.text, fontWeight: '600' },
   track: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.soft,
+    height: 8,
+    borderRadius: radius.full,
+    backgroundColor: colors.sunken,
     overflow: 'hidden',
   },
-  fill: { height: '100%', backgroundColor: colors.info, borderRadius: 3 },
+  fill: { height: '100%', backgroundColor: colors.info, borderRadius: radius.full },
+  // Counts lead the row: Anuphan bold, tabular so a column of numbers lines up.
   count: {
+    ...typeScale.section,
     minWidth: 40,
     textAlign: 'right',
-    fontWeight: '700',
     color: colors.ink,
-    fontSize: 14,
     fontVariant: ['tabular-nums'],
   },
-  lawyerRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
-  meta: { fontSize: 13, color: colors.muted },
-  divider: { height: 1, backgroundColor: colors.line },
+  money: { fontSize: 16, lineHeight: 24, fontFamily: fonts.bold, color: colors.ink, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  lawyerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
+  meta: { fontSize: 13, lineHeight: 20, color: colors.muted },
 });
