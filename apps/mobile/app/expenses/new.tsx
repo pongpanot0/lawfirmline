@@ -33,7 +33,6 @@ export default function NewExpenseScreen() {
   });
   const [ready, setReady] = useState(!draftId);
   const [busy, setBusy] = useState(false);
-  const [more, setMore] = useState(false);
   const [uploaded, setUploaded] = useState(false);
   const [localStatus, setLocalStatus] = useState('');
   useEffect(() => {
@@ -48,7 +47,7 @@ export default function NewExpenseScreen() {
   useEffect(() => {
     if (!ready || !scope || uploaded || busy || (!draft.category && !draft.amount && !draft.description && !draft.receiptUri)) return;
     let active = true;
-    setLocalStatus('กำลังเก็บร่างในเครื่อง…');
+    // Saving is silent; only the result is shown, so the status line does not flicker while typing.
     saveDraft(`${scope}expense:${draft.id}`, draft)
       .then(() => { if (active) setLocalStatus('เก็บร่างในเครื่องแล้ว'); })
       .catch(() => { if (active) setLocalStatus('เก็บร่างไม่สำเร็จ กรุณากดเก็บร่างอีกครั้งก่อนออก'); });
@@ -106,7 +105,7 @@ export default function NewExpenseScreen() {
     <Stack.Screen options={{ title: 'เพิ่มค่าใช้จ่าย' }} />
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ ...pageContent, gap: spacing.sm, paddingBottom: spacing.xl + keyboardHeight }}>
-        <PageIntro title="บันทึกค่าใช้จ่าย" detail="เก็บร่างพร้อมใบเสร็จก่อน แล้วเติมต่อที่สำนักงานได้" />
+        <PageIntro title="บันทึกค่าใช้จ่าย" detail="ร่างเก็บในเครื่องอัตโนมัติ กรอกไม่ครบก็กลับมาเติมทีหลังได้" />
         <FormSection title="รายการและหลักฐาน">
         <SectionLabel style={formLabelSpacing}>เบิกค่าอะไร *</SectionLabel>
         <Dropdown label="เลือกประเภทค่าใช้จ่าย" value={draft.category} options={EXPENSE_CATEGORIES.map((value) => ({ value, label: value }))}
@@ -119,7 +118,7 @@ export default function NewExpenseScreen() {
         </View>
         </FormSection>
         <FormSection title="จำนวนเงินและแฟ้มคดี">
-        <SectionLabel style={formLabelSpacing}>จำนวนเงิน · เติมทีหลังได้</SectionLabel>
+        <SectionLabel style={formLabelSpacing}>จำนวนเงิน *</SectionLabel>
         <TextInput inputAccessoryViewID="expense-keyboard" accessibilityLabel="จำนวนเงิน" style={[field, { fontSize: 24 }]} keyboardType="decimal-pad" placeholder="บาท"
           value={formatMoneyInput(draft.amount) ?? draft.amount} onChangeText={(amount) => {
             const formatted = formatMoneyInput(amount);
@@ -128,18 +127,20 @@ export default function NewExpenseScreen() {
         <SectionLabel style={formLabelSpacing}>{draft.category === 'อื่นๆ' ? 'รายละเอียด *' : 'รายละเอียด · ถ้ามี'}</SectionLabel>
         <TextInput inputAccessoryViewID="expense-keyboard" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} accessibilityLabel="รายละเอียดค่าใช้จ่าย" style={field} placeholder="เช่น ทางด่วนไปศาล" maxLength={500}
           value={draft.description} onChangeText={(description) => change({ description })} editable={!busy} />
-        <SectionLabel style={formLabelSpacing}>คดี</SectionLabel><CasePicker value={draft.caseRef} onChange={(caseRef) => change({ caseRef })} allowNone />
-        <Pressable accessibilityRole="button" onPress={() => setMore(!more)} style={{ paddingVertical: spacing.md, minHeight: 44 }}>
-          <Text style={{ color: colors.info }}>{more ? 'ซ่อนรายละเอียดเพิ่มเติม' : 'เปลี่ยนวันที่ค่าใช้จ่าย'}</Text>
-        </Pressable>
-        {more && <>
-          <DatePicker value={draft.date} onChange={(date) => change({ date })} />
-
-        </>}
+        <SectionLabel style={formLabelSpacing}>คดี · ถ้ามี</SectionLabel><CasePicker value={draft.caseRef} onChange={(caseRef) => change({ caseRef })} allowNone />
+        <SectionLabel style={formLabelSpacing}>วันที่จ่าย</SectionLabel>
+        <DatePicker value={draft.date} onChange={(date) => change({ date })} />
         </FormSection>
-        <Button title="เก็บร่างในเครื่อง · เติมที่สำนักงาน" ghost onPress={() => save(false)} disabled={busy} />
-        {!!localStatus && <Text style={{ color: localStatus.includes('ไม่สำเร็จ') ? colors.warn : colors.muted }}>{localStatus}</Text>}
-        <Button title="บันทึกค่าใช้จ่าย · ยังไม่ส่งเบิก" onPress={() => save(true)} busy={busy} />
+        <Button title="บันทึกค่าใช้จ่าย" onPress={() => save(true)} busy={busy} />
+        <Text style={{ color: colors.muted, fontSize: 13, textAlign: 'center' }}>บันทึกแล้วยังไม่ส่งเบิก · รวมเป็นชุดส่งเบิกได้ที่หน้าค่าใช้จ่ายของฉัน</Text>
+        {/* Draft is a quiet secondary path: autosave already keeps it on the device. */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.sm }}>
+          {!!localStatus && <Text style={{ color: localStatus.includes('ไม่สำเร็จ') ? colors.warn : colors.faint, fontSize: 12 }}>{localStatus}</Text>}
+          <Pressable accessibilityRole="button" accessibilityLabel="เก็บเป็นร่างแล้วออก" onPress={() => save(false)} disabled={busy}
+            style={({ pressed }) => [{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm }, (pressed || busy) && { opacity: 0.6 }]}>
+            <Text style={{ color: colors.info, fontWeight: '600' }}>เก็บเป็นร่างแล้วออก</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </View>
     {Platform.OS === 'ios' && <InputAccessoryView nativeID="expense-keyboard"><View style={{ paddingHorizontal: spacing.md, backgroundColor: colors.surface, alignItems: 'flex-end' }}><Pressable accessibilityRole="button" onPress={Keyboard.dismiss} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md }}><Text style={{ color: colors.info, fontWeight: '700' }}>เสร็จ</Text></Pressable></View></InputAccessoryView>}

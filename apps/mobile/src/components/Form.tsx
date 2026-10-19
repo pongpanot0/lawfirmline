@@ -35,15 +35,36 @@ export function FormPage({ children }: { children: React.ReactNode }) {
   </KeyboardAccessoryContext.Provider>;
 }
 
-export function FormField({ label, value, onChange, multiline = false, disabled = false, placeholder }: {
+export function FormField({ label, value, onChange, multiline = false, disabled = false, placeholder, required = false, error }: {
   label: string; value: string; onChange: (value: string) => void; multiline?: boolean; disabled?: boolean; placeholder?: string;
+  /** Adds the shared " *" marker to the visible label. */
+  required?: boolean;
+  /** Inline message shown under the input; also outlines it in the warning color. */
+  error?: string;
 }) {
   return <View style={{ gap: spacing.sm }}>
-    <SectionLabel style={formLabelSpacing}>{label}</SectionLabel>
-    <TextInput accessibilityLabel={label} value={value} onChangeText={onChange} editable={!disabled}
+    <SectionLabel style={formLabelSpacing}>{required ? `${label} *` : label}</SectionLabel>
+    <TextInput accessibilityLabel={label} accessibilityHint={error || undefined} value={value} onChangeText={onChange} editable={!disabled}
       multiline={multiline} placeholder={placeholder} placeholderTextColor={colors.faint}
       style={{ minHeight: multiline ? 100 : 48, textAlignVertical: multiline ? 'top' : 'center', padding: spacing.md,
-        borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text, fontSize: 16 }} />
+        borderWidth: 1, borderColor: error ? colors.warn : colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text, fontSize: 16 }} />
+    <FieldError message={error} />
+  </View>;
+}
+
+/** Inline validation next to the field it belongs to, instead of a generic alert. */
+export function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.warn, fontSize: 14 }}>{message}</Text>;
+}
+
+/** Lists what is still missing, right above the save button where the user is looking. */
+export function MissingSummary({ items }: { items: string[] }) {
+  if (!items.length) return null;
+  return <View accessibilityRole="alert" accessibilityLiveRegion="polite"
+    style={{ borderWidth: 1, borderColor: colors.warn, backgroundColor: colors.warnSoft, borderRadius: radius.card, padding: spacing.md, gap: spacing.xs }}>
+    <Text style={{ color: colors.warn, fontWeight: '700' }}>ยังขาดข้อมูลที่ต้องกรอก</Text>
+    {items.map(item => <Text key={item} style={{ color: colors.warn }}>• {item}</Text>)}
   </View>;
 }
 

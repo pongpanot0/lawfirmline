@@ -5,8 +5,20 @@ import { Text } from '@/components/AppText';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /** Optional detail stays one tap away without burying today's work. */
-export function Disclosure({ title, summary, children }: { title: string; summary?: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+export function Disclosure({ title, summary, children, defaultOpen = false, open: controlled, onToggle }: {
+  title: string; summary?: string; children: React.ReactNode;
+  /** Start expanded (uncontrolled). */
+  defaultOpen?: boolean;
+  /** Controlled mode: pass `open` with `onToggle`. */
+  open?: boolean; onToggle?: (open: boolean) => void;
+}) {
+  const [inner, setInner] = useState(defaultOpen);
+  const open = controlled ?? inner;
+  const setOpen = (update: (value: boolean) => boolean) => {
+    const next = update(open);
+    if (controlled === undefined) setInner(next);
+    onToggle?.(next);
+  };
   const Icon = open ? ChevronDown : ChevronRight;
   return <View style={styles.section}>
     <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ expanded: open }}

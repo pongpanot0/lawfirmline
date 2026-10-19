@@ -345,22 +345,32 @@ export default function CaseDetailScreen() {
 
         {tab === 'เอกสาร' ? (
           <>
-            <Button title="สร้างเอกสารจากแบบสำเร็จ" ghost onPress={() => router.push({ pathname: '/document-template', params: { caseId: id } })} />
-            <Button title="รายการรอเอกสารจากภายนอก" ghost onPress={() => router.push({ pathname: '/document-waiting', params: { caseId: id } })} />
+            {/* One primary action; template and waiting-list stay as quieter secondary links. */}
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="แนบเอกสาร ถ่ายรูปหรือเลือกไฟล์"
               onPress={() => router.push(`/scan/${id}`)}
               style={({ pressed }) => [styles.scanButton, pressed && { opacity: 0.8 }]}
             >
-              <Camera size={17} color={colors.ink} />
-              <Text style={styles.scanText}>ถ่ายรูป / แนบไฟล์เอกสาร</Text>
+              <Camera size={18} color={colors.bg} />
+              <Text style={styles.scanText}>แนบเอกสาร · ถ่ายรูปหรือเลือกไฟล์</Text>
             </Pressable>
+            <View style={styles.docLinks}>
+              <Pressable accessibilityRole="button" style={styles.docLink}
+                onPress={() => router.push({ pathname: '/document-template', params: { caseId: id } })}>
+                <Text style={styles.docLinkText}>สร้างจากแบบสำเร็จ ›</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" style={styles.docLink}
+                onPress={() => router.push({ pathname: '/document-waiting', params: { caseId: id } })}>
+                <Text style={styles.docLinkText}>รอเอกสารจากภายนอก ›</Text>
+              </Pressable>
+            </View>
             {documents.isError && <ErrorNote message="โหลดรายการเอกสารล่าสุดไม่ได้ ลองโหลดอีกครั้ง" onRetry={() => documents.refetch()} />}
             <Card>
               {documents.isLoading ? (
                 <EmptyNote>กำลังโหลด…</EmptyNote>
               ) : documents.isError && !documents.data ? null : (documents.data?.length ?? 0) === 0 ? (
-                <EmptyNote>ไม่มีเอกสาร</EmptyNote>
+                <EmptyNote>ยังไม่มีเอกสารในคดีนี้ · กด “แนบเอกสาร” ด้านบนเพื่อเพิ่ม</EmptyNote>
               ) : (
                 documents.data!.map((doc, index) => {
                   const filename = doc.filename ?? doc.name ?? doc.fileName ?? 'เอกสาร';
@@ -479,11 +489,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.soft,
+    backgroundColor: colors.ink,
     borderRadius: radius.button,
     paddingVertical: 12,
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.xs,
     minHeight: 48,
   },
-  scanText: { fontWeight: '600', color: colors.ink, fontSize: 14 },
+  scanText: { fontWeight: '700', color: colors.bg, fontSize: 15, flexShrink: 1, textAlign: 'center' },
+  docLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  docLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
+  docLinkText: { color: colors.info, fontWeight: '600', fontSize: 14 },
 });

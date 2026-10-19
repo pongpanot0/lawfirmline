@@ -12,7 +12,8 @@ import { useCase, useLawyers, useLeaves, useDailyWorkboard } from '@/api/hooks';
 import type { TaskItem } from '@/api/types';
 import { uploadTaskAttachment, openTaskAttachment } from '@/api/files';
 import { Attachments, AttachmentFile } from '@/components/Attachments';
-import { FormField, FormPage, FormSection } from '@/components/Form';
+import { FieldError, FormField, FormPage, FormSection, MissingSummary } from '@/components/Form';
+import { Disclosure } from '@/components/Disclosure';
 import { Dropdown } from '@/components/Dropdown';
 import { DatePicker } from '@/components/DatePicker';
 import { CasePicker, CaseRef } from '@/components/CasePicker';
@@ -52,6 +53,7 @@ export default function TaskFormScreen() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [triedSave, setTriedSave] = useState(false);
   const [reassigning, setReassigning] = useState(false);
   const [reviewerId, setReviewerId] = useState('');
   const [priority, setPriority] = useState<'HIGH' | 'MEDIUM' | 'LOW'>('MEDIUM');
@@ -124,7 +126,7 @@ export default function TaskFormScreen() {
     }
   }, dirty, { name: title.trim() || 'งานที่ยังไม่ได้บันทึก', route: draftRoute });
   const save = async () => {
-    if (!title.trim() || !assigneeId) return Alert.alert('กรอกไม่ครบ', 'ใส่ชื่องานและเลือกผู้รับผิดชอบ');
+    if (!title.trim() || !assigneeId) { setTriedSave(true); return; }
     if (recurrenceDays && (!/^\d+$/.test(recurrenceDays) || Number(recurrenceDays) < 1 || Number(recurrenceDays) > 365)) return Alert.alert('รอบงานซ้ำ', 'ใส่จำนวนวันตั้งแต่ 1 ถึง 365');
     setBusy(true); setError('');
     try {
@@ -203,22 +205,24 @@ export default function TaskFormScreen() {
   if (!draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading />;
   return <FormPage>
     <Stack.Screen options={{ title: id ? 'แก้ไขงาน' : 'เพิ่มงาน' }} />
-    <FormSection title={id ? 'รายละเอียดงาน' : 'ชื่องานและคนรับผิดชอบ'} detail="ระบุงานให้ชัด แล้วเลือกคนที่รับงานนี้">
+    <FormSection title={id ? 'รายละเอียดงาน' : 'งานอะไร ใครทำ'}>
     {!!draft.message && dirty && <Text style={{ color: colors.faint, fontSize: 12 }}>{draft.message}</Text>}
     {!!draft.warning && <Text style={{ color: colors.warn }}>{draft.warning}</Text>}
     {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
     {id && <Button title="กลับไปทำงาน" ghost onPress={() => setEditing(false)} />}
-    <FormField label="ชื่องาน" value={title} onChange={setTitle} disabled={busy || !!savedId || checkingPreviousSave} />
-    <SectionLabel style={formLabelSpacing}>ผู้รับผิดชอบ</SectionLabel>
+    <FormField label="ชื่องาน" required value={title} onChange={setTitle} disabled={busy || !!savedId || checkingPreviousSave}
+      placeholder="เช่น ร่างคำให้การ" error={triedSave && !title.trim() ? 'ใส่ชื่องาน' : undefined} />
+    <SectionLabel style={formLabelSpacing}>ผู้รับผิดชอบ *</SectionLabel>
     <Dropdown label="เลือกผู้รับผิดชอบงาน" value={assigneeId} options={options} onChange={setAssigneeId}
       disabled={busy || !!savedId || checkingPreviousSave || !canAssign || members.isLoading || members.isError} />
+    <FieldError message={triedSave && !assigneeId ? 'เลือกผู้รับผิดชอบ 1 คน' : undefined} />
     {members.isError && <ErrorNote message="โหลดรายชื่อไม่ได้" onRetry={() => members.refetch()} />}
     {leaves.isError && <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
     {!id && owner && <>
-      <Button title="ดูภาระงานทีมล่วงหน้า 7 วัน" ghost onPress={() => router.push({ pathname: '/team-week', params: { date: assignmentDate } })} />
-      <Button title={comparing ? 'ย่อหน้าเทียบคน' : 'เทียบคนจากงานวันที่เลือก'} ghost onPress={() => setComparing(!comparing)} />
-      {comparing && <>
-        <SectionLabel>เทียบงานวันที่ {assignmentDate}</SectionLabel>
+      {/* Workload helpers fold away; open them only when choosing who has room. */}
+      <Disclosure title="ช่วยเลือกคน · ดูภาระงานทีม" summary={`เทียบงานของแต่ละคนวันที่ ${assignmentDate}`} open={comparing} onToggle={setComparing}>
+      <View style={{ gap: spacing.sm }}>
+        <Button title="ดูภาระงานทีมล่วงหน้า 7 วัน" ghost onPress={() => router.push({ pathname: '/team-week', params: { date: assignmentDate } })} />
         <Text style={{ color: colors.faint }}>โหลดล่าสุด {board.data?.fetchedAt ? new Date(board.data.fetchedAt).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }) : 'ยังไม่ทราบ'} · ข้อมูลไม่ครบยังสรุปว่าว่างไม่ได้</Text>
         {board.isError && <ErrorNote message="ยังตรวจภาระงานล่าสุดไม่ได้" onRetry={() => board.refetch()} />}
         {board.isLoading && <Loading />}
@@ -227,7 +231,8 @@ export default function TaskFormScreen() {
           <WorkloadSummary candidate={person} />
           <Button title={`เลือก ${person.member.firstName}`} ghost disabled={busy || checkingPreviousSave} onPress={() => { setAssigneeId(person.member.userId); setComparing(false); }} />
         </Card>)}
-      </>}
+      </View>
+      </Disclosure>
       {!!warnings.length && <Card style={{ gap: spacing.sm }}>
         {warnings.map((message, index) => <Text key={index} style={{ color: colors.warn }}>{message}</Text>)}
         <Pressable accessibilityRole="checkbox" accessibilityLabel="ตรวจเงื่อนไขแล้ว ยืนยันมอบหมายคนนี้" accessibilityState={{ checked: risksConfirmed }}
@@ -237,6 +242,7 @@ export default function TaskFormScreen() {
       </Card>}
     </>}
     {!id && ['OWNER', 'SENIOR_LAWYER', 'OFFICE_MANAGER'].includes(user?.firmRole ?? '') && <>
+      <SectionLabel style={formLabelSpacing}>วิธีทำงานประจำ · ถ้ามี</SectionLabel>
       <Dropdown label="วิธีทำงานประจำ (ถ้ามี)" value={routineChoice} options={[{ value: '', label: 'งานทั่วไป · ไม่บังคับรายการตรวจ' }, ...routines]} disabled={busy || checkingPreviousSave || playbooks.isLoading || playbooks.isError || (!!caseId && legalCase.isLoading)}
         onChange={value => { setRoutineChoice(value); if (value) { const selected = routines.find(r => r.value === value); if (!title.trim() && selected) setTitle(selected.title); setRequiresReview(true); setReviewerId(reviewers.find(p => p.id === legalCase.data?.leadLawyer?.id)?.id ?? ''); } }} />
       {playbooks.isError && <ErrorNote message="โหลดวิธีทำงานประจำไม่ได้" onRetry={() => playbooks.refetch()} />}
@@ -291,6 +297,7 @@ export default function TaskFormScreen() {
     {!!savedId && <Text style={{ color: colors.info }}>งานบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อโดยไม่สร้างงานซ้ำ</Text>}
     {checkingPreviousSave && <Text style={{ color: colors.info }}>ยังตรวจผลบันทึกครั้งก่อน · กดบันทึกซ้ำใช้คำขอเดิมและไม่เพิ่มงานซ้ำ</Text>}
     {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
+    {triedSave && !savedId && <MissingSummary items={[...(!title.trim() ? ['ชื่องาน'] : []), ...(!assigneeId ? ['ผู้รับผิดชอบ'] : [])]} />}
     <Button title={savedId ? 'ส่งไฟล์ที่เหลือ' : id ? 'บันทึกงาน' : 'เพิ่มงาน'} busy={busy} onPress={save} />
     {id && !!task.data && task.data.assigneeId === user?.id &&
       (caseId ? ['TODO', 'IN_PROGRESS', 'NEEDS_REVISION', 'DONE'] : ['TODO', 'IN_PROGRESS', 'NEEDS_REVISION']).includes(task.data.status) &&
