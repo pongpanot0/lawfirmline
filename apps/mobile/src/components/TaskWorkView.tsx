@@ -13,11 +13,11 @@ import type { TaskItem } from '@/api/types';
 import { openCaseDocument, openTaskAttachment, uploadTaskAttachment } from '@/api/files';
 import { bangkokDay, thDate, thTime } from '@/format';
 import { canReviewTask } from '@/workflow';
-import { CirclePause } from 'lucide-react-native';
-import { colors, shadow, spacing, typeScale } from '@/theme';
+import { CirclePause, FileText, ListChecks } from 'lucide-react-native';
+import { colors, spacing, typeScale } from '@/theme';
 import { Text } from './AppText';
 import { AttachmentFile, Attachments } from './Attachments';
-import { CheckRow, FormPage } from './Form';
+import { CheckRow, FormPage, StickyBar } from './Form';
 import { Disclosure } from './Disclosure';
 import { DateField, SelectField, TextArea } from './Input';
 import { EmptyState, ErrorState, InlineError, LoadingState } from './States';
@@ -131,7 +131,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
       {worker && !!task.acknowledgedAt && <Button title="ทำงานนี้วันนี้" variant="secondary" inline disabled={busy}
         onPress={() => perform(() => api(`/tasks/${task.id}/confirm-plan`, { method: 'POST', body: { date: bangkokDay(new Date().toISOString()) } }))} />}
       </Card>
-      {!!rejectReason && <Card flat style={{ gap: spacing.xs, borderColor: colors.warnSoft, borderLeftWidth: 3, borderLeftColor: colors.warn, backgroundColor: colors.warnSoft }}>
+      {!!rejectReason && <Card flat style={{ gap: spacing.xs, borderColor: colors.warnEdge, backgroundColor: colors.warnSoft }}>
         <Text style={{ color: colors.warn, fontWeight: '600' }}>เหตุผลส่งกลับ: {rejectReason}</Text>
         <Text style={{ color: colors.text }}>ตรวจผลงานใหม่ก่อนส่งซ้ำ</Text>
       </Card>}
@@ -207,7 +207,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
             setFiles(remainingFiles);
           }
         })} />}
-        <Disclosure title="รายงานความคืบหน้า · เอกสารขาด · ไม่แน่ใจ" summary={latest ? 'แก้รายงานล่าสุดให้ผู้ดูแลงานเห็น' : 'บอกผู้ดูแลงานว่าทำถึงไหนแล้ว'}
+        <Disclosure icon={ListChecks} title="รายงานความคืบหน้า · เอกสารขาด · ไม่แน่ใจ" summary={latest ? 'แก้รายงานล่าสุดให้ผู้ดูแลงานเห็น' : 'บอกผู้ดูแลงานว่าทำถึงไหนแล้ว'}
           open={reporting} onToggle={setReporting}>
           <View style={{ gap: spacing.sm }}>
             <TextArea label="ทำแล้ว" required value={completed} onChange={setCompleted} disabled={busy} />
@@ -226,7 +226,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         <Text style={{ color: colors.text }}>{latest.body}</Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>อัปเดต {latest.createdAt ? `${thDate(latest.createdAt)} ${thTime(latest.createdAt)}` : 'ไม่ทราบเวลา'} · {latest.author?.firstName}</Text>
       </Card>}
-      {canHold && <Disclosure title={onHold ? 'พักงานอยู่' : 'พักงาน · ถ้าต้องรอ'} summary={onHold ? task.onHold!.reason : 'รอลูกความ ศาล เอกสาร หรือคนภายนอก'} defaultOpen={onHold}>
+      {canHold && <Disclosure icon={CirclePause} title={onHold ? 'พักงานอยู่' : 'พักงาน · ถ้าต้องรอ'} summary={onHold ? task.onHold!.reason : 'รอลูกความ ศาล เอกสาร หรือคนภายนอก'} defaultOpen={onHold}>
         {onHold ? <View style={{ gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>
             <CirclePause size={18} color={colors.muted} />
@@ -253,7 +253,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         <TextArea label="เหตุผลส่งกลับแก้ไข" value={reason} onChange={setReason} disabled={busy} />
         <Button title="ส่งกลับแก้ไข" variant="danger" disabled={busy || !reason.trim()} onPress={() => transition('reject')} />
       </>}
-      <Disclosure title="บันทึกเพิ่มเติม · ถ้ามี" summary="ข้อความถึงทีมในงานนี้" open={showNote || !!note.trim()} onToggle={setShowNote}>
+      <Disclosure icon={FileText} title="บันทึกเพิ่มเติม · ถ้ามี" summary="ข้อความถึงทีมในงานนี้" open={showNote || !!note.trim()} onToggle={setShowNote}>
         <View style={{ gap: spacing.sm }}>
           <TextArea label="บันทึกเพิ่มเติม" value={note} onChange={setNote} disabled={busy} />
           <Button title="บันทึกข้อความ" variant="secondary" busy={busy} disabled={!note.trim()} onPress={() => perform(async () => { await api(`/tasks/${task.id}/comments`, { method: 'POST', body: { body: note.trim() } }); setNote(''); })} />
@@ -269,7 +269,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         value={handoffNote} onChange={setHandoffNote} disabled={busy} />}
       {worker && !routine && !task.requiresReview && !task.caseId && reviewerId && <Button title="ส่งตรวจงาน" variant="secondary" disabled={busy} onPress={() => transition('handoff')} />}
     </FormPage>
-    {(primary || reviewer || !!error) && <View style={{ padding: spacing.md, paddingBottom: spacing.md + bottom, borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.raised, ...shadow.md }}>
+    {(primary || reviewer || !!error) && <StickyBar bottomInset={bottom}>
       <View style={{ width: '100%', maxWidth: 728, alignSelf: 'center', gap: spacing.sm }}>
       <InlineError message={error} />
       {primary && <Button title={primary.title} busy={busy} onPress={primary.action} />}
@@ -277,6 +277,6 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         { text: 'ยกเลิก', style: 'cancel' }, { text: 'ผ่านการตรวจ', onPress: () => transition('accept') },
       ])} />}
       </View>
-    </View>}
+    </StickyBar>}
   </View>;
 }

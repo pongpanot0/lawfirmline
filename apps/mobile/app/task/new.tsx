@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { Check, ChevronRight } from 'lucide-react-native';
+import { Check, ChevronRight, ClipboardCheck, FolderOpen, ListChecks, Plus } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -276,15 +276,24 @@ export default function TaskFormScreen() {
   const trackSummary = [requiresReview || routineChoice ? 'ต้องตรวจก่อนปิด' : '', priority !== 'MEDIUM' ? priorityLabel[priority] : '',
     observerIds.length ? `ผู้ติดตาม ${observerIds.length} คน` : '', requiresAttachment ? 'ต้องแนบไฟล์' : '', recurrenceDays ? `ทำซ้ำอีก ${recurrenceDays} วัน` : '']
     .filter(Boolean).join(' · ') || 'ผู้ตรวจ ความสำคัญ ผู้ติดตาม และรอบงานซ้ำ';
-  return <FormPage>
+  const saveBlock = <>
+    {!!savedId && <Text style={styles.infoNote}>งานบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อโดยไม่สร้างงานซ้ำ</Text>}
+    {checkingPreviousSave && <Text style={styles.infoNote}>ยังตรวจผลบันทึกครั้งก่อน · กดบันทึกซ้ำใช้คำขอเดิมและไม่เพิ่มงานซ้ำ</Text>}
+    <InlineError message={error || undefined} />
+    {triedSave && !savedId && <MissingSummary items={missing} />}
+    <Button title={savedId ? 'ส่งไฟล์ที่เหลือ' : id ? 'บันทึกงาน' : 'เพิ่มงาน'} icon={savedId || id ? Check : Plus} busy={busy} onPress={save} />
+    {!!draft.message && dirty && <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center' }}>{draft.message}</Text>}
+  </>;
+  // A new task pins its save action; editing keeps it inline because review and comments follow it.
+  return <FormPage footer={id ? undefined : saveBlock}>
     <Stack.Screen options={{ title: id ? 'แก้ไขงาน' : 'เพิ่มงาน' }} />
-    <FormSection title={id ? 'รายละเอียดงาน' : 'งานอะไร ใครทำ'}>
+    <FormSection title={id ? 'รายละเอียดงาน' : 'งานอะไร ใครทำ'} icon={ListChecks}>
     <InlineError message={draft.warning || undefined} />
     {!!draft.error && <InlineError message={draft.error} onRetry={draft.retry} />}
     {id && <Button title="กลับไปทำงาน" variant="link" onPress={() => setEditing(false)} />}
     <TextField label="ชื่องาน" required value={title} onChange={setTitle} disabled={busy || !!savedId || checkingPreviousSave}
       placeholder="เช่น ร่างคำให้การ" error={triedSave && !title.trim() ? 'ใส่ชื่องาน' : undefined} />
-    <Dropdown label="เลือกผู้รับผิดชอบงาน" fieldLabel="ผู้รับผิดชอบ" required value={assigneeId} options={options} onChange={setAssigneeId}
+    <Dropdown label="เลือกผู้รับผิดชอบงาน" fieldLabel="ผู้รับผิดชอบ" required value={assigneeId} options={options} onChange={setAssigneeId} person
       placeholder={members.isLoading ? 'กำลังโหลดรายชื่อ…' : 'เลือกผู้รับผิดชอบงาน'}
       error={triedSave && !assigneeId ? 'เลือกผู้รับผิดชอบ 1 คน' : undefined}
       disabled={busy || !!savedId || checkingPreviousSave || !canAssign || members.isLoading || members.isError} />
@@ -345,10 +354,10 @@ export default function TaskFormScreen() {
     </>}
     </FormSection>
     {!id ? <>
-      <Disclosure title="รายละเอียด แฟ้มคดี และไฟล์ · ถ้ามี" summary={detailsSummary} open={showDetails} onToggle={setShowDetails}>
+      <Disclosure icon={FolderOpen} title="รายละเอียด แฟ้มคดี และไฟล์ · ถ้ามี" summary={detailsSummary} open={showDetails} onToggle={setShowDetails}>
         <View style={{ gap: spacing.sm }}>{details}</View>
       </Disclosure>
-      <Disclosure title="การตรวจและติดตาม · ถ้ามี" summary={trackSummary} open={trackOpen} onToggle={setTrackOpen}>
+      <Disclosure icon={ClipboardCheck} title="การตรวจและติดตาม · ถ้ามี" summary={trackSummary} open={trackOpen} onToggle={setTrackOpen}>
         <View style={{ gap: spacing.sm }}>{tracking}</View>
       </Disclosure>
     </> : showDetails && <FormSection title="กำหนดส่งและข้อมูลเพิ่มเติม">
@@ -358,12 +367,7 @@ export default function TaskFormScreen() {
       {details}
       {recurrence}
     </FormSection>}
-    {!!savedId && <Text style={styles.infoNote}>งานบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อโดยไม่สร้างงานซ้ำ</Text>}
-    {checkingPreviousSave && <Text style={styles.infoNote}>ยังตรวจผลบันทึกครั้งก่อน · กดบันทึกซ้ำใช้คำขอเดิมและไม่เพิ่มงานซ้ำ</Text>}
-    <InlineError message={error || undefined} />
-    {triedSave && !savedId && <MissingSummary items={missing} />}
-    <Button title={savedId ? 'ส่งไฟล์ที่เหลือ' : id ? 'บันทึกงาน' : 'เพิ่มงาน'} busy={busy} onPress={save} />
-    {!!draft.message && dirty && <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center' }}>{draft.message}</Text>}
+    {id ? saveBlock : null}
     {id && !!task.data && task.data.assigneeId === user?.id &&
       (caseId ? ['TODO', 'IN_PROGRESS', 'NEEDS_REVISION', 'DONE'] : ['TODO', 'IN_PROGRESS', 'NEEDS_REVISION']).includes(task.data.status) &&
       (!caseId || legalCase.data?.leadLawyer?.id !== user?.id) && <>
@@ -421,8 +425,9 @@ export default function TaskFormScreen() {
 
 const styles = StyleSheet.create({
   statePage: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg },
-  warnBox: { gap: spacing.sm, backgroundColor: colors.warnSoft, borderColor: colors.warn, borderLeftWidth: 3, padding: spacing.md },
-  infoNote: { color: colors.info, backgroundColor: colors.infoSoft, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+  warnBox: { gap: spacing.sm, backgroundColor: colors.warnSoft, borderColor: colors.warnEdge, padding: spacing.md },
+  infoNote: { color: colors.info, backgroundColor: colors.infoSoft, borderWidth: 1, borderColor: colors.infoEdge, borderRadius: radius.md,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   reviewTitle: { ...typeScale.title, color: colors.ink },
   listCard: { paddingVertical: spacing.xs },
   listDivider: { borderTopWidth: 1, borderTopColor: colors.divider },

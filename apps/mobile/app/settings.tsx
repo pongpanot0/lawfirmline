@@ -135,7 +135,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'transparent', borderRadius: radius.md },
   sizeOn: { backgroundColor: colors.raised, borderColor: colors.line, ...shadow.sm },
   preview: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.bg },
-  denied: { backgroundColor: colors.warnSoft, borderColor: colors.warnSoft, borderLeftWidth: 3, borderLeftColor: colors.warn },
-  lineNote: { color: colors.info, backgroundColor: colors.infoSoft, borderRadius: radius.md, padding: spacing.md, fontSize: 14, lineHeight: 22 },
+  denied: { backgroundColor: colors.warnSoft, borderColor: colors.warnEdge },
+  lineNote: { color: colors.info, backgroundColor: colors.infoSoft, borderWidth: 1, borderColor: colors.infoEdge, borderRadius: radius.md,
+    padding: spacing.md, fontSize: 14, lineHeight: 22 },
   toggle: { flexGrow: 1, flexBasis: '40%', minWidth: 120, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink, ...shadow.sm },
   chipText: { fontSize: 14, color: colors.ink, fontWeight: '600', fontVariant: ['tabular-nums'] },
   chipTextOn: { color: colors.bg },
-  leaveBox: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, borderLeftWidth: 3, borderLeftColor: colors.warn, backgroundColor: colors.warnSoft },
+  leaveBox: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warnEdge, backgroundColor: colors.warnSoft },
   impactRow: { marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
   statePage: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg },
 });

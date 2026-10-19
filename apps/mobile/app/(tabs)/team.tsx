@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlertTriangle, ChevronRight, Users, X } from 'lucide-react-native';
+import { AlertTriangle, CalendarDays, CalendarOff, ChevronRight, LucideIcon, Scale, Users, X } from 'lucide-react-native';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useCalendarRange, useLeaves, useWorkload } from '@/api/hooks';
 import type { WorkloadMember } from '@/api/types';
@@ -14,7 +14,6 @@ import {
   InlineError,
   LoadingState,
   SectionLabel,
-  StatCard,
   Tag,
   TagTone,
 } from '@/components/ui';
@@ -38,11 +37,11 @@ function MemberCard({ member, max, leave, todayEvents, onDetail, onTasks, onCale
   const load = loadTone(member);
   const width = max === 0 ? 0 : Math.max(4, (member.openTasks / max) * 100);
   // Only facts that need attention become chips; zero counts stay out of the way.
-  const chips: Array<{ tone: TagTone; text: string }> = [
-    ...(member.overdueTasks > 0 ? [{ tone: 'due' as TagTone, text: `เกินกำหนด ${member.overdueTasks}` }] : []),
-    ...(typeof todayEvents === 'number' && todayEvents > 0 ? [{ tone: 'info' as TagTone, text: `นัดวันนี้ ${todayEvents}` }] : []),
-    ...(member.hearingsThisWeek > 0 ? [{ tone: 'court' as TagTone, text: `นัดศาล 7 วัน ${member.hearingsThisWeek}` }] : []),
-    ...(leave ? [{ tone: (leave.kind === 'ON_LEAVE' ? 'due' : 'plain') as TagTone, text: leave.label }] : []),
+  const chips: Array<{ tone: TagTone; text: string; icon?: LucideIcon }> = [
+    ...(member.overdueTasks > 0 ? [{ tone: 'due' as TagTone, text: `เกินกำหนด ${member.overdueTasks}`, icon: AlertTriangle }] : []),
+    ...(typeof todayEvents === 'number' && todayEvents > 0 ? [{ tone: 'info' as TagTone, text: `นัดวันนี้ ${todayEvents}`, icon: CalendarDays }] : []),
+    ...(member.hearingsThisWeek > 0 ? [{ tone: 'court' as TagTone, text: `นัดศาล 7 วัน ${member.hearingsThisWeek}`, icon: Scale }] : []),
+    ...(leave ? [{ tone: (leave.kind === 'ON_LEAVE' ? 'due' : 'plain') as TagTone, text: leave.label, icon: CalendarOff }] : []),
   ];
   const links = [
     { label: 'งาน', a11y: `ดูงานของ ${member.name}`, onPress: onTasks },
@@ -71,12 +70,13 @@ function MemberCard({ member, max, leave, todayEvents, onDetail, onTasks, onCale
         <View style={[styles.progressFill, { width: `${width}%`, backgroundColor: load.color }]} />
       </View>
       {(chips.length > 0 || member.openTasks === 0) && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
-        {chips.length ? chips.map(chip => <Tag key={chip.text} tone={chip.tone}>{chip.text}</Tag>) : <Tag tone={load.tone}>{load.label}</Tag>}
+        {chips.length ? chips.map(chip => <Tag key={chip.text} tone={chip.tone} icon={chip.icon}>{chip.text}</Tag>) : <Tag tone={load.tone}>{load.label}</Tag>}
       </View>}
       <View style={styles.actions}>
         {links.map(link => <Pressable key={link.label} accessibilityRole="link" accessibilityLabel={link.a11y}
-          style={({ pressed }) => [styles.action, pressed && { backgroundColor: colors.infoSoft }]} onPress={link.onPress}>
+          style={({ pressed }) => [styles.action, pressed && { backgroundColor: colors.soft }]} onPress={link.onPress}>
           <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.actionText}>{link.label}</Text>
+          <ChevronRight size={14} color={colors.muted} />
         </Pressable>)}
       </View>
     </Card>
@@ -126,20 +126,26 @@ export default function TeamScreen() {
       {data ? (
         <>
           {/* Team totals lead as count tiles; an idle team reads as one plain sentence instead of zeros. */}
-          {!memberId && <View style={{ gap: spacing.sm }}>
+          {/* One raised summary card: team totals, the overdue notice, then the 7-day view. */}
+          {!memberId && <Card style={styles.summaryCard}>
             {data.totals.openTasks > 0 ? <View style={styles.statRow}>
-              <StatCard label="งานเปิดทั้งทีม" value={data.totals.openTasks} />
-              <StatCard label="นัดศาล 7 วัน" value={data.totals.hearingsThisWeek} tone="court" hideZero />
+              <View accessible accessibilityLabel={`งานเปิดทั้งทีม ${data.totals.openTasks}`} style={styles.stat}>
+                <Text style={styles.statLabel}>งานเปิดทั้งทีม</Text>
+                <Text style={styles.statValue}>{data.totals.openTasks}</Text>
+              </View>
+              {data.totals.hearingsThisWeek > 0 && <View accessible accessibilityLabel={`นัดศาล 7 วัน ${data.totals.hearingsThisWeek}`} style={styles.stat}>
+                <Text style={styles.statLabel}>นัดศาล 7 วัน</Text>
+                <Text style={[styles.statValue, { color: colors.accentInk }]}>{data.totals.hearingsThisWeek}</Text>
+              </View>}
             </View> : <Text style={styles.summary}>{teamSummary}</Text>}
             {overloaded > 0 && <View style={styles.overloadedRow}>
-              <AlertTriangle size={16} color={colors.warn} />
+              <AlertTriangle size={18} color={colors.warn} style={{ marginTop: 2 }} />
               <Text style={styles.overloaded}>{overloaded} คนมีงานเกินกำหนด · พิจารณาเกลี่ยงาน</Text>
             </View>}
-          </View>}
-
-          {!memberId && (hasFirmCapability(user?.firmRole, 'runOperations') || user?.firmRole === 'SENIOR_LAWYER') && <View style={{ marginTop: spacing.sm }}>
-            <Button title="ดูภาระงานทีมล่วงหน้า 7 วัน" variant="secondary" onPress={() => router.push('/team-week')} />
-          </View>}
+            {(hasFirmCapability(user?.firmRole, 'runOperations') || user?.firmRole === 'SENIOR_LAWYER') && <View style={styles.summaryAction}>
+              <Button title="ดูภาระงานทีมล่วงหน้า 7 วัน" icon={CalendarDays} variant="secondary" onPress={() => router.push('/team-week')} />
+            </View>}
+          </Card>}
 
           <SectionLabel>{memberId ? members[0]?.name ?? 'สมาชิกทีม' : 'รายคน · เรียงตามภาระงาน'}</SectionLabel>
           {memberId && <Pressable accessibilityRole="button" accessibilityLabel="เลิกกรอง · ดูทั้งทีม"
@@ -168,20 +174,28 @@ export default function TeamScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  statRow: { flexDirection: 'row', gap: spacing.md },
-  overloadedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  statRow: { flexDirection: 'row', gap: spacing.lg },
+  stat: { flex: 1, minWidth: 0, gap: 2 },
+  statLabel: { ...typeScale.overline, color: colors.muted },
+  statValue: { ...typeScale.stat, color: colors.ink, fontVariant: ['tabular-nums'] },
+  summaryCard: { gap: spacing.md },
+  summaryAction: { paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
+  overloadedRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: colors.warnSoft, borderWidth: 1,
+    borderColor: colors.warnEdge, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   avatar: {
-    backgroundColor: colors.infoSoft,
+    backgroundColor: colors.sunken,
     width: 40,
     height: 40,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: colors.info, fontFamily: fonts.bold, fontSize: 14 },
-  name: { flex: 1, fontFamily: fonts.semibold, color: colors.ink, fontSize: 16, lineHeight: 24 },
+  avatarText: { color: colors.ink, fontFamily: fonts.bold, fontSize: 14 },
+  name: { flex: 1, fontFamily: fonts.bold, color: colors.ink, fontSize: 17, lineHeight: 26 },
   count: {
-    ...typeScale.title,
+    fontFamily: fonts.bold,
+    fontSize: 28,
+    lineHeight: 36,
     color: colors.ink,
     fontVariant: ['tabular-nums'],
   },
@@ -197,9 +211,11 @@ const styles = StyleSheet.create({
   countLabel: { fontSize: 12, color: colors.muted },
   summary: { color: colors.muted, fontSize: 14, lineHeight: 22 },
   overloaded: { flex: 1, color: colors.warn, fontSize: 14, lineHeight: 22, fontWeight: '600' },
+  // Three equal outlined pills; they wrap to their own rows only at large text sizes.
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
-  action: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.button, backgroundColor: colors.surface },
-  actionText: { color: colors.info, fontWeight: '600' },
+  action: { flexGrow: 1, flexBasis: 88, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+    paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.full, backgroundColor: colors.raised },
+  actionText: { color: colors.ink, fontWeight: '600' },
   filter: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start' },
   filterText: { color: colors.info, fontWeight: '600' },
 });

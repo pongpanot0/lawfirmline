@@ -17,6 +17,7 @@ import {
   CalendarOff,
   Search,
   Mail,
+  Users,
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { listTaskDrafts, taskDraftScope } from '@/api/drafts';
@@ -294,7 +295,7 @@ export default function MyDayScreen() {
       {decisionTiles.length > 0 && <>
         <SectionLabel>คิวตัดสินใจวันนี้</SectionLabel>
         {/* Each tile is the link to its queue, so no separate "ดูทั้งหมด" row repeats them. */}
-        <View style={styles.tileRow}>{decisionTiles.map(item =>
+        <Card style={styles.tileCard}><View style={styles.tileRow}>{decisionTiles.map(item =>
           <Pressable key={item.view} accessibilityRole="button"
             accessibilityLabel={`${item.label} ${item.count === undefined ? 'ยังโหลดไม่ได้' : `${item.count} รายการ`}`} accessibilityHint="เปิดรายการ"
             style={({ pressed }) => [styles.decisionTile, !!item.count && styles.decisionTileActive, pressed && { backgroundColor: colors.soft }]}
@@ -304,7 +305,7 @@ export default function MyDayScreen() {
               <ChevronRight size={16} color={colors.muted} />
             </View>
             <Text style={[styles.tileValue, { color: item.count ? colors.ink : colors.muted }]}>{item.count ?? '—'}</Text>
-          </Pressable>)}</View>
+          </Pressable>)}</View></Card>
         {(isOwner && reviews.isError) || (canLeave && pendingLeaves.isError) || (canClaim && claims.isError) ? <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
           {isOwner && reviews.isError && <InlineError message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
           {canLeave && pendingLeaves.isError && <InlineError message="โหลดลารออนุมัติไม่ได้" onRetry={() => pendingLeaves.refetch()} />}
@@ -312,7 +313,7 @@ export default function MyDayScreen() {
         </View> : null}
       </>}
       {canFinance && <>
-        <Disclosure title="เงินสำนักงาน" summary={finance.data ? `ลูกหนี้ ${formatMoney(finance.data.totals.receivable)} ฿ · ดูรายการ` : 'ลูกหนี้และรายการที่ต้องตาม'}>
+        <Disclosure icon={Receipt} title="เงินสำนักงาน" summary={finance.data ? `ลูกหนี้ ${formatMoney(finance.data.totals.receivable)} ฿ · ดูรายการ` : 'ลูกหนี้และรายการที่ต้องตาม'}>
           <View style={{ gap: spacing.sm }}>
             {finance.isError && <InlineError message="โหลดข้อมูลการเงินล่าสุดไม่ได้" onRetry={() => finance.refetch()} />}
             <OwnerFinanceSummary data={finance.data} onOpen={view => router.push(`/owner-finance?view=${view}`)} />
@@ -421,7 +422,7 @@ export default function MyDayScreen() {
             <Button variant="link" title="ดูภาระงาน 7 วัน ›" onPress={() => router.push('/team-week')} />
           </View>
         </Card>
-        <Disclosure title="เทียบคนก่อนมอบหมาย" summary="คนที่พอรับงานใหม่ได้ จากคิวและวันลา">
+        <Disclosure icon={Users} title="เทียบคนก่อนมอบหมาย" summary="คนที่พอรับงานใหม่ได้ จากคิวและวันลา">
           <View style={{ gap: spacing.xs }}>
             <Text style={styles.agendaCase}>เรียงจากคิวและรายงานที่บันทึกไว้ · ยังไม่ได้ยืนยันเวลาว่าง</Text>
             {assignmentPeople.map(person => <Pressable key={person.member.userId} accessibilityRole="button"
@@ -533,14 +534,15 @@ const styles = StyleSheet.create({
   hello: { ...typeScale.display, color: colors.ink },
   date: { ...typeScale.meta, color: colors.muted, marginTop: 2 },
   overdueHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.sm },
-  // Late work is the one red-edged card on the screen: warn top rule plus a warn hairline, on a raised surface.
-  overdueCard: { borderColor: colors.warn, borderTopWidth: 3, paddingVertical: spacing.xs, ...shadow.md },
-  warningCard: { gap: spacing.xs, borderLeftWidth: 3, borderLeftColor: colors.warn, backgroundColor: colors.warnSoft, borderColor: colors.warnSoft },
-  tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  // Raised count tiles: the number leads, the label is a muted overline above it.
+  // Late work is the one warning-tinted card on the screen: soft red fill, a red hairline all round, lifted a step.
+  overdueCard: { borderColor: colors.warnEdge, backgroundColor: colors.warnSoft, paddingVertical: spacing.xs, ...shadow.md },
+  warningCard: { gap: spacing.xs, backgroundColor: colors.warnSoft, borderColor: colors.warnEdge },
+  // The decision queue is one raised card holding sunken count wells.
+  tileCard: { padding: spacing.md },
+  tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   decisionTile: { flexBasis: '30%', flexGrow: 1, minWidth: 96, minHeight: 96, justifyContent: 'space-between', gap: spacing.xs,
-    padding: spacing.md, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, ...shadow.sm },
-  decisionTileActive: { borderTopWidth: 3, borderTopColor: colors.ink },
+    padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.sunken },
+  decisionTileActive: { borderColor: colors.lineStrong },
   decisionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
   tileLabel: { flex: 1, ...typeScale.overline, color: colors.muted },
   tileValue: { ...typeScale.stat, fontVariant: ['tabular-nums'] },

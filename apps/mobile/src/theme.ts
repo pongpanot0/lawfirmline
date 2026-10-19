@@ -30,6 +30,11 @@ export const colors = {
   warnSoft: '#FAEDEB',
   info: '#36566B',
   infoSoft: '#E8EDF0',
+  /** Edges for tinted chips and notices: the same hue as the fill, about 30% stronger. */
+  accentEdge: '#E6D9BF',
+  warnEdge: '#EFCFCB',
+  goodEdge: '#C9E0D1',
+  infoEdge: '#CBD6DE',
   /** Navy-tinted backdrop behind modal sheets and the calendar picker. */
   scrim: 'rgba(20,46,67,0.45)',
 } as const;
@@ -43,8 +48,11 @@ export const fonts = {
   bold: 'Anuphan_700Bold',
 } as const;
 
-/** sm: tags/chips · md: controls (8px, per design.md) · lg: cards · xl: sheets. `card`/`pill`/`button` keep the old names. */
-export const radius = { sm: 6, md: 8, lg: 12, xl: 16, card: 12, pill: 6, button: 8, full: 999 } as const;
+/**
+ * sm: tags · md: fields and pickers (8px, per design.md) · action: buttons (10, the Stitch reference) · lg: cards · xl: sheets.
+ * `card`/`pill`/`button` keep the old names.
+ */
+export const radius = { sm: 6, md: 8, action: 10, lg: 12, xl: 16, card: 12, pill: 6, button: 8, full: 999 } as const;
 /** design.md 4/8/12/16/24/32/48 scale. */
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } as const;
 
@@ -58,6 +66,8 @@ export const shadow = {
   none: { boxShadow: [] as ReadonlyArray<never> },
   sm: { boxShadow: '0px 1px 2px rgba(20, 46, 67, 0.06), 0px 1px 3px rgba(20, 46, 67, 0.05)' },
   md: { boxShadow: '0px 2px 4px rgba(20, 46, 67, 0.06), 0px 4px 12px rgba(20, 46, 67, 0.08)' },
+  /** Sticky bottom action bars: the shadow falls upward onto the scrolling content. */
+  bar: { boxShadow: '0px -1px 0px rgba(20, 46, 67, 0.04), 0px -4px 12px rgba(20, 46, 67, 0.07)' },
   lg: { boxShadow: '0px 8px 24px rgba(20, 46, 67, 0.14), 0px 2px 6px rgba(20, 46, 67, 0.08)' },
   /** Focus ring drawn outside a focused field's border (does not shift layout). */
   focus: { boxShadow: '0px 0px 0px 3px rgba(20, 46, 67, 0.16)' },
@@ -78,7 +88,10 @@ export const typeScale = {
 } as const;
 
 /** Shared control metrics: every single-line field and picker uses the same height. */
-export const control = { height: 48, borderWidth: 1 } as const;
+export const control = { height: 48, borderWidth: 1, focusBorderWidth: 2, errorBorderWidth: 1.5, padding: 12 } as const;
+
+/** Leading icon tiles on list rows, disclosures and empty states. */
+export const iconTile = { sm: 36, md: 40, lg: 56 } as const;
 
 export const pageContent = {
   width: '100%',

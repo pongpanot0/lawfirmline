@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   role: { color: colors.muted, fontSize: 14, marginTop: 2 },
   // List cards: rows carry their own 12pt vertical padding, so the card only pads the sides.
   listCard: { paddingVertical: spacing.xs },
-  blockerCard: { borderLeftWidth: 3, borderLeftColor: colors.warn },
+  blockerCard: { backgroundColor: colors.warnSoft, borderColor: colors.warnEdge },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, paddingVertical: spacing.md },
   rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
   rowText: { flex: 1, minWidth: 0, gap: spacing.xs },

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { X } from 'lucide-react-native';
+import { CircleCheck, FileText, FolderOpen, Scale, Users, X } from 'lucide-react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,7 +21,7 @@ import { colors, spacing, TOUCH, typeScale } from '@/theme';
 
 const styles = StyleSheet.create({
   remove: { width: TOUCH, height: 48, alignItems: 'center', justifyContent: 'center' },
-  conflict: { gap: spacing.sm, borderTopWidth: 3, borderTopColor: colors.warn },
+  conflict: { gap: spacing.sm, backgroundColor: colors.warnSoft, borderColor: colors.warnEdge },
   conflictTitle: { ...typeScale.section, color: colors.warn },
   conflictRow: { paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider, color: colors.text },
   saved: { color: colors.info, fontWeight: '600' },
@@ -135,10 +135,18 @@ export default function CaseFormScreen() {
     setOpponents(rows => rows.length > 1 ? rows.filter((_, i) => i !== index) : ['']);
     resetConflict();
   };
-  return <FormPage>
+  const actions = <>
+    {!!savedId && <Text style={styles.saved}>คดีบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อได้โดยไม่สร้างคดีซ้ำ</Text>}
+    <InlineError message={error || undefined} />
+    {triedSave && !savedId && <MissingSummary items={missing} />}
+    <Button title={savedId ? 'ส่งไฟล์ที่เหลือ / เปิดคดี' : id ? 'บันทึกคดี' : 'บันทึกเคส'} busy={busy} icon={CircleCheck}
+      disabled={!!conflict && reasonShortBy > 0} onPress={save} />
+  </>;
+  // While a conflict needs a reason, the save button stays right under that card instead of the sticky bar.
+  return <FormPage footer={conflict ? undefined : actions}>
     <Stack.Screen options={{ title: id ? 'แก้ไขคดี' : 'รับเคสใหม่' }} />
     <PageIntro detailOnly title={id ? 'แก้ไขคดี' : 'รับเคสใหม่'} detail="กรอกช่องที่มี * ก็บันทึกได้ ข้อมูลอื่นเติมทีหลังได้" />
-    <FormSection title="ข้อมูลหลัก">
+    <FormSection title="ข้อมูลหลัก" icon={FolderOpen}>
     <TextField label="ชื่อคดี" required value={title} onChange={setTitle} disabled={locked}
       error={triedSave && titleMissing ? 'ใส่ชื่อคดี' : undefined} />
     <TeamFields ids={ids} onChange={setIds} primaryLabel="คนรับผิดชอบหลัก" secondaryLabel="คนรอง" required collapseSecondary={!id}
@@ -153,7 +161,7 @@ export default function CaseFormScreen() {
         { value: 'COURT_DATE', label: 'รอนัดศาล' }, { value: 'IN_PROGRESS', label: 'กำลังดำเนินการ' },
         { value: 'PENDING', label: 'รอดำเนินการ' }]} />}
     </FormSection>
-    <Disclosure title="คู่ความ · ถ้ามี" summary={partySummary || 'ฝ่ายของเรา และคู่ความฝ่ายตรงข้าม'}>
+    <Disclosure icon={Users} title="คู่ความ · ถ้ามี" summary={partySummary || 'ฝ่ายของเรา และคู่ความฝ่ายตรงข้าม'}>
       <SelectField label="เราเป็นฝ่าย" value={partyRole} onChange={setPartyRole} disabled={locked}
         options={[{ value: '', label: 'ยังไม่ระบุ' }, ...Object.values(PartyRole).map(role => ({ value: role, label: PARTY_ROLE_LABELS[role] }))]} />
       {!id && <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
@@ -171,7 +179,7 @@ export default function CaseFormScreen() {
           accessibilityHint={lastOpponentEmpty ? 'กรอกชื่อคู่ความรายล่าสุดก่อน' : undefined} />
       </View>}
     </Disclosure>
-    <Disclosure title="ศาลและประเภทคดี · ถ้ามี" summary={courtSummary || 'ประเภทคดี ศาล และชั้นศาล'}>
+    <Disclosure icon={Scale} title="ศาลและประเภทคดี · ถ้ามี" summary={courtSummary || 'ประเภทคดี ศาล และชั้นศาล'}>
       <SelectField label="ประเภทคดี" value={caseTypeId} onChange={setCaseTypeId} disabled={locked || types.isLoading}
         placeholder={types.isLoading ? 'กำลังโหลด…' : undefined}
         options={[{ value: '', label: 'ยังไม่ระบุ' }, ...(types.data ?? []).map(item => ({ value: item.id, label: item.name }))]} />
@@ -186,12 +194,10 @@ export default function CaseFormScreen() {
       <SelectField label="ชั้นศาล" value={courtLevel} onChange={setCourtLevel} disabled={locked}
         options={Object.entries(COURT_LEVEL_LABELS).map(([value, label]) => ({ value: value as CourtLevel, label }))} />
     </Disclosure>
-    <Disclosure title="รายละเอียดและไฟล์ · ถ้ามี" summary={detailSummary || 'รายละเอียดคดี และไฟล์ที่ได้รับ'}>
+    <Disclosure icon={FileText} title="รายละเอียดและไฟล์ · ถ้ามี" summary={detailSummary || 'รายละเอียดคดี และไฟล์ที่ได้รับ'}>
       <TextArea label="รายละเอียด" hint="เติมทีหลังได้" value={description} onChange={setDescription} disabled={locked} />
       <Attachments files={files} onChange={setFiles} disabled={busy} />
     </Disclosure>
-    {!!savedId && <Text style={styles.saved}>คดีบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อได้โดยไม่สร้างคดีซ้ำ</Text>}
-    <InlineError message={error || undefined} />
     {conflict && <Card style={styles.conflict}>
       <Text accessibilityRole="alert" style={styles.conflictTitle}>พบชื่อที่อาจขัดกัน</Text>
       <View>
@@ -200,8 +206,6 @@ export default function CaseFormScreen() {
       <TextArea label="เหตุผลที่เปิดต่อ" required value={overrideReason} onChange={setOverrideReason} disabled={busy}
         hint={reasonShortBy ? `อย่างน้อย 10 ตัวอักษร · อีก ${reasonShortBy} ตัวอักษร` : 'ครบแล้ว · บันทึกต่อได้'} />
     </Card>}
-    {triedSave && !savedId && <MissingSummary items={missing} />}
-    <Button title={savedId ? 'ส่งไฟล์ที่เหลือ / เปิดคดี' : id ? 'บันทึกคดี' : 'บันทึกเคส'} busy={busy}
-      disabled={!!conflict && reasonShortBy > 0} onPress={save} />
+    {conflict ? actions : null}
   </FormPage>;
 }

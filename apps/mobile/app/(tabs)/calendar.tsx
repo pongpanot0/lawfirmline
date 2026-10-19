@@ -2,12 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, MapPin, Plus, X } from 'lucide-react-native';
 import { useCalendarRange, useWorkload } from '@/api/hooks';
 import type { CalendarEventItem } from '@/api/types';
 import { Button, Card, EmptyState, ErrorState, EVENT_KIND_LABEL, InlineError, LoadingState, SectionLabel, Tag } from '@/components/ui';
-import { bangkokDay, isoDay, thDate, thTime } from '@/format';
-import { colors, radius, shadow, spacing, TOUCH, typeScale, pageContent } from '@/theme';
+import { bangkokDay, initials, isoDay, thDate, thTime } from '@/format';
+import { CHROME_MAX_SCALE, colors, fonts, radius, shadow, spacing, TOUCH, typeScale, pageContent } from '@/theme';
 
 const TH_MONTHS_FULL = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -138,23 +138,26 @@ export default function CalendarScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`${date.getDate()} ${TH_MONTHS_FULL[cursor.m]} ${cursor.y + 543}${isToday ? ' วันนี้' : ''}${dayEvents ? ` มีนัด ${dayEvents.length} รายการ${hasCourt ? ' รวมนัดศาล' : ''}` : ''}`}
                     accessibilityState={{ selected: isSelected }}
-                    style={({ pressed }) => [styles.cell, isToday && styles.cellToday, isSelected && styles.cellSelected,
-                      pressed && !isSelected && { backgroundColor: colors.soft }]}
+                    style={styles.cell}
                     onPress={() => setSelected(key)}
                   >
-                    <Text
-                      style={[
-                        styles.cellText,
-                        isToday && { color: colors.ink, fontWeight: '700' },
-                        isSelected && styles.cellTextSelected,
-                      ]}
-                    >
-                      {date.getDate()}
-                    </Text>
-                    {/* Brass marks a court date; other appointments get a muted dot (both lighten on the navy selection). */}
-                    {dayEvents ? <View style={[styles.dot, { backgroundColor: isSelected
-                      ? (hasCourt ? colors.accentSoft : colors.line)
-                      : (hasCourt ? colors.accent : colors.muted) }]} /> : null}
+                    {({ pressed }) => <>
+                      <View style={[styles.dayMark, isToday && !isSelected && styles.cellToday, isSelected && styles.cellSelected,
+                        pressed && !isSelected && { backgroundColor: colors.soft }]}>
+                        <Text
+                          maxFontSizeMultiplier={CHROME_MAX_SCALE}
+                          style={[
+                            styles.cellText,
+                            isToday && { color: colors.ink, fontWeight: '700' },
+                            isSelected && styles.cellTextSelected,
+                          ]}
+                        >
+                          {date.getDate()}
+                        </Text>
+                      </View>
+                      {/* Brass marks a court date; other appointments get a muted dot. */}
+                      {dayEvents ? <View style={[styles.dot, { backgroundColor: hasCourt ? colors.accent : colors.muted }]} /> : null}
+                    </>}
                   </Pressable>
                 );
               })}
@@ -186,45 +189,55 @@ export default function CalendarScreen() {
       {events.isError && (events.data
         ? <InlineError style={{ marginBottom: spacing.sm }} message="นัดหมายอาจยังไม่ล่าสุด" onRetry={() => events.refetch()} />
         : <ErrorState message="โหลดนัดหมายไม่สำเร็จ" onRetry={() => events.refetch()} />)}
-      {!(events.isError && !events.data) && <Card style={{ paddingVertical: spacing.xs }}>
+      {!(events.isError && !events.data) && (events.isLoading || selectedEvents.length === 0 ? <Card style={{ paddingVertical: spacing.xs }}>
         {events.isLoading ? (
           <LoadingState inline label="กำลังโหลดนัดหมาย…" />
-        ) : selectedEvents.length === 0 ? (
-          <EmptyState compact>{selected === todayKey ? 'ไม่มีนัดหมายวันนี้' : 'ไม่มีนัดหมายในวันที่เลือก'}</EmptyState>
         ) : (
-          selectedEvents.map((event, index) => {
-            const kind = EVENT_KIND_LABEL[event.type] ?? EVENT_KIND_LABEL.OTHER;
-            const when = event.type === 'DEADLINE' ? 'ทั้งวัน' : thTime(event.startAt);
-            const lead = event.assignee ? personName(event.assignee) : 'ยังไม่ระบุ';
-            const companions = event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => personName(person.user)) ?? [];
-            const people = `หลัก: ${lead}${companions.length ? ` · ร่วม: ${companions.join(', ')}` : ''}`;
-            return <View key={event.id}>
-              {index > 0 && <View style={styles.divider} />}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${kind.label} ${when} ${event.title} · ${people}`}
-                accessibilityHint={event.type === 'COURT_DATE' ? 'เปิดวันขึ้นศาล' : 'เปิดทีมที่ไปด้วย'}
-                style={({ pressed }) => [styles.eventRow, pressed && { backgroundColor: colors.soft }]}
-                onPress={() => openEvent(event)}
-              >
+          <EmptyState compact>{selected === todayKey ? 'ไม่มีนัดหมายวันนี้' : 'ไม่มีนัดหมายในวันที่เลือก'}</EmptyState>
+        )}
+      </Card> : <View style={{ gap: spacing.md }}>
+        {selectedEvents.map((event) => {
+          const kind = EVENT_KIND_LABEL[event.type] ?? EVENT_KIND_LABEL.OTHER;
+          const when = event.type === 'DEADLINE' ? 'ทั้งวัน' : thTime(event.startAt);
+          const lead = event.assignee ? personName(event.assignee) : 'ยังไม่ระบุ';
+          const companions = event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => personName(person.user)) ?? [];
+          const people = `หลัก: ${lead}${companions.length ? ` · ร่วม: ${companions.join(', ')}` : ''}`;
+          // One card per appointment: time and kind on the header row, then what, where and who.
+          return <Card key={event.id} style={styles.eventCard}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${kind.label} ${when} ${event.title} · ${people}`}
+              accessibilityHint={event.type === 'COURT_DATE' ? 'เปิดวันขึ้นศาล' : 'เปิดทีมที่ไปด้วย'}
+              style={({ pressed }) => [styles.eventPress, pressed && { backgroundColor: colors.soft }]}
+              onPress={() => openEvent(event)}
+            >
+              <View style={styles.eventHead}>
                 <Text style={styles.eventTime}>{when}</Text>
-                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Tag tone={kind.tone}>{kind.label}</Tag>
+              </View>
+              <View style={styles.eventBody}>
+                <View style={styles.eventTitleRow}>
                   <Text style={styles.eventTitle}>{event.title}</Text>
-                  {event.courtName ? <Text style={styles.eventMeta} numberOfLines={1}>{event.courtName}</Text> : null}
+                  <ChevronRight size={18} color={colors.muted} style={{ marginTop: 3 }} />
+                </View>
+                {event.courtName ? <View style={styles.metaRow}>
+                  <MapPin size={14} color={colors.muted} />
+                  <Text style={styles.eventMeta} numberOfLines={1}>{event.courtName}</Text>
+                </View> : null}
+                <View style={styles.metaRow}>
+                  {event.assignee ? <View style={styles.miniAvatar}>
+                    <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.miniAvatarText}>{initials(lead)}</Text>
+                  </View> : null}
                   <Text style={styles.eventMeta}>{people}</Text>
                 </View>
-                <View style={{ alignItems: 'flex-end', gap: spacing.xs }}>
-                  <Tag tone={kind.tone}>{kind.label}</Tag>
-                  <ChevronRight size={18} color={colors.faint} />
-                </View>
-              </Pressable>
-              {event.caseId && event.case?.ownRef ? <View style={{ paddingLeft: 58 }}>
-                <Button variant="link" title={`คดี ${event.case.ownRef} ›`} onPress={() => router.push(`/case/${event.caseId}`)} />
-              </View> : null}
-            </View>;
-          })
-        )}
-      </Card>}
+              </View>
+            </Pressable>
+            {event.caseId && event.case?.ownRef ? <View style={styles.caseLink}>
+              <Button variant="link" chevron title={`คดี ${event.case.ownRef}`} onPress={() => router.push(`/case/${event.caseId}`)} />
+            </View> : null}
+          </Card>;
+        })}
+      </View>)}
     </ScrollView>
   );
 }
@@ -236,6 +249,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
   navButton: {
     width: TOUCH,
@@ -248,7 +264,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.raised,
   },
   monthTitle: { textAlign: 'center', ...typeScale.section, color: colors.ink },
-  grid: { gap: spacing.xs },
+  grid: { gap: 2 },
   week: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   dow: {
     flex: 1,
@@ -257,21 +273,22 @@ const styles = StyleSheet.create({
     color: colors.muted,
     paddingBottom: 4,
   },
+  // The whole 44pt cell is the target; the visible mark is a 36pt circle, with the event dot just under it.
   cell: {
     flex: 1,
-    height: TOUCH,
+    height: TOUCH + 6,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.button,
+    justifyContent: 'flex-start',
+    paddingTop: 2,
   },
-  // Selected day is the filled navy cell (like the selected filter); today keeps a navy outline.
+  dayMark: { width: 36, height: 36, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  // Selected day is a filled navy circle with a white numeral; today (when not selected) is a navy ring.
   cellSelected: { backgroundColor: colors.ink, ...shadow.sm },
   cellToday: { borderWidth: 1.5, borderColor: colors.ink },
-  cellText: { fontSize: 14, color: colors.text, fontVariant: ['tabular-nums'] },
+  cellText: { fontSize: 15, color: colors.text, fontVariant: ['tabular-nums'] },
   cellTextSelected: { color: colors.bg, fontWeight: '700' },
   dot: {
-    position: 'absolute',
-    bottom: 4,
+    marginTop: 3,
     width: 5,
     height: 5,
     borderRadius: 3,
@@ -290,8 +307,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: colors.ink,
-    borderRadius: radius.button,
-    paddingHorizontal: spacing.md,
+    borderRadius: radius.action,
+    paddingHorizontal: spacing.lg,
     minHeight: TOUCH,
     justifyContent: 'center',
     ...shadow.sm,
@@ -300,20 +317,32 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.divider },
   filter: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start' },
   filterText: { color: colors.info, fontWeight: '600', flexShrink: 1 },
-  eventRow: {
+  eventCard: { padding: 0, overflow: 'hidden' },
+  eventPress: { minHeight: 56 },
+  eventHead: {
     flexDirection: 'row',
-    gap: spacing.md,
-    alignItems: 'flex-start',
-    paddingVertical: spacing.md,
-    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
+  eventBody: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.xs },
+  eventTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   eventTime: {
-    fontWeight: '700',
+    fontFamily: fonts.bold,
+    fontSize: 20,
+    lineHeight: 28,
     color: colors.ink,
-    width: 46,
-    fontSize: 14,
     fontVariant: ['tabular-nums'],
   },
-  eventTitle: { color: colors.ink, fontWeight: '600', fontSize: 15, lineHeight: 22 },
-  eventMeta: { ...typeScale.meta, color: colors.muted },
+  eventTitle: { flex: 1, minWidth: 0, color: colors.ink, fontFamily: fonts.bold, fontSize: 17, lineHeight: 26 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  eventMeta: { ...typeScale.meta, color: colors.muted, flexShrink: 1 },
+  miniAvatar: { width: 22, height: 22, borderRadius: radius.full, backgroundColor: colors.sunken, alignItems: 'center', justifyContent: 'center' },
+  miniAvatarText: { fontFamily: fonts.bold, fontSize: 9, lineHeight: 12, color: colors.ink },
+  caseLink: { paddingHorizontal: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
 });

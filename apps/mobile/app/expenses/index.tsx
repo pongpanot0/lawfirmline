@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   pickRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   selectAll: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48, marginBottom: spacing.xs },
   footer: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg,
-    borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.surface, ...shadow.md },
+    borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.raised, ...shadow.bar },
   footerSum: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: spacing.md },
   footerTotal: { color: colors.ink, fontFamily: fonts.bold, fontSize: 22, lineHeight: 30, fontVariant: ['tabular-nums'] },
 });

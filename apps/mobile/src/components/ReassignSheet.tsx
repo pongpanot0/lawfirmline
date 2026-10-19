@@ -200,8 +200,8 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: colors.info, fontWeight: '700', fontSize: 14 },
   name: { fontSize: 15, color: colors.text, fontWeight: '600', flex: 1 },
-  warnings: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.warnSoft, borderLeftWidth: 3,
-    borderLeftColor: colors.warn },
+  warnings: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.warnSoft, borderWidth: 1,
+    borderColor: colors.warnEdge },
   warning: { color: colors.warn, fontSize: 13, lineHeight: 20 },
   confirmRow: { flexDirection: 'row', gap: spacing.sm },
 });

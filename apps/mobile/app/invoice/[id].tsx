@@ -169,7 +169,7 @@ export default function InvoiceScreen() {
 const styles = StyleSheet.create({
   statePage: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg },
   notice: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.goodSoft,
-    borderLeftWidth: 3, borderLeftColor: colors.good },
+    borderWidth: 1, borderColor: colors.goodEdge },
   payer: { ...typeScale.title, color: colors.ink },
   meta: { color: colors.muted, fontSize: 14, lineHeight: 22 },
   overline: { ...typeScale.overline, color: colors.muted, marginTop: spacing.xs },

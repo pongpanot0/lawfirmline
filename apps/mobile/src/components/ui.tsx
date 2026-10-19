@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, StyleProp, TextStyle, View, ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
-import { ChevronRight, Search, X } from 'lucide-react-native';
-import { CHROME_MAX_SCALE, colors, control, radius, shadow, spacing, typeScale } from '@/theme';
+import { ChevronRight, LucideIcon, Search, X } from 'lucide-react-native';
+import { CHROME_MAX_SCALE, colors, control, iconTile, radius, shadow, spacing, typeScale } from '@/theme';
 import { EmptyState, ErrorState, InlineError, LoadingState } from './States';
 
 export { Button } from './Button';
@@ -59,7 +59,8 @@ export function SearchBox({ value, onChange, onSearch, onClear, placeholder }: {
   value: string; onChange: (value: string) => void; onSearch: () => void; onClear?: () => void; placeholder: string;
 }) {
   const [focused, setFocused] = useState(false);
-  return <View style={[styles.searchBox, focused && { borderColor: colors.ink, ...shadow.focus }]}>
+  return <View style={[styles.searchBox, focused && { borderColor: colors.ink, borderWidth: control.focusBorderWidth,
+    paddingLeft: spacing.md - 1, paddingRight: 3, ...shadow.focus }]}>
     <TextInput accessibilityLabel={placeholder} value={value} onChangeText={onChange}
       placeholder={placeholder} placeholderTextColor={colors.faint} autoCapitalize="none"
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
@@ -92,21 +93,34 @@ export function FilterTabs({ items, value, onChange }: {
 export type TagTone = 'court' | 'due' | 'ok' | 'info' | 'plain';
 
 /** Tinted chip palettes; every fg/bg pair is ≥ 4.5:1 (WCAG AA for 12pt text). */
-const TAG_TONES: Record<TagTone, { bg: string; fg: string; edge: string }> = {
-  court: { bg: colors.accentSoft, fg: colors.accentInk, edge: '#E6D9BF' },
-  due: { bg: colors.warnSoft, fg: colors.warn, edge: '#EFCFCB' },
-  ok: { bg: colors.goodSoft, fg: colors.good, edge: '#C9E0D1' },
-  info: { bg: colors.infoSoft, fg: colors.info, edge: '#CBD6DE' },
+export const TAG_TONES: Record<TagTone, { bg: string; fg: string; edge: string }> = {
+  court: { bg: colors.accentSoft, fg: colors.accentInk, edge: colors.accentEdge },
+  due: { bg: colors.warnSoft, fg: colors.warn, edge: colors.warnEdge },
+  ok: { bg: colors.goodSoft, fg: colors.good, edge: colors.goodEdge },
+  info: { bg: colors.infoSoft, fg: colors.info, edge: colors.infoEdge },
   plain: { bg: colors.soft, fg: colors.muted, edge: colors.line },
 };
 
-export function Tag({ tone = 'plain', children }: { tone?: TagTone; children: React.ReactNode }) {
+/** Status chip: tinted fill, 1pt edge in the same hue, fully rounded; `icon` adds a 12pt leading glyph. */
+export function Tag({ tone = 'plain', icon: Icon, children }: { tone?: TagTone; icon?: LucideIcon; children: React.ReactNode }) {
   const palette = TAG_TONES[tone];
   return (
     <View style={[styles.tag, { backgroundColor: palette.bg, borderColor: palette.edge }]}>
+      {Icon ? <Icon size={12} color={palette.fg} strokeWidth={2.25} /> : null}
       <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.tagText, { color: palette.fg }]}>{children}</Text>
     </View>
   );
+}
+
+/**
+ * Leading square tile on list rows (documents, files, list cards): rounded, tinted by meaning.
+ * `size` defaults to 40pt; the icon is outline-stroked in the tone's ink.
+ */
+export function IconTile({ icon: Icon, tone = 'plain', size = iconTile.md }: { icon: LucideIcon; tone?: TagTone | 'ink'; size?: number }) {
+  const palette = tone === 'ink' || tone === 'plain' ? { bg: colors.sunken, fg: colors.ink } : TAG_TONES[tone];
+  return <View style={[styles.iconTile, { width: size, height: size, backgroundColor: palette.bg }]}>
+    <Icon size={Math.round(size / 2)} color={palette.fg} strokeWidth={1.75} />
+  </View>;
 }
 
 /** One task-status vocabulary for every list, card and work view. */
@@ -205,8 +219,8 @@ const styles = StyleSheet.create({
   actionTitle: { fontSize: 15, fontWeight: '600', color: colors.ink },
   actionDetail: { fontSize: 14, lineHeight: 22, color: colors.muted, marginTop: spacing.xs },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: control.borderWidth, borderColor: colors.lineStrong,
-    borderRadius: radius.button, backgroundColor: colors.raised, paddingLeft: spacing.md, paddingRight: 4 },
-  searchInput: { flex: 1, minWidth: 0, minHeight: control.height, paddingVertical: spacing.sm, color: colors.text, fontSize: 15 },
+    borderRadius: radius.button, backgroundColor: colors.raised, paddingLeft: spacing.md, paddingRight: 4, minHeight: control.height },
+  searchInput: { flex: 1, minWidth: 0, minHeight: 44, paddingVertical: spacing.sm, color: colors.text, fontSize: 15 },
   searchAction: { width: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   searchSubmit: { width: 44, height: 40, borderRadius: radius.sm, backgroundColor: colors.soft, justifyContent: 'center', alignItems: 'center' },
   filterTab: { minHeight: 44, borderRadius: radius.button, paddingHorizontal: spacing.lg, justifyContent: 'center',
@@ -215,13 +229,17 @@ const styles = StyleSheet.create({
   filterText: { fontSize: 14, color: colors.muted, fontWeight: '600' },
   filterTextOn: { color: colors.bg },
   tag: {
-    borderRadius: radius.pill,
+    borderRadius: radius.full,
     borderWidth: 1,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 1,
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  tagText: { fontSize: 12, lineHeight: 20, fontWeight: '700' },
+  tagText: { fontSize: 12, lineHeight: 20, fontWeight: '600' },
+  iconTile: { borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   statCard: { flex: 1, minWidth: 0, minHeight: 96, justifyContent: 'space-between', gap: spacing.xs, padding: spacing.md },
   statHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   statLabel: { flex: 1, ...typeScale.overline, color: colors.muted },

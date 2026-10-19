@@ -64,12 +64,12 @@ export default function EventTeamScreen() {
   const when = data.type === 'DEADLINE' ? `${thDate(data.startAt)} · ทั้งวัน` : `${thDate(data.startAt)} ${thTime(data.startAt)}`;
   const kind = EVENT_KIND_LABEL[data.type];
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.sm }} keyboardShouldPersistTaps="handled">
-    <Card style={{ gap: spacing.xs, borderLeftWidth: 3, borderLeftColor: data.type === 'COURT_DATE' ? colors.accent : colors.ink }}>
+    <Card style={{ gap: spacing.xs }}>
       {kind ? <Tag tone={kind.tone}>{kind.label}</Tag> : null}
       <Text accessibilityRole="header" style={{ ...typeScale.title, color: colors.ink }}>{data.title}</Text>
       <Text style={{ color: colors.muted }}>{[data.case?.ownRef, data.courtName].filter(Boolean).join(' · ') || '—'}</Text>
       <Text style={{ color: colors.ink, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{when}</Text>
-      {editable && <Button variant="link" title="แก้ไขนัดหมาย ›" onPress={() => router.push(`/event/new?id=${id}`)} />}
+      {editable && <Button variant="link" chevron title="แก้ไขนัดหมาย" onPress={() => router.push(`/event/new?id=${id}`)} />}
     </Card>
     {(event.isError || members.isError) && <InlineError message="ข้อมูลทีมอาจยังไม่ล่าสุด" onRetry={() => { event.refetch(); members.refetch(); }} />}
     {leaves.isError && <InlineError message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
@@ -82,7 +82,7 @@ export default function EventTeamScreen() {
         {editable && <Button variant="link" title="เอาออก" disabled={update.isPending} onPress={() => setIds(ids.filter(item => item !== personId))} />}
       </View>)}
       {warnings.length > 0 && <View accessibilityRole="alert" style={{ gap: spacing.xs, padding: spacing.md, borderRadius: radius.md,
-        borderLeftWidth: 3, borderLeftColor: colors.warn, backgroundColor: colors.warnSoft }}>
+        borderWidth: 1, borderColor: colors.warnEdge, backgroundColor: colors.warnSoft }}>
         <Tag tone="due">มีวันลาตรงกับนัด</Tag>
         {warnings.map(line => <Text key={line} style={{ color: colors.warn }}>{line}</Text>)}
         {editable && <CheckRow label="ตรวจแล้ว · ยืนยันบันทึกทีมนี้" checked={leaveAck} onChange={setLeaveAck} disabled={update.isPending} />}

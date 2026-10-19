@@ -87,7 +87,7 @@ export default function LeavesScreen() {
 
 const styles = StyleSheet.create({
   sent: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.goodSoft,
-    borderLeftWidth: 3, borderLeftColor: colors.good },
+    borderWidth: 1, borderColor: colors.goodEdge },
   list: { paddingVertical: spacing.xs },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
   divided: { borderTopWidth: 1, borderTopColor: colors.divider },

@@ -45,7 +45,7 @@ export default function DeleteAccountScreen() {
   };
   return <FormPage>
     <PageIntro title="ลบบัญชีและข้อมูล" detailOnly detail={user?.email} />
-    <Card style={{ gap: spacing.sm, borderLeftWidth: 3, borderLeftColor: colors.warn }}>
+    <Card style={{ gap: spacing.sm, backgroundColor: colors.warnSoft, borderColor: colors.warnEdge }}>
       <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>การส่งคำขอยังไม่ลบบัญชีทันที</Text>
       <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>คำขอครอบคลุมบัญชีของคุณในทุกสำนักงาน เจ้าหน้าที่ตรวจและลบให้เสร็จภายใน 30 วันนับจากวันที่ส่งคำขอ ข้อมูลคดีของสำนักงานพิจารณาแยกจากข้อมูลบัญชีส่วนตัว</Text>
     </Card>

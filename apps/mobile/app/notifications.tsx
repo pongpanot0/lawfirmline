@@ -218,8 +218,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   iconTile: { width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   inboxCard: { marginBottom: spacing.sm, paddingVertical: spacing.md },
-  // Unread rows stay raised with an info edge; read rows sit flat so the new ones lead.
-  unreadCard: { borderColor: colors.info, borderLeftWidth: 3, backgroundColor: colors.raised },
+  // Unread rows stay raised with an info hairline (and the dot); read rows sit flat so the new ones lead.
+  unreadCard: { borderColor: colors.infoEdge, backgroundColor: colors.raised },
   dot: { width: 9, height: 9, borderRadius: radius.full, backgroundColor: colors.info, marginTop: 6 },
   title: { color: colors.text, fontWeight: '600', fontSize: 15, lineHeight: 22 },
   detail: { color: colors.muted, fontSize: 13, lineHeight: 20 },

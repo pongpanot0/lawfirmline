@@ -3,7 +3,7 @@ import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from '
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, Check, ChevronRight, FileText, ShieldCheck } from 'lucide-react-native';
+import { Camera, Check, ChevronRight, FilePlus2, FileText, Images, Inbox, LucideIcon, ShieldCheck } from 'lucide-react-native';
 import { groupParticipantsBySide, PARTICIPANT_ROLE_LABELS, PARTY_ROLE_LABELS, type ParticipantRole, type PartyRole } from '@lawfirm/shared';
 import { api, ApiError } from '@/api/client';
 import { useAuth } from '@/api/auth';
@@ -24,6 +24,7 @@ import {
   ErrorState,
   LoadingState,
   Button,
+  IconTile,
   Tag,
   TagTone,
   TASK_STATUS_LABEL,
@@ -60,6 +61,14 @@ interface DocumentItem {
   fileName?: string;
   version?: number;
   updatedAt?: string;
+}
+
+/** Leading tile per file type, read from the extension: PDF warm red, images blue, anything else neutral. */
+function docTile(filename: string): { icon: LucideIcon; tone: TagTone | 'ink' } {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'pdf') return { icon: FileText, tone: 'due' };
+  if (['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'gif'].includes(ext)) return { icon: Images, tone: 'info' };
+  return { icon: FileText, tone: 'ink' };
 }
 
 /** Label/value row; every row after the first sits under a divider hairline. */
@@ -146,7 +155,9 @@ export default function CaseDetailScreen() {
         <View style={styles.header}>
           <Text accessibilityRole="header" style={styles.caseTitle}>{detail.title}</Text>
           <View style={styles.meta}>
-            <Text style={styles.metaText}>{detail.ownRef}</Text>
+            {detail.ownRef ? <View style={styles.refPill}>
+              <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.metaText}>{detail.ownRef}</Text>
+            </View> : null}
             <Tag tone={status.tone}>{status.label}</Tag>
           </View>
         </View>
@@ -398,13 +409,17 @@ export default function CaseDetailScreen() {
               <Text style={styles.scanText}>แนบเอกสาร · ถ่ายรูปหรือเลือกไฟล์</Text>
             </Pressable>
             <View style={styles.docLinks}>
-              <Pressable accessibilityRole="link" style={styles.docLink}
+              <Pressable accessibilityRole="link" accessibilityLabel="สร้างจากแบบสำเร็จ" style={({ pressed }) => [styles.docLink, pressed && { opacity: 0.6 }]}
                 onPress={() => router.push({ pathname: '/document-template', params: { caseId: id } })}>
-                <Text style={styles.docLinkText}>สร้างจากแบบสำเร็จ ›</Text>
+                <FilePlus2 size={16} color={colors.info} />
+                <Text style={styles.docLinkText}>สร้างจากแบบสำเร็จ</Text>
+                <ChevronRight size={14} color={colors.info} />
               </Pressable>
-              <Pressable accessibilityRole="link" style={styles.docLink}
+              <Pressable accessibilityRole="link" accessibilityLabel="รอเอกสารจากภายนอก" style={({ pressed }) => [styles.docLink, pressed && { opacity: 0.6 }]}
                 onPress={() => router.push({ pathname: '/document-waiting', params: { caseId: id } })}>
-                <Text style={styles.docLinkText}>รอเอกสารจากภายนอก ›</Text>
+                <Inbox size={16} color={colors.info} />
+                <Text style={styles.docLinkText}>รอเอกสารจากภายนอก</Text>
+                <ChevronRight size={14} color={colors.info} />
               </Pressable>
             </View>
             {/* A failed refresh keeps any list already loaded below the error; "ยังไม่มี…" only shows after a successful load. */}
@@ -412,16 +427,17 @@ export default function CaseDetailScreen() {
             {documents.isLoading ? (
               <LoadingState label="กำลังโหลดเอกสาร…" />
             ) : (documents.data?.length ?? 0) === 0 ? (
-              documents.isError ? null : <EmptyState compact>ยังไม่มีเอกสารในคดีนี้ · กด “แนบเอกสาร” ด้านบนเพื่อเพิ่ม</EmptyState>
+              documents.isError ? null : <EmptyState icon={FileText}>ยังไม่มีเอกสารในคดีนี้ · กด “แนบเอกสาร” ด้านบนเพื่อเพิ่ม</EmptyState>
             ) : (
-              <Card style={{ paddingVertical: spacing.sm }}>
+              <Card style={styles.docCard}>
                 {documents.data!.map((doc, index) => {
                   const filename = doc.filename ?? doc.name ?? doc.fileName ?? 'เอกสาร';
+                  const tile = docTile(filename);
                   return (
                     <View key={doc.id}>
-                      {index > 0 && <View style={styles.divider} />}
+                      {index > 0 && <View style={styles.docDivider} />}
                       <Pressable
-                        style={({ pressed }) => [styles.listRow, pressed && { opacity: 0.7 }]}
+                        style={({ pressed }) => [styles.docRow, pressed && { backgroundColor: colors.soft }]}
                         accessibilityRole="button"
                         accessibilityLabel={`เปิด ${filename}`}
                         accessibilityState={{ busy: openingDoc === doc.id }}
@@ -440,12 +456,12 @@ export default function CaseDetailScreen() {
                           }
                         }}
                       >
-                        <View style={styles.iconTile}><FileText size={18} color={colors.info} /></View>
+                        <IconTile icon={tile.icon} tone={tile.tone} />
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={styles.rowStrong} numberOfLines={2}>
+                          <Text style={styles.docName} numberOfLines={2}>
                             {filename}
                           </Text>
-                          <Text style={styles.rowFaint}>
+                          <Text style={styles.docMeta}>
                             {openingDoc === doc.id
                               ? 'กำลังดาวน์โหลด…'
                               : [
@@ -456,7 +472,7 @@ export default function CaseDetailScreen() {
                                   .join(' · ') || 'แตะเพื่อเปิด'}
                           </Text>
                         </View>
-                        <ChevronRight size={18} color={colors.faint} />
+                        <ChevronRight size={18} color={colors.muted} />
                       </Pressable>
                     </View>
                   );
@@ -477,9 +493,12 @@ const styles = StyleSheet.create({
   headerAction: { minWidth: TOUCH, minHeight: TOUCH, justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: spacing.xs },
   headerActionText: { color: colors.ink, fontWeight: '600', fontSize: 16 },
   header: { gap: spacing.sm, paddingTop: spacing.xs },
-  caseTitle: { ...typeScale.display, color: colors.ink },
+  caseTitle: { fontFamily: typeScale.display.fontFamily, fontSize: 22, lineHeight: 32, color: colors.ink },
   meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
-  metaText: { ...typeScale.meta, color: colors.muted, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  // The firm reference reads as a filed label: small outlined tile, tabular figures (no monospace costume).
+  refPill: { borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 1,
+    backgroundColor: colors.raised },
+  metaText: { fontSize: 12, lineHeight: 20, color: colors.ink, fontWeight: '600', fontVariant: ['tabular-nums'] },
   /** Sunken track; the selected tab is a raised pill lifted by shadow.sm. */
   segment: {
     flexDirection: 'row',
@@ -554,7 +573,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.ink,
-    borderRadius: radius.button,
+    borderRadius: radius.action,
     paddingVertical: 12,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.xs,
@@ -562,7 +581,13 @@ const styles = StyleSheet.create({
     ...shadow.sm,
   },
   scanText: { fontWeight: '700', color: colors.bg, fontSize: 15, flexShrink: 1, textAlign: 'center' },
-  docLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
-  docLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
-  docLinkText: { color: colors.info, fontWeight: '600', fontSize: 14 },
+  docLinks: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.lg, marginBottom: spacing.md },
+  docLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.xs },
+  docLinkText: { color: colors.info, fontWeight: '600', fontSize: 14, flexShrink: 1 },
+  // One raised card, rows full-bleed with inset dividers that start after the tile.
+  docCard: { paddingVertical: spacing.xs, paddingHorizontal: 0 },
+  docRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 64, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+  docDivider: { height: 1, backgroundColor: colors.divider, marginLeft: spacing.lg + 40 + spacing.md },
+  docName: { color: colors.ink, fontWeight: '600', fontSize: 15, lineHeight: 22 },
+  docMeta: { ...typeScale.meta, color: colors.muted, marginTop: 2 },
 });

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { AlertCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { bangkokDay, isoDay, thDate } from '@/format';
 import { colors, control, fonts, radius, shadow, spacing, TOUCH } from '@/theme';
 import { Button } from './Button';
-import { FieldLabel, fieldA11yLabel } from './FieldLabel';
+import { FieldLabel, fieldA11yLabel, fieldEdge } from './FieldLabel';
 import { InlineError as FieldError } from './States';
 
 const TH_MONTHS = [
@@ -79,7 +79,7 @@ export function DatePicker({
   const pick = (key: string) => { onChange(key); setOpen(false); };
 
   return (
-    <View style={label || error ? { gap: spacing.sm } : undefined}>
+    <View style={label || error ? { gap: 6 } : undefined}>
       {label ? <FieldLabel required={required} hint={hint}>{label}</FieldLabel> : null}
       <Pressable
         accessibilityRole="button"
@@ -88,17 +88,17 @@ export function DatePicker({
         accessibilityValue={{ text: dayKey ? thDate(dayKey) : 'ยังไม่ได้เลือก' }}
         accessibilityState={{ disabled }}
         disabled={disabled}
-        style={({ pressed }) => [styles.field, error ? { borderColor: colors.warn } : null, disabled && styles.fieldDisabled,
-          pressed && { borderColor: colors.ink, ...(error ? shadow.focusWarn : shadow.focus) }]}
+        style={({ pressed }) => [styles.field, fieldEdge({ focused: pressed, error: !!error, disabled }), disabled && styles.fieldDisabled]}
         onPress={() => {
           setCursor(cursorFor(dayKey));
           setOpen(true);
         }}
       >
-        <Calendar size={17} color={colors.muted} />
+        <Calendar size={18} color={colors.muted} />
         <Text style={[styles.fieldText, !dayKey && { color: colors.muted }]}>{dayKey ? thDate(dayKey) : placeholder}</Text>
+        {error ? <AlertCircle size={20} color={colors.warn} /> : null}
       </Pressable>
-      <FieldError message={error} />
+      <FieldError variant="field" message={error} />
 
       <Modal visible={open} transparent animationType="fade" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={() => setOpen(false)}>
         <Pressable accessible={false} style={styles.backdrop} onPress={() => setOpen(false)}>
@@ -185,15 +185,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     backgroundColor: colors.raised,
-    borderColor: colors.lineStrong,
-    borderWidth: control.borderWidth,
     borderRadius: radius.button,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
     minHeight: control.height,
   },
-  fieldDisabled: { backgroundColor: colors.sunken, borderColor: colors.line },
-  fieldText: { fontSize: 16, color: colors.text },
+  fieldDisabled: { backgroundColor: colors.sunken },
+  fieldText: { flex: 1, fontSize: 16, color: colors.text },
   backdrop: {
     flex: 1,
     backgroundColor: colors.scrim,

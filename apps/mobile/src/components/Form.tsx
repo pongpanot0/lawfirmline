@@ -1,15 +1,18 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { InputAccessoryView, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput as NativeTextInput, TextInputProps, View } from 'react-native';
-import { AlertCircle, Square, SquareCheck } from 'lucide-react-native';
+import { AlertCircle, LucideIcon, Square, SquareCheck } from 'lucide-react-native';
 import { KeyboardAccessoryContext, Text } from '@/components/AppText';
 import { Card } from './ui';
 import { TextArea, TextField } from './Input';
 import { InlineError } from './States';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
-import { colors, spacing, radius, pageContent, typeScale } from '@/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, spacing, radius, pageContent, shadow, typeScale } from '@/theme';
 
-export function FormPage({ children }: { children: React.ReactNode }) {
+/** Scrolling form body. `footer` pins its content in a StickyBar under the scroll area (the primary action). */
+export function FormPage({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) {
   const keyboardHeight = useKeyboardHeight();
+  const insets = useSafeAreaInsets();
   const accessoryId = useId();
   const scroll = useRef<ScrollView>(null);
   const revealFocusedInput = () => requestAnimationFrame(() => {
@@ -28,6 +31,9 @@ export function FormPage({ children }: { children: React.ReactNode }) {
     onFocus={revealFocusedInput}
     automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag"
     contentContainerStyle={{ ...pageContent, maxWidth: 760, gap: spacing.sm, paddingBottom: spacing.xl + keyboardHeight }}>{children}</ScrollView>
+    {footer ? <StickyBar bottomInset={keyboardHeight ? 0 : insets.bottom}>
+      <View style={styles.stickyInner}>{footer}</View>
+    </StickyBar> : null}
     {Platform.OS === 'ios' && <InputAccessoryView nativeID={accessoryId}>
       <View style={{ backgroundColor: colors.soft, alignItems: 'flex-end', borderTopWidth: 1, borderColor: colors.line }}>
         <Pressable accessibilityRole="button" accessibilityLabel="เสร็จสิ้นการกรอก" onPress={Keyboard.dismiss} style={{ minHeight: 44, padding: spacing.md }}>
@@ -71,14 +77,26 @@ export function MissingSummary({ items }: { items: string[] }) {
   </View>;
 }
 
-export function FormSection({ title, detail, children }: { title: string; detail?: string; children: React.ReactNode }) {
+/** A form's card: optional 18pt outline icon beside the Anuphan 17 title, then a hairline before the fields. */
+export function FormSection({ title, detail, icon: Icon, children }: { title: string; detail?: string; icon?: LucideIcon; children: React.ReactNode }) {
   return <Card style={styles.section}>
     <View style={styles.sectionHead}>
-      <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionTitleRow}>
+        {Icon ? <Icon size={18} color={colors.ink} strokeWidth={1.75} style={styles.sectionIcon} /> : null}
+        <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
+      </View>
       {detail ? <Text style={styles.sectionDetail}>{detail}</Text> : null}
     </View>
     {children}
   </Card>;
+}
+
+/**
+ * Sticky bottom action bar for form screens: raised, with a top hairline and an upward soft shadow.
+ * Children are usually MissingSummary/InlineError and one full-width primary Button.
+ */
+export function StickyBar({ children, bottomInset = 0 }: { children: React.ReactNode; bottomInset?: number }) {
+  return <View style={[styles.stickyBar, { paddingBottom: spacing.md + bottomInset }]}>{children}</View>;
 }
 
 /** On/off setting with the whole row (label included) as the 48pt tap target. */
@@ -115,11 +133,16 @@ export function CheckRow({ label, detail, checked, onChange, disabled = false }:
 
 const styles = StyleSheet.create({
   fieldHint: { fontSize: 13, lineHeight: 20, color: colors.muted },
-  sectionTitle: { ...typeScale.section, color: colors.ink },
+  sectionTitle: { ...typeScale.section, color: colors.ink, flex: 1, minWidth: 0 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  sectionIcon: { marginTop: 4 },
+  stickyBar: { backgroundColor: colors.raised, borderTopWidth: 1, borderTopColor: colors.divider, paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md, gap: spacing.sm, ...shadow.bar },
+  stickyInner: { width: '100%', maxWidth: 760 - spacing.lg * 2, alignSelf: 'center', gap: spacing.sm },
   section: { gap: spacing.sm, marginVertical: spacing.xs, padding: spacing.lg },
   sectionHead: { borderBottomWidth: 1, borderBottomColor: colors.divider, paddingBottom: spacing.md, marginBottom: spacing.xs },
   sectionDetail: { color: colors.muted, fontSize: 14, lineHeight: 22, marginTop: spacing.xs },
-  missing: { borderLeftWidth: 3, borderLeftColor: colors.warn, backgroundColor: colors.warnSoft, borderRadius: radius.md,
+  missing: { borderWidth: 1, borderColor: colors.warnEdge, backgroundColor: colors.warnSoft, borderRadius: radius.lg,
     padding: spacing.md, gap: spacing.xs },
   missingHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   toggleRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xs },

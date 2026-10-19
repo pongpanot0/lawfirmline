@@ -1,11 +1,30 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, ViewStyle } from 'react-native';
 import { Text } from '@/components/AppText';
-import { colors, formLabelSpacing } from '@/theme';
+import { colors, control, formLabelSpacing, shadow } from '@/theme';
 
 /** Screen-reader name for a field: the visible label plus its required state. */
 export function fieldA11yLabel(label: string, required = false) {
   return required ? `${label} · จำเป็นต้องกรอก` : label;
+}
+
+/**
+ * Border state shared by every field frame (text inputs and picker triggers): 1pt strong outline at rest,
+ * 2pt navy when focused/pressed, 1.5pt warning when in error (2pt when both). Padding shrinks by the extra
+ * border width so the content never shifts between states.
+ */
+export function fieldEdge({ focused = false, error = false, disabled = false, padH = control.padding, padV = control.padding }: {
+  focused?: boolean; error?: boolean; disabled?: boolean; padH?: number; padV?: number;
+}): ViewStyle {
+  const width = focused ? control.focusBorderWidth : error ? control.errorBorderWidth : control.borderWidth;
+  const extra = width - control.borderWidth;
+  return {
+    borderWidth: width,
+    borderColor: disabled ? colors.line : error ? colors.warn : focused ? colors.ink : colors.lineStrong,
+    paddingHorizontal: padH - extra,
+    paddingVertical: padV - extra,
+    ...(focused ? (error ? shadow.focusWarn : shadow.focus) : null),
+  };
 }
 
 /**
@@ -24,5 +43,5 @@ const styles = StyleSheet.create({
   labelWrap: { ...formLabelSpacing, gap: 2 },
   fieldLabel: { fontSize: 14, lineHeight: 20, fontWeight: '600', color: colors.ink },
   required: { fontSize: 14, lineHeight: 20, fontWeight: '700', color: colors.warn },
-  fieldHint: { fontSize: 13, lineHeight: 20, color: colors.muted },
+  fieldHint: { fontSize: 12, lineHeight: 18, color: colors.muted },
 });
