@@ -100,12 +100,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (typeof url === 'string' && url.startsWith('/')) router.push(url as never);
   }, [ready, user, response, router, queryClient]);
 
-  if (!ready) return <Loading />;
+  if (!ready) return <Loading label={OPENING} />;
 
   if (user?.firmRole === 'EXTERNAL') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.md }}>
-        <Text style={{ fontSize: 18, textAlign: 'center', marginBottom: spacing.lg }}>
+        <Text style={{ fontSize: 18, fontFamily: fonts.bold, color: colors.ink, textAlign: 'center', marginBottom: spacing.lg }}>
           บัญชีผู้รับงานภายนอกใช้งานผ่านเว็บ
         </Text>
         <Button
@@ -122,6 +122,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}{user ? <BadgeSync /> : null}</>;
 }
 
+/** Cold start passes through three waits (fonts, session, auth); one wording keeps it reading as a single step. */
+const OPENING = 'กำลังเปิด Samnuan…';
+
 /** Module-level so a re-login (which remounts the session tree) does not replay an old tap. */
 let handledResponse: string | null = null;
 
@@ -136,14 +139,14 @@ function BadgeSync() {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Anuphan_600SemiBold, Anuphan_700Bold });
-  if (!fontsLoaded) return <Loading />;
+  if (!fontsLoaded) return <Loading label={OPENING} />;
 
   return <SafeAreaProvider><DisplayPreferences><AuthProvider><SessionRoot /></AuthProvider></DisplayPreferences></SafeAreaProvider>;
 }
 
 function SessionRoot() {
   const { ready, user } = useAuth();
-  if (!ready) return <Loading />;
+  if (!ready) return <Loading label={OPENING} />;
   return <SessionLayout key={`${user?.firmId}:${user?.id}:${user?.firmRole}`} />;
 }
 
@@ -218,7 +221,7 @@ function AppStack() {
               <Stack.Screen name="operations" options={{ title: 'งานพักไว้' }} />
               <Stack.Screen
                 name="court-day/[eventId]"
-                options={{ title: 'Court Day', headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
+                options={{ title: 'วันขึ้นศาล', headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
               />
             </Stack>
           </LockGate>

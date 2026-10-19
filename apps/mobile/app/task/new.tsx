@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
-import { Check, ChevronRight } from 'lucide-react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Check, ChevronRight, ClipboardCheck, FolderOpen, ListChecks, Plus } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,19 +13,20 @@ import { useCase, useLawyers, useLeaves, useDailyWorkboard } from '@/api/hooks';
 import type { TaskItem } from '@/api/types';
 import { uploadTaskAttachment, openTaskAttachment } from '@/api/files';
 import { Attachments, AttachmentFile } from '@/components/Attachments';
-import { CheckRow, FieldLabel, FormField, FormPage, FormSection, MissingSummary, SwitchRow } from '@/components/Form';
+import { CheckRow, FieldLabel, FormPage, FormSection, MissingSummary, SwitchRow } from '@/components/Form';
+import { fieldFrame, TextArea, TextField } from '@/components/Input';
 import { Disclosure } from '@/components/Disclosure';
 import { Dropdown } from '@/components/Dropdown';
 import { DatePicker } from '@/components/DatePicker';
 import { CasePicker, CaseRef } from '@/components/CasePicker';
 import { ReassignSheet } from '@/components/ReassignSheet';
-import { ActionRow, Button, Card, ErrorNote, Loading, SectionLabel } from '@/components/ui';
+import { ActionRow, Button, Card, ErrorState, InlineError, LoadingState, SectionLabel } from '@/components/ui';
 import { TaskWorkView } from '@/components/TaskWorkView';
 import { WorkloadSummary } from '@/components/WorkloadSummary';
 import { canReviewTask } from '@/workflow';
 import { bangkokDay, thDate } from '@/format';
 import { leaveFlagsForDate } from '@/lib/leave-flags';
-import { colors, radius, spacing } from '@/theme';
+import { colors, radius, spacing, typeScale } from '@/theme';
 
 export default function TaskFormScreen() {
   const { id, caseId: requestedCaseId, assigneeId: requestedAssignee, edit } = useLocalSearchParams<{ id?: string; caseId?: string; assigneeId?: string; edit?: string }>();
@@ -66,6 +67,7 @@ export default function TaskFormScreen() {
   const [customDue, setCustomDue] = useState(false);
   const [trackOpen, setTrackOpen] = useState(false);
   const [observerSearch, setObserverSearch] = useState('');
+  const [observerFocused, setObserverFocused] = useState(false);
   const todayKey = bangkokDay(new Date().toISOString());
   const tomorrowKey = bangkokDay(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
   const assignmentDate = hasDue ? dueDate : bangkokDay(new Date().toISOString());
@@ -210,17 +212,17 @@ export default function TaskFormScreen() {
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ'); } finally { setBusy(false); }
   };
-  if (id && task.isLoading) return <Loading />;
-  if (id && (task.isError || !task.data)) return <ErrorNote message="โหลดงานไม่สำเร็จ" onRetry={() => task.refetch()} />;
+  if (id && task.isLoading) return <LoadingState />;
+  if (id && (task.isError || !task.data)) return <View style={styles.statePage}><ErrorState message="โหลดงานไม่สำเร็จ" onRetry={() => task.refetch()} /></View>;
   if (id && task.data && !editing) return <TaskWorkView key={id} task={task.data} onEdit={() => {
     setTitle(task.data!.title); setDescription(task.data!.description ?? ''); setAssigneeId(task.data!.assigneeId ?? ''); setStatus(task.data!.status); setEditing(true);
   }} />;
-  if (!draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading />;
+  if (!draft.ready) return draft.error ? <View style={styles.statePage}><ErrorState message={draft.error} onRetry={draft.retry} /></View> : <LoadingState />;
   const routineLocked = !!routineChoice || !!task.data?.routine;
   const details = <>
     {!id && (checkingPreviousSave ? <><FieldLabel>แฟ้มคดี · ถ้ามี</FieldLabel><Text>{selectedCase?.label ?? 'ไม่ผูกคดี'}</Text></>
       : <CasePicker label="แฟ้มคดี · ถ้ามี" value={selectedCase} onChange={setSelectedCase} allowNone />)}
-    <FormField label="รายละเอียด · ถ้ามี" value={description} onChange={setDescription} multiline
+    <TextArea label="รายละเอียด · ถ้ามี" value={description} onChange={setDescription}
       hint={routineLocked ? 'ใช้รายละเอียดจากวิธีทำงานประจำ' : undefined}
       disabled={busy || checkingPreviousSave || !!savedId || routineLocked} />
     <FieldLabel>ไฟล์แนบงาน · ถ้ามี</FieldLabel>
@@ -232,7 +234,7 @@ export default function TaskFormScreen() {
     <Dropdown label="ตั้งรอบงานทำซ้ำ" fieldLabel="ทำซ้ำหลังปิดรอบนี้ · ถ้ามี" value={['', '1', '7', '30'].includes(recurrenceDays) ? recurrenceDays : 'custom'}
       onChange={value => setRecurrenceDays(value === 'custom' ? '14' : value)} disabled={busy || checkingPreviousSave || !!savedId}
       options={[{ value: '', label: 'ไม่ทำซ้ำ' }, { value: '1', label: 'อีก 1 วัน' }, { value: '7', label: 'อีก 7 วัน' }, { value: '30', label: 'อีก 30 วัน' }, { value: 'custom', label: 'กำหนดจำนวนวันเอง' }]} />
-    {!!recurrenceDays && <FormField label="อีกรอบในกี่วัน" hint="1–365 วัน · สร้างรอบถัดไปเมื่อปิดงานหรือผ่านตรวจ นับจากวันครบกำหนดเดิมหรือวันที่ปิดงานถ้าช้ากว่า"
+    {!!recurrenceDays && <TextField label="อีกรอบในกี่วัน" hint="1–365 วัน · สร้างรอบถัดไปเมื่อปิดงานหรือผ่านตรวจ นับจากวันครบกำหนดเดิมหรือวันที่ปิดงานถ้าช้ากว่า"
       keyboardType="number-pad" maxLength={3} value={recurrenceDays} onChange={setRecurrenceDays} disabled={busy || checkingPreviousSave || !!savedId}
       error={(triedSave || recurrenceDays.length >= 3) && recurrenceInvalid ? 'ใส่จำนวนวัน 1–365' : undefined} />}
   </>;
@@ -250,7 +252,8 @@ export default function TaskFormScreen() {
       options={[{ value: 'HIGH', label: 'สำคัญมาก' }, { value: 'MEDIUM', label: 'ปกติ' }, { value: 'LOW', label: 'ไม่เร่ง' }]} />
     <FieldLabel hint="เห็นความคืบหน้าของงานนี้ แต่ไม่ต้องทำ">ผู้ติดตาม · ถ้ามี</FieldLabel>
     {observerPool.length > 8 && <TextInput value={observerSearch} onChangeText={setObserverSearch} placeholder="ค้นหาชื่อในทีม" placeholderTextColor={colors.faint}
-      accessibilityLabel="ค้นหาผู้ติดตาม" style={{ minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text }} />}
+      accessibilityLabel="ค้นหาผู้ติดตาม" onFocus={() => setObserverFocused(true)} onBlur={() => setObserverFocused(false)}
+      style={fieldFrame({ focused: observerFocused })} />}
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
       {(observerSearch.trim() ? observerMatches : observerMatches.slice(0, Math.max(8, observerIds.length))).map(p => {
         const on = observerIds.includes(p.id);
@@ -258,7 +261,7 @@ export default function TaskFormScreen() {
           accessibilityState={{ checked: on, disabled: busy || checkingPreviousSave }} disabled={busy || checkingPreviousSave}
           onPress={() => setObserverIds(ids => on ? ids.filter(x => x !== p.id) : [...ids, p.id])}
           style={({ pressed }) => [{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, borderWidth: 1,
-            borderRadius: radius.button, borderColor: on ? colors.ink : colors.line, backgroundColor: on ? colors.soft : colors.surface }, pressed && { opacity: 0.7 }]}>
+            borderRadius: radius.button, borderColor: on ? colors.ink : colors.lineStrong, backgroundColor: on ? colors.infoSoft : colors.raised }, pressed && { opacity: 0.7 }]}>
           {on ? <Check size={16} color={colors.ink} /> : null}
           <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{p.firstName} {p.lastName}</Text>
         </Pressable>;
@@ -273,21 +276,30 @@ export default function TaskFormScreen() {
   const trackSummary = [requiresReview || routineChoice ? 'ต้องตรวจก่อนปิด' : '', priority !== 'MEDIUM' ? priorityLabel[priority] : '',
     observerIds.length ? `ผู้ติดตาม ${observerIds.length} คน` : '', requiresAttachment ? 'ต้องแนบไฟล์' : '', recurrenceDays ? `ทำซ้ำอีก ${recurrenceDays} วัน` : '']
     .filter(Boolean).join(' · ') || 'ผู้ตรวจ ความสำคัญ ผู้ติดตาม และรอบงานซ้ำ';
-  return <FormPage>
+  const saveBlock = <>
+    {!!savedId && <Text style={styles.infoNote}>งานบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อโดยไม่สร้างงานซ้ำ</Text>}
+    {checkingPreviousSave && <Text style={styles.infoNote}>ยังตรวจผลบันทึกครั้งก่อน · กดบันทึกซ้ำใช้คำขอเดิมและไม่เพิ่มงานซ้ำ</Text>}
+    <InlineError message={error || undefined} />
+    {triedSave && !savedId && <MissingSummary items={missing} />}
+    <Button title={savedId ? 'ส่งไฟล์ที่เหลือ' : id ? 'บันทึกงาน' : 'เพิ่มงาน'} icon={savedId || id ? Check : Plus} busy={busy} onPress={save} />
+    {!!draft.message && dirty && <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center' }}>{draft.message}</Text>}
+  </>;
+  // A new task pins its save action; editing keeps it inline because review and comments follow it.
+  return <FormPage footer={id ? undefined : saveBlock}>
     <Stack.Screen options={{ title: id ? 'แก้ไขงาน' : 'เพิ่มงาน' }} />
-    <FormSection title={id ? 'รายละเอียดงาน' : 'งานอะไร ใครทำ'}>
-    {!!draft.warning && <Text style={{ color: colors.warn }}>{draft.warning}</Text>}
-    {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
+    <FormSection title={id ? 'รายละเอียดงาน' : 'งานอะไร ใครทำ'} icon={ListChecks}>
+    <InlineError message={draft.warning || undefined} />
+    {!!draft.error && <InlineError message={draft.error} onRetry={draft.retry} />}
     {id && <Button title="กลับไปทำงาน" variant="link" onPress={() => setEditing(false)} />}
-    <FormField label="ชื่องาน" required value={title} onChange={setTitle} disabled={busy || !!savedId || checkingPreviousSave}
+    <TextField label="ชื่องาน" required value={title} onChange={setTitle} disabled={busy || !!savedId || checkingPreviousSave}
       placeholder="เช่น ร่างคำให้การ" error={triedSave && !title.trim() ? 'ใส่ชื่องาน' : undefined} />
-    <Dropdown label="เลือกผู้รับผิดชอบงาน" fieldLabel="ผู้รับผิดชอบ" required value={assigneeId} options={options} onChange={setAssigneeId}
+    <Dropdown label="เลือกผู้รับผิดชอบงาน" fieldLabel="ผู้รับผิดชอบ" required value={assigneeId} options={options} onChange={setAssigneeId} person
       placeholder={members.isLoading ? 'กำลังโหลดรายชื่อ…' : 'เลือกผู้รับผิดชอบงาน'}
       error={triedSave && !assigneeId ? 'เลือกผู้รับผิดชอบ 1 คน' : undefined}
       disabled={busy || !!savedId || checkingPreviousSave || !canAssign || members.isLoading || members.isError} />
     {id && canAssign && <Button title="มอบหมาย / เปลี่ยนผู้รับผิดชอบ" variant="link" disabled={busy} onPress={() => setReassigning(true)} />}
-    {members.isError && <ErrorNote message="โหลดรายชื่อไม่ได้" onRetry={() => members.refetch()} />}
-    {leaves.isError && <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
+    {members.isError && <InlineError message="โหลดรายชื่อไม่ได้" onRetry={() => members.refetch()} />}
+    {leaves.isError && <InlineError message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
     {/* Due date sits right under the assignee: it also sets the day the workload helper compares. */}
     {checkingPreviousSave ? <>
       <FieldLabel>กำหนดส่ง</FieldLabel>
@@ -310,14 +322,14 @@ export default function TaskFormScreen() {
       {/* Workload helpers fold away; open them only when choosing who has room. */}
       <Disclosure variant="plain" title="ช่วยเลือกคน · ดูภาระงานทีม" summary={`เทียบงานของแต่ละคน${hasDue ? `วันที่ ${thDate(assignmentDate)}` : 'วันนี้'}`} open={comparing} onToggle={setComparing}>
         <Button title="ดูภาระงานทีมล่วงหน้า 7 วัน" variant="link" onPress={() => router.push({ pathname: '/team-week', params: { date: assignmentDate } })} />
-        {board.isError && <ErrorNote message={`ยังตรวจภาระงานล่าสุดไม่ได้ · โหลดล่าสุด ${board.data?.fetchedAt ? new Date(board.data.fetchedAt).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }) : 'ยังไม่ทราบ'}`} onRetry={() => board.refetch()} />}
-        {board.isLoading && <Loading label="กำลังโหลดภาระงานทีม…" />}
+        {board.isError && <InlineError message={`ยังตรวจภาระงานล่าสุดไม่ได้ · โหลดล่าสุด ${board.data?.fetchedAt ? new Date(board.data.fetchedAt).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }) : 'ยังไม่ทราบ'}`} onRetry={() => board.refetch()} />}
+        {board.isLoading && <LoadingState inline label="กำลังโหลดภาระงานทีม…" />}
         {people.filter(p => candidates.some(person => person.id === p.member.userId)).map(person => {
           const chosen = assigneeId === person.member.userId;
           return <Pressable key={person.member.userId} accessibilityRole="button" accessibilityLabel={`เลือก ${person.member.firstName} ${person.member.lastName} เป็นผู้รับผิดชอบ`}
             accessibilityState={{ selected: chosen, disabled: busy || checkingPreviousSave }} disabled={busy || checkingPreviousSave}
             onPress={() => { setAssigneeId(person.member.userId); setComparing(false); }}
-            style={({ pressed }) => [{ gap: spacing.sm, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.line }, pressed && { backgroundColor: colors.soft }]}>
+            style={({ pressed }) => [{ gap: spacing.sm, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider }, pressed && { backgroundColor: colors.soft }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <Text style={{ flex: 1, color: colors.ink, fontWeight: '700' }}>{person.member.firstName} {person.member.lastName}</Text>
               {chosen ? <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>เลือกอยู่</Text> : <ChevronRight size={18} color={colors.muted} />}
@@ -326,7 +338,7 @@ export default function TaskFormScreen() {
           </Pressable>;
         })}
       </Disclosure>
-      {!!warnings.length && <Card style={{ gap: spacing.sm, borderColor: colors.warn }}>
+      {!!warnings.length && <Card flat style={styles.warnBox}>
         {warnings.map((message, index) => <Text key={index} style={{ color: colors.warn }}>{message}</Text>)}
         <CheckRow label="ตรวจเงื่อนไขแล้ว ยืนยันมอบหมายคนนี้" checked={risksConfirmed} onChange={setRisksConfirmed} disabled={busy} />
       </Card>}
@@ -335,17 +347,17 @@ export default function TaskFormScreen() {
       <Dropdown label="เลือกวิธีทำงานประจำ" fieldLabel="วิธีทำงานประจำ · ถ้ามี" value={routineChoice} options={[{ value: '', label: 'งานทั่วไป · ไม่บังคับรายการตรวจ' }, ...routines]} disabled={busy || checkingPreviousSave || playbooks.isLoading || playbooks.isError || (!!caseId && legalCase.isLoading)}
         placeholder={playbooks.isLoading ? 'กำลังโหลดวิธีทำงานประจำ…' : 'งานทั่วไป · ไม่บังคับรายการตรวจ'}
         onChange={value => { setRoutineChoice(value); if (value) { const selected = routines.find(r => r.value === value); if (!title.trim() && selected) setTitle(selected.title); setRequiresReview(true); setReviewerId(reviewers.find(p => p.id === legalCase.data?.leadLawyer?.id)?.id ?? ''); } }} />
-      {playbooks.isError && <ErrorNote message="โหลดวิธีทำงานประจำไม่ได้" onRetry={() => playbooks.refetch()} />}
+      {playbooks.isError && <InlineError message="โหลดวิธีทำงานประจำไม่ได้" onRetry={() => playbooks.refetch()} />}
       {!!routineChoice && <Dropdown label="เลือกผู้ตรวจงานประจำ" fieldLabel="ผู้ตรวจงาน" required value={reviewerId}
         error={triedSave && reviewerMissing ? 'เลือก Owner ทนายอาวุโส หรือทนายหลักของคดีเป็นผู้ตรวจ' : undefined}
         options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} onChange={setReviewerId} disabled={busy || checkingPreviousSave || (!!caseId && legalCase.isLoading)} />}
     </>}
     </FormSection>
     {!id ? <>
-      <Disclosure title="รายละเอียด แฟ้มคดี และไฟล์ · ถ้ามี" summary={detailsSummary} open={showDetails} onToggle={setShowDetails}>
+      <Disclosure icon={FolderOpen} title="รายละเอียด แฟ้มคดี และไฟล์ · ถ้ามี" summary={detailsSummary} open={showDetails} onToggle={setShowDetails}>
         <View style={{ gap: spacing.sm }}>{details}</View>
       </Disclosure>
-      <Disclosure title="การตรวจและติดตาม · ถ้ามี" summary={trackSummary} open={trackOpen} onToggle={setTrackOpen}>
+      <Disclosure icon={ClipboardCheck} title="การตรวจและติดตาม · ถ้ามี" summary={trackSummary} open={trackOpen} onToggle={setTrackOpen}>
         <View style={{ gap: spacing.sm }}>{tracking}</View>
       </Disclosure>
     </> : showDetails && <FormSection title="กำหนดส่งและข้อมูลเพิ่มเติม">
@@ -355,47 +367,48 @@ export default function TaskFormScreen() {
       {details}
       {recurrence}
     </FormSection>}
-    {!!savedId && <Text style={{ color: colors.info }}>งานบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อโดยไม่สร้างงานซ้ำ</Text>}
-    {checkingPreviousSave && <Text style={{ color: colors.info }}>ยังตรวจผลบันทึกครั้งก่อน · กดบันทึกซ้ำใช้คำขอเดิมและไม่เพิ่มงานซ้ำ</Text>}
-    {!!error && <Text accessibilityRole="alert" style={{ color: colors.warn }}>{error}</Text>}
-    {triedSave && !savedId && <MissingSummary items={missing} />}
-    <Button title={savedId ? 'ส่งไฟล์ที่เหลือ' : id ? 'บันทึกงาน' : 'เพิ่มงาน'} busy={busy} onPress={save} />
-    {!!draft.message && dirty && <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center' }}>{draft.message}</Text>}
+    {id ? saveBlock : null}
     {id && !!task.data && task.data.assigneeId === user?.id &&
       (caseId ? ['TODO', 'IN_PROGRESS', 'NEEDS_REVISION', 'DONE'] : ['TODO', 'IN_PROGRESS', 'NEEDS_REVISION']).includes(task.data.status) &&
       (!caseId || legalCase.data?.leadLawyer?.id !== user?.id) && <>
       <SectionLabel>ส่งให้ตรวจงาน</SectionLabel>
       {!caseId && <Dropdown label="เลือกผู้ตรวจงาน" fieldLabel="ผู้ตรวจงาน" required value={reviewerId} onChange={setReviewerId} disabled={busy}
         options={reviewers.map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }))} />}
-      <FormField label="หมายเหตุถึงผู้ตรวจ" required hint={`อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร`} value={handoffNote} onChange={setHandoffNote} multiline disabled={busy} />
+      <TextArea label="หมายเหตุถึงผู้ตรวจ" required hint={`อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร`} value={handoffNote} onChange={setHandoffNote} disabled={busy} />
       <Button title="ส่งตรวจงาน" variant="secondary" disabled={busy || (!caseId && !reviewerId) || handoffNote.trim().length < TASK_HANDOFF_NOTE_MIN}
         onPress={() => handoff('handoff', caseId ? { note: handoffNote.trim() } : { reviewerId, note: handoffNote.trim() })} />
     </>}
     {task.data?.status === 'PENDING_REVIEW' && canReview && <>
-      <Text style={{ color: colors.text, fontWeight: '700', fontSize: 18 }}>{task.data.title}</Text>
-      {task.data.case && <Text style={{ color: colors.faint }}>{task.data.case.ownRef} · {task.data.case.title}</Text>}
-      {task.data.description && <Text style={{ color: colors.text }}>{task.data.description}</Text>}
+      <Card style={{ gap: spacing.xs, marginTop: spacing.md }}>
+        <Text accessibilityRole="header" style={styles.reviewTitle}>{task.data.title}</Text>
+        {task.data.case && <Text style={{ color: colors.muted }}>{task.data.case.ownRef} · {task.data.case.title}</Text>}
+        {task.data.description && <Text style={{ color: colors.text, marginTop: spacing.xs }}>{task.data.description}</Text>}
+      </Card>
       <SectionLabel>ผลงานและไฟล์ที่ส่งตรวจ</SectionLabel>
-      {task.data.attachments?.map(file => <ActionRow key={file.id} title={file.filename} detail="เปิดไฟล์" onPress={() =>
-        openTaskAttachment(id!, file.id, file.filename).catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message))} />)}
-      {task.data.comments?.map(item => <Text key={item.id} style={{ color: colors.text }}>
-        {item.author ? `${item.author.firstName} ${item.author.lastName}: ` : ''}{item.body}
-      </Text>)}
-      {!task.data.attachments?.length && !task.data.comments?.length && <Text style={{ color: colors.faint }}>ยังไม่มีไฟล์หรือข้อความส่งงานให้ตรวจ</Text>}
-      {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
+      {!!(task.data.attachments?.length || task.data.comments?.length) && <Card style={styles.listCard}>
+        {[...(task.data.attachments ?? []).map(file => <ActionRow key={file.id} title={file.filename} detail="เปิดไฟล์" onPress={() =>
+          openTaskAttachment(id!, file.id, file.filename).catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message))} />),
+          ...(task.data.comments ?? []).map(item => <Text key={item.id} style={styles.comment}>
+            {item.author ? `${item.author.firstName} ${item.author.lastName}: ` : ''}{item.body}
+          </Text>)].map((row, index) => <View key={row.key} style={index > 0 && styles.listDivider}>{row}</View>)}
+      </Card>}
+      {!task.data.attachments?.length && !task.data.comments?.length && <Text style={{ color: colors.muted }}>ยังไม่มีไฟล์หรือข้อความส่งงานให้ตรวจ</Text>}
+      <InlineError message={error || undefined} />
       <Button title="ผ่านการตรวจ / ปิดงาน" disabled={busy} onPress={() => Alert.alert('ยืนยันผลตรวจ', `ผ่านการตรวจและปิดงาน “${task.data!.title}”?`, [
         { text: 'ยกเลิก', style: 'cancel' }, { text: 'ผ่านการตรวจ', onPress: () => handoff('accept') },
       ])} />
-      <FormField label="เหตุผลส่งกลับแก้ไข" value={reason} onChange={setReason} disabled={busy} />
+      <TextField label="เหตุผลส่งกลับแก้ไข" value={reason} onChange={setReason} disabled={busy} />
       <Button title="ส่งกลับแก้ไข" variant="danger" disabled={busy || !reason.trim()} onPress={() => handoff('reject', { reason: reason.trim() })} />
     </>}
     {id && <>
       <SectionLabel>ความคิดเห็นในงาน</SectionLabel>
-      {!canReview && task.data?.comments?.map(item => <Text key={item.id} style={{ color: colors.text }}>
-        {item.author ? `${item.author.firstName} ${item.author.lastName}: ` : ''}{item.body}
-      </Text>)}
-      <FormField label="เพิ่มความคิดเห็น" value={comment} onChange={setComment} multiline disabled={busy} />
-      <Button title="ส่งความคิดเห็น" ghost disabled={busy || !comment.trim()} onPress={async () => {
+      {!canReview && !!task.data?.comments?.length && <Card style={styles.listCard}>
+        {task.data.comments.map((item, index) => <Text key={item.id} style={[styles.comment, index > 0 && styles.listDivider]}>
+          {item.author ? `${item.author.firstName} ${item.author.lastName}: ` : ''}{item.body}
+        </Text>)}
+      </Card>}
+      <TextArea label="เพิ่มความคิดเห็น" value={comment} onChange={setComment} disabled={busy} />
+      <Button title="ส่งความคิดเห็น" variant="secondary" disabled={busy || !comment.trim()} onPress={async () => {
         setBusy(true); setError('');
         try { await api(`/tasks/${id}/comments`, { method: 'POST', body: { body: comment.trim() } });
           setComment('');
@@ -409,3 +422,14 @@ export default function TaskFormScreen() {
     }} />
   </FormPage>;
 }
+
+const styles = StyleSheet.create({
+  statePage: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg },
+  warnBox: { gap: spacing.sm, backgroundColor: colors.warnSoft, borderColor: colors.warnEdge, padding: spacing.md },
+  infoNote: { color: colors.info, backgroundColor: colors.infoSoft, borderWidth: 1, borderColor: colors.infoEdge, borderRadius: radius.md,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+  reviewTitle: { ...typeScale.title, color: colors.ink },
+  listCard: { paddingVertical: spacing.xs },
+  listDivider: { borderTopWidth: 1, borderTopColor: colors.divider },
+  comment: { color: colors.text, paddingVertical: spacing.md },
+});

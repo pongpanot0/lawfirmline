@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { Check, ChevronDown, X } from 'lucide-react-native';
-import { Button } from './ui';
-import { FieldError, FieldLabel, fieldA11yLabel } from './Form';
-import { CHROME_MAX_SCALE, colors, fonts, radius, spacing, TOUCH } from '@/theme';
+import { AlertCircle, Check, ChevronDown, X } from 'lucide-react-native';
+import { Button } from './Button';
+import { FieldLabel, fieldA11yLabel, fieldEdge } from './FieldLabel';
+import { InlineError as FieldError } from './States';
+import { CHROME_MAX_SCALE, colors, control, fonts, radius, shadow, spacing, TOUCH } from '@/theme';
+import { initials } from '@/format';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 
 /**
@@ -14,7 +16,7 @@ import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
  * `required`/`error`/`hint` then render like FormField. `inline` shows up to 4 options as chips
  * instead of opening a modal.
  */
-export function Dropdown({ label, value, options, onChange, disabled = false, fieldLabel, required = false, error, hint, placeholder, inline = false }: {
+export function Dropdown({ label, value, options, onChange, disabled = false, fieldLabel, required = false, error, hint, placeholder, inline = false, person = false }: {
   label: string;
   value: string;
   options: ReadonlyArray<{ value: string; label: string }>;
@@ -29,6 +31,8 @@ export function Dropdown({ label, value, options, onChange, disabled = false, fi
   placeholder?: string;
   /** With 4 or fewer options, render them as chips (one tap, no modal). */
   inline?: boolean;
+  /** Options are people (label = name): the picked one shows a 28pt initials avatar at the start of the field. */
+  person?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -48,12 +52,12 @@ export function Dropdown({ label, value, options, onChange, disabled = false, fi
             accessibilityState={{ checked: on, selected: on, disabled }} disabled={disabled} onPress={() => onChange(option.value)}
             style={({ pressed }) => [styles.chip, on && styles.chipOn, error && !value ? { borderColor: colors.warn } : null,
               pressed && { opacity: 0.7 }, disabled && { opacity: 0.5 }]}>
-            {on ? <Check size={16} color={colors.ink} /> : null}
-            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.chipText, on && { color: colors.ink, fontWeight: '600' }]}>{option.label}</Text>
+            {on ? <Check size={16} color={colors.bg} /> : null}
+            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.chipText, on && { color: colors.bg, fontWeight: '600' }]}>{option.label}</Text>
           </Pressable>;
         })}
       </View>
-      <FieldError message={error} />
+      <FieldError variant="field" message={error} />
     </View>;
   }
 
@@ -63,14 +67,18 @@ export function Dropdown({ label, value, options, onChange, disabled = false, fi
       accessibilityState={{ disabled, expanded: open }}
       accessibilityValue={{ text: selected?.label ?? 'ยังไม่ได้เลือก' }}
       disabled={disabled} onPress={() => { setSearch(''); setOpen(true); }}
-      style={({ pressed }) => [styles.field, error ? { borderColor: colors.warn } : null,
-        disabled && { backgroundColor: colors.soft }, pressed && { backgroundColor: colors.soft }]}>
-      <Text style={{ flex: 1, color: selected ? colors.text : colors.muted }}>
+      style={({ pressed }) => [styles.field, fieldEdge({ focused: pressed, error: !!error, disabled, padV: selected && person ? 8 : undefined }),
+        disabled && styles.fieldDisabled]}>
+      {selected && person ? <View style={styles.avatar}>
+        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.avatarText}>{initials(selected.label)}</Text>
+      </View> : null}
+      <Text style={{ flex: 1, fontSize: 16, color: selected && !disabled ? colors.text : colors.muted }}>
         {selected?.label ?? placeholder ?? label}
       </Text>
+      {error ? <AlertCircle size={20} color={colors.warn} /> : null}
       <ChevronDown size={18} color={colors.muted} />
     </Pressable>
-    <FieldError message={error} />
+    <FieldError variant="field" message={error} />
     <Modal visible={open} animationType="slide" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={() => setOpen(false)}>
       <SafeAreaProvider>
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -105,19 +113,22 @@ export function Dropdown({ label, value, options, onChange, disabled = false, fi
 }
 
 const styles = StyleSheet.create({
-  group: { gap: spacing.sm },
-  field: { minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button,
-    backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  group: { gap: 6 },
+  field: { minHeight: control.height, borderRadius: radius.button,
+    backgroundColor: colors.raised, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  fieldDisabled: { backgroundColor: colors.sunken },
+  avatar: { width: 28, height: 28, borderRadius: radius.full, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: colors.bg, fontFamily: fonts.bold, fontSize: 11, lineHeight: 16 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md,
-    borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface },
-  chipOn: { borderColor: colors.ink, backgroundColor: colors.soft },
-  chipText: { fontSize: 14, color: colors.muted },
+    borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.button, backgroundColor: colors.raised },
+  chipOn: { borderColor: colors.ink, backgroundColor: colors.ink, ...shadow.sm },
+  chipText: { fontSize: 14, color: colors.ink },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.lg, paddingRight: spacing.sm, paddingVertical: spacing.sm },
   sheetTitle: { flex: 1, fontSize: 20, lineHeight: 30, fontFamily: fonts.bold, color: colors.ink },
   close: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' },
-  search: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, minHeight: 48, padding: spacing.md, borderWidth: 1,
-    borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text },
-  option: { padding: spacing.lg, minHeight: 52, borderBottomWidth: 1, borderColor: colors.line, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  search: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, minHeight: control.height, padding: spacing.md, borderWidth: 1,
+    borderColor: colors.lineStrong, borderRadius: radius.button, backgroundColor: colors.raised, color: colors.text },
+  option: { padding: spacing.lg, minHeight: 52, borderBottomWidth: 1, borderColor: colors.divider, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   empty: { textAlign: 'center', color: colors.muted, paddingVertical: spacing.xl },
 });

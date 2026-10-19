@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ExternalLink } from 'lucide-react-native';
 import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
@@ -12,13 +13,37 @@ import { draftScope, saveDraft } from '@/api/drafts';
 import { useCourtDay, useSaveCourtDay, useCompleteCourtDay } from '@/api/hooks';
 import type { CourtDayResponse, CourtDayState } from '@/api/types';
 import { openCaseDocument } from '@/api/files';
-import { Button, Card, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
-import { DatePicker } from '@/components/DatePicker';
-import { Dropdown } from '@/components/Dropdown';
+import { Button, Card, EmptyState, ErrorState, InlineError, LoadingState, SectionLabel, Tag } from '@/components/ui';
+import { CheckRow, FieldLabel, MissingSummary, SwitchRow } from '@/components/Form';
+import { DateField, SelectField, TextArea, TextField, fieldFrame } from '@/components/Input';
 import { bangkokDay, formatMoney, formatMoneyInput, thDateLong, thTime } from '@/format';
 import { expenseError } from '@/workflow';
-import { colors, spacing, formLabelSpacing, pageContent } from '@/theme';
+import { CHROME_MAX_SCALE, colors, radius, shadow, spacing, formLabelSpacing, pageContent, TOUCH, typeScale } from '@/theme';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  title: { ...typeScale.display, color: colors.ink },
+  meta: { color: colors.muted, fontSize: 15, lineHeight: 22 },
+  when: { color: colors.accentInk, fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  /** Sunken track; the current phase is a raised pill. */
+  track: { flexDirection: 'row', gap: 2, padding: spacing.xs, borderRadius: radius.lg, backgroundColor: colors.sunken, marginVertical: spacing.sm },
+  phase: { flex: 1, minHeight: TOUCH, borderRadius: radius.md, justifyContent: 'center', padding: spacing.sm },
+  phaseOn: { backgroundColor: colors.raised, ...shadow.sm },
+  phaseText: { color: colors.muted, fontWeight: '600', textAlign: 'center', fontSize: 14 },
+  phaseTextOn: { color: colors.ink, fontWeight: '700' },
+  teamRow: { flexDirection: 'row', gap: spacing.md, paddingVertical: spacing.sm },
+  teamRule: { borderTopWidth: 1, borderTopColor: colors.divider },
+  teamLabel: { ...typeScale.overline, color: colors.muted, width: 40, paddingTop: 2 },
+  teamValue: { flex: 1, minWidth: 0, color: colors.text, fontSize: 15, lineHeight: 22 },
+  listCard: { paddingVertical: spacing.xs },
+  docRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  rule: { borderTopWidth: 1, borderTopColor: colors.divider },
+  reviewCard: { gap: spacing.sm, borderColor: colors.ink, ...shadow.md },
+  reviewTitle: { ...typeScale.section, color: colors.ink },
+  reviewLine: { color: colors.text, fontSize: 15, lineHeight: 22, paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: colors.divider },
+  status: { color: colors.muted, fontSize: 14, lineHeight: 22 },
+});
 
 type Draft = { version: number; eventUpdatedAt: string; state: CourtDayState };
 type Document = { id: string; filename: string; version: number };
@@ -28,6 +53,10 @@ const PREP = [
   { id: '00000000-0000-4000-8000-000000000002', title: 'ยืนยันทีมที่ไปด้วย', done: false },
   { id: '00000000-0000-4000-8000-000000000003', title: 'ตรวจสถานที่และเวลาเดินทาง', done: false },
 ];
+const FIELD_NAME = {
+  outcome: 'ผลนัด', nextTitle: 'ชื่อนัดครั้งหน้า', nextAt: 'วันและเวลานัดครั้งหน้า', taskTitle: 'งานที่ต้องทำต่อ',
+  expenseCategory: 'เบิกค่าอะไร', amount: 'ยอดเงิน (บาท)',
+} as const;
 
 export default function CourtDayScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
@@ -44,7 +73,12 @@ export default function CourtDayScreen() {
   const [readError, setReadError] = useState('');
   const [readAttempt, setReadAttempt] = useState(0);
   const [opening, setOpening] = useState('');
-  const key = user ? `${draftScope(user)}court:${eventId}` : '';
+  const [triedConfirm, setTriedConfirm] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [timeError, setTimeError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [timeFocused, setTimeFocused] = useState(false);
+  const key =user ? `${draftScope(user)}court:${eventId}` : '';
   const documents = useQuery({
     queryKey: ['case-documents', court.data?.event.caseId],
     queryFn: () => api<Document[]>(`/cases/${court.data!.event.caseId}/documents`),
@@ -72,12 +106,19 @@ export default function CourtDayScreen() {
       .catch(() => { if (active) setLocalStatus('เก็บร่างในเครื่องไม่สำเร็จ กรุณาบันทึกอีกครั้ง'); });
     return () => { active = false; };
   }, [draft, key, court.data?.workspace.completedAt]);
-  if (!court.data) return court.isLoading ? <Loading /> : <SafeAreaView style={{ flex: 1, padding: spacing.lg }}>
-    <ErrorNote message="ยังโหลดนัดนี้ไม่ได้ กรุณาต่ออินเทอร์เน็ตและลองใหม่" onRetry={() => court.refetch()} />
-    <Button title="กลับ" ghost onPress={() => router.back()} />
+  const back = <Pressable accessibilityRole="button" accessibilityLabel="กลับ" onPress={() => router.back()}
+    style={({ pressed }) => [{ width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center', marginLeft: -spacing.md }, pressed && { opacity: 0.6 }]}>
+    <ChevronLeft size={26} color={colors.ink} />
+  </Pressable>;
+  if (!court.data) return court.isLoading ? <View style={styles.screen}><LoadingState label="กำลังโหลดนัด…" /></View> : <SafeAreaView style={[styles.screen, { padding: spacing.lg, gap: spacing.md }]}>
+    {back}
+    <ErrorState message="ยังโหลดนัดนี้ไม่ได้ กรุณาต่ออินเทอร์เน็ตและลองใหม่" onRetry={() => court.refetch()} />
   </SafeAreaView>;
-  if (readError) return <SafeAreaView style={{ padding: spacing.lg }}><ErrorNote message={readError} onRetry={() => setReadAttempt(readAttempt + 1)} /></SafeAreaView>;
-  if (!draft) return <Loading />;
+  if (readError) return <SafeAreaView style={[styles.screen, { padding: spacing.lg, gap: spacing.md }]}>
+    {back}
+    <ErrorState message={readError} onRetry={() => setReadAttempt(readAttempt + 1)} />
+  </SafeAreaView>;
+  if (!draft) return <View style={styles.screen}><LoadingState label="กำลังเปิดร่าง…" /></View>;
   const { event, workspace } = court.data;
   const state = draft.state;
   const done = !!workspace.completedAt;
@@ -86,7 +127,23 @@ export default function CourtDayScreen() {
   const writer = ['OWNER', 'SENIOR_LAWYER', 'OFFICE_MANAGER', 'LAWYER'].includes(user?.firmRole ?? '');
   const editable = writer && !done && !busy;
   const stale = workspace.version !== draft.version || event.updatedAt !== draft.eventUpdatedAt;
-  const change = (next: Partial<CourtDayState>) => setDraft({ ...draft, state: { ...state, ...next } });
+  const change = (next: Partial<CourtDayState>) => {
+    setDraft({ ...draft, state: { ...state, ...next } });
+    setReviewing(false);
+    setSubmitError('');
+  };
+  const expenseMessage = state.expense ? expenseError(state.expenseCategory ?? '', state.outcome, state.amount, true) : null;
+  const amountProblem = !!expenseMessage && expenseMessage.startsWith('ใส่จำนวนเงิน');
+  const problems: Partial<Record<keyof typeof FIELD_NAME, string>> = {
+    outcome: state.outcome.trim() ? undefined : 'ใส่ผลนัดก่อนยืนยัน',
+    nextTitle: state.nextHearing && !state.nextTitle.trim() ? 'ใส่ชื่อนัดครั้งหน้า' : undefined,
+    nextAt: state.nextHearing && (!state.nextAt || new Date(state.nextAt) <= new Date(event.startAt)) ? 'เลือกวันและเวลาที่อยู่หลังนัดนี้' : undefined,
+    taskTitle: state.followUp && !state.taskTitle.trim() ? 'ใส่ชื่องานที่ต้องทำต่อ' : undefined,
+    expenseCategory: expenseMessage && !amountProblem ? expenseMessage : undefined,
+    amount: amountProblem ? expenseMessage! : undefined,
+  };
+  const missing = (Object.keys(FIELD_NAME) as Array<keyof typeof FIELD_NAME>).filter((field) => problems[field]);
+  const shown = (field: keyof typeof FIELD_NAME) => (triedConfirm ? problems[field] : undefined);
   const sync = async () => {
     await saveDraft(key, draft);
     const result = await save.mutateAsync({ version: draft.version, state });
@@ -97,28 +154,28 @@ export default function CourtDayScreen() {
     return next;
   };
   const record = async () => {
+    setSubmitError('');
     try {
       const latest = await sync();
       const result = await complete.mutateAsync({ version: latest.version, eventUpdatedAt: latest.eventUpdatedAt });
       client.setQueryData<CourtDayResponse>(['court-day', eventId], (data) => data ? { ...data, workspace: result } : data);
       setDraft({ ...latest, version: result.version });
+      setReviewing(false);
       await AsyncStorage.removeItem(key);
       Alert.alert('ยืนยันผลนัดแล้ว', 'บันทึกผลและรายการที่เลือกไว้ในระบบแล้ว');
-    } catch (error) { Alert.alert('ยืนยันไม่สำเร็จ', error instanceof Error ? error.message : 'ลองใหม่อีกครั้ง'); }
+    } catch (error) { setSubmitError(`ยืนยันไม่สำเร็จ · ${error instanceof Error ? error.message : 'ลองใหม่อีกครั้ง'}`); }
   };
   const review = () => {
-    if (!state.outcome.trim()) return Alert.alert('กรอกผลนัด', 'ระบุผลนัดก่อนยืนยัน');
-    if (state.nextHearing && (!state.nextTitle.trim() || !state.nextAt || new Date(state.nextAt) <= new Date(event.startAt))) return Alert.alert('ตรวจนัดครั้งหน้า', 'ระบุชื่อ วัน และเวลาที่อยู่หลังนัดนี้');
-    if (state.followUp && !state.taskTitle.trim()) return Alert.alert('ตรวจงานต่อ', 'ระบุชื่องานที่ต้องทำต่อ');
-    if (state.expense) { const error = expenseError(state.expenseCategory ?? '', state.outcome, state.amount, true); if (error) return Alert.alert('ตรวจค่าใช้จ่าย', error); }
-    const summary = [`ผล: ${state.outcome}`,
-      state.nextHearing ? `เพิ่มนัด: ${state.nextTitle} · ${thDateLong(state.nextAt)} ${thTime(state.nextAt)}` : '',
-      state.followUp ? `เพิ่มงานให้ฉัน: ${state.taskTitle}${state.taskDue ? ` · ${thDateLong(state.taskDue)}` : ''}` : '',
-      state.expense ? `ค่าใช้จ่าย: ${state.expenseCategory} ${formatMoney(state.amount)} บาท · ยังไม่ส่งเบิก` : '',
-      state.clientDraft ? 'สร้างร่างรายงานลูกความ · ยังไม่ส่ง' : '',
-    ].filter(Boolean).join('\n\n');
-    Alert.alert('ตรวจทานก่อนยืนยันผลนัด', summary, [{ text: 'กลับไปแก้', style: 'cancel' }, { text: 'ยืนยันผลนัด', onPress: record }]);
+    setTriedConfirm(true);
+    if (missing.length || timeError) return;
+    setReviewing(true);
   };
+  const summary = [`ผล: ${state.outcome}`,
+    state.nextHearing ? `เพิ่มนัด: ${state.nextTitle} · ${state.nextAt ? `${thDateLong(state.nextAt)} ${thTime(state.nextAt)}` : ''}` : '',
+    state.followUp ? `เพิ่มงานให้ฉัน: ${state.taskTitle}${state.taskDue ? ` · ${thDateLong(state.taskDue)}` : ''}` : '',
+    state.expense ? `ค่าใช้จ่าย: ${state.expenseCategory} ${formatMoney(state.amount)} บาท · ยังไม่ส่งเบิก` : '',
+    state.clientDraft ? 'สร้างร่างรายงานลูกความ · ยังไม่ส่ง' : '',
+  ].filter(Boolean);
   const reload = () => Alert.alert('ใช้ข้อมูลล่าสุด?', 'ร่างที่แก้ในหน้านี้จะถูกแทนด้วยข้อมูลล่าสุดในระบบ', [
     { text: 'ยกเลิก', style: 'cancel' }, { text: 'โหลดล่าสุด', onPress: async () => {
       const result = await court.refetch();
@@ -126,105 +183,145 @@ export default function CourtDayScreen() {
       setDraft({ version: result.data.workspace.version, eventUpdatedAt: result.data.event.updatedAt, state: result.data.workspace.state });
     } },
   ]);
-  const input = { minHeight: 48, padding: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 10, color: colors.text };
-  const timestamp = (value: string, onChange: (value: string) => void, time = true) => <View style={{ gap: spacing.sm }}>
-    {editable ? <DatePicker value={value ? bangkokDay(value) : ''} onChange={(day) => onChange(new Date(`${day}T${value ? thTime(value) : '09:00'}:00+07:00`).toISOString())} /> : <Text style={{ color: colors.muted }}>{value ? thDateLong(value) : 'ไม่ระบุวันที่'}</Text>}
-    {time && <TextInput key={value} accessibilityLabel="เวลานัดครั้งหน้า" style={input} placeholder="เวลา เช่น 09:00" maxLength={5}
+  const nextAtField = (value: string, onChange: (value: string) => void, error?: string) => <View style={{ gap: spacing.sm }}>
+    {editable ? <DateField label="วันนัดครั้งหน้า" required error={error} minDate={bangkokDay(event.startAt)} value={value ? bangkokDay(value) : ''}
+      onChange={(day) => onChange(new Date(`${day}T${value ? thTime(value) : '09:00'}:00+07:00`).toISOString())} />
+      : <Text style={{ color: colors.muted }}>{value ? thDateLong(value) : 'ไม่ระบุวันที่'}</Text>}
+    <FieldLabel required hint="แบบ 24 ชั่วโมง เช่น 09:00">เวลา</FieldLabel>
+    <TextInput key={value} accessibilityLabel="เวลานัดครั้งหน้า · จำเป็นต้องกรอก" accessibilityHint={timeError || undefined}
+      style={fieldFrame({ focused: timeFocused, error: !!timeError, disabled: !editable })} placeholder="09:00" placeholderTextColor={colors.faint} maxLength={5}
       defaultValue={value ? thTime(value) : '09:00'} editable={editable} keyboardType="numbers-and-punctuation"
+      onFocus={() => setTimeFocused(true)} onBlur={() => setTimeFocused(false)}
       onEndEditing={({ nativeEvent }) => {
-        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(nativeEvent.text)) return Alert.alert('ตรวจเวลา', 'กรอกเวลาแบบ 09:00');
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(nativeEvent.text)) return setTimeError('กรอกเวลาแบบ 09:00');
+        setTimeError('');
         onChange(new Date(`${value ? bangkokDay(value) : bangkokDay(event.startAt)}T${nativeEvent.text}:00+07:00`).toISOString());
-      }} />}
+      }} />
+    <InlineError message={timeError || undefined} />
   </View>;
-  const toggle = (label: string, value: boolean, onChange: (value: boolean) => void) => <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: spacing.sm }}>
-    <Text style={{ color: colors.text, flex: 1 }}>{label}</Text><Switch accessibilityLabel={label} trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface} value={value} onValueChange={onChange} disabled={!editable} />
-  </View>;
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-    <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ ...pageContent, paddingBottom: spacing.xl + keyboardHeight }}>
-      <Card style={{ marginBottom: spacing.md, gap: spacing.sm }}>
-        <Button title="กลับ" ghost onPress={() => router.back()} />
-        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.ink }}>{event.title}</Text>
-        <Text style={{ color: colors.muted }}>{event.case?.ownRef} · {event.courtName ?? event.case?.courtName} · {thTime(event.startAt)}</Text>
-        <Text style={{ color: colors.muted }}>{thDateLong(event.startAt)}</Text>
-        {done && <Tag tone="ok">ยืนยันผลแล้ว</Tag>}
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {PHASES.map((label, index) => <Pressable key={label} accessibilityRole="tab" accessibilityState={{ selected: phase === index }}
-            onPress={() => setPhase(index)} style={{ flex: 1, minHeight: 44, backgroundColor: colors.surface, borderWidth: 1, borderColor: phase === index ? colors.ink : colors.line, borderRadius: 10, justifyContent: 'center', padding: spacing.sm }}>
-            <Text style={{ color: colors.ink, fontWeight: phase === index ? '700' : '400', textAlign: 'center' }}>{label}</Text>
-          </Pressable>)}
+  const isPicked = (id: string) => state.documents.some((item) => item.id === id);
+  const lead = event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : 'ยังไม่ระบุ';
+  const others = event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => `${person.user.firstName} ${person.user.lastName}`) ?? [];
+  const savedToServer = workspace.version > 0 && !stale && JSON.stringify(workspace.state) === JSON.stringify(state);
+  return <SafeAreaView style={styles.screen}>
+    <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ ...pageContent, paddingTop: spacing.sm, gap: spacing.sm, paddingBottom: spacing.xl + keyboardHeight }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
+        {back}
+        <View style={{ flex: 1, minWidth: 0, gap: spacing.xs, paddingTop: spacing.xs }}>
+          <Text accessibilityRole="header" style={styles.title}>{event.title}</Text>
+          <Text style={styles.when}>{thDateLong(event.startAt)} · {thTime(event.startAt)}</Text>
+          <Text style={styles.meta}>{[event.case?.ownRef, event.courtName ?? event.case?.courtName].filter(Boolean).join(' · ')}</Text>
+          {done && <View style={{ alignSelf: 'flex-start' }}><Tag tone="ok">ยืนยันผลแล้ว</Tag></View>}
         </View>
-      </Card>
-      <Card style={{ gap: spacing.sm }}>
-        {court.isError && <ErrorNote message="โหลดข้อมูลล่าสุดไม่ได้ แสดงข้อมูลที่เก็บไว้" onRetry={() => court.refetch()} />}
-        {stale && !done && <><ErrorNote message="มีข้อมูลใหม่ในระบบ ร่างในเครื่องยังอยู่ กรุณาตรวจข้อมูลล่าสุดก่อนบันทึก" /><Button title="โหลดข้อมูลล่าสุด" ghost onPress={reload} disabled={busy} /></>}
+      </View>
+      <View accessibilityRole="tablist" style={styles.track}>
+        {PHASES.map((label, index) => <Pressable key={label} accessibilityRole="tab" accessibilityState={{ selected: phase === index }}
+          onPress={() => setPhase(index)}
+          style={({ pressed }) => [styles.phase, phase === index ? styles.phaseOn : pressed && { backgroundColor: colors.soft }]}>
+          <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.phaseText, phase === index && styles.phaseTextOn]}>{label}</Text>
+        </Pressable>)}
+      </View>
+      {court.isError && <InlineError message="โหลดข้อมูลล่าสุดไม่ได้ แสดงข้อมูลที่เก็บไว้" onRetry={() => court.refetch()} />}
+      {stale && !done && <>
+        <InlineError message="มีข้อมูลใหม่ในระบบ ร่างในเครื่องยังอยู่ กรุณาตรวจข้อมูลล่าสุดก่อนบันทึก" />
+        <Button title="โหลดข้อมูลล่าสุด" variant="secondary" onPress={reload} disabled={busy} />
+      </>}
+      {phase === 0 ? <>
         <SectionLabel style={formLabelSpacing}>ใครไปด้วย</SectionLabel>
-        <Text style={{ color: colors.ink }}>หลัก: {event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : 'ยังไม่ระบุ'}</Text>
-        <Text style={{ color: colors.muted }}>ร่วม: {event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => `${person.user.firstName} ${person.user.lastName}`).join(', ') || 'ไม่มี'}</Text>
-        <Button title="ดู / จัดทีมที่ไปด้วย" ghost onPress={() => router.push(`/event/${eventId}/team`)} disabled={busy} />
-        {phase === 0 && <>
-          <SectionLabel style={formLabelSpacing}>เตรียมก่อนเดินทาง</SectionLabel>
-          {state.checklist.map((item) => <Pressable key={item.id} accessibilityRole="checkbox" accessibilityState={{ checked: item.done, disabled: !editable }}
-            disabled={!editable} onPress={() => change({ checklist: state.checklist.map((row) => row.id === item.id ? { ...row, done: !row.done } : row) })}
-            style={{ minHeight: 48, justifyContent: 'center', backgroundColor: colors.surface, padding: spacing.md, borderRadius: 10 }}>
-            <Text style={{ color: colors.ink }}>{item.done ? '✓' : '○'} {item.title}</Text>
-          </Pressable>)}
-          <SectionLabel style={formLabelSpacing}>เอกสารคดี · เลือกฉบับที่จะใช้</SectionLabel>
-          {documents.isError && <ErrorNote message="โหลดเอกสารไม่ได้" onRetry={() => documents.refetch()} />}
-          {documents.data?.map((doc) => <View key={doc.id} style={{ padding: spacing.md, backgroundColor: colors.surface, borderRadius: 10, gap: spacing.sm }}>
-            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: state.documents.some((item) => item.id === doc.id) }} disabled={!editable}
-              onPress={() => change({ documents: state.documents.some((item) => item.id === doc.id) ? state.documents.filter((item) => item.id !== doc.id) : [...state.documents, { id: doc.id, version: doc.version }] })} style={{ minHeight: 44 }}>
-              <Text style={{ color: colors.ink }}>{state.documents.some((item) => item.id === doc.id) ? '✓ ' : '○ '}{doc.filename} · ฉบับ {doc.version}</Text>
-            </Pressable>
-            <Button title="เปิดเอกสาร" ghost disabled={!!opening} busy={opening === doc.id} onPress={async () => {
+        <Card style={styles.listCard}>
+          <View style={styles.teamRow}><Text style={styles.teamLabel}>หลัก:</Text><Text style={[styles.teamValue, { fontWeight: '600' }]}>{lead}</Text></View>
+          <View style={[styles.teamRow, styles.teamRule]}><Text style={styles.teamLabel}>ร่วม:</Text><Text style={[styles.teamValue, !others.length && { color: colors.muted }]}>{others.join(', ') || 'ไม่มี'}</Text></View>
+          <View style={styles.teamRule}><Button title="จัดทีมที่ไปด้วย" variant="link" onPress={() => router.push(`/event/${eventId}/team`)} disabled={busy} /></View>
+        </Card>
+        <SectionLabel style={formLabelSpacing}>เตรียมก่อนเดินทาง</SectionLabel>
+        {state.checklist.length > 0 && <Card style={styles.listCard}>
+          {state.checklist.map((item, index) => <View key={item.id} style={index > 0 && styles.rule}><CheckRow label={item.title} checked={item.done} disabled={!editable}
+            onChange={() => change({ checklist: state.checklist.map((row) => row.id === item.id ? { ...row, done: !row.done } : row) })} /></View>)}
+        </Card>}
+        <SectionLabel style={formLabelSpacing}>เอกสารคดี · เลือกฉบับที่จะใช้</SectionLabel>
+        {documents.isLoading && <LoadingState inline label="กำลังโหลดเอกสาร…" />}
+        {documents.isError && <InlineError message="โหลดเอกสารไม่ได้" onRetry={() => documents.refetch()} />}
+        {!!documents.data?.length && <Card style={styles.listCard}>
+        {documents.data.map((doc, index) => <View key={doc.id} style={[styles.docRow, index > 0 && styles.rule]}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <CheckRow label={doc.filename} detail={`ฉบับ ${doc.version}`} checked={isPicked(doc.id)} disabled={!editable}
+              onChange={() => change({ documents: isPicked(doc.id) ? state.documents.filter((item) => item.id !== doc.id) : [...state.documents, { id: doc.id, version: doc.version }] })} />
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`เปิดเอกสาร ${doc.filename}`} accessibilityState={{ busy: opening === doc.id, disabled: !!opening }}
+            disabled={!!opening} onPress={async () => {
               setOpening(doc.id);
               try { await openCaseDocument(event.caseId, doc.id, doc.filename); }
               catch (error) { Alert.alert('เปิดไม่ได้', error instanceof Error ? error.message : 'ลองใหม่'); }
               finally { setOpening(''); }
-            }} />
-          </View>)}
-          {!documents.isLoading && !documents.isError && !documents.data?.length && <Text style={{ color: colors.muted }}>ยังไม่มีเอกสารในคดี</Text>}
-          <Button title="ดูแฟ้มคดี / เอกสารทั้งหมด" ghost onPress={() => router.push(`/case/${event.caseId}?section=documents`)} />
+            }} style={({ pressed }) => [{ width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' }, (pressed || opening === doc.id) && { opacity: 0.5 }]}>
+            <ExternalLink size={20} color={colors.info} />
+          </Pressable>
+        </View>)}
+        </Card>}
+        {!documents.isLoading && !documents.isError && !documents.data?.length && <EmptyState compact>ยังไม่มีเอกสารในคดี</EmptyState>}
+        <Button title="เปิดแฟ้มคดี · เอกสารทั้งหมด" variant="link" onPress={() => router.push(`/case/${event.caseId}?section=documents`)} />
+      </> : <Text style={styles.status}>ไปด้วย: {lead}{others.length ? ` และอีก ${others.length} คน` : ''}</Text>}
+      {phase !== 0 && <>
+        <TextArea label={phase === 1 ? 'จดสั้นที่ศาล' : 'บันทึกรายละเอียด'} disabled={!editable} maxLength={10000}
+          placeholder="จดสิ่งสำคัญไว้ก่อน เช่น ศาลสั่งอะไร ต้องส่งเอกสารอะไร" value={state.notes} onChange={(notes) => change({ notes })} />
+        <TextArea label="ผลนัด" required hint="เติมภายหลังได้ · ต้องกรอกก่อนยืนยันผล" disabled={!editable} maxLength={10000}
+          placeholder="ผลที่เกิดขึ้นในนัดนี้" value={state.outcome} onChange={(outcome) => change({ outcome })} error={shown('outcome')} />
+        <Button title="เก็บใบเสร็จ / ค่าใช้จ่ายของคดีนี้" variant="link" disabled={busy}
+          onPress={() => router.push({ pathname: '/expenses/new', params: { caseId: event.caseId, caseLabel: event.case?.ownRef, eventId } })} />
+      </>}
+      {phase === 2 && <>
+        <SectionLabel style={formLabelSpacing}>สิ่งที่สร้างต่อเมื่อยืนยันผล</SectionLabel>
+        <SwitchRow label="มีนัดครั้งหน้า" value={state.nextHearing} onValueChange={(nextHearing) => change({ nextHearing })} disabled={!editable} />
+        {state.nextHearing && <>
+          <TextField label="ชื่อนัดครั้งหน้า" required value={state.nextTitle} maxLength={200} disabled={!editable}
+            onChange={(nextTitle) => change({ nextTitle })} error={shown('nextTitle')} />
+          {nextAtField(state.nextAt, (nextAt) => change({ nextAt }), shown('nextAt'))}
         </>}
-        {phase !== 0 && <>
-          <SectionLabel style={formLabelSpacing}>{phase === 1 ? 'จดสั้นที่ศาล' : 'บันทึกรายละเอียด'}</SectionLabel>
-          <TextInput accessibilityLabel="บันทึกระหว่างนัด" style={[input, { minHeight: phase === 1 ? 100 : 160, textAlignVertical: 'top' }]} multiline editable={editable}
-            placeholder="จดสิ่งสำคัญไว้ก่อน เช่น ศาลสั่งอะไร ต้องส่งเอกสารอะไร" maxLength={10000} value={state.notes} onChangeText={(notes) => change({ notes })} />
-          <SectionLabel style={formLabelSpacing}>ผลนัด · เติมภายหลังได้</SectionLabel>
-          <TextInput accessibilityLabel="ผลนัด" style={[input, { minHeight: 100, textAlignVertical: 'top' }]} multiline editable={editable}
-            placeholder="ผลที่เกิดขึ้นในนัดนี้" maxLength={10000} value={state.outcome} onChangeText={(outcome) => change({ outcome })} />
-          <Button title="เก็บใบเสร็จ / ค่าใช้จ่ายของคดีนี้" ghost onPress={() => router.push({ pathname: '/expenses/new', params: { caseId: event.caseId, caseLabel: event.case?.ownRef, eventId } })} disabled={busy} />
+        <SwitchRow label="สร้างงานที่ต้องทำต่อให้ฉัน" value={state.followUp} onValueChange={(followUp) => change({ followUp })} disabled={!editable} />
+        {state.followUp && <>
+          <TextField label="งานที่ต้องทำต่อ" required maxLength={200} disabled={!editable} value={state.taskTitle}
+            onChange={(taskTitle) => change({ taskTitle })} error={shown('taskTitle')} />
+          {editable ? <DateField label="กำหนดส่ง · ถ้ามี" value={state.taskDue ? bangkokDay(state.taskDue) : ''}
+            onChange={(day) => change({ taskDue: new Date(`${day}T${state.taskDue ? thTime(state.taskDue) : '09:00'}:00+07:00`).toISOString() })} onClear={() => change({ taskDue: '' })} />
+            : <Text style={styles.status}>กำหนดส่ง: {state.taskDue ? thDateLong(state.taskDue) : 'ไม่ระบุ'}</Text>}
         </>}
-        {phase === 2 && <>
-          {toggle('มีนัดครั้งหน้า', state.nextHearing, (nextHearing) => change({ nextHearing }))}
-          {state.nextHearing && <>
-            <TextInput style={input} accessibilityLabel="ชื่อนัดครั้งหน้า" placeholder="ชื่อนัดครั้งหน้า" value={state.nextTitle} maxLength={200} editable={editable} onChangeText={(nextTitle) => change({ nextTitle })} />
-            {timestamp(state.nextAt, (nextAt) => change({ nextAt }))}
-          </>}
-          {toggle('สร้างงานที่ต้องทำต่อให้ฉัน', state.followUp, (followUp) => change({ followUp }))}
-          {state.followUp && <>
-            <TextInput style={input} accessibilityLabel="งานที่ต้องทำต่อ" placeholder="งานที่ต้องทำต่อ" maxLength={200} editable={editable} value={state.taskTitle} onChangeText={(taskTitle) => change({ taskTitle })} />
-            <SectionLabel style={formLabelSpacing}>กำหนดส่ง · ไม่บังคับ</SectionLabel>
-            {timestamp(state.taskDue, (taskDue) => change({ taskDue }), false)}
-          </>}
-          {state.expense && <>
-            {toggle('บันทึกค่าใช้จ่ายพร้อมผลนัด', state.expense, (expense) => change({ expense }))}
-            <Dropdown label="เบิกค่าอะไร" value={state.expenseCategory ?? ''} options={EXPENSE_CATEGORIES.map((value) => ({ value, label: value }))}
-              onChange={(expenseCategory) => change({ expenseCategory })} disabled={!editable} />
-            <TextInput style={input} accessibilityLabel="ยอดค่าใช้จ่าย" value={formatMoneyInput(state.amount) ?? state.amount} editable={editable} keyboardType="decimal-pad" onChangeText={(amount) => {
+        {/* Expenses are recorded through "เก็บใบเสร็จ"; this switch only lets older drafts that turned it on keep or drop it. */}
+        {state.expense && <>
+          <SwitchRow label="บันทึกค่าใช้จ่ายพร้อมผลนัด" value={state.expense} onValueChange={(expense) => change({ expense })} disabled={!editable} />
+          <SelectField label="เบิกค่าอะไร" required value={state.expenseCategory ?? ''} options={EXPENSE_CATEGORIES.map((value) => ({ value, label: value }))}
+            onChange={(expenseCategory) => change({ expenseCategory })} disabled={!editable} error={shown('expenseCategory')} />
+          <TextField label="ยอดเงิน (บาท)" required value={formatMoneyInput(state.amount) ?? state.amount} disabled={!editable} keyboardType="decimal-pad"
+            error={shown('amount')} onChange={(amount) => {
               const formatted = formatMoneyInput(amount);
               if (formatted !== null) change({ amount: formatted.replace(/,/g, '') });
             }} />
-          </>}
-          {toggle('สร้างร่างรายงานลูกความ · ยังไม่ส่ง', state.clientDraft, (clientDraft) => change({ clientDraft, draftRecipientKind: 'CLIENT', draftCustomerId: '' }))}
-          {writer && !done && <Button title="ตรวจทานและยืนยันผลนัด" onPress={review} busy={busy} disabled={stale || court.isError || court.isFetching} />}
         </>}
-        {!done && <>
-          <Text style={{ color: localStatus.includes('ไม่สำเร็จ') ? colors.warn : colors.muted }}>{workspace.version > 0 && !stale && JSON.stringify(workspace.state) === JSON.stringify(state) ? 'บันทึกร่างเข้าระบบแล้ว · ยังไม่ยืนยันผล' : localStatus}</Text>
-          <Button title="เก็บร่างในเครื่อง" ghost onPress={() => saveDraft(key, draft).then(() => setLocalStatus('เก็บร่างในเครื่องแล้ว · เติมต่อภายหลังได้')).catch(() => setLocalStatus('เก็บร่างในเครื่องไม่สำเร็จ'))} disabled={busy} />
-          {writer && <Button title="บันทึกร่างเข้าระบบ · ยังไม่ยืนยันผล" onPress={() => sync().catch((error) => Alert.alert('บันทึกไม่สำเร็จ', error.message))}
-            busy={busy} disabled={stale || court.isError || court.isFetching} />}
+        <SwitchRow label="สร้างร่างรายงานลูกความ" detail="ยังไม่ส่ง · ตรวจก่อนส่งได้" value={state.clientDraft} disabled={!editable}
+          onValueChange={(clientDraft) => change({ clientDraft, draftRecipientKind: 'CLIENT', draftCustomerId: '' })} />
+        {writer && !done && !reviewing && <>
+          {triedConfirm && <MissingSummary items={missing.map((field) => FIELD_NAME[field])} />}
+          <Button title="ตรวจทานและยืนยันผลนัด" onPress={review} busy={busy} disabled={stale || court.isError || court.isFetching} />
         </>}
-      </Card>
+        {writer && !done && reviewing && <Card style={styles.reviewCard}>
+          <Text accessibilityRole="header" style={styles.reviewTitle}>ตรวจทานก่อนยืนยันผลนัด</Text>
+          <View>{summary.map((line) => <Text key={line} style={styles.reviewLine}>{line}</Text>)}</View>
+          <Button title="ยืนยันผลนัด" onPress={record} busy={busy} disabled={stale || court.isError || court.isFetching} />
+          <Button title="กลับไปแก้" variant="secondary" onPress={() => setReviewing(false)} disabled={busy} />
+        </Card>}
+        <InlineError message={submitError || undefined} />
+      </>}
+      {!done && <View style={{ gap: spacing.xs, marginTop: spacing.md }}>
+        {!savedToServer && localStatus.includes('ไม่สำเร็จ')
+          ? <InlineError message={localStatus} />
+          : <Text accessibilityLiveRegion="polite" style={styles.status}>
+            {savedToServer ? 'บันทึกร่างเข้าระบบแล้ว · ยังไม่ยืนยันผล' : localStatus}
+          </Text>}
+        {writer && <Button title="บันทึกร่างเข้าระบบ · ยังไม่ยืนยันผล" variant="secondary"
+          onPress={() => { setSubmitError(''); sync().catch((error) => setSubmitError(`บันทึกไม่สำเร็จ · ${error instanceof Error ? error.message : 'ลองใหม่อีกครั้ง'}`)); }}
+          busy={save.isPending && !complete.isPending} disabled={busy || stale || court.isError || court.isFetching} />}
+        {phase !== 2 && submitError ? <InlineError message={submitError} /> : null}
+      </View>}
     </ScrollView>
   </SafeAreaView>;
 }

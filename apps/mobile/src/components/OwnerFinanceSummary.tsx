@@ -4,11 +4,14 @@ import { ChevronRight } from 'lucide-react-native';
 import type { OwnerFinance } from '@/api/types';
 import { Text } from './AppText';
 import { formatMoney } from '@/format';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing, typeScale } from '@/theme';
 
 export type FinanceView = 'receivables' | 'received' | 'billed' | 'unbilled' | 'payable';
 
-/** Each card is the link to its list; a zero month reads "ไม่มียอด" instead of a bold 0. */
+/**
+ * Each tile is the link to its list; a zero month reads "ไม่มียอด" instead of a bold 0.
+ * Tiles are sunken wells because they sit inside the raised "เงินสำนักงาน" card.
+ */
 export function OwnerFinanceSummary({ data, onOpen }: { data?: OwnerFinance; onOpen: (view: FinanceView) => void }) {
   const items = [
     { view: 'received', key: 'received', label: 'เงินรับแล้ว', hint: `${data?.month ?? 'เดือนนี้'} · บันทึกรับเงินจริง` },
@@ -30,10 +33,11 @@ export function OwnerFinanceSummary({ data, onOpen }: { data?: OwnerFinance; onO
 
 const styles = StyleSheet.create({
   grid: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  card: { width: '48%', flexGrow: 1, minWidth: 140, gap: spacing.xs, padding: spacing.md, borderWidth: 1, borderColor: colors.line,
-    borderRadius: radius.card, backgroundColor: colors.surface },
+  card: { width: '48%', flexGrow: 1, minWidth: 140, minHeight: 96, gap: spacing.xs, padding: spacing.md, borderWidth: 1, borderColor: colors.line,
+    borderRadius: radius.md, backgroundColor: colors.sunken },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  label: { flex: 1, color: colors.muted, fontSize: 13, fontWeight: '600' },
-  amount: { fontSize: 22, color: colors.ink, fontFamily: fonts.bold, fontVariant: ['tabular-nums'] },
-  hint: { color: colors.muted, fontSize: 12 },
+  label: { flex: 1, ...typeScale.overline, color: colors.muted },
+  // Money strings are longer than counts, so they sit one step under typeScale.stat.
+  amount: { fontSize: 24, lineHeight: 34, color: colors.ink, fontFamily: fonts.bold, fontVariant: ['tabular-nums'] },
+  hint: { color: colors.muted, fontSize: 12, lineHeight: 18 },
 });

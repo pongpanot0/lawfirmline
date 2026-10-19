@@ -1,78 +1,171 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { canAssignFirmRole, FirmRole, hasFirmCapability, HEAVY_DAY_POINTS, type PersonWorkload, type TeamRadar } from '@lawfirm/shared';
+import { ChevronRight } from 'lucide-react-native';
+import { canAssignFirmRole, FirmRole, hasFirmCapability, HEAVY_DAY_POINTS, type PersonWorkload, type TeamRadar, type TeamRadarDay } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { Text } from '@/components/AppText';
-import { Button, Card, EmptyNote, ErrorNote, Loading, PageIntro, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, FilterTabs, InlineError, LoadingState, PageIntro, Tag } from '@/components/ui';
 import { DatePicker } from '@/components/DatePicker';
+import { Disclosure } from '@/components/Disclosure';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import type { TaskItem } from '@/api/types';
-import { bangkokDay } from '@/format';
-import { colors, pageContent, spacing } from '@/theme';
+import { bangkokDay, initials, thDate, thTime } from '@/format';
+import { CHROME_MAX_SCALE, colors, pageContent, radius, spacing, typeScale } from '@/theme';
+
+const TH_DOW_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+/** A calendar day (YYYY-MM-DD) read on the Bangkok wall clock. */
+const noonOf = (day: string) => `${day}T12:00:00+07:00`;
+
+/** Seven days in one compact row: weekday, date, and only the marks that matter (ลา, งานแน่น, ศาล). */
+function WeekStrip({ days }: { days: TeamRadarDay[] }) {
+  return <View style={styles.strip}>
+    {days.map(day => {
+      const date = new Date(noonOf(day.date));
+      const heavy = day.points >= HEAVY_DAY_POINTS;
+      const load = day.taskCount + day.eventCount;
+      const label = `${thDate(noonOf(day.date))}${day.onLeave ? ' ลา' : ''}${heavy ? ' งานแน่น' : ''} · งาน ${day.taskCount} · นัด ${day.eventCount}${day.courtCount ? ` · ศาล ${day.courtCount}` : ''} · ภาระ ${day.points} คะแนน`;
+      return <View key={day.date} accessible accessibilityLabel={label}
+        style={[styles.day, day.onLeave && { backgroundColor: colors.warnSoft }, heavy && { borderColor: colors.warn }]}>
+        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.dayDow}>{TH_DOW_SHORT[(date.getUTCDay())]}</Text>
+        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.dayNum}>{Number(day.date.slice(8, 10))}</Text>
+        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.dayMark, day.onLeave || heavy ? { color: colors.warn } : null]}>
+          {day.onLeave ? 'ลา' : heavy ? 'แน่น' : load ? String(load) : '·'}
+        </Text>
+        {day.courtCount > 0 ? <View style={styles.courtDot} /> : null}
+      </View>;
+    })}
+  </View>;
+}
 
 export default function TeamWeek() {
   const { date } = useLocalSearchParams<{ date?: string }>();
   const { user } = useAuth();
   const router = useRouter();
-  const [start, setStart] = useState(date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : bangkokDay(new Date().toISOString()));
+  const pickedDate = !!date && /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const [start, setStart] = useState(pickedDate ? date! : bangkokDay(new Date().toISOString()));
   const [person, setPerson] = useState('');
   const owner = hasFirmCapability(user?.firmRole, 'runOperations');
   const canView = owner || user?.firmRole === 'SENIOR_LAWYER';
-  const [lightFirst, setLightFirst] = useState(false);
+  // Opened from add-task with a date: the question is "who can take this", so the lightest load comes first.
+  const [lightFirst, setLightFirst] = useState(pickedDate);
   const [moving, setMoving] = useState<TaskItem | null>(null), [opening, setOpening] = useState('');
+  const [moveError, setMoveError] = useState<{ taskId: string; message: string } | null>(null);
   const radar = useQuery({ queryKey: ['team-radar', start], enabled: canView, queryFn: () => api<TeamRadar>(`/operations/radar?date=${start}`) });
   const detail = useQuery({ queryKey: ['person-workload', person, start], enabled: canView && !!person,
     queryFn: () => api<PersonWorkload>(`/operations/people/${person}?from=${start}`) });
   useFocusEffect(useCallback(() => {
     if (canView) { void radar.refetch(); if (person) void detail.refetch(); }
   }, [canView, start, person, radar.refetch, detail.refetch]));
-  if (!canView) return <EmptyNote>หน้านี้สำหรับ Owner ผู้จัดการสำนักงาน และ Senior</EmptyNote>;
+  if (!canView) return <View style={{ flex: 1, backgroundColor: colors.bg, padding: spacing.lg }}><EmptyState>หน้านี้สำหรับ Owner ผู้จัดการสำนักงาน และ Senior</EmptyState></View>;
   const members = [...(radar.data?.members ?? [])].sort((a, b) => (lightFirst ? 1 : -1) * (a.openPoints - b.openPoints || a.reviewCount - b.reviewCount));
+  const openMove = async (taskId: string) => {
+    setOpening(taskId); setMoveError(null);
+    try { setMoving(await api<TaskItem>(`/tasks/${taskId}`)); }
+    catch (error) { setMoveError({ taskId, message: `เปิดงานเพื่อย้ายไม่ได้ · ${error instanceof Error ? error.message : 'ลองโหลดล่าสุด'}` }); }
+    finally { setOpening(''); }
+  };
   return <><ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={pageContent}
-    refreshControl={<RefreshControl refreshing={radar.isFetching} onRefresh={() => { void radar.refetch(); if (person) void detail.refetch(); }} />}>
+    refreshControl={<RefreshControl refreshing={radar.isRefetching} onRefresh={() => { void radar.refetch(); if (person) void detail.refetch(); }} />}>
     <Stack.Screen options={{ title: 'ภาระงานทีม 7 วัน' }} />
-    <PageIntro title="เทียบภาระงาน 7 วัน" detail="ดูงาน นัด และวันลาก่อนเลือกคนรับงาน" />
-    <SectionLabel>เริ่มดูตั้งแต่วันที่</SectionLabel>
-    <DatePicker value={start} onChange={value => { setStart(value); setPerson(''); }} />
-    <Text style={{ color: colors.faint }}>เลื่อนแถววันที่ซ้ายขวาเพื่อดูครบ 7 วัน · เทียบวันลา นัดหมาย และงานที่ลงวันไว้ · คะแนนงานไม่ได้บอกชั่วโมงว่าง</Text>
-    <Button title={lightFirst ? 'เรียงภาระมากก่อน เพื่อดูงานที่ควรช่วย' : 'เรียงภาระน้อยก่อน เพื่อเทียบผู้รับงาน'} ghost onPress={() => setLightFirst(!lightFirst)} />
-    {radar.isLoading && <Loading />}
-    {radar.isError && <ErrorNote message="ตรวจภาระงานล่าสุดไม่ได้ ลองโหลดใหม่ก่อนมอบหมาย" onRetry={() => radar.refetch()} />}
-    {members.map(member => <Card key={member.userId} style={{ gap: spacing.sm, marginTop: spacing.md }}>
-      <Button title={`${member.firstName} ${member.lastName} ›`} ghost onPress={() => router.push({ pathname: '/person/[id]', params: { id: member.userId, from: start } })} />
-      <Text>งานเปิด {member.openCount} · ภาระคิว {member.openPoints} คะแนน · เกินกำหนด {member.overdueCount} · รอตรวจ {member.reviewCount} · ยังไม่ลงวัน {member.unscheduledCount}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator>
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {member.days.map(day => <View key={day.date} style={{ width: 112, padding: spacing.sm, borderRadius: 8, backgroundColor: day.onLeave ? colors.warnSoft : colors.soft, gap: 4 }}>
-            <Text style={{ fontWeight: '700' }}>{new Date(`${day.date}T12:00:00+07:00`).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })}</Text>
-            {day.onLeave && <Tag tone="due">ลา</Tag>}
-            {day.points >= HEAVY_DAY_POINTS && <Tag tone="due">งานแน่น</Tag>}
-            <Text>งาน {day.taskCount}</Text><Text>ศาล {day.courtCount ?? '—'}</Text><Text>นัดรวม {day.eventCount}</Text><Text>ภาระ {day.points} คะแนน</Text>
-          </View>)}
-        </View>
-      </ScrollView>
-      <Button title={person === member.userId ? 'ย่อรายละเอียดรายคน' : `ดูงานและนัดของ ${member.firstName}`} ghost onPress={() => setPerson(person === member.userId ? '' : member.userId)} />
-      {person === member.userId && <>
-        {detail.isLoading && <Loading />}
-        {detail.isError && <ErrorNote message="โหลดรายละเอียดไม่ได้" onRetry={() => detail.refetch()} />}
-        {detail.data?.events.map(event => <Text key={event.id}>{bangkokDay(event.startAt)} · {event.title}{event.courtName ? ` · ${event.courtName}` : ''}</Text>)}
-        {detail.data?.tasks.map(task => <View key={task.id} style={{ gap: spacing.sm }}>
-          {(owner || !!task.case || person === user?.id) ? <Button title={`${task.scheduledFor ? task.scheduledFor : task.dueDate ? bangkokDay(task.dueDate) : 'ยังไม่ลงวัน'} · ${task.title}`} ghost onPress={() => router.push({ pathname: '/task/new', params: { id: task.id } })} /> : <Text>{task.title}</Text>}
-          {!!task.holdReason && <Text style={{ color: colors.warn }}>ติด: {task.holdReason}</Text>}
-          {task.overdue && <Tag tone="due">เกินกำหนด · พิจารณาช่วยหรือย้ายงาน</Tag>}
-          {owner && <Button title={`เทียบคน / ย้ายงาน ${task.title}`} ghost busy={opening === task.id} disabled={!!opening || detail.isError || detail.isFetching} onPress={async () => {
-            setOpening(task.id);
-            try { setMoving(await api<TaskItem>(`/tasks/${task.id}`)); }
-            catch (error) { Alert.alert('เปิดงานเพื่อย้ายไม่ได้', error instanceof Error ? error.message : 'ลองโหลดล่าสุด'); }
-            finally { setOpening(''); }
-          }} />}
-        </View>)}
-        {owner && (member.userId === user?.id || canAssignFirmRole(user!.firmRole as FirmRole, member.role as FirmRole)) && <Button title={`มอบหมายงานให้ ${member.firstName}`} onPress={() => router.push({ pathname: '/task/new', params: { assigneeId: member.userId } })} />}
-      </>}
-    </Card>)}
-    {radar.data?.members.length === 0 && <EmptyNote>ยังไม่มีสมาชิกทีม</EmptyNote>}
+    <PageIntro detailOnly title="ภาระงานทีม 7 วัน" detail="ดูงาน นัด และวันลาก่อนเลือกคนรับงาน · คะแนนงานไม่ได้บอกชั่วโมงว่าง" />
+    <DatePicker label="เริ่มดูตั้งแต่วันที่" value={start} onChange={value => { setStart(value); setPerson(''); }} />
+    <FilterTabs items={[{ value: 'heavy', label: 'ภาระมากก่อน' }, { value: 'light', label: 'ภาระน้อยก่อน' }]}
+      value={lightFirst ? 'light' : 'heavy'} onChange={value => setLightFirst(value === 'light')} />
+    <Text style={styles.legend}>ตัวเลขใต้วันที่ = งานและนัดของวันนั้น · จุดสีทอง = มีนัดศาล</Text>
+    {radar.isLoading && <LoadingState label="กำลังตรวจภาระงานทีม…" />}
+    {radar.isError && <ErrorState message="ตรวจภาระงานล่าสุดไม่ได้ ลองโหลดใหม่ก่อนมอบหมาย" onRetry={() => radar.refetch()} style={{ marginTop: spacing.md }} />}
+    {members.map(member => {
+      const name = `${member.firstName} ${member.lastName}`;
+      const facts = [
+        `งานเปิด ${member.openCount}`,
+        ...(member.openPoints ? [`ภาระ ${member.openPoints} คะแนน`] : []),
+        ...(member.reviewCount ? [`รอตรวจ ${member.reviewCount}`] : []),
+        ...(member.unscheduledCount ? [`ยังไม่ลงวัน ${member.unscheduledCount}`] : []),
+      ].join(' · ');
+      const expanded = person === member.userId;
+      const canAssign = owner && (member.userId === user?.id || canAssignFirmRole(user!.firmRole as FirmRole, member.role as FirmRole));
+      return <Card key={member.userId} style={{ gap: spacing.sm, marginTop: spacing.md }}>
+        {/* Identity row: the person's page is one tap on their name. */}
+        <Pressable accessibilityRole="button" accessibilityLabel={`ดูรายละเอียด ${name} · ${facts}${member.overdueCount ? ` · เกินกำหนด ${member.overdueCount}` : ''}`}
+          onPress={() => router.push({ pathname: '/person/[id]', params: { id: member.userId, from: start } })}
+          style={({ pressed }) => [styles.identity, pressed && { opacity: 0.7 }]}>
+          <View style={styles.avatar}><Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.avatarText}>{initials(name)}</Text></View>
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <Text style={styles.name}>{name}</Text>
+            <Text style={styles.meta}>{facts}</Text>
+          </View>
+          {member.overdueCount > 0 && <Tag tone="due">{`เกินกำหนด ${member.overdueCount}`}</Tag>}
+          <ChevronRight size={18} color={colors.faint} />
+        </Pressable>
+        <WeekStrip days={member.days} />
+        <Disclosure variant="plain" title={`งานและนัดของ ${member.firstName}`} summary={expanded ? undefined : 'ดูงานรายชิ้น ย้ายงาน หรือมอบหมายเพิ่ม'}
+          open={expanded} onToggle={open => setPerson(open ? member.userId : '')}>
+          {expanded && <>
+            {detail.isLoading && <LoadingState inline label="กำลังโหลดรายละเอียด…" />}
+            {detail.isError && <InlineError message="โหลดรายละเอียดไม่ได้" onRetry={() => detail.refetch()} />}
+            {detail.data && !detail.data.events.length && !detail.data.tasks.length && <EmptyState compact>ไม่มีงานหรือนัดในช่วงนี้</EmptyState>}
+            {!!detail.data?.events.length && <Text accessibilityRole="header" style={styles.subhead}>นัดหมาย</Text>}
+            {detail.data?.events.map(event => <Text key={event.id} style={styles.eventLine}>
+              {thDate(event.startAt)} {thTime(event.startAt)} · {event.title}{event.courtName ? ` · ${event.courtName}` : ''}
+            </Text>)}
+            {!!detail.data?.tasks.length && <Text accessibilityRole="header" style={styles.subhead}>งาน</Text>}
+            {detail.data?.tasks.map(task => {
+              const when = task.scheduledFor ? thDate(noonOf(task.scheduledFor)) : task.dueDate ? `กำหนด ${thDate(task.dueDate)}` : 'ยังไม่ลงวัน';
+              const openable = owner || !!task.case || person === user?.id;
+              const body = <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Text style={styles.taskTitle}>{task.title}</Text>
+                <Text style={[styles.meta, task.overdue && { color: colors.warn }]}>{task.overdue ? `เกินกำหนด · ${when}` : when}</Text>
+                {!!task.holdReason && <Text style={{ color: colors.warn, fontSize: 13 }}>ติด: {task.holdReason}</Text>}
+              </View>;
+              return <View key={task.id} style={styles.taskRow}>
+                {openable
+                  ? <Pressable accessibilityRole="button" accessibilityLabel={`เปิดงาน ${task.title} · ${when}`}
+                    onPress={() => router.push({ pathname: '/task/new', params: { id: task.id } })}
+                    style={({ pressed }) => [styles.taskOpen, pressed && { opacity: 0.7 }]}>
+                    {body}<ChevronRight size={18} color={colors.faint} />
+                  </Pressable>
+                  : <View style={styles.taskOpen}>{body}</View>}
+                {owner && <Pressable accessibilityRole="button" accessibilityLabel={`เทียบคนและย้ายงาน ${task.title}`}
+                  disabled={!!opening || detail.isError || detail.isFetching} onPress={() => void openMove(task.id)}
+                  style={({ pressed }) => [styles.move, (!!opening || detail.isFetching) && { opacity: 0.5 }, pressed && { backgroundColor: colors.soft }]}>
+                  <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.moveText}>{opening === task.id ? '…' : 'ย้าย'}</Text>
+                </Pressable>}
+                {moveError?.taskId === task.id ? <View style={{ width: '100%', paddingBottom: spacing.sm }}><InlineError message={moveError.message} /></View> : null}
+              </View>;
+            })}
+            {canAssign && <Button variant="link" title={`มอบหมายงานให้ ${member.firstName}`}
+              onPress={() => router.push({ pathname: '/task/new', params: { assigneeId: member.userId } })} />}
+          </>}
+        </Disclosure>
+      </Card>;
+    })}
+    {radar.data?.members.length === 0 && <EmptyState>ยังไม่มีสมาชิกทีม</EmptyState>}
   </ScrollView><ReassignSheet task={moving} caseId={moving?.caseId} onClose={() => { setMoving(null); void radar.refetch(); void detail.refetch(); }} /></>;
 }
+
+const styles = StyleSheet.create({
+  legend: { color: colors.muted, fontSize: 13, lineHeight: 20 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48 },
+  avatar: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: colors.info, fontWeight: '700', fontSize: 13 },
+  name: { color: colors.ink, fontWeight: '700', fontSize: 16 },
+  meta: { color: colors.muted, fontSize: 13 },
+  strip: { flexDirection: 'row', gap: 4 },
+  day: { flex: 1, minWidth: 0, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 1, paddingVertical: spacing.xs,
+    borderRadius: radius.md, backgroundColor: colors.sunken, borderWidth: 1, borderColor: 'transparent' },
+  dayDow: { color: colors.muted, fontSize: 11 },
+  dayNum: { color: colors.ink, fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },
+  dayMark: { color: colors.muted, fontSize: 11, fontWeight: '600' },
+  courtDot: { position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
+  subhead: { ...typeScale.overline, color: colors.muted, marginTop: spacing.md, marginBottom: spacing.xs },
+  eventLine: { color: colors.text, fontSize: 14, lineHeight: 22, paddingVertical: spacing.xs },
+  taskRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
+  taskOpen: { flex: 1, minWidth: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
+  taskTitle: { color: colors.text, fontWeight: '600', fontSize: 14 },
+  move: { minHeight: 44, minWidth: 56, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md,
+    borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.button, backgroundColor: colors.surface },
+  moveText: { color: colors.info, fontWeight: '600' },
+});

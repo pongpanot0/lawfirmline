@@ -13,15 +13,15 @@ import type { TaskItem } from '@/api/types';
 import { openCaseDocument, openTaskAttachment, uploadTaskAttachment } from '@/api/files';
 import { bangkokDay, thDate, thTime } from '@/format';
 import { canReviewTask } from '@/workflow';
-import { CirclePause } from 'lucide-react-native';
-import { colors, fonts, spacing } from '@/theme';
+import { CirclePause, FileText, ListChecks } from 'lucide-react-native';
+import { colors, spacing, typeScale } from '@/theme';
 import { Text } from './AppText';
 import { AttachmentFile, Attachments } from './Attachments';
-import { CheckRow, FormField, FormPage } from './Form';
+import { CheckRow, FormPage, StickyBar } from './Form';
 import { Disclosure } from './Disclosure';
-import { Dropdown } from './Dropdown';
-import { DatePicker } from './DatePicker';
-import { ActionRow, Button, Card, ErrorNote, Loading, SectionLabel, Tag, TASK_STATUS_LABEL, taskStatusTone } from './ui';
+import { DateField, SelectField, TextArea } from './Input';
+import { EmptyState, ErrorState, InlineError, LoadingState } from './States';
+import { ActionRow, Button, Card, SectionLabel, Tag, TASK_STATUS_LABEL, taskStatusTone } from './ui';
 
 /** The task itself is the work surface; editing its metadata remains an optional action. */
 export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => void }) {
@@ -114,24 +114,24 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
   const onHold = !!task.onHold && !task.onHold.endedAt;
   const needsHandoffNote = worker && !!(task.requiresReview || routine || task.caseId || reviewerId) && !(task.assignedAt && !task.acknowledgedAt);
 
-  if (task.status === 'PENDING_REVIEW' && task.caseId && !task.reviewerId && legalCase.isLoading) return <Loading />;
-  if (!draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading />;
+  if (task.status === 'PENDING_REVIEW' && task.caseId && !task.reviewerId && legalCase.isLoading) return <LoadingState />;
+  if (!draft.ready) return draft.error ? <View style={{ padding: spacing.lg }}><ErrorState message={draft.error} onRetry={draft.retry} /></View> : <LoadingState />;
   return <View style={{ flex: 1, backgroundColor: colors.bg }}>
     <Stack.Screen options={{ title: reviewer ? 'ตรวจงาน' : 'ทำงาน' }} />
     <FormPage>
       {!!draft.message && dirty && <Text style={{ color: colors.faint, fontSize: 12 }}>{draft.message}</Text>}
-      {!!draft.warning && <Text style={{ color: colors.warn }}>{draft.warning}</Text>}
-      {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
+      {!!draft.warning && <InlineError message={draft.warning} />}
+      {!!draft.error && <InlineError message={draft.error} onRetry={draft.retry} />}
       <Card style={{ gap: spacing.sm }}>
       <Tag tone={taskStatusTone(task.status)}>{TASK_STATUS_LABEL[task.status] ?? task.status}</Tag>
-      <Text accessibilityRole="header" style={{ color: colors.ink, fontSize: 20, lineHeight: 30, fontFamily: fonts.bold }}>{task.title}</Text>
+      <Text accessibilityRole="header" style={{ ...typeScale.title, color: colors.ink }}>{task.title}</Text>
       {task.dueDate && <Text style={{ color: colors.muted }}>กำหนดส่ง {thDate(task.dueDate)}</Text>}
       {!!task.recurrenceDays && <Text style={{ color: colors.muted, fontSize: 13 }}>ทำซ้ำอีก {task.recurrenceDays} วันหลังปิดรอบนี้</Text>}
       {task.case && <ActionRow title={`${task.case.ownRef} · ${task.case.title}`} detail="เปิดแฟ้มคดี" onPress={() => router.push(`/case/${task.caseId}`)} />}
       {worker && !!task.acknowledgedAt && <Button title="ทำงานนี้วันนี้" variant="secondary" inline disabled={busy}
         onPress={() => perform(() => api(`/tasks/${task.id}/confirm-plan`, { method: 'POST', body: { date: bangkokDay(new Date().toISOString()) } }))} />}
       </Card>
-      {!!rejectReason && <Card style={{ gap: spacing.xs, borderColor: colors.warn, backgroundColor: colors.warnSoft }}>
+      {!!rejectReason && <Card flat style={{ gap: spacing.xs, borderColor: colors.warnEdge, backgroundColor: colors.warnSoft }}>
         <Text style={{ color: colors.warn, fontWeight: '600' }}>เหตุผลส่งกลับ: {rejectReason}</Text>
         <Text style={{ color: colors.text }}>ตรวจผลงานใหม่ก่อนส่งซ้ำ</Text>
       </Card>}
@@ -167,8 +167,8 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         {!!routine.sourceHint && <Text style={{ color: colors.text }}>ต้นฉบับ: {routine.sourceHint}</Text>}
         {!!routine.exampleFilename && <Text style={{ color: colors.muted }}>ตัวอย่างชื่อไฟล์: {routine.exampleFilename}</Text>}
         {task.caseId && <Disclosure variant="plain" title="เอกสารต้นทางในคดี" summary="เปิดไฟล์ในแฟ้มคดีเพื่อใช้ทำงานนี้" open={sourcesOpen} onToggle={setSourcesOpen}>
-          {documents.isError && <ErrorNote message="โหลดเอกสารต้นทางไม่ได้" onRetry={() => documents.refetch()} />}
-          {documents.isLoading && <Text style={{ color: colors.muted }}>กำลังโหลดเอกสาร…</Text>}
+          {documents.isError && <InlineError message="โหลดเอกสารต้นทางไม่ได้" onRetry={() => documents.refetch()} />}
+          {documents.isLoading && <LoadingState inline label="กำลังโหลดเอกสาร…" />}
           {documents.data?.map(doc => <ActionRow key={doc.id} title={doc.filename} onPress={() => openFile(() => openCaseDocument(task.caseId!, doc.id, doc.filename))} />)}
           {documents.data?.length === 0 && <Text style={{ color: colors.warn }}>ยังไม่มีเอกสารในแฟ้ม · แจ้งเอกสารขาดด้านล่าง</Text>}
         </Disclosure>}
@@ -195,7 +195,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
       {!!task.attachments?.length && <Card style={{ paddingVertical: 0 }}>
         {task.attachments.map(file => <ActionRow key={file.id} title={file.filename} detail="เปิดไฟล์" onPress={() => openFile(() => openTaskAttachment(task.id, file.id, file.filename))} />)}
       </Card>}
-      {!task.attachments?.length && !worker && <Text style={{ color: colors.muted }}>ยังไม่มีไฟล์แนบ</Text>}
+      {!task.attachments?.length && !worker && <Card flat style={{ paddingVertical: 0 }}><EmptyState compact>ยังไม่มีไฟล์แนบ</EmptyState></Card>}
       {worker && (!routine || !!task.acknowledgedAt) && <>
         <Attachments files={files} onChange={setFiles} disabled={busy} />
         {files.length > 0 && <Button title={`บันทึกไฟล์ ${files.length} ไฟล์กับงานนี้`} variant="secondary" busy={busy} onPress={() => perform(async () => {
@@ -207,12 +207,12 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
             setFiles(remainingFiles);
           }
         })} />}
-        <Disclosure title="รายงานความคืบหน้า · เอกสารขาด · ไม่แน่ใจ" summary={latest ? 'แก้รายงานล่าสุดให้ผู้ดูแลงานเห็น' : 'บอกผู้ดูแลงานว่าทำถึงไหนแล้ว'}
+        <Disclosure icon={ListChecks} title="รายงานความคืบหน้า · เอกสารขาด · ไม่แน่ใจ" summary={latest ? 'แก้รายงานล่าสุดให้ผู้ดูแลงานเห็น' : 'บอกผู้ดูแลงานว่าทำถึงไหนแล้ว'}
           open={reporting} onToggle={setReporting}>
           <View style={{ gap: spacing.sm }}>
-            <FormField label="ทำแล้ว" required value={completed} onChange={setCompleted} disabled={busy} multiline />
-            <FormField label="เหลืออะไร" required value={remaining} onChange={setRemaining} disabled={busy} multiline />
-            <FormField label="ติดอะไร · ถ้ามี" hint="ล้างช่องนี้เมื่อแก้แล้ว" value={blocker} onChange={setBlocker} disabled={busy} multiline />
+            <TextArea label="ทำแล้ว" required value={completed} onChange={setCompleted} disabled={busy} />
+            <TextArea label="เหลืออะไร" required value={remaining} onChange={setRemaining} disabled={busy} />
+            <TextArea label="ติดอะไร · ถ้ามี" hint="ล้างช่องนี้เมื่อแก้แล้ว" value={blocker} onChange={setBlocker} disabled={busy} />
             <Button title="บันทึกรายงานให้ผู้ดูแลงานเห็น" variant="secondary" busy={busy} onPress={() => perform(async () => {
               if (!completed.trim() || !remaining.trim()) throw new Error('ระบุว่าทำแล้วอะไรและเหลืออะไร ข้อมูลที่กรอกยังอยู่');
               await api(`/tasks/${task.id}/daily-update`, { method: 'POST', body: { completed, remaining, blocker } });
@@ -222,11 +222,11 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         </Disclosure>
       </>}
       {latest && <Card style={{ gap: spacing.xs }}>
-        <Text style={{ color: colors.muted, fontSize: 13, fontWeight: '600' }}>รายงานล่าสุด</Text>
+        <Text style={{ ...typeScale.overline, color: colors.muted }}>รายงานล่าสุด</Text>
         <Text style={{ color: colors.text }}>{latest.body}</Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>อัปเดต {latest.createdAt ? `${thDate(latest.createdAt)} ${thTime(latest.createdAt)}` : 'ไม่ทราบเวลา'} · {latest.author?.firstName}</Text>
       </Card>}
-      {canHold && <Disclosure title={onHold ? 'พักงานอยู่' : 'พักงาน · ถ้าต้องรอ'} summary={onHold ? task.onHold!.reason : 'รอลูกความ ศาล เอกสาร หรือคนภายนอก'} defaultOpen={onHold}>
+      {canHold && <Disclosure icon={CirclePause} title={onHold ? 'พักงานอยู่' : 'พักงาน · ถ้าต้องรอ'} summary={onHold ? task.onHold!.reason : 'รอลูกความ ศาล เอกสาร หรือคนภายนอก'} defaultOpen={onHold}>
         {onHold ? <View style={{ gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>
             <CirclePause size={18} color={colors.muted} />
@@ -235,12 +235,12 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
           {task.onHold!.nextFollowUpAt && <Text style={{ color: colors.muted }}>ติดตามครั้งถัดไป {thDate(task.onHold!.nextFollowUpAt)}</Text>}
           <Button title="กลับมาทำต่อ" variant="secondary" disabled={busy} onPress={() => perform(() => api(`/cases/${task.caseId}/tasks/${task.id}/hold/resume`, { method: 'POST' }))} />
         </View> : <View style={{ gap: spacing.sm }}>
-          <FormField label="เหตุผลที่พัก" required value={holdReason} onChange={setHoldReason} multiline disabled={busy} />
-          <Dropdown label="เลือกประเภทการพัก" fieldLabel="ประเภทการพัก" value={holdCategory} onChange={setHoldCategory} options={[
+          <TextArea label="เหตุผลที่พัก" required value={holdReason} onChange={setHoldReason} disabled={busy} />
+          <SelectField sheetTitle="เลือกประเภทการพัก" label="ประเภทการพัก" value={holdCategory} onChange={setHoldCategory} options={[
             { value: 'WAITING_CLIENT', label: 'รอลูกความ' }, { value: 'WAITING_COURT', label: 'รอศาล' }, { value: 'WAITING_DOCUMENT', label: 'รอเอกสาร' },
             { value: 'WAITING_INTERNAL_REVIEW', label: 'รอรีวิวภายใน' }, { value: 'WAITING_EXTERNAL', label: 'รอบุคคลภายนอก' }, { value: 'OTHER', label: 'อื่น ๆ' },
           ]} disabled={busy} />
-          <DatePicker label="วันติดตามครั้งถัดไป · ถ้ามี" placeholder="ไม่กำหนด" value={holdFollowUp} onChange={setHoldFollowUp}
+          <DateField label="วันติดตามครั้งถัดไป · ถ้ามี" placeholder="ไม่กำหนด" value={holdFollowUp} onChange={setHoldFollowUp}
             onClear={() => setHoldFollowUp('')} minDate={bangkokDay(new Date().toISOString())} disabled={busy} />
           <Button title="พักงาน" variant="secondary" disabled={busy || !holdReason.trim()} onPress={() => perform(async () => {
             await api(`/cases/${task.caseId}/tasks/${task.id}/hold`, { method: 'PATCH', body: { reason: holdReason.trim(), category: holdCategory, nextFollowUpAt: holdFollowUp || undefined } });
@@ -250,12 +250,12 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
       </Disclosure>}
       {reviewer && <>
         <SectionLabel>ส่งกลับให้แก้ · ถ้าไม่ผ่าน</SectionLabel>
-        <FormField label="เหตุผลส่งกลับแก้ไข" value={reason} onChange={setReason} disabled={busy} multiline />
+        <TextArea label="เหตุผลส่งกลับแก้ไข" value={reason} onChange={setReason} disabled={busy} />
         <Button title="ส่งกลับแก้ไข" variant="danger" disabled={busy || !reason.trim()} onPress={() => transition('reject')} />
       </>}
-      <Disclosure title="บันทึกเพิ่มเติม · ถ้ามี" summary="ข้อความถึงทีมในงานนี้" open={showNote || !!note.trim()} onToggle={setShowNote}>
+      <Disclosure icon={FileText} title="บันทึกเพิ่มเติม · ถ้ามี" summary="ข้อความถึงทีมในงานนี้" open={showNote || !!note.trim()} onToggle={setShowNote}>
         <View style={{ gap: spacing.sm }}>
-          <FormField label="บันทึกเพิ่มเติม" value={note} onChange={setNote} disabled={busy} multiline />
+          <TextArea label="บันทึกเพิ่มเติม" value={note} onChange={setNote} disabled={busy} />
           <Button title="บันทึกข้อความ" variant="secondary" busy={busy} disabled={!note.trim()} onPress={() => perform(async () => { await api(`/tasks/${task.id}/comments`, { method: 'POST', body: { body: note.trim() } }); setNote(''); })} />
         </View>
       </Disclosure>
@@ -263,20 +263,20 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         try { requireSavedDraft(); onEdit(); } catch (e) { setError((e as Error).message); }
       }} />
       {/* Handoff inputs sit at the end of the page, right above the pinned primary that sends them. */}
-      {worker && !task.caseId && !task.reviewerId && <Dropdown label="เลือกผู้ตรวจงาน" fieldLabel="ผู้ตรวจงาน · ถ้าจะส่งตรวจ" value={reviewerId} onChange={setReviewerId}
+      {worker && !task.caseId && !task.reviewerId && <SelectField sheetTitle="เลือกผู้ตรวจงาน" label="ผู้ตรวจงาน · ถ้าจะส่งตรวจ" value={reviewerId} onChange={setReviewerId}
         options={(members.data ?? []).filter(p => isEligibleReviewer({ role: p.firmRole, userId: p.id, assigneeId: task.assigneeId })).map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} disabled={busy || members.isError} />}
-      {needsHandoffNote && <FormField label="หมายเหตุถึงผู้ตรวจ" required hint={`อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร${handoffNote.trim() && handoffNote.trim().length < TASK_HANDOFF_NOTE_MIN ? ` · อีก ${TASK_HANDOFF_NOTE_MIN - handoffNote.trim().length} ตัวอักษร` : ''}`}
-        value={handoffNote} onChange={setHandoffNote} multiline disabled={busy} />}
+      {needsHandoffNote && <TextArea label="หมายเหตุถึงผู้ตรวจ" required hint={`อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร${handoffNote.trim() && handoffNote.trim().length < TASK_HANDOFF_NOTE_MIN ? ` · อีก ${TASK_HANDOFF_NOTE_MIN - handoffNote.trim().length} ตัวอักษร` : ''}`}
+        value={handoffNote} onChange={setHandoffNote} disabled={busy} />}
       {worker && !routine && !task.requiresReview && !task.caseId && reviewerId && <Button title="ส่งตรวจงาน" variant="secondary" disabled={busy} onPress={() => transition('handoff')} />}
     </FormPage>
-    {(primary || reviewer || !!error) && <View style={{ padding: spacing.md, paddingBottom: spacing.md + bottom, borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }}>
+    {(primary || reviewer || !!error) && <StickyBar bottomInset={bottom}>
       <View style={{ width: '100%', maxWidth: 728, alignSelf: 'center', gap: spacing.sm }}>
-      {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.warn }}>{error}</Text>}
+      <InlineError message={error} />
       {primary && <Button title={primary.title} busy={busy} onPress={primary.action} />}
       {reviewer && <Button title="ผ่านการตรวจ / ปิดงาน" busy={busy} onPress={() => Alert.alert('ยืนยันผลตรวจ', `ตรวจผลงานของ “${task.title}” ครบแล้ว?`, [
         { text: 'ยกเลิก', style: 'cancel' }, { text: 'ผ่านการตรวจ', onPress: () => transition('accept') },
       ])} />}
       </View>
-    </View>}
+    </StickyBar>}
   </View>;
 }

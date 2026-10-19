@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { PARTICIPANT_ROLE_LABELS, PARTICIPANT_SIDE_LABELS, ParticipantRole, ParticipantSide, opponentParticipantRole } from '@lawfirm/shared';
 import { api } from '@/api/client';
 import { useCase } from '@/api/hooks';
-import { Text } from '@/components/AppText';
-import { Dropdown } from '@/components/Dropdown';
-import { FormField, FormPage, FormSection } from '@/components/Form';
-import { Button, ErrorNote, Loading } from '@/components/ui';
-import { colors } from '@/theme';
+import { SelectField, TextField } from '@/components/Input';
+import { FormPage, FormSection } from '@/components/Form';
+import { Button, ErrorState, InlineError, LoadingState } from '@/components/ui';
+import { colors, spacing } from '@/theme';
 
 export default function CasePartyScreen() {
   const { id, participantId } = useLocalSearchParams<{ id: string; participantId?: string }>();
@@ -26,6 +25,7 @@ export default function CasePartyScreen() {
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [triedSave, setTriedSave] = useState(false);
 
   useEffect(() => {
     if (existing) {
@@ -36,8 +36,8 @@ export default function CasePartyScreen() {
     }
   }, [existing?.id, legalCase.data?.id]);
 
-  if (legalCase.isLoading) return <Loading />;
-  if (!legalCase.data) return <FormPage><ErrorNote message="โหลดคดีไม่สำเร็จ" onRetry={() => legalCase.refetch()} /></FormPage>;
+  if (legalCase.isLoading) return <View style={{ flex: 1, backgroundColor: colors.bg }}><LoadingState /></View>;
+  if (!legalCase.data) return <FormPage><ErrorState message="โหลดคดีไม่สำเร็จ" onRetry={() => legalCase.refetch()} /></FormPage>;
 
   const done = async () => {
     await cache.invalidateQueries({ queryKey: ['case', id] });
@@ -45,7 +45,8 @@ export default function CasePartyScreen() {
   };
 
   const save = async () => {
-    if (!name.trim()) return Alert.alert('กรอกไม่ครบ', 'ใส่ชื่อคู่ความ');
+    setTriedSave(true);
+    if (!name.trim()) return;
     setBusy(true); setError('');
     try {
       const body = { name: name.trim(), ...(isCaseClient ? {} : { side }), role, personType: personType || null, phone: phone.trim() || null };
@@ -68,18 +69,21 @@ export default function CasePartyScreen() {
   return <FormPage>
     <Stack.Screen options={{ title: existing ? 'แก้ไขคู่ความ' : 'เพิ่มคู่ความ' }} />
     <FormSection title={legalCase.data.ownRef} detail={legalCase.data.title}>
-      <FormField label="ชื่อ" value={name} onChange={setName} disabled={busy} />
-      <Dropdown label="ฝ่าย" value={side} onChange={setSide} disabled={busy || isCaseClient}
+      <TextField label="ชื่อคู่ความ" required value={name} onChange={setName} disabled={busy}
+        error={triedSave && !name.trim() ? 'ใส่ชื่อคู่ความ' : undefined} />
+      <SelectField label="ฝ่าย" value={side} onChange={setSide} disabled={busy || isCaseClient}
+        hint={isCaseClient ? 'ลูกความหลักของคดี ย้ายฝ่ายหรือลบไม่ได้ · เปลี่ยนลูกความได้ที่หน้าแก้ไขคดี' : undefined}
         options={Object.values(ParticipantSide).map((s) => ({ value: s, label: PARTICIPANT_SIDE_LABELS[s] }))} />
-      <Dropdown label="ฐานะในคดี" value={role} onChange={setRole} disabled={busy}
+      <SelectField label="ฐานะในคดี" value={role} onChange={setRole} disabled={busy}
         options={Object.values(ParticipantRole).map((r) => ({ value: r, label: PARTICIPANT_ROLE_LABELS[r] }))} />
-      <Dropdown label="ประเภทบุคคล" value={personType} onChange={setPersonType} disabled={busy}
+      <SelectField label="ประเภทบุคคล · ถ้ามี" sheetTitle="ประเภทบุคคล" value={personType} onChange={setPersonType} disabled={busy} inline
         options={[{ value: '', label: 'ยังไม่ระบุ' }, { value: 'บุคคลธรรมดา', label: 'บุคคลธรรมดา' }, { value: 'นิติบุคคล', label: 'นิติบุคคล' }]} />
-      <FormField label="โทรศัพท์" value={phone} onChange={setPhone} disabled={busy} />
+      <TextField label="โทรศัพท์ · ถ้ามี" value={phone} onChange={setPhone} disabled={busy} keyboardType="phone-pad" textContentType="telephoneNumber" autoComplete="tel" />
     </FormSection>
-    {isCaseClient && <Text style={{ color: colors.muted }}>นี่คือลูกความหลักของคดี ย้ายฝ่ายหรือลบไม่ได้ ถ้าจะเปลี่ยนลูกความให้แก้ที่หน้าแก้ไขคดี</Text>}
-    {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
+    <InlineError message={error || undefined} />
     <Button title="บันทึก" busy={busy} onPress={save} />
-    {existing && !isCaseClient && <Button title="ลบคู่ความ" ghost disabled={busy} onPress={remove} />}
+    {existing && !isCaseClient && <View style={{ marginTop: spacing.xl }}>
+      <Button title="ลบคู่ความ" variant="danger" disabled={busy} onPress={remove} />
+    </View>}
   </FormPage>;
 }

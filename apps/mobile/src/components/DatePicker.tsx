@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { AlertCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { bangkokDay, isoDay, thDate } from '@/format';
-import { colors, fonts, radius, spacing, TOUCH } from '@/theme';
-import { Button } from './ui';
-import { FieldError, FieldLabel, fieldA11yLabel } from './Form';
+import { colors, control, fonts, radius, shadow, spacing, TOUCH } from '@/theme';
+import { Button } from './Button';
+import { FieldLabel, fieldA11yLabel, fieldEdge } from './FieldLabel';
+import { InlineError as FieldError } from './States';
 
 const TH_MONTHS = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -42,6 +43,7 @@ export function DatePicker({
   label,
   required = false,
   error,
+  hint,
   placeholder = 'เลือกวันที่',
   minDate,
   maxDate,
@@ -53,6 +55,8 @@ export function DatePicker({
   label?: string;
   required?: boolean;
   error?: string;
+  /** One short helper line under the label. */
+  hint?: string;
   placeholder?: string;
   minDate?: string;
   maxDate?: string;
@@ -75,25 +79,26 @@ export function DatePicker({
   const pick = (key: string) => { onChange(key); setOpen(false); };
 
   return (
-    <View style={label || error ? { gap: spacing.sm } : undefined}>
-      {label ? <FieldLabel required={required}>{label}</FieldLabel> : null}
+    <View style={label || error ? { gap: 6 } : undefined}>
+      {label ? <FieldLabel required={required} hint={hint}>{label}</FieldLabel> : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={fieldA11yLabel(label ?? placeholder, required)}
-        accessibilityHint={error || undefined}
+        accessibilityHint={error || hint || undefined}
         accessibilityValue={{ text: dayKey ? thDate(dayKey) : 'ยังไม่ได้เลือก' }}
         accessibilityState={{ disabled }}
         disabled={disabled}
-        style={({ pressed }) => [styles.field, error ? { borderColor: colors.warn } : null, (pressed || disabled) && { backgroundColor: colors.soft }]}
+        style={({ pressed }) => [styles.field, fieldEdge({ focused: pressed, error: !!error, disabled }), disabled && styles.fieldDisabled]}
         onPress={() => {
           setCursor(cursorFor(dayKey));
           setOpen(true);
         }}
       >
-        <Calendar size={17} color={colors.muted} />
+        <Calendar size={18} color={colors.muted} />
         <Text style={[styles.fieldText, !dayKey && { color: colors.muted }]}>{dayKey ? thDate(dayKey) : placeholder}</Text>
+        {error ? <AlertCircle size={20} color={colors.warn} /> : null}
       </Pressable>
-      <FieldError message={error} />
+      <FieldError variant="field" message={error} />
 
       <Modal visible={open} transparent animationType="fade" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={() => setOpen(false)}>
         <Pressable accessible={false} style={styles.backdrop} onPress={() => setOpen(false)}>
@@ -179,15 +184,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
+    backgroundColor: colors.raised,
     borderRadius: radius.button,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    minHeight: 48,
+    minHeight: control.height,
   },
-  fieldText: { fontSize: 15, color: colors.text },
+  fieldDisabled: { backgroundColor: colors.sunken },
+  fieldText: { flex: 1, fontSize: 16, color: colors.text },
   backdrop: {
     flex: 1,
     backgroundColor: colors.scrim,
@@ -200,8 +202,9 @@ const styles = StyleSheet.create({
     maxHeight: '90%',
     alignSelf: 'center',
     backgroundColor: colors.bg,
-    borderRadius: radius.card,
+    borderRadius: radius.xl,
     padding: spacing.lg,
+    ...shadow.lg,
   },
   sheetLabel: { fontSize: 14, fontWeight: '600', color: colors.muted, textAlign: 'center', marginBottom: spacing.xs },
   head: {

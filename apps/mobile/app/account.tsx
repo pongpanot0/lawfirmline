@@ -3,12 +3,14 @@ import { Alert, Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/api/auth';
 import { api, ApiError } from '@/api/client';
-import { FormField, FormPage, FormSection } from '@/components/Form';
+import { FormPage, FormSection } from '@/components/Form';
+import { TextField } from '@/components/Input';
 import { Disclosure } from '@/components/Disclosure';
-import { Text, TextInput } from '@/components/AppText';
-import { ActionRow, Button, Card, ErrorNote, PageIntro, SectionLabel } from '@/components/ui';
+import { Text } from '@/components/AppText';
+import { ActionRow, Button, Card, InlineError } from '@/components/ui';
 import { passwordError } from '@/account-validation';
-import { colors, spacing } from '@/theme';
+import { initials } from '@/format';
+import { colors, fonts, radius, spacing, typeScale } from '@/theme';
 
 function failure(error: unknown) {
   if (error instanceof ApiError) {
@@ -20,6 +22,12 @@ function failure(error: unknown) {
   return 'เชื่อมต่อไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่';
 }
 
+function nameError(value: string, label: string) {
+  if (!value.trim()) return `ใส่${label}`;
+  if (value.trim().length > 100) return `${label}ไม่เกิน 100 ตัวอักษร`;
+  return undefined;
+}
+
 export default function AccountScreen() {
   const router = useRouter();
   const { user, refreshUser, logout } = useAuth();
@@ -28,27 +36,38 @@ export default function AccountScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState<'profile' | 'password' | null>(null);
   const [error, setError] = useState<{ section: 'profile' | 'password'; message: string } | null>(null);
   const [saved, setSaved] = useState(false);
+  const [triedProfile, setTriedProfile] = useState(false), [triedPassword, setTriedPassword] = useState(false);
+
+  const profileErrors = { firstName: nameError(firstName, 'ชื่อ'), lastName: nameError(lastName, 'นามสกุล') };
+  const changed = firstName.trim() !== (user?.firstName ?? '') || lastName.trim() !== (user?.lastName ?? '');
+  const ownPasswordError = passwordError(password, password);
+  const passwordErrors = {
+    current: currentPassword ? undefined : 'กรอกรหัสผ่านปัจจุบัน',
+    password: ownPasswordError ?? undefined,
+    confirmation: !ownPasswordError && password !== confirmation ? 'รหัสผ่านทั้งสองช่องไม่ตรงกัน' : undefined,
+  };
+  const editName = (set: (value: string) => void) => (value: string) => { set(value); setSaved(false); };
 
   const saveProfile = async () => {
     if (busy) return;
-    if (!firstName.trim() || !lastName.trim() || firstName.trim().length > 100 || lastName.trim().length > 100) {
-      setError({ section: 'profile', message: 'กรอกชื่อและนามสกุลให้ครบ ช่องละไม่เกิน 100 ตัวอักษร' }); return;
-    }
+    setTriedProfile(true);
+    if (profileErrors.firstName || profileErrors.lastName) return;
     setBusy('profile'); setError(null); setSaved(false);
     try {
       await api('/auth/account/profile', { method: 'PATCH', body: { firstName: firstName.trim(), lastName: lastName.trim() } });
-      await refreshUser(); setSaved(true);
+      await refreshUser(); setSaved(true); setTriedProfile(false);
     } catch (err) { setError({ section: 'profile', message: failure(err) }); }
     finally { setBusy(null); }
   };
 
   const changePassword = async () => {
     if (busy) return;
-    const invalid = passwordError(password, confirmation);
-    if (invalid) { setError({ section: 'password', message: invalid }); return; }
+    setTriedPassword(true);
+    if (passwordErrors.current || passwordError(password, confirmation)) return;
     setBusy('password'); setError(null);
     try {
       await api('/auth/account/password', { method: 'POST', body: { currentPassword, password } });
@@ -60,43 +79,52 @@ export default function AccountScreen() {
   };
 
   return <FormPage>
-    <PageIntro title="ข้อมูลส่วนตัว" detail="จัดการชื่อ รหัสผ่าน และข้อมูลบัญชีของคุณ" />
-    <Card><Text style={{ color: colors.ink, fontWeight: '700' }}>{user?.email}</Text>
-      <Text style={{ color: colors.muted, marginTop: spacing.xs }}>{user?.firmName}</Text>
-      <Text style={{ color: colors.muted, marginTop: spacing.sm }}>บัญชีนี้เป็นของคุณ และอาจใช้ร่วมกับหลายสำนักงาน</Text></Card>
-    <Card><ActionRow title="ลบบัญชีและข้อมูลส่วนตัว" detail="ส่งคำขอและติดตามสถานะ" destructive
-      onPress={() => router.push('/delete-account' as never)} /></Card>
+    <Card style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+      <View style={{ width: 48, height: 48, borderRadius: radius.full, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: colors.info, fontFamily: fonts.bold, fontSize: 17 }}>{initials(`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || user?.email || '')}</Text>
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <Text style={{ ...typeScale.section, color: colors.ink }}>{user?.email}</Text>
+        {user?.firmName ? <Text style={{ color: colors.muted, fontSize: 14 }}>{user.firmName}</Text> : null}
+      </View>
+    </Card>
     <FormSection title="ชื่อที่แสดงในทีม">
-    <FormField label="ชื่อ" value={firstName} onChange={setFirstName} disabled={!!busy} />
-    <FormField label="นามสกุล" value={lastName} onChange={setLastName} disabled={!!busy} />
-    <Button title="บันทึกชื่อของฉัน" onPress={saveProfile} busy={busy === 'profile'} disabled={!!busy} />
-    {error?.section === 'profile' && <ErrorNote message={error.message} />}
-    {saved && <Text style={{ color: colors.good }}>บันทึกชื่อแล้ว</Text>}
+      <TextField label="ชื่อ" required value={firstName} onChange={editName(setFirstName)} disabled={!!busy}
+        error={triedProfile ? profileErrors.firstName : undefined} maxLength={100} autoComplete="given-name" textContentType="givenName" />
+      <TextField label="นามสกุล" required value={lastName} onChange={editName(setLastName)} disabled={!!busy}
+        error={triedProfile ? profileErrors.lastName : undefined} maxLength={100} autoComplete="family-name" textContentType="familyName" />
+      {error?.section === 'profile' && <InlineError message={error.message} />}
+      {saved && !changed && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.good, fontWeight: '600' }}>บันทึกชื่อแล้ว</Text>}
+      <Button title="บันทึกชื่อของฉัน" onPress={saveProfile} busy={busy === 'profile'} disabled={!!busy || !changed}
+        accessibilityHint={changed ? undefined : 'แก้ชื่อหรือนามสกุลก่อนบันทึก'} />
     </FormSection>
 
     <Disclosure title="เปลี่ยนรหัสผ่าน" summary="ยืนยันรหัสผ่านปัจจุบันก่อนเปลี่ยน">
-    <View style={{ gap: spacing.sm }}>
-    <PasswordField label="รหัสผ่านปัจจุบัน" value={currentPassword} onChange={setCurrentPassword} disabled={!!busy} />
-    <PasswordField label="รหัสผ่านใหม่ · อย่างน้อย 8 ตัวอักษร" value={password} onChange={setPassword} disabled={!!busy} newPassword />
-    <PasswordField label="ยืนยันรหัสผ่านใหม่" value={confirmation} onChange={setConfirmation} disabled={!!busy} newPassword />
-    <Text style={{ color: colors.muted }}>หลังเปลี่ยนรหัสผ่าน คุณจะต้องเข้าสู่ระบบใหม่ในโทรศัพท์เครื่องนี้</Text>
-    <Button title="เปลี่ยนรหัสผ่าน" onPress={changePassword} busy={busy === 'password'} disabled={!!busy || !currentPassword} />
-    {error?.section === 'password' && <ErrorNote message={error.message} />}
-    </View></Disclosure>
+      <View style={{ gap: spacing.sm }}>
+        <TextField label="รหัสผ่านปัจจุบัน" required value={currentPassword} onChange={setCurrentPassword} disabled={!!busy}
+          error={triedPassword ? passwordErrors.current : undefined}
+          secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="current-password" textContentType="password" />
+        <TextField label="รหัสผ่านใหม่" required hint="อย่างน้อย 8 ตัวอักษร" value={password} onChange={setPassword} disabled={!!busy}
+          error={triedPassword ? passwordErrors.password : undefined}
+          secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" />
+        <TextField label="ยืนยันรหัสผ่านใหม่" required value={confirmation} onChange={setConfirmation} disabled={!!busy}
+          error={triedPassword ? passwordErrors.confirmation : undefined}
+          secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="new-password" textContentType="newPassword"
+          returnKeyType="done" onSubmitEditing={changePassword} />
+        <Button title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} variant="link" onPress={() => setShowPassword(!showPassword)} />
+        <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>หลังเปลี่ยนรหัสผ่าน คุณจะต้องเข้าสู่ระบบใหม่ในโทรศัพท์เครื่องนี้</Text>
+        {error?.section === 'password' && <InlineError message={error.message} />}
+        <Button title="เปลี่ยนรหัสผ่าน" variant="secondary" onPress={changePassword} busy={busy === 'password'} disabled={!!busy} />
+      </View>
+    </Disclosure>
     <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://samnuan.com/privacy')}
-      style={{ minHeight: 44, justifyContent: 'center' }}>
+      style={({ pressed }) => [{ minHeight: 44, justifyContent: 'center', marginTop: spacing.sm }, pressed && { opacity: 0.6 }]}>
       <Text style={{ color: colors.info }}>นโยบายความเป็นส่วนตัว</Text>
     </Pressable>
+    {/* Destructive request stays visible, but last, away from everyday edits. */}
+    <Card style={{ marginTop: spacing.md, paddingVertical: 0 }}>
+      <ActionRow title="ลบบัญชีและข้อมูลส่วนตัว" detail="ส่งคำขอและติดตามสถานะ · ยังไม่ลบทันที" destructive
+        onPress={() => router.push('/delete-account' as never)} />
+    </Card>
   </FormPage>;
-}
-
-function PasswordField({ label, value, onChange, disabled, newPassword = false }: {
-  label: string; value: string; onChange: (value: string) => void; disabled: boolean; newPassword?: boolean;
-}) {
-  return <View style={{ gap: spacing.sm }}><SectionLabel>{label}</SectionLabel>
-    <TextInput accessibilityLabel={label} value={value} onChangeText={onChange} editable={!disabled}
-      secureTextEntry autoCapitalize="none" autoComplete={newPassword ? 'new-password' : 'current-password'}
-      style={{ minHeight: 48, padding: spacing.md, borderRadius: 10, borderWidth: 1, borderColor: colors.line,
-        backgroundColor: colors.surface, color: colors.text, fontSize: 15 }} />
-  </View>;
 }

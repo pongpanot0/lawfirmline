@@ -9,8 +9,8 @@ import { WorkloadSummary } from './WorkloadSummary';
 import type { TaskItem } from '@/api/types';
 import { bangkokDay, initials, thDate } from '@/format';
 import { leaveFlagsForDate, leaveWarning } from '@/lib/leave-flags';
-import { colors, fonts, radius, spacing } from '@/theme';
-import { Button, ErrorNote, Loading, Tag } from '@/components/ui';
+import { colors, radius, shadow, spacing, typeScale } from '@/theme';
+import { Button, InlineError, LoadingState, Tag } from '@/components/ui';
 
 /** Assignment sheet shared by case tasks and standalone todos. */
 export function ReassignSheet({
@@ -79,14 +79,16 @@ export function ReassignSheet({
             {task?.title}
           </Text>
           {current ? <Text style={styles.subtitle}>ตอนนี้: {current}</Text> : null}
-          {lawyers.isLoading || (caseId && legalCase.isLoading) ? <Loading label="กำลังโหลดรายชื่อ…" /> : null}
-          {lawyers.isError ? <ErrorNote message="โหลดรายชื่อไม่สำเร็จ" onRetry={() => lawyers.refetch()} /> : null}
-          {caseId && legalCase.isError ? <ErrorNote message="ตรวจสอบสิทธิ์คดีไม่สำเร็จ" onRetry={() => legalCase.refetch()} /> : null}
-          {!editable && !legalCase.isLoading ? <Text style={styles.error}>{caseId
+          <View style={styles.notices}>
+          {lawyers.isLoading || (caseId && legalCase.isLoading) ? <LoadingState inline label="กำลังโหลดรายชื่อ…" /> : null}
+          {lawyers.isError ? <InlineError message="โหลดรายชื่อไม่สำเร็จ" onRetry={() => lawyers.refetch()} /> : null}
+          {caseId && legalCase.isError ? <InlineError message="ตรวจสอบสิทธิ์คดีไม่สำเร็จ" onRetry={() => legalCase.refetch()} /> : null}
+          {!editable && !legalCase.isLoading ? <Text style={styles.notice}>{caseId
             ? 'งานคดีให้เจ้าของสำนักงาน ผู้จัดการสำนักงาน หรือทนายหลักเป็นผู้มอบหมาย'
             : 'มอบหมายได้เฉพาะงานที่คุณสร้างหรือรับผิดชอบ'}</Text> : null}
-          {leaves.isError ? <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} /> : null}
-          {owner && board.isError && <ErrorNote message="ยังตรวจภาระงานล่าสุดไม่ได้" onRetry={() => board.refetch()} />}
+          {leaves.isError ? <InlineError message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} /> : null}
+          {owner && board.isError && <InlineError message="ยังตรวจภาระงานล่าสุดไม่ได้" onRetry={() => board.refetch()} />}
+          </View>
           {editable && candidates.map((lawyer) => {
               const name = `${lawyer.firstName} ${lawyer.lastName}`;
               const flag = flags.get(lawyer.id);
@@ -129,11 +131,11 @@ export function ReassignSheet({
             {pending ? <>
               <Text accessibilityLiveRegion="polite" style={styles.confirmTitle}>มอบหมายให้ {pending.name} · {thDate(date)}</Text>
               {pending.warnings.length
-                ? pending.warnings.map((warning, index) => <Text key={index} style={styles.warning}>{warning}</Text>)
+                ? <View style={styles.warnings}>{pending.warnings.map((warning, index) => <Text key={index} style={styles.warning}>{warning}</Text>)}</View>
                 : <Text style={styles.confirmHint}>ตรวจภาระงานข้างต้นก่อนยืนยัน</Text>}
             </> : null}
             {reassign.isError ? (
-              <Text accessibilityRole="alert" style={styles.error}>{reassign.error.message || 'มอบหมายไม่สำเร็จ ลองใหม่อีกครั้ง'}</Text>
+              <InlineError message={reassign.error.message || 'มอบหมายไม่สำเร็จ ลองใหม่อีกครั้ง'} />
             ) : null}
             {pending ? <View style={styles.confirmRow}>
               <View style={{ flex: 1 }}><Button title="ยกเลิก" variant="secondary" disabled={working} onPress={() => setPending(null)} /></View>
@@ -152,11 +154,12 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 760,
     alignSelf: 'center',
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.card,
-    borderTopRightRadius: radius.card,
+    backgroundColor: colors.raised,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     padding: spacing.lg,
     maxHeight: '90%',
+    ...shadow.lg,
   },
   handle: {
     alignSelf: 'center',
@@ -166,35 +169,39 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
     marginBottom: spacing.md,
   },
-  title: { fontFamily: fonts.bold, fontSize: 17, color: colors.ink },
-  subtitle: { color: colors.muted, fontSize: 13, marginTop: 2, marginBottom: spacing.md },
+  title: { ...typeScale.title, color: colors.ink },
+  subtitle: { color: colors.muted, fontSize: 14, lineHeight: 22, marginTop: 2, marginBottom: spacing.md },
+  notices: { gap: spacing.sm, marginBottom: spacing.sm },
+  notice: { color: colors.info, backgroundColor: colors.infoSoft, borderRadius: radius.md, padding: spacing.md, fontSize: 14, lineHeight: 22 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    minHeight: 52,
+    minHeight: 56,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.button,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: 'transparent',
+    marginBottom: spacing.xs,
   },
-  rowPicked: { borderColor: colors.ink, backgroundColor: colors.soft },
-  summary: { paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
-  footer: { gap: spacing.sm, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
+  rowPicked: { borderColor: colors.ink, backgroundColor: colors.surface, ...shadow.sm },
+  summary: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginBottom: spacing.sm },
+  footer: { gap: spacing.sm, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
   confirmTitle: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   confirmHint: { color: colors.muted, fontSize: 13 },
   avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.ink,
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    backgroundColor: colors.infoSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: colors.accentSoft, fontWeight: '700', fontSize: 12 },
+  avatarText: { color: colors.info, fontWeight: '700', fontSize: 14 },
   name: { fontSize: 15, color: colors.text, fontWeight: '600', flex: 1 },
-  error: { color: colors.warn, fontSize: 13, textAlign: 'center' },
-  warning: { color: colors.warn, fontSize: 13 },
+  warnings: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.warnSoft, borderWidth: 1,
+    borderColor: colors.warnEdge },
+  warning: { color: colors.warn, fontSize: 13, lineHeight: 20 },
   confirmRow: { flexDirection: 'row', gap: spacing.sm },
 });

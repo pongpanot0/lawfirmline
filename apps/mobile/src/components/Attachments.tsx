@@ -4,8 +4,9 @@ import { Text } from '@/components/AppText';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, FileText, Images, Paperclip, X } from 'lucide-react-native';
-import { Button } from './ui';
-import { colors, radius, spacing, TOUCH } from '@/theme';
+import { Button } from './Button';
+import { InlineError } from './States';
+import { colors, radius, shadow, spacing, TOUCH } from '@/theme';
 
 export interface AttachmentFile { uri: string; name: string; mimeType: string; size?: number }
 
@@ -72,7 +73,7 @@ export function Attachments({ files, onChange, disabled = false, title = 'แน
   };
   return <View style={{ gap: spacing.sm }}>
     {files.map(file => <View key={file.uri} style={styles.file}>
-      <Paperclip size={16} color={colors.muted} />
+      <View style={styles.fileIcon}><Paperclip size={16} color={colors.info} /></View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={{ color: colors.text }} numberOfLines={2}>{file.name}</Text>
         <Text style={styles.meta}>{describe(file)}</Text>
@@ -91,16 +92,17 @@ export function Attachments({ files, onChange, disabled = false, title = 'แน
         <Text style={{ color: colors.ink, fontWeight: '600' }}>{label}</Text>
       </Pressable>)}
     </View>}
-    {skipped.map(name => <Text key={name} accessibilityRole="alert" style={{ color: colors.warn, fontSize: 14 }}>{`"${name}" ใหญ่เกิน 30 MB · ไม่ได้แนบไฟล์นี้`}</Text>)}
+    {skipped.map(name => <InlineError key={name} message={`"${name}" ใหญ่เกิน 30 MB · ไม่ได้แนบไฟล์นี้`} />)}
   </View>;
 }
 
 const styles = StyleSheet.create({
-  file: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.md, minHeight: 52,
-    borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface },
-  meta: { color: colors.muted, fontSize: 12 },
+  file: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingLeft: spacing.md, paddingVertical: spacing.sm, minHeight: 56,
+    borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: colors.surface, ...shadow.sm },
+  fileIcon: { width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+  meta: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   remove: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   choice: { flexGrow: 1, minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
-    paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface },
+    paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.button, backgroundColor: colors.surface },
 });

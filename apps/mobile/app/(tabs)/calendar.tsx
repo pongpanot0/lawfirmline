@@ -2,12 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, MapPin, Plus, X } from 'lucide-react-native';
 import { useCalendarRange, useWorkload } from '@/api/hooks';
 import type { CalendarEventItem } from '@/api/types';
-import { Card, EmptyNote, ErrorNote, PageIntro, SectionLabel, Tag } from '@/components/ui';
-import { isoDay, thDate, thTime } from '@/format';
-import { colors, spacing, TOUCH, pageContent } from '@/theme';
+import { Button, Card, EmptyState, ErrorState, EVENT_KIND_LABEL, InlineError, LoadingState, SectionLabel, Tag } from '@/components/ui';
+import { bangkokDay, initials, isoDay, thDate, thTime } from '@/format';
+import { CHROME_MAX_SCALE, colors, fonts, radius, shadow, spacing, TOUCH, typeScale, pageContent } from '@/theme';
 
 const TH_MONTHS_FULL = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -26,23 +26,28 @@ function monthGrid(year: number, month: number): Array<Date | null> {
   return cells;
 }
 
+const personName = (person: { firstName: string; lastName: string }) => `${person.firstName} ${person.lastName}`;
+
 export default function CalendarScreen() {
   const router = useRouter();
   const { memberId } = useLocalSearchParams<{ memberId?: string }>();
-  const today = new Date();
-  const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
-  const [selected, setSelected] = useState(isoDay(today));
+  // Day keys follow the office's Bangkok wall clock, the same as วันนี้, whatever the phone's time zone.
+  const todayKey = bangkokDay(new Date().toISOString());
+  const [todayY, todayM] = todayKey.split('-').map(Number);
+  const [cursor, setCursor] = useState({ y: todayY, m: todayM - 1 });
+  const [selected, setSelected] = useState(todayKey);
 
   const from = isoDay(new Date(cursor.y, cursor.m, 1));
   const to = isoDay(new Date(cursor.y, cursor.m + 1, 0));
   const events = useCalendarRange(from, to);
   const workload = useWorkload(!!memberId);
+  const memberName = workload.data?.members.find((member) => member.id === memberId)?.name ?? 'สมาชิกทีม';
 
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarEventItem[]>();
     for (const event of events.data ?? []) {
       if (memberId && event.assigneeId !== memberId && !event.assignees?.some((person) => person.userId === memberId)) continue;
-      const key = isoDay(new Date(event.startAt));
+      const key = bangkokDay(event.startAt);
       map.set(key, [...(map.get(key) ?? []), event]);
     }
     for (const list of map.values())
@@ -50,17 +55,21 @@ export default function CalendarScreen() {
     return map;
   }, [events.data, memberId]);
 
-  const todayKey = isoDay(today);
+  const onCurrentMonth = cursor.y === todayY && cursor.m === todayM - 1;
   // Changing month moves the selection into that month (today when it is the current month),
   // so the list below never shows an empty day from a month that is no longer loaded.
   const goMonth = (step: number) => {
     const next = new Date(cursor.y, cursor.m + step, 1);
     setCursor({ y: next.getFullYear(), m: next.getMonth() });
-    setSelected(next.getFullYear() === today.getFullYear() && next.getMonth() === today.getMonth() ? todayKey : isoDay(next));
+    setSelected(next.getFullYear() === todayY && next.getMonth() === todayM - 1 ? todayKey : isoDay(next));
   };
-  const goToday = () => { setCursor({ y: today.getFullYear(), m: today.getMonth() }); setSelected(todayKey); };
+  const goToday = () => { setCursor({ y: todayY, m: todayM - 1 }); setSelected(todayKey); };
   const cells = monthGrid(cursor.y, cursor.m);
   const selectedEvents = byDay.get(selected) ?? [];
+  // One target everywhere (same as วันนี้): court dates open วันขึ้นศาล, everything else opens its team.
+  const openEvent = (event: CalendarEventItem) => event.type === 'COURT_DATE'
+    ? router.push(`/court-day/${event.id}`)
+    : router.push(`/event/${event.id}/team`);
 
   return (
     <ScrollView
@@ -70,9 +79,10 @@ export default function CalendarScreen() {
         <RefreshControl refreshing={events.isRefetching} onRefresh={() => events.refetch()} />
       }
     >
-      <PageIntro title="นัดหมายสำนักงาน" detail="เลือกวันเพื่อดูนัดศาล งาน และทีมที่ไปด้วย" />
-      {memberId && <Pressable accessibilityRole="button" style={styles.filter} onPress={() => router.replace('/(tabs)/calendar')}>
-        <Text style={styles.filterText}>นัดของ {workload.data?.members.find((member) => member.id === memberId)?.name ?? 'สมาชิกทีม'} · ดูทั้งหมด ×</Text>
+      {memberId && <Pressable accessibilityRole="button" accessibilityLabel={`เลิกกรองนัดของ ${memberName} · ดูนัดทั้งหมด`}
+        style={({ pressed }) => [styles.filter, pressed && { opacity: 0.6 }]} onPress={() => router.replace('/(tabs)/calendar')}>
+        <Text style={styles.filterText}>นัดของ {memberName} · ดูทั้งหมด</Text>
+        <X size={16} color={colors.info} />
       </Pressable>}
       <Card>
         <View style={styles.monthHead}>
@@ -80,19 +90,25 @@ export default function CalendarScreen() {
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="เดือนก่อนหน้า"
-            style={styles.navButton}
+            style={({ pressed }) => [styles.navButton, pressed && { backgroundColor: colors.soft }]}
             onPress={() => goMonth(-1)}
           >
             <ChevronLeft size={20} color={colors.ink} />
           </Pressable>
-          <Text style={styles.monthTitle}>
-            {TH_MONTHS_FULL[cursor.m]} {cursor.y + 543}
-          </Text>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text accessibilityRole="header" style={styles.monthTitle}>
+              {TH_MONTHS_FULL[cursor.m]} {cursor.y + 543}
+            </Text>
+            {!onCurrentMonth && <Pressable accessibilityRole="button" accessibilityLabel="กลับไปเดือนนี้และวันนี้" onPress={goToday}
+              style={({ pressed }) => [styles.filter, { alignSelf: 'center' }, pressed && { opacity: 0.6 }]}>
+              <Text style={styles.filterText}>กลับวันนี้</Text>
+            </Pressable>}
+          </View>
           <Pressable
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="เดือนถัดไป"
-            style={styles.navButton}
+            style={({ pressed }) => [styles.navButton, pressed && { backgroundColor: colors.soft }]}
             onPress={() => goMonth(1)}
           >
             <ChevronRight size={20} color={colors.ink} />
@@ -114,25 +130,34 @@ export default function CalendarScreen() {
                 const key = isoDay(date);
                 const isToday = key === todayKey;
                 const isSelected = key === selected;
-                const hasEvents = byDay.has(key);
+                const dayEvents = byDay.get(key);
+                const hasCourt = !!dayEvents?.some(event => event.type === 'COURT_DATE');
                 return (
                   <Pressable
                     key={key}
-                    accessibilityRole="button" accessibilityLabel={`${date.getDate()} ${TH_MONTHS_FULL[cursor.m]} ${cursor.y + 543}${hasEvents ? ' มีนัดหมาย' : ''}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${date.getDate()} ${TH_MONTHS_FULL[cursor.m]} ${cursor.y + 543}${isToday ? ' วันนี้' : ''}${dayEvents ? ` มีนัด ${dayEvents.length} รายการ${hasCourt ? ' รวมนัดศาล' : ''}` : ''}`}
                     accessibilityState={{ selected: isSelected }}
-                    style={[styles.cell, isSelected && styles.cellSelected, isToday && styles.cellToday]}
+                    style={styles.cell}
                     onPress={() => setSelected(key)}
                   >
-                    <Text
-                      style={[
-                        styles.cellText,
-                        isToday && { color: colors.ink, fontWeight: '700' },
-                        isSelected && !isToday && { color: colors.ink, fontWeight: '700' },
-                      ]}
-                    >
-                      {date.getDate()}
-                    </Text>
-                    {hasEvents ? <View style={styles.dot} /> : null}
+                    {({ pressed }) => <>
+                      <View style={[styles.dayMark, isToday && !isSelected && styles.cellToday, isSelected && styles.cellSelected,
+                        pressed && !isSelected && { backgroundColor: colors.soft }]}>
+                        <Text
+                          maxFontSizeMultiplier={CHROME_MAX_SCALE}
+                          style={[
+                            styles.cellText,
+                            isToday && { color: colors.ink, fontWeight: '700' },
+                            isSelected && styles.cellTextSelected,
+                          ]}
+                        >
+                          {date.getDate()}
+                        </Text>
+                      </View>
+                      {/* Brass marks a court date; other appointments get a muted dot. */}
+                      {dayEvents ? <View style={[styles.dot, { backgroundColor: hasCourt ? colors.accent : colors.muted }]} /> : null}
+                    </>}
                   </Pressable>
                 );
               })}
@@ -141,25 +166,19 @@ export default function CalendarScreen() {
         </View>
       </Card>
 
-      {events.isError ? (
-        <View style={{ marginTop: spacing.md }}>
-          <ErrorNote message="โหลดปฏิทินไม่สำเร็จ" onRetry={() => events.refetch()} />
-        </View>
-      ) : null}
-
       <View style={styles.dayHead}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, flexShrink: 1 }}>
           <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>
             {selected === todayKey ? 'วันนี้ · ' : ''}{thDate(new Date(selected))}{selectedEvents.length ? ` · ${selectedEvents.length} นัด` : ''}
           </SectionLabel>
-          {selected !== todayKey && <Pressable accessibilityRole="button" accessibilityLabel="กลับไปวันนี้" hitSlop={8} onPress={goToday} style={styles.filter}>
+          {onCurrentMonth && selected !== todayKey && <Pressable accessibilityRole="button" accessibilityLabel="กลับไปวันนี้" hitSlop={8} onPress={goToday} style={styles.filter}>
             <Text style={styles.filterText}>กลับวันนี้</Text>
           </Pressable>}
         </View>
         <Pressable
-          style={styles.addButton}
+          style={({ pressed }) => [styles.addButton, pressed && { backgroundColor: colors.inkPressed, ...shadow.none }]}
           accessibilityRole="button"
-          accessibilityLabel="เพิ่มนัดหมาย"
+          accessibilityLabel={`เพิ่มนัดหมาย ${thDate(new Date(selected))}`}
           hitSlop={8}
           onPress={() => router.push(`/event/new?date=${selected}`)}
         >
@@ -167,45 +186,58 @@ export default function CalendarScreen() {
           <Text style={styles.addText}>เพิ่มนัด</Text>
         </Pressable>
       </View>
-      <Card>
+      {events.isError && (events.data
+        ? <InlineError style={{ marginBottom: spacing.sm }} message="นัดหมายอาจยังไม่ล่าสุด" onRetry={() => events.refetch()} />
+        : <ErrorState message="โหลดนัดหมายไม่สำเร็จ" onRetry={() => events.refetch()} />)}
+      {!(events.isError && !events.data) && (events.isLoading || selectedEvents.length === 0 ? <Card style={{ paddingVertical: spacing.xs }}>
         {events.isLoading ? (
-          <EmptyNote>กำลังโหลดนัดหมาย…</EmptyNote>
-        ) : events.isError && !events.data ? (
-          <EmptyNote>ยังโหลดนัดหมายไม่ได้ · ลองใหม่จากปุ่มด้านบน</EmptyNote>
-        ) : selectedEvents.length === 0 ? (
-          <EmptyNote>{selected === todayKey ? 'ไม่มีนัดหมายวันนี้' : 'ไม่มีนัดหมายในวันที่เลือก'} · กด “เพิ่มนัด” เพื่อสร้าง</EmptyNote>
+          <LoadingState inline label="กำลังโหลดนัดหมาย…" />
         ) : (
-          selectedEvents.map((event, index) => (
-            <View key={event.id}>
-              {index > 0 && <View style={styles.divider} />}
-              <Pressable
-                style={({ pressed }) => [styles.eventRow, pressed && { opacity: 0.7 }]}
-                onPress={() =>
-                  event.type === 'COURT_DATE'
-                    ? router.push(`/court-day/${event.id}`)
-                    : router.push(`/case/${event.caseId}`)
-                }
-              >
-                <Text style={styles.eventTime}>{thTime(event.startAt)}</Text>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={styles.eventTitle}>
-                    {event.title}
-                  </Text>
-                  {event.type === 'COURT_DATE' ? <Tag tone="court">ศาล</Tag> : null}
-                  <Text style={styles.eventMeta} numberOfLines={1}>
-                    {[event.case?.ownRef, event.courtName].filter(Boolean).join(' · ') || '—'}
-                  </Text>
-                  <Text style={styles.eventMeta}>หลัก: {event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : 'ยังไม่ระบุ'}</Text>
-                  <Text style={styles.eventMeta}>ร่วม: {event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => `${person.user.firstName} ${person.user.lastName}`).join(', ') || 'ไม่มี'}</Text>
-                </View>
-              </Pressable>
-              <Pressable accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center', paddingLeft: 60 }} onPress={() => router.push(`/event/${event.id}/team`)}>
-                <Text style={{ color: colors.info }}>ดู / จัดทีมที่ไปด้วย</Text>
-              </Pressable>
-            </View>
-          ))
+          <EmptyState compact>{selected === todayKey ? 'ไม่มีนัดหมายวันนี้' : 'ไม่มีนัดหมายในวันที่เลือก'}</EmptyState>
         )}
-      </Card>
+      </Card> : <View style={{ gap: spacing.md }}>
+        {selectedEvents.map((event) => {
+          const kind = EVENT_KIND_LABEL[event.type] ?? EVENT_KIND_LABEL.OTHER;
+          const when = event.type === 'DEADLINE' ? 'ทั้งวัน' : thTime(event.startAt);
+          const lead = event.assignee ? personName(event.assignee) : 'ยังไม่ระบุ';
+          const companions = event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => personName(person.user)) ?? [];
+          const people = `หลัก: ${lead}${companions.length ? ` · ร่วม: ${companions.join(', ')}` : ''}`;
+          // One card per appointment: time and kind on the header row, then what, where and who.
+          return <Card key={event.id} style={styles.eventCard}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${kind.label} ${when} ${event.title} · ${people}`}
+              accessibilityHint={event.type === 'COURT_DATE' ? 'เปิดวันขึ้นศาล' : 'เปิดทีมที่ไปด้วย'}
+              style={({ pressed }) => [styles.eventPress, pressed && { backgroundColor: colors.soft }]}
+              onPress={() => openEvent(event)}
+            >
+              <View style={styles.eventHead}>
+                <Text style={styles.eventTime}>{when}</Text>
+                <Tag tone={kind.tone}>{kind.label}</Tag>
+              </View>
+              <View style={styles.eventBody}>
+                <View style={styles.eventTitleRow}>
+                  <Text style={styles.eventTitle}>{event.title}</Text>
+                  <ChevronRight size={18} color={colors.muted} style={{ marginTop: 3 }} />
+                </View>
+                {event.courtName ? <View style={styles.metaRow}>
+                  <MapPin size={14} color={colors.muted} />
+                  <Text style={styles.eventMeta} numberOfLines={1}>{event.courtName}</Text>
+                </View> : null}
+                <View style={styles.metaRow}>
+                  {event.assignee ? <View style={styles.miniAvatar}>
+                    <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.miniAvatarText}>{initials(lead)}</Text>
+                  </View> : null}
+                  <Text style={styles.eventMeta}>{people}</Text>
+                </View>
+              </View>
+            </Pressable>
+            {event.caseId && event.case?.ownRef ? <View style={styles.caseLink}>
+              <Button variant="link" chevron title={`คดี ${event.case.ownRef}`} onPress={() => router.push(`/case/${event.caseId}`)} />
+            </View> : null}
+          </Card>;
+        })}
+      </View>)}
     </ScrollView>
   );
 }
@@ -217,41 +249,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
   navButton: {
     width: TOUCH,
     height: TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.raised,
   },
-  monthTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.ink },
-  grid: { gap: spacing.xs },
-  week: { flexDirection: 'row', alignItems: 'center' },
+  monthTitle: { textAlign: 'center', ...typeScale.section, color: colors.ink },
+  grid: { gap: 2 },
+  week: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   dow: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.faint,
+    ...typeScale.overline,
+    color: colors.muted,
     paddingBottom: 4,
   },
+  // The whole 44pt cell is the target; the visible mark is a 36pt circle, with the event dot just under it.
   cell: {
     flex: 1,
-    height: TOUCH,
+    height: TOUCH + 6,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
+    justifyContent: 'flex-start',
+    paddingTop: 2,
   },
-  cellSelected: { backgroundColor: colors.soft },
-  cellToday: { borderWidth: 1, borderColor: colors.ink },
-  cellText: { fontSize: 13, color: colors.text, fontVariant: ['tabular-nums'] },
+  dayMark: { width: 36, height: 36, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  // Selected day is a filled navy circle with a white numeral; today (when not selected) is a navy ring.
+  cellSelected: { backgroundColor: colors.ink, ...shadow.sm },
+  cellToday: { borderWidth: 1.5, borderColor: colors.ink },
+  cellText: { fontSize: 15, color: colors.text, fontVariant: ['tabular-nums'] },
+  cellTextSelected: { color: colors.bg, fontWeight: '700' },
   dot: {
-    position: 'absolute',
-    bottom: 4,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.accent,
+    marginTop: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
   },
   dayHead: {
     flexDirection: 'row',
@@ -267,28 +307,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: colors.ink,
-    borderRadius: 999,
-    paddingHorizontal: 12,
+    borderRadius: radius.action,
+    paddingHorizontal: spacing.lg,
     minHeight: TOUCH,
     justifyContent: 'center',
+    ...shadow.sm,
   },
-  addText: { color: colors.bg, fontSize: 13, fontWeight: '600' },
-  divider: { height: 1, backgroundColor: colors.soft },
-  filter: { minHeight: TOUCH, justifyContent: 'center' },
-  filterText: { color: colors.info, fontWeight: '600' },
-  eventRow: {
+  addText: { color: colors.bg, fontSize: 14, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: colors.divider },
+  filter: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start' },
+  filterText: { color: colors.info, fontWeight: '600', flexShrink: 1 },
+  eventCard: { padding: 0, overflow: 'hidden' },
+  eventPress: { minHeight: 56 },
+  eventHead: {
     flexDirection: 'row',
-    gap: spacing.md,
-    alignItems: 'flex-start',
-    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
+  eventBody: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.xs },
+  eventTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   eventTime: {
-    fontWeight: '700',
+    fontFamily: fonts.bold,
+    fontSize: 20,
+    lineHeight: 28,
     color: colors.ink,
-    width: 46,
-    fontSize: 14,
     fontVariant: ['tabular-nums'],
   },
-  eventTitle: { color: colors.text, fontWeight: '600', fontSize: 14 },
-  eventMeta: { color: colors.faint, fontSize: 12 },
+  eventTitle: { flex: 1, minWidth: 0, color: colors.ink, fontFamily: fonts.bold, fontSize: 17, lineHeight: 26 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  eventMeta: { ...typeScale.meta, color: colors.muted, flexShrink: 1 },
+  miniAvatar: { width: 22, height: 22, borderRadius: radius.full, backgroundColor: colors.sunken, alignItems: 'center', justifyContent: 'center' },
+  miniAvatarText: { fontFamily: fonts.bold, fontSize: 9, lineHeight: 12, color: colors.ink },
+  caseLink: { paddingHorizontal: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
 });

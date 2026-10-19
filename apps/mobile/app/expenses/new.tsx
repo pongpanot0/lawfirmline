@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, InputAccessoryView, Keyboard, Platform, Pressable, ScrollView, View } from 'react-native';
-import { Text, TextInput } from '@/components/AppText';
+import { Alert, Image, InputAccessoryView, Keyboard, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,11 +12,14 @@ import { draftScope, ExpenseDraft, removeExpenseDraft, retainReceipt, saveDraft 
 import { CasePicker } from '@/components/CasePicker';
 import { DatePicker } from '@/components/DatePicker';
 import { Dropdown } from '@/components/Dropdown';
-import { FieldError, FieldLabel, fieldA11yLabel, FormPage, FormSection, MissingSummary } from '@/components/Form';
-import { Button, Loading } from '@/components/ui';
+import { FieldLabel, fieldA11yLabel, FormPage, FormSection, MissingSummary, StickyBar } from '@/components/Form';
+import { Camera, Check, FolderOpen, Images, Receipt } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TextField } from '@/components/Input';
+import { Button, InlineError, LoadingState } from '@/components/ui';
 import { expenseError } from '@/workflow';
 import { bangkokDay, formatMoneyInput } from '@/format';
-import { colors, radius, spacing, pageContent } from '@/theme';
+import { colors, fonts, radius, spacing, pageContent } from '@/theme';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 
 export default function NewExpenseScreen() {
@@ -25,6 +28,7 @@ export default function NewExpenseScreen() {
   const router = useRouter();
   const client = useQueryClient();
   const keyboardHeight = useKeyboardHeight();
+  const insets = useSafeAreaInsets();
   const scope = user ? draftScope(user) : '';
   const [draft, setDraft] = useState<ExpenseDraft>({
     id: draftId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`, category: '', amount: '', description: '',
@@ -113,8 +117,7 @@ export default function NewExpenseScreen() {
     } catch (error) { Alert.alert(savedInSystem ? 'บันทึกแล้ว แต่ปิดร่างไม่สำเร็จ' : 'ยังบันทึกเข้าระบบไม่ได้', `${error instanceof Error ? error.message : 'กรุณาลองใหม่'}\n${savedInSystem ? 'รายการอยู่ในระบบแล้ว กดปิดร่างนี้ได้โดยไม่ส่งซ้ำ' : retained ? 'ร่างและใบเสร็จยังอยู่ในเครื่อง ถ้าเน็ตหลุดระหว่างส่ง ให้ตรวจรายการค่าใช้จ่ายก่อนส่งอีกครั้ง' : 'เก็บร่างในเครื่องไม่ได้ กรุณาอยู่หน้านี้และลองเก็บร่างอีกครั้ง'}`); }
     finally { setBusy(false); }
   };
-  if (!ready || !user) return <Loading />;
-  const field = { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, padding: spacing.md, minHeight: 48, color: colors.text };
+  if (!ready || !user) return <LoadingState />;
   if (uploaded) return <FormPage>
     <Stack.Screen options={{ title: 'เพิ่มค่าใช้จ่าย' }} />
     <FormSection title="บันทึกค่าใช้จ่ายนี้เข้าระบบแล้ว" detail="รายการอยู่ในค่าใช้จ่ายของฉันแล้ว ปิดร่างในเครื่องได้โดยไม่ส่งซ้ำ">
@@ -122,58 +125,66 @@ export default function NewExpenseScreen() {
     </FormSection>
   </FormPage>;
   const otherCategory = draft.category === 'อื่นๆ';
-  const descriptionField = <>
-    <FieldLabel required={otherCategory}>{otherCategory ? 'รายละเอียด' : 'รายละเอียด · ถ้ามี'}</FieldLabel>
-    <TextInput inputAccessoryViewID="expense-keyboard" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} accessibilityLabel={fieldA11yLabel('รายละเอียดค่าใช้จ่าย', otherCategory)}
-      style={[field, triedSave && descriptionError ? { borderColor: colors.warn } : null]} placeholder="เช่น ทางด่วนไปศาล" placeholderTextColor={colors.faint} maxLength={500}
-      value={draft.description} onChangeText={(description) => change({ description })} editable={!busy} />
-    <FieldError message={triedSave ? descriptionError : undefined} />
-  </>;
+  const descriptionField = <TextField label={otherCategory ? 'รายละเอียด' : 'รายละเอียด · ถ้ามี'} required={otherCategory}
+    inputAccessoryViewID="expense-keyboard" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} accessibilityLabel={fieldA11yLabel('รายละเอียดค่าใช้จ่าย', otherCategory)}
+    error={triedSave ? descriptionError : undefined} placeholder="เช่น ทางด่วนไปศาล" maxLength={500}
+    value={draft.description} onChange={(description) => change({ description })} disabled={busy} />;
   return <>
     <Stack.Screen options={{ title: 'เพิ่มค่าใช้จ่าย' }} />
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ ...pageContent, gap: spacing.sm, paddingBottom: spacing.xl + keyboardHeight }}>
-        <FormSection title="รายการ">
+        <FormSection title="รายการ" icon={Receipt}>
         <Dropdown label="เลือกประเภทค่าใช้จ่าย" fieldLabel="เบิกค่าอะไร" required value={draft.category} options={EXPENSE_CATEGORIES.map((value) => ({ value, label: value }))}
           error={triedSave ? categoryError : undefined} onChange={(category) => change({ category })} disabled={busy} />
         {/* "อื่นๆ" makes the description required, so it moves up next to the category. */}
         {otherCategory && descriptionField}
-        <FieldLabel required>จำนวนเงิน (บาท)</FieldLabel>
-        <TextInput inputAccessoryViewID="expense-keyboard" accessibilityLabel={fieldA11yLabel('จำนวนเงิน (บาท)', true)} accessibilityHint={triedSave ? amountError : undefined}
-          style={[field, { fontSize: 24 }, triedSave && amountError ? { borderColor: colors.warn } : null]} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.faint}
-          value={formatMoneyInput(draft.amount) ?? draft.amount} onChangeText={(amount) => {
+        {/* Money keeps the shared frame but reads larger, in tabular figures. */}
+        <TextField label="จำนวนเงิน (บาท)" required inputAccessoryViewID="expense-keyboard"
+          error={triedSave ? amountError : undefined} inputStyle={styles.amount} keyboardType="decimal-pad" placeholder="0.00"
+          value={formatMoneyInput(draft.amount) ?? draft.amount} onChange={(amount) => {
             const formatted = formatMoneyInput(amount);
             if (formatted !== null) change({ amount: formatted });
-          }} editable={!busy} />
-        <FieldError message={triedSave ? amountError : undefined} />
+          }} disabled={busy} />
         <DatePicker label="วันที่จ่าย" value={draft.date} onChange={(date) => change({ date })} disabled={busy} />
         </FormSection>
-        <FormSection title="หลักฐานและแฟ้มคดี · ถ้ามี">
+        <FormSection title="หลักฐานและแฟ้มคดี · ถ้ามี" icon={FolderOpen}>
         <FieldLabel>ใบเสร็จ</FieldLabel>
         {draft.receiptUri && <>
-          <Image accessibilityLabel="รูปใบเสร็จที่แนบ" source={{ uri: draft.receiptUri }} style={{ width: '100%', height: 200, borderRadius: radius.card, backgroundColor: colors.soft }} resizeMode="contain" />
+          <Image accessibilityLabel="รูปใบเสร็จที่แนบ" source={{ uri: draft.receiptUri }} style={styles.receipt} resizeMode="contain" />
           <Button title="เอาใบเสร็จออก" variant="link" disabled={busy} onPress={() => change({ receiptUri: null, receiptMimeType: undefined })} />
         </>}
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <View style={{ flex: 1 }}><Button title={draft.receiptUri ? 'ถ่ายใหม่' : 'ถ่ายใบเสร็จ'} variant="secondary" onPress={() => photo(true)} disabled={busy} /></View>
-          <View style={{ flex: 1 }}><Button title="เลือกรูป" variant="secondary" onPress={() => photo(false)} disabled={busy} /></View>
+          <View style={{ flex: 1 }}><Button title={draft.receiptUri ? 'ถ่ายใหม่' : 'ถ่ายใบเสร็จ'} icon={Camera} variant="secondary" onPress={() => photo(true)} disabled={busy} /></View>
+          <View style={{ flex: 1 }}><Button title="เลือกรูป" icon={Images} variant="secondary" onPress={() => photo(false)} disabled={busy} /></View>
         </View>
         <CasePicker label="คดี · ถ้ามี" value={draft.caseRef} onChange={(caseRef) => change({ caseRef })} allowNone disabled={busy} />
         {!otherCategory && descriptionField}
         </FormSection>
-        {triedSave && <MissingSummary items={missing} />}
-        <Button title="บันทึกค่าใช้จ่าย" onPress={() => save(true)} busy={busy} />
-        <Text style={{ color: colors.muted, fontSize: 13, textAlign: 'center' }}>บันทึกแล้วยังไม่ส่งเบิก · รวมเป็นชุดส่งเบิกได้ที่หน้าค่าใช้จ่ายของฉัน</Text>
-        {/* Draft is a quiet secondary path: autosave already keeps it on the device. */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.sm }}>
-          <Text style={{ color: localStatus.includes('ไม่สำเร็จ') ? colors.warn : colors.muted, fontSize: 12 }}>{localStatus || 'ร่างเก็บในเครื่องอัตโนมัติ · กลับมาเติมทีหลังได้'}</Text>
+        <Text style={styles.note}>บันทึกแล้วยังไม่ส่งเบิก · รวมเป็นชุดส่งเบิกได้ที่หน้าค่าใช้จ่ายของฉัน</Text>
+        {!localStatus.includes('ไม่สำเร็จ') && <Text style={styles.draftStatus}>{localStatus || 'ร่างเก็บในเครื่องอัตโนมัติ · กลับมาเติมทีหลังได้'}</Text>}
+      </ScrollView>
+      <StickyBar bottomInset={keyboardHeight ? 0 : insets.bottom}>
+        <View style={styles.barInner}>
+          {triedSave && <MissingSummary items={missing} />}
+          {localStatus.includes('ไม่สำเร็จ') && <InlineError message={localStatus} />}
+          <Button title="บันทึกค่าใช้จ่าย" icon={Check} onPress={() => save(true)} busy={busy} />
+          {/* Draft is a quiet secondary path: autosave already keeps it on the device. */}
           <Pressable accessibilityRole="button" accessibilityLabel="เก็บเป็นร่างแล้วออก" onPress={leaveAsDraft} disabled={busy}
-            style={({ pressed }) => [{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm }, (pressed || busy) && { opacity: 0.6 }]}>
+            style={({ pressed }) => [styles.draftLink, (pressed || busy) && { opacity: 0.6 }]}>
             <Text style={{ color: colors.info, fontWeight: '600' }}>เก็บเป็นร่างแล้วออก</Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </StickyBar>
     </View>
-    {Platform.OS === 'ios' && <InputAccessoryView nativeID="expense-keyboard"><View style={{ paddingHorizontal: spacing.md, backgroundColor: colors.surface, alignItems: 'flex-end' }}><Pressable accessibilityRole="button" onPress={Keyboard.dismiss} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md }}><Text style={{ color: colors.info, fontWeight: '700' }}>เสร็จ</Text></Pressable></View></InputAccessoryView>}
+    {Platform.OS === 'ios' && <InputAccessoryView nativeID="expense-keyboard"><View style={{ paddingHorizontal: spacing.md, backgroundColor: colors.soft, borderTopWidth: 1, borderColor: colors.line, alignItems: 'flex-end' }}><Pressable accessibilityRole="button" onPress={Keyboard.dismiss} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md }}><Text style={{ color: colors.info, fontWeight: '700' }}>เสร็จ</Text></Pressable></View></InputAccessoryView>}
   </>;
 }
+
+const styles = StyleSheet.create({
+  amount: { fontSize: 24, fontFamily: fonts.semibold, fontVariant: ['tabular-nums'] },
+  receipt: { width: '100%', height: 200, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.sunken },
+  note: { color: colors.muted, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: spacing.sm },
+  draftStatus: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  barInner: { width: '100%', maxWidth: 1080 - spacing.lg * 2, alignSelf: 'center', gap: spacing.xs },
+  draftLink: { minHeight: 44, justifyContent: 'center', alignSelf: 'center', paddingHorizontal: spacing.md },
+});

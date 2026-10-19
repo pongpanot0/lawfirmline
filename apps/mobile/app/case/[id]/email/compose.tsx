@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -7,11 +7,29 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react-native';
 import { api, ApiError } from '@/api/client';
 import type { EmailComposeOptions, EmailTemplateItem, EmailThreadDetail } from '@/api/types';
-import { Dropdown } from '@/components/Dropdown';
-import { FormField, FormPage, FormSection } from '@/components/Form';
-import { Button, EmptyNote, ErrorNote, Loading, SectionLabel } from '@/components/ui';
+import { SelectField, TextArea, TextField, fieldFrame } from '@/components/Input';
+import { FieldLabel, FormPage, FormSection, SwitchRow, fieldA11yLabel } from '@/components/Form';
+import { Button, EmptyState, ErrorState, InlineError, LoadingState } from '@/components/ui';
 import { composeError, mergeTemplateBody, newSubject, parseAddressList, replyRecipients, replySubject } from '@/lib/case-email-compose';
-import { colors, radius, spacing } from '@/theme';
+import { colors, radius, spacing, typeScale } from '@/theme';
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, borderRadius: radius.button,
+    backgroundColor: colors.infoSoft, borderWidth: 1, borderColor: colors.line },
+  suggestion: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.button, borderWidth: 1,
+    borderColor: colors.line, backgroundColor: colors.surface },
+  sheetTitle: { ...typeScale.title, color: colors.ink },
+  sheetDetail: { color: colors.muted, fontSize: 13, lineHeight: 20 },
+  docRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+    borderBottomWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  check: { width: 24, height: 24, borderRadius: radius.sm, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  reviewRow: { flexDirection: 'row', gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
+  reviewLabel: { ...typeScale.overline, color: colors.muted, width: 64, paddingTop: 2 },
+  reviewValue: { flex: 1, minWidth: 0, color: colors.text, fontSize: 15, lineHeight: 22 },
+  reviewSubject: { ...typeScale.section, color: colors.ink, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
+  reviewBody: { color: colors.text, fontSize: 15, lineHeight: 24 },
+});
 
 interface DocItem { id: string; filename?: string; name?: string; fileName?: string }
 const docName = (d: DocItem) => d.filename ?? d.name ?? d.fileName ?? 'เอกสาร';
@@ -23,10 +41,13 @@ function uuidV4() {
   });
 }
 
-function AddressField({ label, items, onChange, suggestions }: {
+/** Recipient chips plus a free-text input. Suggestions show only under the field the user is filling. */
+function AddressField({ label, items, onChange, suggestions, required = false, error, showSuggestions, onFocus }: {
   label: string; items: string[]; onChange: (items: string[]) => void; suggestions: EmailComposeOptions['recipients'];
+  required?: boolean; error?: string; showSuggestions: boolean; onFocus: () => void;
 }) {
   const [text, setText] = useState('');
+  const [focused, setFocused] = useState(false);
   const add = (raw: string) => {
     const merged = [...items];
     for (const a of parseAddressList(raw)) if (!merged.some((x) => x.toLowerCase() === a.toLowerCase())) merged.push(a);
@@ -35,20 +56,22 @@ function AddressField({ label, items, onChange, suggestions }: {
   };
   const free = suggestions.filter((s) => !items.some((x) => x.toLowerCase() === s.email.toLowerCase()));
   return <View style={{ gap: spacing.sm }}>
-    <SectionLabel>{label}</SectionLabel>
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+    <FieldLabel required={required}>{label}</FieldLabel>
+    {items.length > 0 && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
       {items.map((a) => <Pressable key={a} accessibilityRole="button" accessibilityLabel={`ลบ ${a}`} onPress={() => onChange(items.filter((x) => x !== a))}
-        style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, borderRadius: radius.button, backgroundColor: colors.soft }}>
+        style={({ pressed }) => [styles.chip, pressed && { backgroundColor: colors.soft }]}>
         <Text style={{ color: colors.ink, fontSize: 14 }}>{a}</Text><X size={14} color={colors.muted} />
       </Pressable>)}
-    </View>
-    <TextInput accessibilityLabel={label} value={text} onChangeText={(v) => (/[,;\s]$/.test(v) ? add(v) : setText(v))}
-      onSubmitEditing={() => add(text)} onBlur={() => add(text)} autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
-      placeholder="พิมพ์อีเมลแล้วกด เพิ่ม" placeholderTextColor={colors.faint}
-      style={{ minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text, fontSize: 16 }} />
-    {free.length > 0 && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+    </View>}
+    <TextInput accessibilityLabel={fieldA11yLabel(label, required)} accessibilityHint={error || undefined} value={text}
+      onChangeText={(v) => (/[,;\s]$/.test(v) ? add(v) : setText(v))} onFocus={() => { setFocused(true); onFocus(); }}
+      onSubmitEditing={() => add(text)} onBlur={() => { setFocused(false); add(text); }} autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
+      placeholder="พิมพ์อีเมล แล้วเว้นวรรคหรือกด Enter" placeholderTextColor={colors.faint}
+      style={fieldFrame({ focused, error: !!error })} />
+    <InlineError message={error} />
+    {showSuggestions && free.length > 0 && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
       {free.slice(0, 12).map((s) => <Pressable key={s.email} accessibilityRole="button" accessibilityLabel={`เพิ่ม ${s.name} ${s.email}`} onPress={() => add(s.email)}
-        style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.button, borderWidth: 1, borderColor: colors.line }}>
+        style={({ pressed }) => [styles.suggestion, pressed && { backgroundColor: colors.soft }]}>
         <Text style={{ color: colors.info, fontSize: 13 }}>+ {s.name || s.email}</Text>
       </Pressable>)}
     </View>}
@@ -60,21 +83,21 @@ function DocPicker({ caseId, selected, onChange }: { caseId: string; selected: s
   const docs = useQuery({ queryKey: ['case-documents', caseId], queryFn: () => api<DocItem[]>(`/cases/${caseId}/documents`), enabled: open || selected.length > 0 });
   const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : selected.length >= 10 ? selected : [...selected, id]);
   return <>
-    <Button title={selected.length ? `แนบเอกสารคดี (${selected.length})` : 'แนบเอกสารคดี'} ghost onPress={() => setOpen(true)} />
+    <Button title={selected.length ? `แนบเอกสารคดี · เลือกแล้ว ${selected.length} ไฟล์` : 'แนบเอกสารคดี'} variant="secondary" onPress={() => setOpen(true)} />
     <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
-      <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-        <View style={{ padding: spacing.lg, gap: spacing.xs }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: colors.ink }}>แนบเอกสารคดี</Text>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>เลือกได้ไม่เกิน 10 ไฟล์ · ไฟล์ใหญ่กว่า 3 MB จะส่งเป็นลิงก์ OneDrive</Text>
+      <SafeAreaProvider><SafeAreaView style={styles.screen}>
+        <View style={{ padding: spacing.lg, gap: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+          <Text accessibilityRole="header" style={styles.sheetTitle}>แนบเอกสารคดี</Text>
+          <Text style={styles.sheetDetail}>เลือกได้ไม่เกิน 10 ไฟล์ · ไฟล์ใหญ่กว่า 3 MB จะส่งเป็นลิงก์ OneDrive</Text>
         </View>
         <ScrollView>
-          {docs.isLoading ? <EmptyNote>กำลังโหลด…</EmptyNote> : docs.isError ? <View style={{ padding: spacing.lg }}><ErrorNote message="โหลดเอกสารไม่สำเร็จ" onRetry={() => docs.refetch()} /></View>
-            : (docs.data?.length ?? 0) === 0 ? <EmptyNote>ไม่มีเอกสารในคดี</EmptyNote>
+          {docs.isLoading ? <LoadingState label="กำลังโหลดเอกสาร…" /> : docs.isError ? <View style={{ padding: spacing.lg }}><ErrorState message="โหลดเอกสารไม่สำเร็จ" onRetry={() => docs.refetch()} /></View>
+            : (docs.data?.length ?? 0) === 0 ? <EmptyState compact>คดีนี้ยังไม่มีเอกสาร</EmptyState>
             : docs.data!.map((d) => {
               const on = selected.includes(d.id);
               return <Pressable key={d.id} accessibilityRole="checkbox" accessibilityState={{ checked: on }} onPress={() => toggle(d.id)}
-                style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderBottomWidth: 1, borderColor: colors.line }}>
-                <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: on ? colors.good : colors.muted, backgroundColor: on ? colors.good : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                style={({ pressed }) => [styles.docRow, pressed && { backgroundColor: colors.soft }]}>
+                <View style={[styles.check, { borderColor: on ? colors.good : colors.muted, backgroundColor: on ? colors.good : 'transparent' }]}>
                   {on && <Check size={15} color={colors.surface} strokeWidth={3} />}
                 </View>
                 <Text style={{ flex: 1, color: colors.text }} numberOfLines={2}>{docName(d)}</Text>
@@ -103,6 +126,9 @@ export default function EmailComposeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
   const [templateId, setTemplateId] = useState('');
+  const [triedReview, setTriedReview] = useState(false);
+  const [showCc, setShowCc] = useState(false);
+  const [activeAddress, setActiveAddress] = useState<'to' | 'cc'>('to');
   const requestId = useRef(uuidV4());
   const sent = useRef(false);
   const prefilled = useRef(false);
@@ -161,54 +187,78 @@ export default function EmailComposeScreen() {
   });
 
   const problem = useMemo(() => composeError({ to, cc, subject, body }), [to, cc, subject, body]);
+  // composeError reports one problem at a time; show it under the field it belongs to.
+  const problemField = !problem ? null
+    : problem.startsWith('อีเมลไม่ถูกต้อง') ? (to.some((a) => problem.includes(a)) ? 'to' : 'cc')
+    : problem.includes('{{') ? (subject.includes('{{') ? 'subject' : 'body')
+    : problem.includes('หัวเรื่อง') ? 'subject'
+    : problem.includes('เนื้อหา') ? 'body'
+    : 'to';
+  const errorFor = (field: 'to' | 'cc' | 'subject' | 'body') => (triedReview && problemField === field ? problem ?? undefined : undefined);
   const hasTemplates = (templates.data?.length ?? 0) > 0;
+  const pickedDocs = useQuery({ queryKey: ['case-documents', id], queryFn: () => api<DocItem[]>(`/cases/${id}/documents`), enabled: !!id && docIds.length > 0 });
 
-  if (options.isLoading || (isReply && source.isLoading)) return <Loading />;
-  if (options.isError || !options.data) return <View style={{ padding: spacing.lg }}><ErrorNote message="โหลดข้อมูลเขียนอีเมลไม่สำเร็จ" onRetry={() => options.refetch()} /></View>;
-  if (isReply && source.isError) return <View style={{ padding: spacing.lg }}><ErrorNote message="โหลดอีเมลต้นฉบับไม่สำเร็จ" onRetry={() => source.refetch()} /></View>;
-  if (!options.data.mailboxAddress) return <View style={{ padding: spacing.lg }}><EmptyNote>เชื่อมต่อ Microsoft 365 ที่หน้าเว็บ (ตั้งค่า) ก่อน</EmptyNote></View>;
+  const failure = (message: string, retry: () => void) => <View style={[styles.screen, { padding: spacing.lg }]}><ErrorState message={message} onRetry={retry} /></View>;
+  if (options.isLoading || (isReply && source.isLoading)) return <View style={styles.screen}><LoadingState label="กำลังเตรียมอีเมล…" /></View>;
+  if (options.isError || !options.data) return failure('โหลดข้อมูลเขียนอีเมลไม่สำเร็จ', () => options.refetch());
+  if (isReply && source.isError) return failure('โหลดอีเมลต้นฉบับไม่สำเร็จ', () => source.refetch());
+  if (!options.data.mailboxAddress) return <View style={[styles.screen, { padding: spacing.lg, gap: spacing.md }]}>
+    <Text style={{ color: colors.text, lineHeight: 22 }}>ยังไม่ได้เชื่อม Microsoft 365 · ให้ผู้ดูแลเชื่อมที่หน้าเว็บ &gt; ตั้งค่า</Text>
+    <Button title="กลับ" variant="secondary" onPress={() => router.back()} />
+  </View>;
   const opts = options.data;
+  const pickedNames = docIds.map((docId) => {
+    const doc = pickedDocs.data?.find((d) => d.id === docId);
+    return doc ? docName(doc) : 'เอกสาร';
+  });
 
   if (review) return <>
     <Stack.Screen options={{ title: 'ตรวจทานก่อนส่ง' }} />
     <FormPage>
       <FormSection title="ตรวจทานก่อนส่ง">
-        <Text>จาก: {opts.mailboxAddress}</Text>
-        <Text>ถึง: {to.join(', ')}</Text>
-        {cc.length > 0 && <Text>สำเนา: {cc.join(', ')}</Text>}
-        <Text style={{ fontWeight: '700' }}>{subject}</Text>
-        <Text style={{ color: colors.muted }}>ไฟล์แนบ: {docIds.length} ไฟล์ · ลายเซ็น: {signature && opts.signature ? 'มี' : 'ไม่มี'}</Text>
-        <Text style={{ lineHeight: 22 }}>{body}</Text>
+        <View style={[styles.reviewRow, { borderTopWidth: 0, paddingTop: 0 }]}><Text style={styles.reviewLabel}>จาก:</Text><Text style={styles.reviewValue}>{opts.mailboxAddress}</Text></View>
+        <View style={styles.reviewRow}><Text style={styles.reviewLabel}>ถึง:</Text><Text style={styles.reviewValue}>{to.join(', ')}</Text></View>
+        {cc.length > 0 && <View style={styles.reviewRow}><Text style={styles.reviewLabel}>สำเนา:</Text><Text style={styles.reviewValue}>{cc.join(', ')}</Text></View>}
+        <View style={styles.reviewRow}>
+          {docIds.length > 0
+            ? <><Text style={styles.reviewLabel}>ไฟล์แนบ:</Text><Text style={styles.reviewValue}>{pickedNames.join(', ')}</Text></>
+            : <Text style={[styles.reviewValue, { color: colors.muted }]}>ไม่มีไฟล์แนบ</Text>}
+        </View>
+        <View style={styles.reviewRow}><Text style={styles.reviewLabel}>ลายเซ็น:</Text><Text style={styles.reviewValue}>{signature && opts.signature ? 'มี' : 'ไม่มี'}</Text></View>
+        <Text style={styles.reviewSubject}>{subject}</Text>
+        <Text style={styles.reviewBody}>{body}</Text>
       </FormSection>
-      {error && <ErrorNote message={error} />}
+      <InlineError message={error ?? undefined} />
       <Button title="ส่งอีเมล" busy={send.isPending} disabled={send.isPending} onPress={() => { setError(null); send.mutate(); }} />
-      <Button title="กลับไปแก้ไข" ghost disabled={send.isPending} onPress={() => setReview(false)} />
+      <Button title="กลับไปแก้ไข" variant="secondary" disabled={send.isPending} onPress={() => setReview(false)} />
     </FormPage>
   </>;
 
   return <>
     <Stack.Screen options={{ title: isReply ? 'ตอบกลับอีเมล' : 'เขียนอีเมล' }} />
     <FormPage>
-      <AddressField label="ถึง" items={to} onChange={setTo} suggestions={opts.recipients} />
-      <AddressField label="สำเนา (CC)" items={cc} onChange={setCc} suggestions={opts.recipients} />
-      <FormField label="หัวเรื่อง" value={subject} onChange={setSubject} />
+      <AddressField label="ถึง" required items={to} onChange={setTo} suggestions={opts.recipients} error={errorFor('to')}
+        showSuggestions={activeAddress === 'to'} onFocus={() => setActiveAddress('to')} />
+      {showCc || cc.length > 0
+        ? <AddressField label="สำเนา (CC)" items={cc} onChange={setCc} suggestions={opts.recipients} error={errorFor('cc')}
+            showSuggestions={activeAddress === 'cc'} onFocus={() => setActiveAddress('cc')} />
+        : <Button title="+ สำเนา (CC)" variant="link" onPress={() => { setShowCc(true); setActiveAddress('cc'); }} />}
       {hasTemplates && <View style={{ gap: spacing.sm }}>
-        <SectionLabel>แม่แบบอีเมล</SectionLabel>
-        <Dropdown label="เลือกแม่แบบ" value={templateId} options={templates.data!.map((t) => ({ value: t.id, label: t.name }))} onChange={applyTemplate} />
-        {missing.length > 0 && <Text style={{ color: colors.warn, fontSize: 13 }}>ยังไม่มีข้อมูล: {missing.join(', ')} — กรอกเองในข้อความ</Text>}
+        <SelectField label="แม่แบบอีเมล · ถ้ามี" sheetTitle="เลือกแม่แบบ" hint={isReply ? undefined : 'ใช้แม่แบบจะแทนหัวเรื่องด้านล่าง'}
+          value={templateId} options={templates.data!.map((t) => ({ value: t.id, label: t.name }))} onChange={applyTemplate} />
+        {missing.length > 0 && <InlineError message={`ยังไม่มีข้อมูล: ${missing.join(', ')} — กรอกเองในข้อความ`} />}
       </View>}
-      <FormField label="ข้อความ" value={body} onChange={setBody} multiline />
+      <TextField label="หัวเรื่อง" required value={subject} onChange={setSubject} error={errorFor('subject')} />
+      <TextArea label="ข้อความ" required value={body} onChange={setBody} error={errorFor('body')} />
       <DocPicker caseId={id} selected={docIds} onChange={setDocIds} />
-      {opts.signature ? <View style={{ gap: spacing.sm }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 }}>
-          <Text style={{ fontWeight: '600', color: colors.ink }}>แนบลายเซ็น</Text>
-          <Switch accessibilityLabel="แนบลายเซ็น" value={signature} onValueChange={setSignature} />
-        </View>
+      {opts.signature ? <View style={{ gap: spacing.xs }}>
+        <SwitchRow label="แนบลายเซ็น" value={signature} onValueChange={setSignature} />
         {signature && <Text style={{ color: colors.muted, fontSize: 13 }}>{opts.signature}</Text>}
       </View> : null}
-      {error && <ErrorNote message={error} />}
+      <InlineError message={error ?? undefined} />
       <Button title="ตรวจทานก่อนส่ง" onPress={() => {
-        if (problem) { setError(problem); return; }
+        setTriedReview(true);
+        if (problem) return;
         setError(null); setReview(true);
       }} />
     </FormPage>

@@ -4,19 +4,30 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { CalendarDays, ChevronRight, FolderOpen, LockKeyhole } from 'lucide-react-native';
 import { FIRM_ROLE_LABELS, TASK_WORK_TYPES, type FirmRole, type PersonWorkload } from '@lawfirm/shared';
 import { Text } from '@/components/AppText';
-import { Button, Card, EmptyNote, SectionLabel, Tag, TASK_STATUS_LABEL, taskStatusTone } from '@/components/ui';
+import { Button, Card, EmptyState, SectionLabel, Tag, TASK_STATUS_LABEL, taskStatusTone } from '@/components/ui';
 import { initials, thDate, thTime } from '@/format';
-import { colors, fonts, spacing } from '@/theme';
+import { colors, fonts, radius, spacing, typeScale } from '@/theme';
 
 const LEGACY_ROLES: Record<string, string> = { JUNIOR_LAWYER: 'ทนายความ', ADMIN: 'ผู้ดูแล' };
 
-function DetailRow({ title, subtitle, onPress, children }: { title: string; subtitle?: string; onPress?: () => void; children?: React.ReactNode }) {
+/** A row inside a list card; every row after the first gets a hairline divider above it. */
+function DetailRow({ title, subtitle, onPress, children, first = false }: {
+  title: string; subtitle?: string; onPress?: () => void; children?: React.ReactNode; first?: boolean;
+}) {
   const content = <>
     <View style={styles.rowText}><Text style={styles.rowTitle}>{title}</Text>{subtitle ? <Text style={styles.secondary}>{subtitle}</Text> : null}{children}</View>
     {onPress ? <ChevronRight size={18} color={colors.info} /> : <View accessible accessibilityLabel="ไม่มีสิทธิ์เปิด"><LockKeyhole size={15} color={colors.muted} /></View>}
   </>;
   return onPress ? <Pressable accessibilityRole="button" accessibilityLabel={`เปิด ${title}`} onPress={onPress}
-    style={({ pressed }) => [styles.row, pressed && styles.pressed]}>{content}</Pressable> : <View style={styles.row}>{content}</View>;
+    style={({ pressed }) => [styles.row, !first && styles.rowLine, pressed && styles.pressed]}>{content}</Pressable>
+    : <View style={[styles.row, !first && styles.rowLine]}>{content}</View>;
+}
+
+function SectionHead({ icon: Icon, children }: { icon: typeof CalendarDays; children: React.ReactNode }) {
+  return <View style={styles.sectionHead}>
+    <View style={styles.sectionIcon}><Icon size={16} color={colors.info} /></View>
+    <SectionLabel style={styles.sectionTitle}>{children}</SectionLabel>
+  </View>;
 }
 
 export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCase, onEvent, onAssign }: {
@@ -42,15 +53,15 @@ export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCa
 
     {!!blockers.length && <>
       <SectionLabel>จุดติดขัด · {blockers.length}</SectionLabel>
-      <Card style={{ backgroundColor: colors.warnSoft, borderColor: colors.warnSoft }}>
-        {blockers.map(task => <DetailRow key={task.id} title={task.title} onPress={canOpenTask(task) ? () => onTask(task.id) : undefined}>
+      <Card style={[styles.listCard, styles.blockerCard]}>
+        {blockers.map((task, index) => <DetailRow key={task.id} first={index === 0} title={task.title} onPress={canOpenTask(task) ? () => onTask(task.id) : undefined}>
           <Text style={styles.blocker}>{task.holdReason}</Text>
         </DetailRow>)}
       </Card>
     </>}
 
     <SectionLabel>งานที่รับผิดชอบ · {person.tasks.length}</SectionLabel>
-    <Card>{!person.tasks.length ? <EmptyNote>ไม่มีงานค้างในคิวที่บันทึกไว้</EmptyNote> : person.tasks.map(task => <DetailRow key={task.id} title={task.title}
+    <Card style={styles.listCard}>{!person.tasks.length ? <EmptyState compact>ไม่มีงานค้างในคิวที่บันทึกไว้</EmptyState> : person.tasks.map((task, index) => <DetailRow key={task.id} first={index === 0} title={task.title}
       subtitle={task.case ? `${task.case.ownRef} · ${task.case.title}` : undefined} onPress={canOpenTask(task) ? () => onTask(task.id) : undefined}>
       <View style={styles.tags}>
         <Tag tone={task.overdue ? 'due' : taskStatusTone(task.status)}>{task.overdue ? 'เกินกำหนด' : TASK_STATUS_LABEL[task.status] ?? task.status}</Tag>
@@ -59,20 +70,20 @@ export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCa
     </DetailRow>)}</Card>
 
     <SectionLabel>งานรอตรวจ · {person.reviews.length}</SectionLabel>
-    <Card>{!person.reviews.length ? <EmptyNote>ไม่มีงานรอตรวจ</EmptyNote> : person.reviews.map(task => <DetailRow key={task.id} title={task.title}
+    <Card style={styles.listCard}>{!person.reviews.length ? <EmptyState compact>ไม่มีงานรอตรวจ</EmptyState> : person.reviews.map((task, index) => <DetailRow key={task.id} first={index === 0} title={task.title}
       subtitle={task.dueDate ? `กำหนด ${thDate(task.dueDate)}` : 'ส่งตรวจแล้ว'}
       onPress={owner || person.userId === viewerId || task.title !== 'งานที่คุณไม่มีสิทธิ์ดู' ? () => onTask(task.id) : undefined} />)}</Card>
 
-    <View style={styles.sectionHead}><CalendarDays size={18} color={colors.ink} /><SectionLabel style={styles.sectionTitle}>นัดหมาย 7 วัน</SectionLabel></View>
+    <SectionHead icon={CalendarDays}>นัดหมาย 7 วัน</SectionHead>
     <Text style={styles.window}>ตั้งแต่ {thDate(`${from}T12:00:00+07:00`)}</Text>
-    <Card>{!person.events.length ? <EmptyNote>ไม่มีนัดในช่วง 7 วันนี้</EmptyNote> : person.events.map(event => <DetailRow key={event.id} title={event.title}
+    <Card style={styles.listCard}>{!person.events.length ? <EmptyState compact>ไม่มีนัดในช่วง 7 วันนี้</EmptyState> : person.events.map((event, index) => <DetailRow key={event.id} first={index === 0} title={event.title}
       subtitle={`${thDate(event.startAt)} · ${thTime(event.startAt)}${event.courtName ? ` · ${event.courtName}` : ''}`}
       onPress={owner || person.userId === viewerId || event.title !== 'ติดนัด' ? () => onEvent(event.id) : undefined} />)}</Card>
 
-    <View style={styles.sectionHead}><FolderOpen size={18} color={colors.ink} /><SectionLabel style={styles.sectionTitle}>คดีที่รับผิดชอบ · {person.cases.length}</SectionLabel></View>
-    <Card>{!person.cases.length ? <EmptyNote>ไม่มีคดีเปิดที่คุณมีสิทธิ์ดู</EmptyNote> : person.cases.map(item => <DetailRow key={item.id} title={item.title}
+    <SectionHead icon={FolderOpen}>คดีที่รับผิดชอบ · {person.cases.length}</SectionHead>
+    <Card style={styles.listCard}>{!person.cases.length ? <EmptyState compact>ไม่มีคดีเปิดที่คุณมีสิทธิ์ดู</EmptyState> : person.cases.map((item, index) => <DetailRow key={item.id} first={index === 0} title={item.title}
       subtitle={item.ownRef} onPress={() => onCase(item.id)}><Tag tone={item.role === 'LEAD' ? 'info' : 'plain'}>{item.role === 'LEAD' ? 'ผู้รับผิดชอบหลัก' : 'ร่วมทำคดี'}</Tag></DetailRow>)}
-      {person.hiddenCaseCount > 0 && <Text style={styles.secondary}>อีก {person.hiddenCaseCount} คดีอยู่นอกสิทธิ์การเข้าถึงของคุณ</Text>}
+      {person.hiddenCaseCount > 0 && <Text style={[styles.secondary, styles.hiddenNote]}>อีก {person.hiddenCaseCount} คดีอยู่นอกสิทธิ์การเข้าถึงของคุณ</Text>}
     </Card>
 
     <SectionLabel>ประเภทงานและวันลา</SectionLabel>
@@ -88,18 +99,24 @@ export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCa
 const styles = StyleSheet.create({
   identity: { padding: spacing.lg, gap: spacing.md },
   identityTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.soft, justifyContent: 'center', alignItems: 'center' },
-  initials: { fontFamily: fonts.bold, fontSize: 18, color: colors.ink },
-  name: { fontFamily: fonts.bold, fontSize: 21, color: colors.ink, flexShrink: 1 },
-  role: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
+  avatar: { width: 56, height: 56, borderRadius: radius.full, backgroundColor: colors.infoSoft, justifyContent: 'center', alignItems: 'center' },
+  initials: { fontFamily: fonts.bold, fontSize: 19, color: colors.info },
+  name: { ...typeScale.title, color: colors.ink, flexShrink: 1 },
+  role: { color: colors.muted, fontSize: 14, marginTop: 2 },
+  // List cards: rows carry their own 12pt vertical padding, so the card only pads the sides.
+  listCard: { paddingVertical: spacing.xs },
+  blockerCard: { backgroundColor: colors.warnSoft, borderColor: colors.warnEdge },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, paddingVertical: spacing.md },
+  rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
   rowText: { flex: 1, minWidth: 0, gap: spacing.xs },
   rowTitle: { color: colors.text, fontFamily: fonts.semibold, fontSize: 15 },
-  secondary: { color: colors.muted, fontSize: 12 },
+  secondary: { color: colors.muted, fontSize: 13 },
+  hiddenNote: { paddingVertical: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
   blocker: { color: colors.warn, fontSize: 13 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
   pressed: { backgroundColor: colors.infoSoft },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.lg, marginBottom: spacing.sm },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.sm },
+  sectionIcon: { width: 28, height: 28, borderRadius: radius.md, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { marginTop: 0, marginBottom: 0 },
   window: { color: colors.muted, fontSize: 12, marginBottom: spacing.sm },
 });

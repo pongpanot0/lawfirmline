@@ -5,9 +5,9 @@ import { canAssignFirmRole, FirmRole, hasFirmCapability } from '@lawfirm/shared'
 import { useAuth } from '@/api/auth';
 import { usePersonWorkload } from '@/api/hooks';
 import { PersonWorkloadView } from '@/components/PersonWorkloadView';
-import { EmptyNote, ErrorNote, Loading } from '@/components/ui';
+import { EmptyState, ErrorState, InlineError, LoadingState } from '@/components/ui';
 import { bangkokDay } from '@/format';
-import { colors, pageContent } from '@/theme';
+import { colors, pageContent, spacing } from '@/theme';
 
 export default function PersonScreen() {
   const { id, from } = useLocalSearchParams<{ id?: string; from?: string }>();
@@ -23,8 +23,12 @@ export default function PersonScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={pageContent}
       refreshControl={<RefreshControl refreshing={person.isRefetching} tintColor={colors.ink} onRefresh={() => person.refetch()} />}>
       <Stack.Screen options={{ title: 'รายละเอียดสมาชิก' }} />
-      {!id ? <EmptyNote>ไม่พบสมาชิก · กลับไปเลือกรายชื่อในหน้าทีม</EmptyNote> : person.isLoading ? <Loading /> : null}
-      {person.isError && <ErrorNote message="โหลดรายละเอียดสมาชิกไม่ได้ ตรวจการเชื่อมต่อแล้วลองใหม่ หรือกลับไปเลือกรายชื่อในหน้าทีม" onRetry={() => person.refetch()} />}
+      {!id ? <EmptyState action={{ title: 'ไปหน้าทีม', onPress: () => router.replace('/(tabs)/team') }}>ไม่พบสมาชิก · เลือกรายชื่อจากหน้าทีม</EmptyState>
+        : person.isLoading ? <LoadingState label="กำลังโหลดรายละเอียดสมาชิก…" /> : null}
+      {/* With cached data still on screen a failed refresh is one line; with nothing to show it is the whole state. */}
+      {person.isError && (data
+        ? <InlineError message="โหลดรายละเอียดสมาชิกไม่ได้ ตรวจการเชื่อมต่อแล้วลองใหม่ หรือกลับไปเลือกรายชื่อในหน้าทีม" onRetry={() => person.refetch()} style={{ marginBottom: spacing.md }} />
+        : <ErrorState message="โหลดรายละเอียดสมาชิกไม่ได้ ตรวจการเชื่อมต่อแล้วลองใหม่ หรือกลับไปเลือกรายชื่อในหน้าทีม" onRetry={() => person.refetch()} />)}
       {data && <PersonWorkloadView person={data} from={start} viewerId={user?.id ?? ''} owner={manager}
         onTask={taskId => router.push({ pathname: '/task/new', params: { id: taskId } })}
         onCase={caseId => router.push({ pathname: '/case/[id]', params: { id: caseId } })}
