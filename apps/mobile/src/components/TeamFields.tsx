@@ -1,12 +1,16 @@
 import React from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Check } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useMembers } from '@/api/hooks';
 import { Dropdown } from './Dropdown';
 import { Disclosure } from './Disclosure';
-import { FieldError } from './Form';
-import { ErrorNote, SectionLabel } from './ui';
-import { colors, spacing, formLabelSpacing } from '@/theme';
+import { FieldLabel } from './Form';
+import { ErrorNote } from './ui';
+import { CHROME_MAX_SCALE, colors, radius, spacing, TOUCH } from '@/theme';
+
+/** Unselected people shown before searching; the search reveals everyone else. */
+const VISIBLE = 8;
 
 /**
  * Primary first; the remaining selected members are companions/buddies.
@@ -26,36 +30,50 @@ export function TeamFields({ ids, onChange, primaryLabel = 'ผู้รับ�
   const [search, setSearch] = React.useState('');
   const primary = ids[0] ?? '';
   const companions = ids.slice(1).filter(Boolean);
+  const full = !!primary && ids.length >= max;
   const toggle = (personId: string, selected: boolean) => {
     if (selected) return onChange(ids.filter(id => id !== personId));
     // No primary yet: the first person tapped becomes the primary.
     if (!primary) return onChange([personId, ...companions.filter(id => id !== personId)]);
     onChange([...ids, personId]);
   };
+  const others = (members.data ?? []).filter(person => person.id !== primary);
+  const term = search.trim();
+  const matches = term ? others.filter(person => `${person.firstName} ${person.lastName}`.includes(term))
+    : [...others.filter(person => ids.includes(person.id)), ...others.filter(person => !ids.includes(person.id)).slice(0, VISIBLE)];
+  const hidden = term ? 0 : others.length - matches.length;
   const chips = <>
-    <TextInput value={search} onChangeText={setSearch} placeholder="ค้นหาชื่อในทีม" accessibilityLabel={`ค้นหา${secondaryLabel}`}
-      style={{ minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: 10, color: colors.text }} />
-    {!primary && <Text style={{ color: colors.muted, fontSize: 14 }}>ยังไม่มี{primaryLabel} · คนแรกที่แตะจะเป็น{primaryLabel}</Text>}
+    <TextInput value={search} onChangeText={setSearch} placeholder="ค้นหาชื่อในทีม" placeholderTextColor={colors.faint} accessibilityLabel={`ค้นหา${secondaryLabel}`}
+      style={styles.search} />
+    {!primary && <Text style={styles.note}>ยังไม่มี{primaryLabel} · คนแรกที่แตะจะเป็น{primaryLabel}</Text>}
+    {members.isLoading && <Text style={styles.note}>กำลังโหลดรายชื่อ…</Text>}
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-      {(members.data ?? []).filter(person => person.id !== primary && `${person.firstName} ${person.lastName}`.includes(search.trim())).map(person => {
+      {matches.map(person => {
         const selected = ids.includes(person.id);
-        return <Pressable key={person.id} accessibilityRole="checkbox" accessibilityState={{ checked: selected }}
-          disabled={disabled || (!selected && !!primary && ids.length >= max)}
+        const blocked = !selected && full;
+        return <Pressable key={person.id} accessibilityRole="checkbox" accessibilityLabel={`${person.firstName} ${person.lastName}`}
+          accessibilityState={{ checked: selected, disabled: disabled || blocked }}
+          disabled={disabled || blocked}
           onPress={() => toggle(person.id, selected)}
-          style={{ minHeight: 44, padding: spacing.sm, borderWidth: 1, borderRadius: 10,
-            borderColor: selected ? colors.ink : colors.line, backgroundColor: selected ? colors.soft : colors.surface }}>
-          <Text style={{ color: colors.ink }}>{selected ? '✓ ' : ''}{person.firstName} {person.lastName}</Text>
+          style={({ pressed }) => [styles.chip, selected && styles.chipOn, (blocked || disabled) && { opacity: 0.45 }, pressed && { opacity: 0.7 }]}>
+          {selected ? <Check size={16} color={colors.ink} /> : null}
+          <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={{ color: colors.ink, fontWeight: selected ? '600' : '400' }}>{person.firstName} {person.lastName}</Text>
         </Pressable>;
       })}
     </View>
-    <Text style={{ color: colors.muted }}>เลือกแล้ว {ids.filter(Boolean).length} คน{max === 10 ? ' · สูงสุด 10 คน' : ''}</Text>
+    {!!term && !matches.length && !members.isLoading && <Text style={styles.note}>ไม่พบชื่อนี้ในทีม</Text>}
+    {hidden > 0 && <Text style={styles.note}>{`อีก ${hidden} คน · พิมพ์ชื่อเพื่อค้นหา`}</Text>}
+    <Text style={styles.note}>
+      {full ? `ครบ ${max} คนแล้ว · เอาบางคนออกก่อนเพิ่มคนใหม่`
+        : `${secondaryLabel} ${companions.length} คน${max < 999 ? ` · รวม${primaryLabel}ไม่เกิน ${max} คน` : ''}`}
+    </Text>
   </>;
   return <View style={{ gap: spacing.sm }}>
-    <SectionLabel style={formLabelSpacing}>{primaryLabel}{required ? ' *' : ''} · 1 คน</SectionLabel>
-    <Dropdown label={`เลือก${primaryLabel}`} value={primary} disabled={disabled || members.isLoading || members.isError}
+    <Dropdown label={`เลือก${primaryLabel}`} fieldLabel={`${primaryLabel} · 1 คน`} required={required} error={error}
+      placeholder={members.isLoading ? 'กำลังโหลดรายชื่อ…' : `เลือก${primaryLabel}`} value={primary}
+      disabled={disabled || members.isLoading || members.isError}
       options={(members.data ?? []).map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }))}
       onChange={id => onChange([id, ...ids.slice(1).filter(value => value && value !== id)])} />
-    <FieldError message={error} />
     {members.isError && <ErrorNote message="โหลดรายชื่อไม่สำเร็จ" onRetry={() => members.refetch()} />}
     {collapseSecondary
       ? <Disclosure title={`${secondaryLabel} · ถ้ามี`} summary={companions.length ? `เลือกแล้ว ${companions.length} คน` : 'เพิ่มคนร่วมทำงานในแฟ้มนี้'}
@@ -63,8 +81,17 @@ export function TeamFields({ ids, onChange, primaryLabel = 'ผู้รับ�
           <View style={{ gap: spacing.sm }}>{chips}</View>
         </Disclosure>
       : <>
-          <SectionLabel style={formLabelSpacing}>{secondaryLabel} · เลือกได้หลายคน</SectionLabel>
+          <FieldLabel>{`${secondaryLabel} · เลือกได้หลายคน`}</FieldLabel>
           {chips}
         </>}
   </View>;
 }
+
+const styles = StyleSheet.create({
+  search: { minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button,
+    backgroundColor: colors.surface, color: colors.text },
+  note: { color: colors.muted, fontSize: 14 },
+  chip: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md,
+    borderWidth: 1, borderRadius: radius.button, borderColor: colors.line, backgroundColor: colors.surface },
+  chipOn: { borderColor: colors.ink, backgroundColor: colors.soft },
+});

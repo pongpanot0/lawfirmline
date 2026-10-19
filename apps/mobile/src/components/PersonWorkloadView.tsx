@@ -4,17 +4,16 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { CalendarDays, ChevronRight, FolderOpen, LockKeyhole } from 'lucide-react-native';
 import { FIRM_ROLE_LABELS, TASK_WORK_TYPES, type FirmRole, type PersonWorkload } from '@lawfirm/shared';
 import { Text } from '@/components/AppText';
-import { Button, Card, EmptyNote, SectionLabel, StatCard, Tag } from '@/components/ui';
+import { Button, Card, EmptyNote, SectionLabel, Tag, TASK_STATUS_LABEL, taskStatusTone } from '@/components/ui';
 import { initials, thDate, thTime } from '@/format';
 import { colors, fonts, spacing } from '@/theme';
 
 const LEGACY_ROLES: Record<string, string> = { JUNIOR_LAWYER: 'ทนายความ', ADMIN: 'ผู้ดูแล' };
-const STATUSES: Record<string, string> = { TODO: 'รอเริ่ม', IN_PROGRESS: 'กำลังทำ', NEEDS_REVISION: 'แก้ไขงาน', ON_HOLD: 'พักไว้', PENDING_REVIEW: 'รอตรวจ' };
 
 function DetailRow({ title, subtitle, onPress, children }: { title: string; subtitle?: string; onPress?: () => void; children?: React.ReactNode }) {
   const content = <>
     <View style={styles.rowText}><Text style={styles.rowTitle}>{title}</Text>{subtitle ? <Text style={styles.secondary}>{subtitle}</Text> : null}{children}</View>
-    {onPress ? <ChevronRight size={18} color={colors.info} /> : <LockKeyhole size={15} color={colors.muted} />}
+    {onPress ? <ChevronRight size={18} color={colors.info} /> : <View accessible accessibilityLabel="ไม่มีสิทธิ์เปิด"><LockKeyhole size={15} color={colors.muted} /></View>}
   </>;
   return onPress ? <Pressable accessibilityRole="button" accessibilityLabel={`เปิด ${title}`} onPress={onPress}
     style={({ pressed }) => [styles.row, pressed && styles.pressed]}>{content}</Pressable> : <View style={styles.row}>{content}</View>;
@@ -36,14 +35,10 @@ export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCa
         <View style={styles.avatar}><Text style={styles.initials}>{initials(name)}</Text></View>
         <View style={styles.rowText}><Text style={styles.name}>{name}</Text><Text style={styles.role}>{FIRM_ROLE_LABELS[person.role as FirmRole]?.th ?? LEGACY_ROLES[person.role] ?? person.role}</Text></View>
       </View>
-      <Text style={styles.identityNote}>งานที่รับผิดชอบ · แตะรายการเพื่อดูรายละเอียด</Text>
+      {/* Queue and review counts already head their sections below; only overdue earns a line up here. */}
+      {overdue > 0 && <Tag tone="due">{`เกินกำหนด ${overdue} งาน`}</Tag>}
     </Card>
-    <View style={styles.stats}>
-      <StatCard label="งานค้าง" value={person.tasks.length} />
-      <StatCard label="เกินกำหนด" value={overdue} tone="warn" />
-      <StatCard label="รอตรวจ" value={person.reviews.length} tone="court" />
-    </View>
-    {onAssign && <Button title="มอบหมายงาน" onPress={onAssign} />}
+    {onAssign && <View style={{ marginTop: spacing.md }}><Button title="มอบหมายงาน" onPress={onAssign} /></View>}
 
     {!!blockers.length && <>
       <SectionLabel>จุดติดขัด · {blockers.length}</SectionLabel>
@@ -58,7 +53,7 @@ export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCa
     <Card>{!person.tasks.length ? <EmptyNote>ไม่มีงานค้างในคิวที่บันทึกไว้</EmptyNote> : person.tasks.map(task => <DetailRow key={task.id} title={task.title}
       subtitle={task.case ? `${task.case.ownRef} · ${task.case.title}` : undefined} onPress={canOpenTask(task) ? () => onTask(task.id) : undefined}>
       <View style={styles.tags}>
-        <Tag tone={task.overdue ? 'due' : 'info'}>{task.overdue ? 'เกินกำหนด' : STATUSES[task.status] ?? task.status}</Tag>
+        <Tag tone={task.overdue ? 'due' : taskStatusTone(task.status)}>{task.overdue ? 'เกินกำหนด' : TASK_STATUS_LABEL[task.status] ?? task.status}</Tag>
         {task.dueDate ? <Text style={styles.secondary}>กำหนด {thDate(task.dueDate)}</Text> : <Text style={styles.secondary}>ยังไม่ระบุกำหนด</Text>}
       </View>
     </DetailRow>)}</Card>
@@ -84,7 +79,7 @@ export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCa
     <Card style={{ gap: spacing.md }}>
       <View style={styles.tags}>{workTypes.length ? workTypes.map(type => <Tag key={type.value} tone="info">{type.label}</Tag>) : <Text style={styles.secondary}>ยังไม่ได้ตั้งประเภทงาน</Text>}</View>
       {person.leaves.length ? person.leaves.map(leave => <View key={leave.id} style={styles.tags}>
-        <Tag tone="court">ลาอนุมัติแล้ว</Tag><Text style={styles.secondary}>{thDate(`${leave.startDate}T12:00:00+07:00`)} – {thDate(`${leave.endDate}T12:00:00+07:00`)}</Text>
+        <Tag tone="plain">ลาอนุมัติแล้ว</Tag><Text style={styles.secondary}>{thDate(`${leave.startDate}T12:00:00+07:00`)} – {thDate(`${leave.endDate}T12:00:00+07:00`)}</Text>
       </View>) : <Text style={styles.secondary}>ไม่มีวันลาที่อนุมัติไว้ในข้อมูลล่าสุด</Text>}
     </Card>
   </>;
@@ -97,8 +92,6 @@ const styles = StyleSheet.create({
   initials: { fontFamily: fonts.bold, fontSize: 18, color: colors.ink },
   name: { fontFamily: fonts.bold, fontSize: 21, color: colors.ink, flexShrink: 1 },
   role: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
-  identityNote: { color: colors.muted, fontSize: 12 },
-  stats: { flexDirection: 'row', gap: spacing.sm, marginVertical: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   rowText: { flex: 1, minWidth: 0, gap: spacing.xs },
   rowTitle: { color: colors.text, fontFamily: fonts.semibold, fontSize: 15 },

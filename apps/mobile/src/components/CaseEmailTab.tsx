@@ -23,10 +23,9 @@ export function CaseEmailTab({ caseId }: { caseId: string }) {
   return <>
     <Button title="เขียนอีเมล" onPress={() => router.push(`/case/${caseId}/email/compose`)} />
     {threads.isError && <ErrorNote message="โหลดอีเมลไม่สำเร็จ" onRetry={() => threads.refetch()} />}
-    <Card style={{ marginTop: spacing.md }}>
-      {threads.isLoading ? <EmptyNote>กำลังโหลด…</EmptyNote>
-        : threads.isError && !threads.data ? null
-        : (threads.data?.length ?? 0) === 0 ? <EmptyNote>ยังไม่มีอีเมลในคดีนี้ — ผูก folder Outlook ได้ที่เว็บ</EmptyNote>
+    {!(threads.isError && !threads.data) && <Card style={{ marginTop: spacing.md }}>
+      {threads.isLoading ? <EmptyNote>กำลังโหลดอีเมล…</EmptyNote>
+        : (threads.data?.length ?? 0) === 0 ? <EmptyNote>ยังไม่มีอีเมลในคดีนี้ · ผูกโฟลเดอร์ Outlook ได้ที่เว็บ</EmptyNote>
         : threads.data!.map((t, i) => <View key={t.id}>
           {i > 0 && <View style={{ height: 1, backgroundColor: colors.soft, marginVertical: 6 }} />}
           <Pressable accessibilityRole="button" accessibilityLabel={`เปิดอีเมล ${t.subject}`}
@@ -42,6 +41,6 @@ export function CaseEmailTab({ caseId }: { caseId: string }) {
             </View>
           </Pressable>
         </View>)}
-    </Card>
+    </Card>}
   </>;
 }

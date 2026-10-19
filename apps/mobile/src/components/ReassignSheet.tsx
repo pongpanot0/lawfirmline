@@ -7,7 +7,7 @@ import { useAuth } from '@/api/auth';
 import { useCase, useLawyers, useLeaves, useReassignTask, useDailyWorkboard } from '@/api/hooks';
 import { WorkloadSummary } from './WorkloadSummary';
 import type { TaskItem } from '@/api/types';
-import { bangkokDay, initials } from '@/format';
+import { bangkokDay, initials, thDate } from '@/format';
 import { leaveFlagsForDate, leaveWarning } from '@/lib/leave-flags';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { Button, ErrorNote, Loading, Tag } from '@/components/ui';
@@ -50,17 +50,36 @@ export function ReassignSheet({
       canAssignFirmRole(user.firmRole as FirmRole, person.firmRole))
   ));
 
+  const confirm = async () => {
+    if (!task || !pending) return;
+    if (owner) {
+      setChecking(true);
+      const fresh = await board.refetch();
+      setChecking(false);
+      const person = fresh.data && !fresh.isError ? assignmentCandidates(fresh.data.members, fresh.data.tasks, workType, date).find(p => p.member.userId === pending.id) : undefined;
+      const warnings = assignmentWarnings(person);
+      if (warnings.join('\n') !== pending.warnings.join('\n')) { setPending({ ...pending, warnings }); return; }
+    }
+    reassign.mutate(
+      { caseId, taskId: task.id, assigneeId: pending.id },
+      { onSuccess: onClose },
+    );
+  };
+  const current = task?.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : null;
+  const working = checking || reassign.isPending;
+
   return (
     <Modal visible={!!task} transparent animationType="slide" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={onClose}>
       <Pressable accessible={false} style={styles.backdrop} onPress={onClose}>
         <Pressable accessible={false} style={[styles.sheet, { paddingBottom: spacing.lg + bottom }]} onPress={() => undefined}>
           <View style={styles.handle} />
           <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>มอบหมายงานให้…</Text>
-          <Text style={styles.subtitle} numberOfLines={2}>
+          <Text accessibilityRole="header" style={styles.title}>มอบหมายงานให้…</Text>
+          <Text style={[styles.subtitle, current ? { marginBottom: 0 } : null]} numberOfLines={2}>
             {task?.title}
           </Text>
-          {lawyers.isLoading || (caseId && legalCase.isLoading) ? <Loading /> : null}
+          {current ? <Text style={styles.subtitle}>ตอนนี้: {current}</Text> : null}
+          {lawyers.isLoading || (caseId && legalCase.isLoading) ? <Loading label="กำลังโหลดรายชื่อ…" /> : null}
           {lawyers.isError ? <ErrorNote message="โหลดรายชื่อไม่สำเร็จ" onRetry={() => lawyers.refetch()} /> : null}
           {caseId && legalCase.isError ? <ErrorNote message="ตรวจสอบสิทธิ์คดีไม่สำเร็จ" onRetry={() => legalCase.refetch()} /> : null}
           {!editable && !legalCase.isLoading ? <Text style={styles.error}>{caseId
@@ -71,13 +90,15 @@ export function ReassignSheet({
           {editable && candidates.map((lawyer) => {
               const name = `${lawyer.firstName} ${lawyer.lastName}`;
               const flag = flags.get(lawyer.id);
+              const picked = pending?.id === lawyer.id;
               return (
+                <React.Fragment key={lawyer.id}>
                 <Pressable
-                  key={lawyer.id}
-                  style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
+                  style={({ pressed }) => [styles.row, picked && styles.rowPicked, pressed && { opacity: 0.7 }]}
                   accessibilityRole="button"
-                  accessibilityLabel={`มอบหมายให้ ${name}`}
-                  disabled={checking || reassign.isPending || lawyers.isError || (!!caseId && legalCase.isError)}
+                  accessibilityLabel={`มอบหมายให้ ${name}${flag ? ` · ${flag.label}` : ''}`}
+                  accessibilityState={{ selected: picked, disabled: working || lawyers.isError || (!!caseId && legalCase.isError) }}
+                  disabled={working || lawyers.isError || (!!caseId && legalCase.isError)}
                   onPress={() => {
                     if (!task) return;
                     const warnings = owner ? assignmentWarnings(people.find(p => p.member.userId === lawyer.id)) : flag ? [leaveWarning(name, date, flag.kind)] : [];
@@ -97,51 +118,28 @@ export function ReassignSheet({
                   <Text style={styles.name}>{name}</Text>
                   {flag ? <Tag tone="due">{flag.label}</Tag> : null}
                 </Pressable>
+                {picked && owner ? <View style={styles.summary}><WorkloadSummary candidate={people.find(p => p.member.userId === lawyer.id)} /></View> : null}
+                </React.Fragment>
               );
             })}
           {editable && !lawyers.isLoading && !lawyers.isError && !candidates.length ? <Text style={styles.subtitle}>ไม่มีผู้รับมอบหมายตามสิทธิ์ของคุณ</Text> : null}
-          {owner && pending && <WorkloadSummary candidate={people.find(p => p.member.userId === pending.id)} />}
-          {pending ? (
-            <View style={styles.confirmBox}>
-              <Text style={styles.warning}>มอบหมายให้ {pending.name} · {date}{pending.warnings.length ? `\n${pending.warnings.join('\n')}` : '\nตรวจภาระงานข้างต้นก่อนยืนยัน'}</Text>
-              <View style={styles.confirmRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.cancelBtn, pressed && { opacity: 0.7 }]}
-                  onPress={() => setPending(null)}
-                >
-                  <Text style={styles.cancelText}>ยกเลิก</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.confirmBtn, pressed && { opacity: 0.7 }]}
-                  disabled={checking || reassign.isPending || !editable}
-                  onPress={async () => {
-                    if (!task) return;
-                    if (owner) {
-                      setChecking(true);
-                      const fresh = await board.refetch();
-                      setChecking(false);
-                      const person = fresh.data && !fresh.isError ? assignmentCandidates(fresh.data.members, fresh.data.tasks, workType, date).find(p => p.member.userId === pending.id) : undefined;
-                      const warnings = assignmentWarnings(person);
-                      if (warnings.join('\n') !== pending.warnings.join('\n')) { setPending({ ...pending, warnings }); return; }
-                    }
-                    reassign.mutate(
-                      { caseId, taskId: task.id, assigneeId: pending.id },
-                      { onSuccess: onClose },
-                    );
-                  }}
-                >
-                  <Text style={styles.confirmText}>ยืนยัน</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
-          {reassign.isError ? (
-            <Text style={styles.error}>{reassign.error.message || 'มอบหมายไม่สำเร็จ ลองใหม่อีกครั้ง'}</Text>
-          ) : null}
           </ScrollView>
-          <Button title="ปิด" ghost disabled={reassign.isPending} onPress={onClose} />
+          {/* The confirmation stays pinned under the list, so it is visible however long the team is. */}
+          <View style={styles.footer}>
+            {pending ? <>
+              <Text accessibilityLiveRegion="polite" style={styles.confirmTitle}>มอบหมายให้ {pending.name} · {thDate(date)}</Text>
+              {pending.warnings.length
+                ? pending.warnings.map((warning, index) => <Text key={index} style={styles.warning}>{warning}</Text>)
+                : <Text style={styles.confirmHint}>ตรวจภาระงานข้างต้นก่อนยืนยัน</Text>}
+            </> : null}
+            {reassign.isError ? (
+              <Text accessibilityRole="alert" style={styles.error}>{reassign.error.message || 'มอบหมายไม่สำเร็จ ลองใหม่อีกครั้ง'}</Text>
+            ) : null}
+            {pending ? <View style={styles.confirmRow}>
+              <View style={{ flex: 1 }}><Button title="ยกเลิก" variant="secondary" disabled={working} onPress={() => setPending(null)} /></View>
+              <View style={{ flex: 1 }}><Button title={checking ? 'กำลังตรวจภาระงาน…' : 'ยืนยัน'} busy={reassign.isPending} disabled={checking || !editable} onPress={confirm} /></View>
+            </View> : <Button title="ปิด" variant="secondary" disabled={reassign.isPending} onPress={onClose} />}
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -149,14 +147,14 @@ export function ReassignSheet({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(14,20,32,0.45)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   sheet: {
     width: '100%',
     maxWidth: 760,
     alignSelf: 'center',
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderTopLeftRadius: radius.card,
+    borderTopRightRadius: radius.card,
     padding: spacing.lg,
     maxHeight: '90%',
   },
@@ -174,9 +172,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingVertical: 11,
+    minHeight: 52,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
     borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
+  rowPicked: { borderColor: colors.ink, backgroundColor: colors.soft },
+  summary: { paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
+  footer: { gap: spacing.sm, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
+  confirmTitle: { color: colors.ink, fontWeight: '700', fontSize: 15 },
+  confirmHint: { color: colors.muted, fontSize: 13 },
   avatar: {
     width: 34,
     height: 34,
@@ -187,24 +194,7 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: colors.accentSoft, fontWeight: '700', fontSize: 12 },
   name: { fontSize: 15, color: colors.text, fontWeight: '600', flex: 1 },
-  error: { color: colors.warn, fontSize: 13, marginTop: spacing.sm, textAlign: 'center' },
-  confirmBox: {
-    marginTop: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.card,
-    backgroundColor: colors.warnSoft,
-  },
+  error: { color: colors.warn, fontSize: 13, textAlign: 'center' },
   warning: { color: colors.warn, fontSize: 13 },
-  confirmRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing.md, marginTop: spacing.sm },
-  cancelBtn: { minHeight: 44, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.button, justifyContent: 'center' },
-  cancelText: { color: colors.muted, fontWeight: '600', fontSize: 14 },
-  confirmBtn: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: radius.button,
-    backgroundColor: colors.ink,
-  },
-  confirmText: { color: colors.accentSoft, fontWeight: '700', fontSize: 14 },
+  confirmRow: { flexDirection: 'row', gap: spacing.sm },
 });

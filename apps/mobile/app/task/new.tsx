@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, Switch, View } from 'react-native';
-import { Text } from '@/components/AppText';
+import { Alert, Pressable, View } from 'react-native';
+import { Check, ChevronRight } from 'lucide-react-native';
+import { Text, TextInput } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { canDelegateTask, isEligibleReviewer, TASK_HANDOFF_NOTE_MIN, FirmRole, hasFirmCapability, assignmentCandidates, assignmentWarnings, TaskWorkType, TaskRoutineDefinition } from '@lawfirm/shared';
@@ -12,19 +13,19 @@ import { useCase, useLawyers, useLeaves, useDailyWorkboard } from '@/api/hooks';
 import type { TaskItem } from '@/api/types';
 import { uploadTaskAttachment, openTaskAttachment } from '@/api/files';
 import { Attachments, AttachmentFile } from '@/components/Attachments';
-import { FieldError, FormField, FormPage, FormSection, MissingSummary } from '@/components/Form';
+import { CheckRow, FieldLabel, FormField, FormPage, FormSection, MissingSummary, SwitchRow } from '@/components/Form';
 import { Disclosure } from '@/components/Disclosure';
 import { Dropdown } from '@/components/Dropdown';
 import { DatePicker } from '@/components/DatePicker';
 import { CasePicker, CaseRef } from '@/components/CasePicker';
 import { ReassignSheet } from '@/components/ReassignSheet';
-import { Button, Card, ErrorNote, Loading, SectionLabel } from '@/components/ui';
+import { ActionRow, Button, Card, ErrorNote, Loading, SectionLabel } from '@/components/ui';
 import { TaskWorkView } from '@/components/TaskWorkView';
 import { WorkloadSummary } from '@/components/WorkloadSummary';
 import { canReviewTask } from '@/workflow';
-import { bangkokDay } from '@/format';
+import { bangkokDay, thDate } from '@/format';
 import { leaveFlagsForDate } from '@/lib/leave-flags';
-import { colors, formLabelSpacing, spacing } from '@/theme';
+import { colors, radius, spacing } from '@/theme';
 
 export default function TaskFormScreen() {
   const { id, caseId: requestedCaseId, assigneeId: requestedAssignee, edit } = useLocalSearchParams<{ id?: string; caseId?: string; assigneeId?: string; edit?: string }>();
@@ -62,6 +63,11 @@ export default function TaskFormScreen() {
   const [handoffNote, setHandoffNote] = useState('');
   const [reason, setReason] = useState('');
   const [comment, setComment] = useState('');
+  const [customDue, setCustomDue] = useState(false);
+  const [trackOpen, setTrackOpen] = useState(false);
+  const [observerSearch, setObserverSearch] = useState('');
+  const todayKey = bangkokDay(new Date().toISOString());
+  const tomorrowKey = bangkokDay(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
   const assignmentDate = hasDue ? dueDate : bangkokDay(new Date().toISOString());
   const owner = hasFirmCapability(user?.firmRole, 'runOperations');
   const isOwner = user?.firmRole === FirmRole.OWNER; // recurrence edits stay owner-only on the API
@@ -125,9 +131,16 @@ export default function TaskFormScreen() {
       requestSnapshot.current = value.requestSnapshot; setCheckingPreviousSave(true);
     }
   }, dirty, { name: title.trim() || 'งานที่ยังไม่ได้บันทึก', route: draftRoute });
+  const recurrenceInvalid = !!recurrenceDays && (!/^\d+$/.test(recurrenceDays) || Number(recurrenceDays) < 1 || Number(recurrenceDays) > 365);
+  const reviewerMissing = !id && !savedId && !checkingPreviousSave && (requiresReview || !!routineChoice) && !reviewers.some(person => person.id === reviewerId);
+  const missing = [...(!title.trim() ? ['ชื่องาน'] : []), ...(!assigneeId ? ['ผู้รับผิดชอบ'] : []),
+    ...(reviewerMissing ? ['ผู้ตรวจงาน'] : []), ...(recurrenceInvalid ? ['รอบงานซ้ำ (1–365 วัน)'] : [])];
   const save = async () => {
-    if (!title.trim() || !assigneeId) { setTriedSave(true); return; }
-    if (recurrenceDays && (!/^\d+$/.test(recurrenceDays) || Number(recurrenceDays) < 1 || Number(recurrenceDays) > 365)) return Alert.alert('รอบงานซ้ำ', 'ใส่จำนวนวันตั้งแต่ 1 ถึง 365');
+    if (missing.length) {
+      setTriedSave(true);
+      if (recurrenceInvalid || (reviewerMissing && !routineChoice)) setTrackOpen(true);
+      return;
+    }
     setBusy(true); setError('');
     try {
       if (!id && !savedId && !requestSnapshot.current && owner && assigneeId !== user?.id) {
@@ -203,110 +216,159 @@ export default function TaskFormScreen() {
     setTitle(task.data!.title); setDescription(task.data!.description ?? ''); setAssigneeId(task.data!.assigneeId ?? ''); setStatus(task.data!.status); setEditing(true);
   }} />;
   if (!draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading />;
+  const routineLocked = !!routineChoice || !!task.data?.routine;
+  const details = <>
+    {!id && (checkingPreviousSave ? <><FieldLabel>แฟ้มคดี · ถ้ามี</FieldLabel><Text>{selectedCase?.label ?? 'ไม่ผูกคดี'}</Text></>
+      : <CasePicker label="แฟ้มคดี · ถ้ามี" value={selectedCase} onChange={setSelectedCase} allowNone />)}
+    <FormField label="รายละเอียด · ถ้ามี" value={description} onChange={setDescription} multiline
+      hint={routineLocked ? 'ใช้รายละเอียดจากวิธีทำงานประจำ' : undefined}
+      disabled={busy || checkingPreviousSave || !!savedId || routineLocked} />
+    <FieldLabel>ไฟล์แนบงาน · ถ้ามี</FieldLabel>
+    {task.data?.attachments?.map(file => <ActionRow key={file.id} title={file.filename} detail="เปิดไฟล์" onPress={() =>
+      openTaskAttachment(id!, file.id, file.filename).catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message))} />)}
+    <Attachments files={files} onChange={setFiles} disabled={busy} />
+  </>;
+  const recurrence = (!id || isOwner || task.data?.assigneeId === user?.id) && <>
+    <Dropdown label="ตั้งรอบงานทำซ้ำ" fieldLabel="ทำซ้ำหลังปิดรอบนี้ · ถ้ามี" value={['', '1', '7', '30'].includes(recurrenceDays) ? recurrenceDays : 'custom'}
+      onChange={value => setRecurrenceDays(value === 'custom' ? '14' : value)} disabled={busy || checkingPreviousSave || !!savedId}
+      options={[{ value: '', label: 'ไม่ทำซ้ำ' }, { value: '1', label: 'อีก 1 วัน' }, { value: '7', label: 'อีก 7 วัน' }, { value: '30', label: 'อีก 30 วัน' }, { value: 'custom', label: 'กำหนดจำนวนวันเอง' }]} />
+    {!!recurrenceDays && <FormField label="อีกรอบในกี่วัน" hint="1–365 วัน · สร้างรอบถัดไปเมื่อปิดงานหรือผ่านตรวจ นับจากวันครบกำหนดเดิมหรือวันที่ปิดงานถ้าช้ากว่า"
+      keyboardType="number-pad" maxLength={3} value={recurrenceDays} onChange={setRecurrenceDays} disabled={busy || checkingPreviousSave || !!savedId}
+      error={(triedSave || recurrenceDays.length >= 3) && recurrenceInvalid ? 'ใส่จำนวนวัน 1–365' : undefined} />}
+  </>;
+  const observerPool = (members.data ?? []).filter(p => p.id !== user?.id && p.firmRole !== 'EXTERNAL');
+  const observerMatches = observerPool.filter(p => observerIds.includes(p.id) || `${p.firstName} ${p.lastName}`.includes(observerSearch.trim()));
+  const priorityLabel: Record<string, string> = { HIGH: 'สำคัญมาก', MEDIUM: 'ปกติ', LOW: 'ไม่เร่ง' };
+  const tracking = <>
+    {!routineChoice && <>
+      <SwitchRow label="ต้องตรวจผลงานก่อนปิด" value={requiresReview} onValueChange={setRequiresReview} disabled={busy || checkingPreviousSave} />
+      {requiresReview && <Dropdown label="เลือกผู้ตรวจผลงาน" fieldLabel="ผู้ตรวจงาน" required value={reviewerId} onChange={setReviewerId}
+        error={triedSave && reviewerMissing ? 'เลือก Owner ทนายอาวุโส หรือทนายหลักของคดีเป็นผู้ตรวจ' : undefined}
+        options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} disabled={busy || checkingPreviousSave} />}
+    </>}
+    <Dropdown label="ความสำคัญ" fieldLabel="ความสำคัญ" inline value={priority} onChange={value => setPriority(value as typeof priority)} disabled={busy || checkingPreviousSave}
+      options={[{ value: 'HIGH', label: 'สำคัญมาก' }, { value: 'MEDIUM', label: 'ปกติ' }, { value: 'LOW', label: 'ไม่เร่ง' }]} />
+    <FieldLabel hint="เห็นความคืบหน้าของงานนี้ แต่ไม่ต้องทำ">ผู้ติดตาม · ถ้ามี</FieldLabel>
+    {observerPool.length > 8 && <TextInput value={observerSearch} onChangeText={setObserverSearch} placeholder="ค้นหาชื่อในทีม" placeholderTextColor={colors.faint}
+      accessibilityLabel="ค้นหาผู้ติดตาม" style={{ minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text }} />}
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+      {(observerSearch.trim() ? observerMatches : observerMatches.slice(0, Math.max(8, observerIds.length))).map(p => {
+        const on = observerIds.includes(p.id);
+        return <Pressable key={p.id} accessibilityRole="checkbox" accessibilityLabel={`ติดตามงานโดย ${p.firstName} ${p.lastName}`}
+          accessibilityState={{ checked: on, disabled: busy || checkingPreviousSave }} disabled={busy || checkingPreviousSave}
+          onPress={() => setObserverIds(ids => on ? ids.filter(x => x !== p.id) : [...ids, p.id])}
+          style={({ pressed }) => [{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, borderWidth: 1,
+            borderRadius: radius.button, borderColor: on ? colors.ink : colors.line, backgroundColor: on ? colors.soft : colors.surface }, pressed && { opacity: 0.7 }]}>
+          {on ? <Check size={16} color={colors.ink} /> : null}
+          <Text style={{ color: colors.ink, fontWeight: on ? '600' : '400' }}>{p.firstName} {p.lastName}</Text>
+        </Pressable>;
+      })}
+    </View>
+    {!observerSearch.trim() && observerPool.length > Math.max(8, observerIds.length) && <Text style={{ color: colors.muted, fontSize: 14 }}>{`อีก ${observerPool.length - observerMatches.slice(0, Math.max(8, observerIds.length)).length} คน · พิมพ์ชื่อเพื่อค้นหา`}</Text>}
+    <SwitchRow label="ต้องแนบไฟล์ก่อนส่งตรวจ" value={requiresAttachment} onValueChange={setRequiresAttachment} disabled={busy || checkingPreviousSave} />
+    {recurrence}
+  </>;
+  const detailsSummary = [selectedCase?.label, description.trim() ? 'มีรายละเอียด' : '', files.length ? `ไฟล์ ${files.length} ไฟล์` : '']
+    .filter(Boolean).join(' · ') || 'แฟ้มคดี รายละเอียดงาน และไฟล์แนบ';
+  const trackSummary = [requiresReview || routineChoice ? 'ต้องตรวจก่อนปิด' : '', priority !== 'MEDIUM' ? priorityLabel[priority] : '',
+    observerIds.length ? `ผู้ติดตาม ${observerIds.length} คน` : '', requiresAttachment ? 'ต้องแนบไฟล์' : '', recurrenceDays ? `ทำซ้ำอีก ${recurrenceDays} วัน` : '']
+    .filter(Boolean).join(' · ') || 'ผู้ตรวจ ความสำคัญ ผู้ติดตาม และรอบงานซ้ำ';
   return <FormPage>
     <Stack.Screen options={{ title: id ? 'แก้ไขงาน' : 'เพิ่มงาน' }} />
     <FormSection title={id ? 'รายละเอียดงาน' : 'งานอะไร ใครทำ'}>
-    {!!draft.message && dirty && <Text style={{ color: colors.faint, fontSize: 12 }}>{draft.message}</Text>}
     {!!draft.warning && <Text style={{ color: colors.warn }}>{draft.warning}</Text>}
     {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
-    {id && <Button title="กลับไปทำงาน" ghost onPress={() => setEditing(false)} />}
+    {id && <Button title="กลับไปทำงาน" variant="link" onPress={() => setEditing(false)} />}
     <FormField label="ชื่องาน" required value={title} onChange={setTitle} disabled={busy || !!savedId || checkingPreviousSave}
       placeholder="เช่น ร่างคำให้การ" error={triedSave && !title.trim() ? 'ใส่ชื่องาน' : undefined} />
-    <SectionLabel style={formLabelSpacing}>ผู้รับผิดชอบ *</SectionLabel>
-    <Dropdown label="เลือกผู้รับผิดชอบงาน" value={assigneeId} options={options} onChange={setAssigneeId}
+    <Dropdown label="เลือกผู้รับผิดชอบงาน" fieldLabel="ผู้รับผิดชอบ" required value={assigneeId} options={options} onChange={setAssigneeId}
+      placeholder={members.isLoading ? 'กำลังโหลดรายชื่อ…' : 'เลือกผู้รับผิดชอบงาน'}
+      error={triedSave && !assigneeId ? 'เลือกผู้รับผิดชอบ 1 คน' : undefined}
       disabled={busy || !!savedId || checkingPreviousSave || !canAssign || members.isLoading || members.isError} />
-    <FieldError message={triedSave && !assigneeId ? 'เลือกผู้รับผิดชอบ 1 คน' : undefined} />
+    {id && canAssign && <Button title="มอบหมาย / เปลี่ยนผู้รับผิดชอบ" variant="link" disabled={busy} onPress={() => setReassigning(true)} />}
     {members.isError && <ErrorNote message="โหลดรายชื่อไม่ได้" onRetry={() => members.refetch()} />}
     {leaves.isError && <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
+    {/* Due date sits right under the assignee: it also sets the day the workload helper compares. */}
+    {checkingPreviousSave ? <>
+      <FieldLabel>กำหนดส่ง</FieldLabel>
+      <Text style={{ color: colors.text }}>{hasDue ? thDate(dueDate) : 'ไม่กำหนด'}</Text>
+    </> : <>
+      <Dropdown label="กำหนดส่ง" fieldLabel="กำหนดส่ง" inline value={!hasDue ? 'none' : customDue ? 'pick' : dueDate === todayKey ? 'today' : dueDate === tomorrowKey ? 'tomorrow' : 'pick'}
+        disabled={busy || !!savedId}
+        options={[...(id && task.data?.dueDate ? [] : [{ value: 'none', label: 'ไม่กำหนด' }]),
+          { value: 'today', label: 'วันนี้' }, { value: 'tomorrow', label: 'พรุ่งนี้' }, { value: 'pick', label: 'เลือกวัน' }]}
+        onChange={choice => {
+          setCustomDue(choice === 'pick');
+          setHasDue(choice !== 'none');
+          if (choice === 'today') setDueDate(todayKey);
+          if (choice === 'tomorrow') setDueDate(tomorrowKey);
+        }} />
+      {hasDue && (customDue || (dueDate !== todayKey && dueDate !== tomorrowKey)) &&
+        <DatePicker value={dueDate} onChange={setDueDate} disabled={busy || !!savedId} />}
+    </>}
     {!id && owner && <>
       {/* Workload helpers fold away; open them only when choosing who has room. */}
-      <Disclosure title="ช่วยเลือกคน · ดูภาระงานทีม" summary={`เทียบงานของแต่ละคนวันที่ ${assignmentDate}`} open={comparing} onToggle={setComparing}>
-      <View style={{ gap: spacing.sm }}>
-        <Button title="ดูภาระงานทีมล่วงหน้า 7 วัน" ghost onPress={() => router.push({ pathname: '/team-week', params: { date: assignmentDate } })} />
-        <Text style={{ color: colors.faint }}>โหลดล่าสุด {board.data?.fetchedAt ? new Date(board.data.fetchedAt).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }) : 'ยังไม่ทราบ'} · ข้อมูลไม่ครบยังสรุปว่าว่างไม่ได้</Text>
-        {board.isError && <ErrorNote message="ยังตรวจภาระงานล่าสุดไม่ได้" onRetry={() => board.refetch()} />}
-        {board.isLoading && <Loading />}
-        {people.filter(p => candidates.some(person => person.id === p.member.userId)).map(person => <Card key={person.member.userId} style={{ gap: spacing.sm }}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{person.member.firstName} {person.member.lastName}</Text>
-          <WorkloadSummary candidate={person} />
-          <Button title={`เลือก ${person.member.firstName}`} ghost disabled={busy || checkingPreviousSave} onPress={() => { setAssigneeId(person.member.userId); setComparing(false); }} />
-        </Card>)}
-      </View>
+      <Disclosure variant="plain" title="ช่วยเลือกคน · ดูภาระงานทีม" summary={`เทียบงานของแต่ละคน${hasDue ? `วันที่ ${thDate(assignmentDate)}` : 'วันนี้'}`} open={comparing} onToggle={setComparing}>
+        <Button title="ดูภาระงานทีมล่วงหน้า 7 วัน" variant="link" onPress={() => router.push({ pathname: '/team-week', params: { date: assignmentDate } })} />
+        {board.isError && <ErrorNote message={`ยังตรวจภาระงานล่าสุดไม่ได้ · โหลดล่าสุด ${board.data?.fetchedAt ? new Date(board.data.fetchedAt).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }) : 'ยังไม่ทราบ'}`} onRetry={() => board.refetch()} />}
+        {board.isLoading && <Loading label="กำลังโหลดภาระงานทีม…" />}
+        {people.filter(p => candidates.some(person => person.id === p.member.userId)).map(person => {
+          const chosen = assigneeId === person.member.userId;
+          return <Pressable key={person.member.userId} accessibilityRole="button" accessibilityLabel={`เลือก ${person.member.firstName} ${person.member.lastName} เป็นผู้รับผิดชอบ`}
+            accessibilityState={{ selected: chosen, disabled: busy || checkingPreviousSave }} disabled={busy || checkingPreviousSave}
+            onPress={() => { setAssigneeId(person.member.userId); setComparing(false); }}
+            style={({ pressed }) => [{ gap: spacing.sm, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.line }, pressed && { backgroundColor: colors.soft }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Text style={{ flex: 1, color: colors.ink, fontWeight: '700' }}>{person.member.firstName} {person.member.lastName}</Text>
+              {chosen ? <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>เลือกอยู่</Text> : <ChevronRight size={18} color={colors.muted} />}
+            </View>
+            <WorkloadSummary candidate={person} />
+          </Pressable>;
+        })}
       </Disclosure>
-      {!!warnings.length && <Card style={{ gap: spacing.sm }}>
+      {!!warnings.length && <Card style={{ gap: spacing.sm, borderColor: colors.warn }}>
         {warnings.map((message, index) => <Text key={index} style={{ color: colors.warn }}>{message}</Text>)}
-        <Pressable accessibilityRole="checkbox" accessibilityLabel="ตรวจเงื่อนไขแล้ว ยืนยันมอบหมายคนนี้" accessibilityState={{ checked: risksConfirmed }}
-          onPress={() => setRisksConfirmed(!risksConfirmed)} disabled={busy} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={{ color: colors.ink }}>{risksConfirmed ? '☑' : '☐'} ตรวจเงื่อนไขแล้ว ยืนยันมอบหมายคนนี้</Text>
-        </Pressable>
+        <CheckRow label="ตรวจเงื่อนไขแล้ว ยืนยันมอบหมายคนนี้" checked={risksConfirmed} onChange={setRisksConfirmed} disabled={busy} />
       </Card>}
     </>}
     {!id && ['OWNER', 'SENIOR_LAWYER', 'OFFICE_MANAGER'].includes(user?.firmRole ?? '') && <>
-      <SectionLabel style={formLabelSpacing}>วิธีทำงานประจำ · ถ้ามี</SectionLabel>
-      <Dropdown label="วิธีทำงานประจำ (ถ้ามี)" value={routineChoice} options={[{ value: '', label: 'งานทั่วไป · ไม่บังคับรายการตรวจ' }, ...routines]} disabled={busy || checkingPreviousSave || playbooks.isLoading || playbooks.isError || (!!caseId && legalCase.isLoading)}
+      <Dropdown label="เลือกวิธีทำงานประจำ" fieldLabel="วิธีทำงานประจำ · ถ้ามี" value={routineChoice} options={[{ value: '', label: 'งานทั่วไป · ไม่บังคับรายการตรวจ' }, ...routines]} disabled={busy || checkingPreviousSave || playbooks.isLoading || playbooks.isError || (!!caseId && legalCase.isLoading)}
+        placeholder={playbooks.isLoading ? 'กำลังโหลดวิธีทำงานประจำ…' : 'งานทั่วไป · ไม่บังคับรายการตรวจ'}
         onChange={value => { setRoutineChoice(value); if (value) { const selected = routines.find(r => r.value === value); if (!title.trim() && selected) setTitle(selected.title); setRequiresReview(true); setReviewerId(reviewers.find(p => p.id === legalCase.data?.leadLawyer?.id)?.id ?? ''); } }} />
       {playbooks.isError && <ErrorNote message="โหลดวิธีทำงานประจำไม่ได้" onRetry={() => playbooks.refetch()} />}
-      {!!routineChoice && <Dropdown label="ผู้ตรวจงานประจำ" value={reviewerId} options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} onChange={setReviewerId} disabled={busy || checkingPreviousSave || (!!caseId && legalCase.isLoading)} />}
+      {!!routineChoice && <Dropdown label="เลือกผู้ตรวจงานประจำ" fieldLabel="ผู้ตรวจงาน" required value={reviewerId}
+        error={triedSave && reviewerMissing ? 'เลือก Owner ทนายอาวุโส หรือทนายหลักของคดีเป็นผู้ตรวจ' : undefined}
+        options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} onChange={setReviewerId} disabled={busy || checkingPreviousSave || (!!caseId && legalCase.isLoading)} />}
     </>}
-    {id && canAssign && <Button title="มอบหมาย / เปลี่ยนผู้รับผิดชอบ" ghost disabled={busy} onPress={() => setReassigning(true)} />}
     </FormSection>
-    {!id && <Button title={showDetails ? 'ซ่อนข้อมูลเพิ่มเติม' : 'เพิ่มกำหนดส่ง / รายละเอียด / ไฟล์'} ghost onPress={() => setShowDetails(!showDetails)} />}
-    {showDetails && <FormSection title="กำหนดส่งและข้อมูลเพิ่มเติม">
-    {!id && <><SectionLabel>แฟ้มคดี (ถ้ามี)</SectionLabel>{checkingPreviousSave ? <Text>{selectedCase?.label ?? 'ไม่ผูกคดี'}</Text> : <CasePicker value={selectedCase} onChange={setSelectedCase} allowNone />}</>}
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-      <Text style={{ flex: 1, color: colors.text }}>กำหนดวันที่ครบกำหนด</Text>
-      <Switch accessibilityLabel="กำหนดวันที่ครบกำหนด" trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface}
-        value={hasDue} onValueChange={setHasDue} disabled={busy || checkingPreviousSave || !!savedId || (!!id && !!task.data?.dueDate)} />
-    </View>
-    {hasDue && (checkingPreviousSave ? <Text>{dueDate}</Text> : <DatePicker value={dueDate} onChange={setDueDate} />)}
-    {id && <Dropdown label="สถานะงาน" value={status} onChange={setStatus} disabled={busy || !!savedId || !canStatus || task.data?.status === 'PENDING_REVIEW'}
-      options={[{ value: 'TODO', label: 'ต้องทำ' }, { value: 'IN_PROGRESS', label: 'กำลังทำ' }, ...(!task.data?.requiresReview && !task.data?.routine ? [{ value: 'DONE', label: 'เสร็จแล้ว' }] : []),
-        ...(status === 'PENDING_REVIEW' || status === 'NEEDS_REVISION' ? [{ value: status, label: status === 'PENDING_REVIEW' ? 'รอตรวจ' : 'ส่งกลับแก้ไข' }] : [])]} />
-    }
-    {!id && !routineChoice && <>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><Text style={{ flex: 1 }}>ต้องตรวจผลงานก่อนปิด</Text><Switch accessibilityLabel="ต้องตรวจผลงานก่อนปิด" trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface} value={requiresReview} onValueChange={setRequiresReview} disabled={busy || checkingPreviousSave} /></View>
-      {requiresReview && <Dropdown label="ผู้ตรวจผลงาน" value={reviewerId} onChange={setReviewerId} options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} disabled={busy || checkingPreviousSave} />}
-    </>}
-    {!id && <>
-      <Dropdown label="ความสำคัญ" value={priority} onChange={value => setPriority(value as typeof priority)} disabled={busy || checkingPreviousSave}
-        options={[{ value: 'HIGH', label: 'สำคัญมาก' }, { value: 'MEDIUM', label: 'ปกติ' }, { value: 'LOW', label: 'ไม่เร่ง' }]} />
-      <SectionLabel>ผู้ติดตาม (ถ้ามี)</SectionLabel>
-      {(members.data ?? []).filter(p => p.id !== user?.id && p.firmRole !== 'EXTERNAL').map(p => (
-        <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-          <Text style={{ flex: 1, color: colors.text }}>{p.firstName} {p.lastName}</Text>
-          <Switch accessibilityLabel={`ติดตามงานโดย ${p.firstName}`} trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface}
-            value={observerIds.includes(p.id)} onValueChange={on => setObserverIds(ids => on ? [...ids, p.id] : ids.filter(x => x !== p.id))} disabled={busy || checkingPreviousSave} />
-        </View>
-      ))}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><Text style={{ flex: 1 }}>ต้องแนบไฟล์ก่อนส่งตรวจ</Text><Switch accessibilityLabel="ต้องแนบไฟล์ก่อนส่งตรวจ" trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface} value={requiresAttachment} onValueChange={setRequiresAttachment} disabled={busy || checkingPreviousSave} /></View>
-    </>}
-    <FormField label="รายละเอียด · เติมทีหลังได้" value={description} onChange={setDescription} multiline disabled={busy || checkingPreviousSave || !!savedId || !!routineChoice || !!task.data?.routine} />
-    {(!id || isOwner || task.data?.assigneeId === user?.id) && <>
-      <SectionLabel>ทำซ้ำหลังปิดรอบนี้</SectionLabel>
-      <Dropdown label="ตั้งรอบงานทำซ้ำ" value={['', '1', '7', '30'].includes(recurrenceDays) ? recurrenceDays : 'custom'}
-        onChange={value => setRecurrenceDays(value === 'custom' ? '14' : value)} disabled={busy || checkingPreviousSave || !!savedId}
-        options={[{ value: '', label: 'ไม่ทำซ้ำ' }, { value: '1', label: 'อีก 1 วัน' }, { value: '7', label: 'อีก 7 วัน' }, { value: '30', label: 'อีก 30 วัน' }, { value: 'custom', label: 'กำหนดจำนวนวันเอง' }]} />
-      {!!recurrenceDays && <><FormField label="อีกรอบในกี่วัน · 1–365" value={recurrenceDays} onChange={setRecurrenceDays} disabled={busy || checkingPreviousSave || !!savedId} />
-        <Text style={{ color: colors.faint }}>สร้างรอบถัดไปเมื่อปิดงานหรือผ่านตรวจ นับจากวันครบกำหนดเดิมหรือวันที่ปิดงานถ้าช้ากว่า</Text></>}
-    </>}
-    <SectionLabel style={formLabelSpacing}>ไฟล์แนบงาน</SectionLabel>
-    {task.data?.attachments?.map(file => <Button key={file.id} title={`เปิด ${file.filename}`} ghost onPress={() =>
-      openTaskAttachment(id!, file.id, file.filename).catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message))} />)}
-    <Attachments files={files} onChange={setFiles} disabled={busy} />
+    {!id ? <>
+      <Disclosure title="รายละเอียด แฟ้มคดี และไฟล์ · ถ้ามี" summary={detailsSummary} open={showDetails} onToggle={setShowDetails}>
+        <View style={{ gap: spacing.sm }}>{details}</View>
+      </Disclosure>
+      <Disclosure title="การตรวจและติดตาม · ถ้ามี" summary={trackSummary} open={trackOpen} onToggle={setTrackOpen}>
+        <View style={{ gap: spacing.sm }}>{tracking}</View>
+      </Disclosure>
+    </> : showDetails && <FormSection title="กำหนดส่งและข้อมูลเพิ่มเติม">
+      <Dropdown label="เลือกสถานะงาน" fieldLabel="สถานะงาน" value={status} onChange={setStatus} disabled={busy || !!savedId || !canStatus || task.data?.status === 'PENDING_REVIEW'}
+        options={[{ value: 'TODO', label: 'ต้องทำ' }, { value: 'IN_PROGRESS', label: 'กำลังทำ' }, ...(!task.data?.requiresReview && !task.data?.routine ? [{ value: 'DONE', label: 'เสร็จแล้ว' }] : []),
+          ...(status === 'PENDING_REVIEW' || status === 'NEEDS_REVISION' ? [{ value: status, label: status === 'PENDING_REVIEW' ? 'รอตรวจ' : 'ส่งกลับแก้ไข' }] : [])]} />
+      {details}
+      {recurrence}
     </FormSection>}
     {!!savedId && <Text style={{ color: colors.info }}>งานบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อโดยไม่สร้างงานซ้ำ</Text>}
     {checkingPreviousSave && <Text style={{ color: colors.info }}>ยังตรวจผลบันทึกครั้งก่อน · กดบันทึกซ้ำใช้คำขอเดิมและไม่เพิ่มงานซ้ำ</Text>}
-    {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
-    {triedSave && !savedId && <MissingSummary items={[...(!title.trim() ? ['ชื่องาน'] : []), ...(!assigneeId ? ['ผู้รับผิดชอบ'] : [])]} />}
+    {!!error && <Text accessibilityRole="alert" style={{ color: colors.warn }}>{error}</Text>}
+    {triedSave && !savedId && <MissingSummary items={missing} />}
     <Button title={savedId ? 'ส่งไฟล์ที่เหลือ' : id ? 'บันทึกงาน' : 'เพิ่มงาน'} busy={busy} onPress={save} />
+    {!!draft.message && dirty && <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center' }}>{draft.message}</Text>}
     {id && !!task.data && task.data.assigneeId === user?.id &&
       (caseId ? ['TODO', 'IN_PROGRESS', 'NEEDS_REVISION', 'DONE'] : ['TODO', 'IN_PROGRESS', 'NEEDS_REVISION']).includes(task.data.status) &&
       (!caseId || legalCase.data?.leadLawyer?.id !== user?.id) && <>
       <SectionLabel>ส่งให้ตรวจงาน</SectionLabel>
-      {!caseId && <Dropdown label="เลือกผู้ตรวจงาน" value={reviewerId} onChange={setReviewerId} disabled={busy}
+      {!caseId && <Dropdown label="เลือกผู้ตรวจงาน" fieldLabel="ผู้ตรวจงาน" required value={reviewerId} onChange={setReviewerId} disabled={busy}
         options={reviewers.map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }))} />}
-      <FormField label={`หมายเหตุถึงผู้ตรวจ * (อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร)`} value={handoffNote} onChange={setHandoffNote} multiline disabled={busy} />
-      <Button title="ส่งตรวจงาน" ghost disabled={busy || (!caseId && !reviewerId) || handoffNote.trim().length < TASK_HANDOFF_NOTE_MIN}
+      <FormField label="หมายเหตุถึงผู้ตรวจ" required hint={`อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร`} value={handoffNote} onChange={setHandoffNote} multiline disabled={busy} />
+      <Button title="ส่งตรวจงาน" variant="secondary" disabled={busy || (!caseId && !reviewerId) || handoffNote.trim().length < TASK_HANDOFF_NOTE_MIN}
         onPress={() => handoff('handoff', caseId ? { note: handoffNote.trim() } : { reviewerId, note: handoffNote.trim() })} />
     </>}
     {task.data?.status === 'PENDING_REVIEW' && canReview && <>
@@ -314,7 +376,7 @@ export default function TaskFormScreen() {
       {task.data.case && <Text style={{ color: colors.faint }}>{task.data.case.ownRef} · {task.data.case.title}</Text>}
       {task.data.description && <Text style={{ color: colors.text }}>{task.data.description}</Text>}
       <SectionLabel>ผลงานและไฟล์ที่ส่งตรวจ</SectionLabel>
-      {task.data.attachments?.map(file => <Button key={file.id} title={`เปิด ${file.filename}`} ghost onPress={() =>
+      {task.data.attachments?.map(file => <ActionRow key={file.id} title={file.filename} detail="เปิดไฟล์" onPress={() =>
         openTaskAttachment(id!, file.id, file.filename).catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message))} />)}
       {task.data.comments?.map(item => <Text key={item.id} style={{ color: colors.text }}>
         {item.author ? `${item.author.firstName} ${item.author.lastName}: ` : ''}{item.body}
@@ -325,7 +387,7 @@ export default function TaskFormScreen() {
         { text: 'ยกเลิก', style: 'cancel' }, { text: 'ผ่านการตรวจ', onPress: () => handoff('accept') },
       ])} />
       <FormField label="เหตุผลส่งกลับแก้ไข" value={reason} onChange={setReason} disabled={busy} />
-      <Button title="ส่งกลับแก้ไข" ghost disabled={busy || !reason.trim()} onPress={() => handoff('reject', { reason: reason.trim() })} />
+      <Button title="ส่งกลับแก้ไข" variant="danger" disabled={busy || !reason.trim()} onPress={() => handoff('reject', { reason: reason.trim() })} />
     </>}
     {id && <>
       <SectionLabel>ความคิดเห็นในงาน</SectionLabel>

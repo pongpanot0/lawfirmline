@@ -4,9 +4,9 @@
     "scope": "app",
     "genre": "modern-minimal",
     "macrostructure": "Workbench (native operations)",
-    "theme": "Samnuan white canvas and restrained navy",
+    "theme": "Editorial Juris cream/navy",
     "enrichment": "none",
-    "brief": "All-route white visual system, grouped forms and lists, direct account deletion request entry",
+    "brief": "All-route cream visual system, grouped forms and lists, direct account deletion request entry",
     "designSystem": "design.md"
   },
   {
@@ -17,6 +17,16 @@
     "theme": "Samnuan existing brand",
     "enrichment": "none",
     "brief": "Direct person details, compact Today workflow, navy hierarchy and readable status colors",
+    "designSystem": "design.md"
+  },
+  {
+    "date": "2026-10-19",
+    "scope": "components",
+    "genre": "modern-minimal",
+    "macrostructure": "Workbench (native operations)",
+    "theme": "Editorial Juris cream/navy",
+    "enrichment": "none",
+    "brief": "Usability system pass: persistent picker labels, button hierarchy (primary/secondary/link/danger), inline validation, labelled loading/error/empty states, SwitchRow/CheckRow, plain Disclosure, single attach action, slimmer task work and add-task/expense forms",
     "designSystem": "design.md"
   }
 ]
