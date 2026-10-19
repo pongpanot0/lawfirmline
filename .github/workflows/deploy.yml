@@ -78,6 +78,13 @@ jobs:
               sed -i '/^PLATFORM_ADMIN_EMAILS=/d' .env
               echo "PLATFORM_ADMIN_EMAILS=${PLATFORM_ADMIN_EMAILS}" >> .env
             fi
+            # Resend key lives in a repo secret so rotating it is `gh secret set` + redeploy.
+            RESEND_API_KEY='${{ secrets.RESEND_API_KEY }}'
+            if [ -n "$RESEND_API_KEY" ]; then
+              sed -i '/^RESEND_API_KEY=/d' .env
+              echo "RESEND_API_KEY=${RESEND_API_KEY}" >> .env
+            fi
+            unset RESEND_API_KEY
             # The api refuses to boot without these (production-secrets.ts). Check the
             # values compose will actually pass, before touching the running containers.
             resolved="$(docker compose -f docker-compose.prod.yml config)"
@@ -89,6 +96,10 @@ jobs:
             done
             grep -qE "^ +PLATFORM_ADMIN_EMAILS: [\"']?[^\"' ]" <<<"$resolved" \
               || echo "::warning::PLATFORM_ADMIN_EMAILS not reaching the api; courts/holidays/deadline-rule admin pages stay locked"
+            for key in RESEND_API_KEY SENDGRID_FROM_EMAIL; do
+              grep -qE "^ +${key}: [\"']?[^\"' ]" <<<"$resolved" \
+                || echo "::warning::${key} not reaching the api; no email is sent (password reset, MFA, invites, deletion notices)"
+            done
             grep -qE "^ +MS_CLIENT_ID: [\"']?[^\"' ]" <<<"$resolved" \
               || echo "::warning::MS_CLIENT_ID not set in .env; Outlook connect stays disabled"
             unset resolved
