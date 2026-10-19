@@ -1,13 +1,20 @@
 import React from 'react';
-import { ColorValue, Pressable, View } from 'react-native';
+import { ColorValue, Platform, Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, Tabs } from 'expo-router';
 import { CalendarDays, LucideIcon, Plus, Scale, SquareCheckBig, Sun, Users } from 'lucide-react-native';
 import { CHROME_MAX_SCALE, colors, fonts, radius, shadow, spacing, TOUCH } from '@/theme';
 import { Text, useDisplayPreferences } from '@/components/AppText';
 
+const PILL_WIDTH = 56;
+const PILL_HEIGHT = 30;
+// Vertical padding inside each tab item, and the gap between the pill and its label.
+const ITEM_PAD = 6;
+const LABEL_GAP = 3;
+
 /** The selected tab sits on a tinted pill with a heavier stroke, so the state reads without relying on colour alone. */
 function TabIcon({ Icon, color, size, focused }: { Icon: LucideIcon; color: ColorValue; size: number; focused: boolean }) {
-  return <View style={{ width: 56, height: 30, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
+  return <View style={{ width: PILL_WIDTH, height: PILL_HEIGHT, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
     backgroundColor: focused ? colors.infoSoft : 'transparent' }}>
     <Icon color={color as string} size={Math.min(size, 24)} strokeWidth={focused ? 2.4 : 1.8} />
   </View>;
@@ -15,6 +22,14 @@ function TabIcon({ Icon, color, size, focused }: { Icon: LucideIcon; color: Colo
 
 export default function TabsLayout() {
   const { scale } = useDisplayPreferences();
+  const insets = useSafeAreaInsets();
+  // Tab labels are fixed chrome: cap the combined scale so five Thai labels never truncate at 320pt.
+  const labelSize = 11 * Math.min(scale, CHROME_MAX_SCALE);
+  // Thai stacks tone marks above and sara u/uu below the line, so the label gets a 1.5x line box.
+  const labelLine = Math.ceil(labelSize * 1.5);
+  // The default bar is 49pt + inset, too short for the 30pt pill plus a Thai line, so size it from its contents.
+  const contentHeight = ITEM_PAD + PILL_HEIGHT + LABEL_GAP + labelLine + ITEM_PAD;
+  const bottomPad = Math.max(insets.bottom, spacing.xs);
   return (
     <Tabs
       screenOptions={{
@@ -23,12 +38,16 @@ export default function TabsLayout() {
         headerTintColor: colors.ink,
         // Same header face as the stack screens.
         headerTitleStyle: { fontFamily: fonts.bold, fontSize: 18 * scale },
-        // Tab labels are fixed chrome: cap the combined scale so five Thai labels never truncate at 320pt.
         tabBarAllowFontScaling: false,
-        tabBarLabelStyle: { fontSize: 11 * Math.min(scale, CHROME_MAX_SCALE), fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: labelSize, lineHeight: labelLine, marginTop: LABEL_GAP, fontWeight: '600',
+          textAlignVertical: 'center', ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}) },
+        // The library's icon slot is a fixed 31x28; size it to the pill so the pill never overlaps the label.
+        tabBarIconStyle: { width: PILL_WIDTH, height: PILL_HEIGHT },
+        tabBarItemStyle: { paddingTop: ITEM_PAD, paddingBottom: ITEM_PAD },
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.faint,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, elevation: 0, ...shadow.md },
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, elevation: 0, ...shadow.md,
+          height: contentHeight + bottomPad, paddingBottom: bottomPad },
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
