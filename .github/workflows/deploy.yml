@@ -89,6 +89,10 @@ jobs:
             done
             grep -qE "^ +PLATFORM_ADMIN_EMAILS: [\"']?[^\"' ]" <<<"$resolved" \
               || echo "::warning::PLATFORM_ADMIN_EMAILS not reaching the api; courts/holidays/deadline-rule admin pages stay locked"
+            for key in RESEND_API_KEY SENDGRID_FROM_EMAIL; do
+              grep -qE "^ +${key}: [\"']?[^\"' ]" <<<"$resolved" \
+                || echo "::warning::${key} not reaching the api; no email is sent (password reset, MFA, invites, deletion notices)"
+            done
             grep -qE "^ +MS_CLIENT_ID: [\"']?[^\"' ]" <<<"$resolved" \
               || echo "::warning::MS_CLIENT_ID not set in .env; Outlook connect stays disabled"
             unset resolved

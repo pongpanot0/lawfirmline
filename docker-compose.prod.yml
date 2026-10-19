@@ -39,7 +39,8 @@ services:
       UPLOAD_DIR: /data/uploads
       PORT: 3001
       HOST: 0.0.0.0
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      # Email goes through Resend; SENDGRID_API_KEY is the legacy name some .env files still use.
+      RESEND_API_KEY: ${RESEND_API_KEY:-${SENDGRID_API_KEY:-}}
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-LexFlow}
       CLIENT_PORTAL_EXPOSE_DEV_TOKEN: "false"
