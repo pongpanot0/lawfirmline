@@ -11,7 +11,7 @@ import { Dropdown } from '@/components/Dropdown';
 import { FieldError, FieldLabel, FormField, FormPage, FormSection, SwitchRow, fieldA11yLabel } from '@/components/Form';
 import { Button, EmptyNote, ErrorNote, Loading } from '@/components/ui';
 import { composeError, mergeTemplateBody, newSubject, parseAddressList, replyRecipients, replySubject } from '@/lib/case-email-compose';
-import { colors, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 
 interface DocItem { id: string; filename?: string; name?: string; fileName?: string }
 const docName = (d: DocItem) => d.filename ?? d.name ?? d.fileName ?? 'เอกสาร';
@@ -68,7 +68,7 @@ function DocPicker({ caseId, selected, onChange }: { caseId: string; selected: s
     <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
       <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
         <View style={{ padding: spacing.lg, gap: spacing.xs }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: colors.ink }}>แนบเอกสารคดี</Text>
+          <Text accessibilityRole="header" style={{ fontSize: 20, fontFamily: fonts.bold, color: colors.ink }}>แนบเอกสารคดี</Text>
           <Text style={{ color: colors.muted, fontSize: 13 }}>เลือกได้ไม่เกิน 10 ไฟล์ · ไฟล์ใหญ่กว่า 3 MB จะส่งเป็นลิงก์ OneDrive</Text>
         </View>
         <ScrollView>
