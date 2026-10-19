@@ -39,7 +39,8 @@ export function bangkokDay(iso: string): string {
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
-  return parts.slice(0, 2).map((p) => p[0] ?? '').join('');
+  // Thai leading vowels (เ แ โ ใ ไ) are written before the consonant they follow: "ใจดี" → "จ", not "ใ".
+  return parts.slice(0, 2).map((p) => p.replace(/^[\u0E40-\u0E44]/, '')[0] ?? p[0] ?? '').join('');
 }
 
 /** Western digits and comma groups for baht amounts on both Hermes and JS. */
