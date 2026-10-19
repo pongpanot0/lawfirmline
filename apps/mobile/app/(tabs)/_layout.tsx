@@ -8,9 +8,12 @@ import { Text, useDisplayPreferences } from '@/components/AppText';
 
 const PILL_WIDTH = 56;
 const PILL_HEIGHT = 30;
-// Vertical padding inside each tab item, and the gap between the pill and its label.
-const ITEM_PAD = 6;
+// The library's tab button keeps its own 5pt padding on every side (tabVerticalUiKit); we add none on top.
+const BUTTON_PAD = 5;
+// Gap between the pill and its label.
 const LABEL_GAP = 3;
+// Headroom for Android's taller Thai font metrics and the bar's hairline top border.
+const METRICS_SLACK = 4;
 
 /** The selected tab sits on a tinted pill with a heavier stroke, so the state reads without relying on colour alone. */
 function TabIcon({ Icon, color, size, focused }: { Icon: LucideIcon; color: ColorValue; size: number; focused: boolean }) {
@@ -27,8 +30,9 @@ export default function TabsLayout() {
   const labelSize = 11 * Math.min(scale, CHROME_MAX_SCALE);
   // Thai stacks tone marks above and sara u/uu below the line, so the label gets a 1.5x line box.
   const labelLine = Math.ceil(labelSize * 1.5);
-  // The default bar is 49pt + inset, too short for the 30pt pill plus a Thai line, so size it from its contents.
-  const contentHeight = ITEM_PAD + PILL_HEIGHT + LABEL_GAP + labelLine + ITEM_PAD;
+  // A numeric bar height is used as-is, so size it from what the button needs: 5 pad + 30 pill + 3 gap + label line
+  // + 5 pad + 4 slack (64pt at the 17pt line), then add the bottom inset, which paddingBottom reserves below the items.
+  const contentHeight = BUTTON_PAD + PILL_HEIGHT + LABEL_GAP + labelLine + BUTTON_PAD + METRICS_SLACK;
   const bottomPad = Math.max(insets.bottom, spacing.xs);
   return (
     <Tabs
@@ -39,11 +43,11 @@ export default function TabsLayout() {
         // Same header face as the stack screens.
         headerTitleStyle: { fontFamily: fonts.bold, fontSize: 18 * scale },
         tabBarAllowFontScaling: false,
-        tabBarLabelStyle: { fontSize: labelSize, lineHeight: labelLine, marginTop: LABEL_GAP, fontWeight: '600',
+        // flexShrink 0: the button is a flex column, so a tight bar would otherwise squeeze the label and clip the glyphs.
+        tabBarLabelStyle: { fontSize: labelSize, lineHeight: labelLine, marginTop: LABEL_GAP, fontWeight: '600', flexShrink: 0,
           textAlignVertical: 'center', ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}) },
         // The library's icon slot is a fixed 31x28; size it to the pill so the pill never overlaps the label.
         tabBarIconStyle: { width: PILL_WIDTH, height: PILL_HEIGHT },
-        tabBarItemStyle: { paddingTop: ITEM_PAD, paddingBottom: ITEM_PAD },
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.faint,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, elevation: 0, ...shadow.md,
