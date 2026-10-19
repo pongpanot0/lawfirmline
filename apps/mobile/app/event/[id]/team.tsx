@@ -49,7 +49,7 @@ export default function EventTeamScreen() {
   const former = ids.filter(personId => !members.data!.some(member => member.id === personId));
   const warnings = ids.flatMap((personId) => {
     const flag = flags.get(personId);
-    return flag ? [leaveWarning(names.get(personId) ?? 'สมาชิก', date, flag.kind).replace(/^⚠\s*/, '')] : [];
+    return flag ? [leaveWarning(names.get(personId) ?? 'สมาชิก', date, flag.kind)] : [];
   });
   const teamError = triedSave && !ids.length ? 'ต้องมีผู้รับผิดชอบหลักหนึ่งคน' : undefined;
   const ackError = triedSave && warnings.length && !leaveAck ? 'ยืนยันว่าตรวจวันลาแล้วก่อนบันทึก' : undefined;

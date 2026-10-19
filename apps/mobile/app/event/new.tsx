@@ -70,7 +70,7 @@ export default function NewEventScreen() {
   };
   // Shown inline under the team; one tick confirms it instead of an alert on every save tap.
   const warnings = ids.flatMap(personId => flags.get(personId)
-    ? [leaveWarning(nameOf(personId), day, flags.get(personId)?.kind).replace(/^⚠\s*/, '')] : []);
+    ? [leaveWarning(nameOf(personId), day, flags.get(personId)?.kind)] : []);
   const warningKey = warnings.join('|');
   useEffect(() => { setLeaveAck(false); }, [warningKey]);
   useEffect(() => {
