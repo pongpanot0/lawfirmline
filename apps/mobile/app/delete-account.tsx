@@ -27,7 +27,7 @@ export default function DeleteAccountScreen() {
       setPassword('');
       // Show the accepted request even if a subsequent network refresh fails.
       queryClient.setQueryData(['account-deletion-request', user?.id], request);
-      Alert.alert('รับคำขอแล้ว', `หมายเลข ${request.id}\nบัญชียังไม่ถูกลบ เจ้าหน้าที่จะตรวจขอบเขตข้อมูลและการส่งต่องานก่อนดำเนินการ`);
+      Alert.alert('รับคำขอแล้ว', `หมายเลข ${request.id}\nบัญชียังไม่ถูกลบ เจ้าหน้าที่จะตรวจและดำเนินการให้เสร็จภายใน 30 วัน`);
     } catch (err) {
       setError(err instanceof ApiError && err.status === 401
         ? 'รหัสผ่านไม่ถูกต้องหรือเซสชันหมดอายุ ตรวจรหัสผ่านหรือเข้าสู่ระบบใหม่'
@@ -40,14 +40,14 @@ export default function DeleteAccountScreen() {
     <Card style={{ gap: spacing.md }}>
       <Tag tone="plain">ดำเนินการผ่านคำขอ</Tag>
       <Text style={{ color: colors.ink, fontWeight: '600' }}>ส่งคำขอแล้ว บัญชียังไม่ถูกลบทันที</Text>
-      <Text style={{ color: colors.muted }}>คำขอครอบคลุมบัญชีของคุณในทุกสำนักงาน เจ้าหน้าที่จะตรวจข้อมูลส่วนตัวและงานที่สำนักงานต้องรับช่วงก่อนลบ</Text>
+      <Text style={{ color: colors.muted }}>คำขอครอบคลุมบัญชีของคุณในทุกสำนักงาน เจ้าหน้าที่จะตรวจข้อมูลส่วนตัวและงานที่สำนักงานต้องรับช่วง แล้วลบให้เสร็จภายใน 30 วันนับจากวันที่ส่งคำขอ</Text>
       <Text style={{ color: colors.muted }}>ข้อมูลคดีของสำนักงานต้องตรวจขอบเขตการเก็บและส่งต่องานแยกจากข้อมูลบัญชีส่วนตัว</Text>
     </Card>
     {deletion.isLoading ? <Loading /> : deletion.isError ?
       <ErrorNote message="โหลดสถานะคำขอไม่สำเร็จ กรุณาลองใหม่ก่อนส่งคำขอ" onRetry={() => deletion.refetch()} /> : deletion.data ?
       <FormSection title="รับคำขอแล้ว · รอตรวจดำเนินการ">
         <Text selectable style={{ color: colors.ink }}>หมายเลข {deletion.data.id}</Text>
-        <Text style={{ color: colors.muted }}>บัญชียังไม่ถูกลบ ติดตามคำขอได้ที่ hello@samnuan.com</Text>
+        <Text style={{ color: colors.muted }}>บัญชียังไม่ถูกลบ จะดำเนินการให้เสร็จภายใน 30 วันนับจากวันที่ส่งคำขอ ติดตามได้ที่ hello@samnuan.com</Text>
       </FormSection> : <FormSection title="ยืนยันว่าเป็นบัญชีของคุณ" detail="กรอกรหัสผ่านปัจจุบันเพื่อส่งคำขอ">
         <TextInput accessibilityLabel="รหัสผ่านปัจจุบันเพื่อขอลบบัญชี" value={password} onChangeText={setPassword}
           editable={!busy} secureTextEntry autoCapitalize="none" autoComplete="current-password"

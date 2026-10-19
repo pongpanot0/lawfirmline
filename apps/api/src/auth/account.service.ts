@@ -1,14 +1,21 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from '../saas/tenant.service';
+import { EmailService } from '../notifications/email.service';
+import { platformAdminEmails } from '../common/guards/platform-admin.guard';
 import { UpdateAccountProfileDto } from './dto/account.dto';
 
 const DELETION_REQUESTED = 'ACCOUNT_DELETION_REQUESTED';
+/** Promised to the person in the app and on the web (PDPA: answer data-subject requests within 30 days). */
+export const DELETION_DUE_DAYS = 30;
+const SUPPORT_EMAIL = 'hello@samnuan.com';
 
 @Injectable()
 export class AccountService {
-  constructor(private prisma: PrismaService, private tenant: TenantService) {}
+  private readonly logger = new Logger(AccountService.name);
+
+  constructor(private prisma: PrismaService, private tenant: TenantService, private email: EmailService) {}
 
   async updateProfile(userId: string, firmId: string, dto: UpdateAccountProfileDto) {
     // Global identity: the authenticated person may change only their own names.
@@ -62,6 +69,19 @@ export class AccountService {
       },
       select: { id: true, createdAt: true },
     });
+    await this.notifyOperators(userId, request.id, request.createdAt)
+      .catch(error => this.logger.error(`Account deletion notice ${request.id} failed: ${error instanceof Error ? error.message : 'unknown'}`));
     return { id: request.id, requestedAt: request.createdAt, status: 'PENDING_REVIEW' as const };
+  }
+
+  /** The audit row is the durable record; a failed email must not fail the person's request. */
+  private async notifyOperators(userId: string, requestId: string, requestedAt: Date) {
+    const account = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    const recipients = [...platformAdminEmails()];
+    for (const to of recipients.length ? recipients : [SUPPORT_EMAIL]) {
+      await this.email.sendAccountDeletionRequestEmail({
+        to, requestId, accountEmail: account?.email ?? userId, requestedAt, dueDays: DELETION_DUE_DAYS,
+      });
+    }
   }
 }

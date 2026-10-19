@@ -165,6 +165,34 @@ export class EmailService {
     this.logger.log(`Trial reminder (${p.daysLeft}d) sent to ${maskEmail(p.to)}`);
   }
 
+  /** Tells the operator a person asked to delete their account, so the request is reviewed within the promised window. */
+  async sendAccountDeletionRequestEmail(p: { to: string; requestId: string; accountEmail: string; requestedAt: Date; dueDays: number }): Promise<boolean> {
+    if (!this.isConfigured()) {
+      this.logger.warn(`Email provider not configured; skipped account deletion notice ${p.requestId}`);
+      return false;
+    }
+    const due = new Date(p.requestedAt.getTime() + p.dueDays * 86_400_000).toISOString().slice(0, 10);
+    const lines = [
+      `คำขอลบบัญชีใหม่ / New account deletion request`,
+      `เลขคำขอ: ${p.requestId}`,
+      `บัญชี: ${p.accountEmail}`,
+      `ส่งเมื่อ: ${p.requestedAt.toISOString()}`,
+      `ต้องดำเนินการภายใน: ${due} (${p.dueDays} วัน)`,
+    ];
+    try {
+      await this.send({
+        to: p.to,
+        subject: `คำขอลบบัญชี ${p.requestId} — ต้องดำเนินการภายใน ${due}`,
+        text: lines.join('\n'),
+        html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:auto;line-height:1.7">${lines.map((l) => `<p>${escapeHtml(l)}</p>`).join('')}</div>`,
+      });
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send account deletion notice ${p.requestId}: ${error instanceof Error ? error.message : 'unknown'}`);
+      return false;
+    }
+  }
+
   async sendMfaCodeEmail(to: string, code: string): Promise<void> {
     if (!this.isConfigured()) return;
     await this.send({
