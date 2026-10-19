@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { Lock } from 'lucide-react-native';
+import { LockKeyhole } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
-import { colors, spacing } from '@/theme';
+import { Button } from './ui';
+import { colors, fonts, spacing } from '@/theme';
 
 /** Re-lock after this long in the background — a pocketed phone at court. */
 const RELOCK_AFTER_MS = 60 * 1000;
@@ -20,6 +21,7 @@ const RELOCK_AFTER_MS = 60 * 1000;
 export function LockGate({ children }: { children: React.ReactNode }) {
   const { user, restored, logout } = useAuth();
   const [locked, setLocked] = useState(false);
+  const [failed, setFailed] = useState(false);
   const backgroundedAt = useRef<number | null>(null);
   const challengedRestore = useRef(false);
   const challenging = useRef(false);
@@ -27,6 +29,7 @@ export function LockGate({ children }: { children: React.ReactNode }) {
   const challenge = useCallback(async () => {
     if (challenging.current) return;
     challenging.current = true;
+    setFailed(false);
     try {
       const level = await LocalAuthentication.getEnrolledLevelAsync();
       if (level === LocalAuthentication.SecurityLevel.NONE) {
@@ -38,8 +41,10 @@ export function LockGate({ children }: { children: React.ReactNode }) {
         cancelLabel: 'ยกเลิก',
       });
       if (result.success) setLocked(false);
+      else setFailed(true);
     } catch {
       // stay locked; the button lets the user retry
+      setFailed(true);
     } finally {
       challenging.current = false;
     }
@@ -78,14 +83,16 @@ export function LockGate({ children }: { children: React.ReactNode }) {
 
   return (
     <View style={styles.screen}>
-      <Lock color={colors.accentSoft} size={40} />
-      <Text style={styles.title}>Samnuan ถูกล็อกไว้</Text>
-      <Pressable style={styles.button} onPress={challenge}>
-        <Text style={styles.buttonText}>ปลดล็อก</Text>
-      </Pressable>
-      <Pressable accessibilityRole="button" style={{ padding: spacing.md }} onPress={logout}>
-        <Text style={{ color: colors.bg }}>ออกจากระบบและเข้าสู่ระบบใหม่</Text>
-      </Pressable>
+      <View style={styles.body}>
+        <LockKeyhole color={colors.ink} size={36} />
+        <Text accessibilityRole="header" style={styles.title}>Samnuan ถูกล็อกไว้</Text>
+        <Text style={styles.detail}>ยืนยันตัวตนด้วยสแกนหรือรหัสเครื่องเพื่อกลับไปทำงานต่อ</Text>
+        {failed && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.failed}>ยืนยันตัวตนไม่สำเร็จ · แตะปลดล็อกเพื่อลองใหม่</Text>}
+        <View style={styles.actions}>
+          <Button title="ปลดล็อก" onPress={challenge} />
+          <View style={{ alignItems: 'center' }}><Button title="ออกจากระบบและเข้าสู่ระบบใหม่" variant="link" onPress={logout} /></View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -93,17 +100,14 @@ export function LockGate({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.lg,
+    padding: spacing.xl,
   },
-  title: { color: colors.bg, fontSize: 18, fontWeight: '700' },
-  button: {
-    backgroundColor: colors.accent,
-    borderRadius: 10,
-    paddingHorizontal: 32,
-    paddingVertical: 13,
-  },
-  buttonText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
+  body: { width: '100%', maxWidth: 360, alignItems: 'center', gap: spacing.md },
+  title: { color: colors.ink, fontSize: 22, lineHeight: 32, fontFamily: fonts.bold, textAlign: 'center' },
+  detail: { color: colors.muted, fontSize: 14, lineHeight: 22, textAlign: 'center' },
+  failed: { color: colors.warn, fontSize: 14, textAlign: 'center' },
+  actions: { alignSelf: 'stretch', gap: spacing.xs, marginTop: spacing.sm, alignItems: 'stretch' },
 });

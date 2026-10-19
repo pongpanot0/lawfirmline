@@ -19,6 +19,8 @@ export const colors = {
   warnSoft: '#FAEDEB',
   info: '#36566B',
   infoSoft: '#E8EDF0',
+  /** Navy-tinted backdrop behind modal sheets and the calendar picker. */
+  scrim: 'rgba(20,46,67,0.45)',
 } as const;
 
 /**
@@ -47,3 +49,9 @@ export const formLabelSpacing = { marginTop: spacing.sm, marginBottom: 0 } as co
 
 /** Minimum comfortable one-hand tap target. */
 export const TOUCH = 44;
+
+/**
+ * OS font-scale cap for fixed-size chrome (tags, badges, chips, tab labels).
+ * The in-app text size preference still applies on top; body text stays uncapped.
+ */
+export const CHROME_MAX_SCALE = 1.3;

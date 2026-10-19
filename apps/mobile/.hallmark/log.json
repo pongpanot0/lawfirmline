@@ -4,9 +4,9 @@
     "scope": "app",
     "genre": "modern-minimal",
     "macrostructure": "Workbench (native operations)",
-    "theme": "Samnuan white canvas and restrained navy",
+    "theme": "Editorial Juris cream/navy",
     "enrichment": "none",
-    "brief": "All-route white visual system, grouped forms and lists, direct account deletion request entry",
+    "brief": "All-route cream visual system, grouped forms and lists, direct account deletion request entry",
     "designSystem": "design.md"
   },
   {
@@ -17,6 +17,26 @@
     "theme": "Samnuan existing brand",
     "enrichment": "none",
     "brief": "Direct person details, compact Today workflow, navy hierarchy and readable status colors",
+    "designSystem": "design.md"
+  },
+  {
+    "date": "2026-10-19",
+    "scope": "components",
+    "genre": "modern-minimal",
+    "macrostructure": "Workbench (native operations)",
+    "theme": "Editorial Juris cream/navy",
+    "enrichment": "none",
+    "brief": "Usability system pass: persistent picker labels, button hierarchy (primary/secondary/link/danger), inline validation, labelled loading/error/empty states, SwitchRow/CheckRow, plain Disclosure, single attach action, slimmer task work and add-task/expense forms",
+    "designSystem": "design.md"
+  },
+  {
+    "date": "2026-10-19",
+    "scope": "app (all 47 mobile routes, split across PRs: system #118 + tabs/people/events, cases/court/documents, office/owner/account/auth)",
+    "genre": "modern-minimal",
+    "macrostructure": "Workbench (native operations)",
+    "theme": "Editorial Juris cream/navy",
+    "enrichment": "none",
+    "brief": "App-wide hallmark + impeccable audit (punch-list) and usability redesign: visible labels and inline validation everywhere, one primary per screen, row-as-target lists, zero counts hidden, single titles under native headers, explicit loading/empty/error states",
     "designSystem": "design.md"
   }
 ]

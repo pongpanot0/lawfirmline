@@ -29,6 +29,21 @@ Primary actions are at least 44 points high; icon-only actions are 44 by 44. Cal
 
 The existing five bottom tabs stay stable. Optional information folds rather than pushing today's work many screens down. No decorative illustrations, gradients, fake phone chrome, animated dashboards or fabricated metrics.
 
+## Shared components
+
+Use these instead of one-off controls; they carry the label, state and 44-point rules above.
+
+- `Button` `variant`: `primary` (one per screen), `secondary` (bordered; the old `ghost` still maps here), `link` (navigation and optional paths, always inline, muted navy), `danger` (reject/delete, warning outline). `inline` sizes a button to its label.
+- Fields: `FormField` takes a `hint` plus keyboard props (`keyboardType`, `secureTextEntry`, `maxLength`, `autoCapitalize`, `returnKeyType`, `onSubmitEditing`). `FieldLabel` is the 14/600 label above any input; `FormSection` titles are Anuphan 17, so fields never read as headings. `required` adds ` *` and announces "จำเป็นต้องกรอก".
+- Pickers keep a visible label after a value is picked: `Dropdown fieldLabel=…` (opt-in; `label` alone stays the placeholder and modal title), `DatePicker label=…`, `CasePicker label=…`, `ClientPicker label=…`. All take `required` and `error`. `Dropdown inline` renders 4 or fewer options as chips. `DatePicker` takes `minDate`/`maxDate` and `onClear`.
+- Validation: `triedSave` + `FieldError` under the field + `MissingSummary` above the primary. `Alert` is for irreversible confirmations only.
+- `SwitchRow` and `CheckRow`: the whole row toggles (48 points); checkboxes are drawn icons, never ☐/☑ glyphs.
+- `Disclosure variant="plain"` drops the card frame so cards and fields inside it are not nested cards; the summary is read as the hint.
+- States: `Loading label=…` (visible and announced), `ErrorNote` (role alert, retry beside the message), `EmptyNote action={{ title, onPress }}` for the next step. Never show "ไม่มี…" when a load failed.
+- `StatCard` defaults to ink, takes `hideZero` and `onPress`; a tile must not repeat a count shown in the section header below it. `PageIntro detailOnly` keeps one explanatory line under a native header instead of a second title.
+- `Attachments`: one `แนบไฟล์หรือรูป` action (native action sheet on iOS, inline choice on Android); an oversize file is skipped on its own.
+- Vocabulary: `TASK_STATUS_LABEL`/`taskStatusTone` and `EVENT_KIND_LABEL` in `ui.tsx`. Tokens: `colors.scrim` for modal backdrops, `CHROME_MAX_SCALE` as `maxFontSizeMultiplier` on tags, chips and tab labels.
+
 ## Validation boundary
 
 Component previews use React Native Web with mock data and native module adapters. They establish layout and tap behavior at 320/375/414/768 pixels and enlarged text; they do not establish Android device, production API or Google Play review success. Validate the signed native APK separately.

@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { isoDay, thDate } from '@/format';
-import { colors, radius, spacing, TOUCH } from '@/theme';
+import { bangkokDay, isoDay, thDate } from '@/format';
+import { colors, fonts, radius, spacing, TOUCH } from '@/theme';
 import { Button } from './ui';
+import { FieldError, FieldLabel, fieldA11yLabel } from './Form';
 
 const TH_MONTHS = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -24,49 +25,84 @@ function monthGrid(year: number, month: number): Array<Date | null> {
   return cells;
 }
 
-/** Field + modal calendar; value is an ISO day (YYYY-MM-DD, ค.ศ.), shown พ.ศ. */
+/** A plain YYYY-MM-DD stays as is; a full timestamp is read on the Bangkok wall clock. */
+function toDayKey(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return value && !Number.isNaN(new Date(value).getTime()) ? bangkokDay(value) : '';
+}
+
+/**
+ * Field + modal calendar; value is an ISO day (YYYY-MM-DD, ค.ศ.), shown พ.ศ.
+ * `label` renders a visible label above the field (with `required`/`error` like FormField).
+ * `onClear` adds "ล้างวันที่" for optional dates; `minDate`/`maxDate` (YYYY-MM-DD) disable days outside the range.
+ */
 export function DatePicker({
   value,
   onChange,
+  label,
+  required = false,
+  error,
+  placeholder = 'เลือกวันที่',
+  minDate,
+  maxDate,
+  onClear,
+  disabled = false,
 }: {
   value: string;
   onChange: (isoDate: string) => void;
+  label?: string;
+  required?: boolean;
+  error?: string;
+  placeholder?: string;
+  minDate?: string;
+  maxDate?: string;
+  onClear?: () => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const parsed = new Date(value);
-  const valid = !Number.isNaN(parsed.getTime());
-  const [cursor, setCursor] = useState(() => {
-    const base = valid ? parsed : new Date();
-    return { y: base.getFullYear(), m: base.getMonth() };
-  });
+  const dayKey = toDayKey(value);
+  const cursorFor = (key: string) => {
+    if (key) return { y: Number(key.slice(0, 4)), m: Number(key.slice(5, 7)) - 1 };
+    const now = new Date();
+    return { y: now.getFullYear(), m: now.getMonth() };
+  };
+  const [cursor, setCursor] = useState(() => cursorFor(dayKey));
 
   const cells = monthGrid(cursor.y, cursor.m);
-  const todayKey = isoDay(new Date());
+  const todayKey = bangkokDay(new Date().toISOString());
+  const outOfRange = (key: string) => (!!minDate && key < minDate) || (!!maxDate && key > maxDate);
+  const name = label ?? 'วันที่';
+  const pick = (key: string) => { onChange(key); setOpen(false); };
 
   return (
-    <>
+    <View style={label || error ? { gap: spacing.sm } : undefined}>
+      {label ? <FieldLabel required={required}>{label}</FieldLabel> : null}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="เลือกวันที่"
-        accessibilityValue={{ text: valid ? thDate(parsed) : 'ยังไม่ได้เลือก' }}
-        style={styles.field}
+        accessibilityLabel={fieldA11yLabel(label ?? placeholder, required)}
+        accessibilityHint={error || undefined}
+        accessibilityValue={{ text: dayKey ? thDate(dayKey) : 'ยังไม่ได้เลือก' }}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        style={({ pressed }) => [styles.field, error ? { borderColor: colors.warn } : null, (pressed || disabled) && { backgroundColor: colors.soft }]}
         onPress={() => {
-          if (valid) setCursor({ y: parsed.getFullYear(), m: parsed.getMonth() });
+          setCursor(cursorFor(dayKey));
           setOpen(true);
         }}
       >
-        <Calendar size={17} color={colors.faint} />
-        <Text style={styles.fieldText}>{valid ? thDate(parsed) : 'เลือกวันที่'}</Text>
+        <Calendar size={17} color={colors.muted} />
+        <Text style={[styles.fieldText, !dayKey && { color: colors.muted }]}>{dayKey ? thDate(dayKey) : placeholder}</Text>
       </Pressable>
+      <FieldError message={error} />
 
       <Modal visible={open} transparent animationType="fade" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={() => setOpen(false)}>
         <Pressable accessible={false} style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable accessible={false} style={styles.sheet} onPress={() => {}}>
+            {label ? <Text accessibilityRole="header" style={styles.sheetLabel}>{name}</Text> : null}
             <View style={styles.head}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="เดือนก่อนหน้า"
-                hitSlop={8}
                 style={styles.nav}
                 onPress={() =>
                   setCursor(({ y, m }) => (m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 }))
@@ -80,7 +116,6 @@ export function DatePicker({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="เดือนถัดไป"
-                hitSlop={8}
                 style={styles.nav}
                 onPress={() =>
                   setCursor(({ y, m }) => (m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))
@@ -99,18 +134,18 @@ export function DatePicker({
               {cells.map((date, index) => {
                 if (!date) return <View key={`x${index}`} style={styles.cell} />;
                 const key = isoDay(date);
-                const isSelected = key === value;
+                const isSelected = key === dayKey;
                 const isToday = key === todayKey;
+                const blocked = outOfRange(key);
                 return (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={thDate(date)}
+                    accessibilityLabel={`${isToday ? 'วันนี้ ' : ''}${thDate(key)}`}
+                    accessibilityState={{ selected: isSelected, disabled: blocked }}
+                    disabled={blocked}
                     key={key}
-                    style={[styles.cell, isToday && styles.cellToday, isSelected && styles.cellOn]}
-                    onPress={() => {
-                      onChange(key);
-                      setOpen(false);
-                    }}
+                    style={[styles.cell, isToday && styles.cellToday, isSelected && styles.cellOn, blocked && { opacity: 0.3 }]}
+                    onPress={() => pick(key)}
                   >
                     <Text
                       style={[
@@ -126,11 +161,16 @@ export function DatePicker({
               })}
             </View>
             </ScrollView>
-            <Button title="ปิดปฏิทิน" ghost onPress={() => setOpen(false)} />
+            <View style={styles.footer}>
+              {!outOfRange(todayKey) && todayKey !== dayKey ? <Button title="วันนี้" variant="link" onPress={() => pick(todayKey)} /> : null}
+              {onClear && dayKey ? <Button title="ล้างวันที่" variant="link" onPress={() => { onClear(); setOpen(false); }} /> : null}
+              <View style={{ flex: 1 }} />
+              <Button title="ปิด" variant="secondary" inline onPress={() => setOpen(false)} />
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
-    </>
+    </View>
   );
 }
 
@@ -145,12 +185,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.button,
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
-    minHeight: TOUCH,
+    minHeight: 48,
   },
   fieldText: { fontSize: 15, color: colors.text },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.45)',
+    backgroundColor: colors.scrim,
     justifyContent: 'center',
     padding: spacing.lg,
   },
@@ -160,9 +200,10 @@ const styles = StyleSheet.create({
     maxHeight: '90%',
     alignSelf: 'center',
     backgroundColor: colors.bg,
-    borderRadius: 16,
+    borderRadius: radius.card,
     padding: spacing.lg,
   },
+  sheetLabel: { fontSize: 14, fontWeight: '600', color: colors.muted, textAlign: 'center', marginBottom: spacing.xs },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -170,7 +211,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   nav: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.ink },
+  title: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.bold, color: colors.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   // Stay just below 100% across seven columns so Yoga rounding cannot wrap Sunday.
   dow: {
@@ -178,7 +219,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 11,
     fontWeight: '600',
-    color: colors.faint,
+    color: colors.muted,
     paddingBottom: 4,
   },
   cell: {
@@ -186,9 +227,11 @@ const styles = StyleSheet.create({
     minHeight: TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    borderRadius: radius.button,
   },
-  cellToday: { backgroundColor: colors.soft },
+  // Same marking as the calendar tab: today is outlined, the chosen day is filled.
+  cellToday: { borderWidth: 1, borderColor: colors.ink },
   cellOn: { backgroundColor: colors.ink },
   cellText: { fontSize: 13, color: colors.text, fontVariant: ['tabular-nums'] },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm },
 });

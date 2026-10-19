@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ChevronRight } from 'lucide-react-native';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useCalendarRange, useLeaves, useWorkload } from '@/api/hooks';
 import type { WorkloadMember } from '@/api/types';
@@ -34,38 +35,46 @@ function loadTone(member: WorkloadMember): { label: string; tone: TagTone; color
 function MemberCard({ member, max, leave, todayEvents, onDetail, onTasks, onCalendar, onCases }: { member: WorkloadMember; max: number; leave?: LeaveFlag; todayEvents: number | string; onDetail: () => void; onTasks: () => void; onCalendar: () => void; onCases: () => void }) {
   const load = loadTone(member);
   const width = max === 0 ? 0 : Math.max(4, (member.openTasks / max) * 100);
+  // Only facts that need attention become chips; zero counts stay out of the way.
+  const chips: Array<{ tone: TagTone; text: string }> = [
+    ...(member.overdueTasks > 0 ? [{ tone: 'due' as TagTone, text: `เกินกำหนด ${member.overdueTasks}` }] : []),
+    ...(typeof todayEvents === 'number' && todayEvents > 0 ? [{ tone: 'info' as TagTone, text: `นัดวันนี้ ${todayEvents}` }] : []),
+    ...(member.hearingsThisWeek > 0 ? [{ tone: 'court' as TagTone, text: `นัดศาล 7 วัน ${member.hearingsThisWeek}` }] : []),
+    ...(leave ? [{ tone: (leave.kind === 'ON_LEAVE' ? 'due' : 'court') as TagTone, text: leave.label }] : []),
+  ];
   return (
     <Card style={{ marginBottom: spacing.md }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`ดูรายละเอียด ${member.name}`} onPress={onDetail} style={({ pressed }) => [styles.row, { minHeight: 48 }, pressed && { opacity: 0.7 }]}>
+      <Pressable accessibilityRole="button"
+        accessibilityLabel={`ดูรายละเอียด ${member.name} งานเปิด ${member.openTasks} เกินกำหนด ${member.overdueTasks} คดีหลัก ${member.openCases}`}
+        onPress={onDetail} style={({ pressed }) => [styles.row, { minHeight: 48 }, pressed && { opacity: 0.7 }]}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials(member.name)}</Text>
         </View>
-        <Text style={styles.name}>
-          {member.name} ›
-        </Text>
-        <Text style={styles.count}>{member.openTasks}</Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.name}>{member.name}</Text>
+          <Text style={styles.detail}>คดีหลัก {member.openCases}</Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={styles.count}>{member.openTasks}</Text>
+          <Text style={styles.countLabel}>งานเปิด</Text>
+        </View>
+        <ChevronRight size={18} color={colors.muted} />
       </Pressable>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${width}%`, backgroundColor: load.color }]} />
       </View>
-      <Text style={styles.detail}>
-        งาน {member.openTasks} · เกินกำหนด {member.overdueTasks} · คดีหลัก {member.openCases} · นัดศาล 7 วันถัดไป{' '}
-        {member.hearingsThisWeek}
-      </Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
-        <Tag tone={load.tone}>{load.label}</Tag>
-        <Tag tone="info">นัดวันนี้ {todayEvents}</Tag>
-        {leave && <Tag tone={leave.kind === 'ON_LEAVE' ? 'due' : 'court'}>{leave.label}</Tag>}
-      </View>
+      {(chips.length > 0 || member.openTasks === 0) && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
+        {chips.length ? chips.map(chip => <Tag key={chip.text} tone={chip.tone}>{chip.text}</Tag>) : <Tag tone={load.tone}>{load.label}</Tag>}
+      </View>}
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" style={styles.action} onPress={onCases}>
-          <Text style={styles.actionText}>ดูคดี ›</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`ดูงานของ ${member.name}`} style={styles.action} onPress={onTasks}>
+          <Text style={styles.actionText}>งาน</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" style={styles.action} onPress={onTasks}>
-          <Text style={styles.actionText}>ดูงาน ›</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`ดูคดีของ ${member.name}`} style={styles.action} onPress={onCases}>
+          <Text style={styles.actionText}>คดี</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" style={styles.action} onPress={onCalendar}>
-          <Text style={styles.actionText}>ดูนัดหมาย ›</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`ดูนัดหมายของ ${member.name}`} style={styles.action} onPress={onCalendar}>
+          <Text style={styles.actionText}>นัดหมาย</Text>
         </Pressable>
       </View>
     </Card>
@@ -101,7 +110,6 @@ export default function TeamScreen() {
       }
     >
       <PageIntro title="ภาระงานรายคน" detail="แตะชื่อเพื่อดูงาน คดี นัดหมาย และจุดติดขัด" />
-      {(hasFirmCapability(user?.firmRole, 'runOperations') || user?.firmRole === 'SENIOR_LAWYER') && <Button title="ภาระงานทีม 7 วัน" ghost onPress={() => router.push('/team-week')} />}
       {workload.isError ? (
         <ErrorNote message="โหลดภาระงานทีมไม่สำเร็จ" onRetry={() => workload.refetch()} />
       ) : null}
@@ -116,6 +124,9 @@ export default function TeamScreen() {
             <StatCard label="นัดใน 7 วัน" value={data.totals.hearingsThisWeek} tone="court" />
           </View>
 
+          {(hasFirmCapability(user?.firmRole, 'runOperations') || user?.firmRole === 'SENIOR_LAWYER') && <View style={{ marginTop: spacing.sm }}>
+            <Button title="ดูภาระงานทีมล่วงหน้า 7 วัน" ghost onPress={() => router.push('/team-week')} />
+          </View>}
           {overloaded > 0 ? (
             <View style={{ marginTop: spacing.sm }}>
               <Tag tone="due">{overloaded} คนมีงานเกินกำหนด — พิจารณาเกลี่ยงาน</Tag>
@@ -172,8 +183,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 3 },
-  detail: { color: colors.faint, fontSize: 12, marginTop: 6 },
+  detail: { color: colors.faint, fontSize: 12, marginTop: 2 },
+  countLabel: { color: colors.faint, fontSize: 11 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
-  action: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
+  action: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: 999 },
   actionText: { color: colors.info, fontWeight: '600' },
 });

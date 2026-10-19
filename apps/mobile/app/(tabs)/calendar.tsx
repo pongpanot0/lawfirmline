@@ -50,6 +50,15 @@ export default function CalendarScreen() {
     return map;
   }, [events.data, memberId]);
 
+  const todayKey = isoDay(today);
+  // Changing month moves the selection into that month (today when it is the current month),
+  // so the list below never shows an empty day from a month that is no longer loaded.
+  const goMonth = (step: number) => {
+    const next = new Date(cursor.y, cursor.m + step, 1);
+    setCursor({ y: next.getFullYear(), m: next.getMonth() });
+    setSelected(next.getFullYear() === today.getFullYear() && next.getMonth() === today.getMonth() ? todayKey : isoDay(next));
+  };
+  const goToday = () => { setCursor({ y: today.getFullYear(), m: today.getMonth() }); setSelected(todayKey); };
   const cells = monthGrid(cursor.y, cursor.m);
   const selectedEvents = byDay.get(selected) ?? [];
 
@@ -72,9 +81,7 @@ export default function CalendarScreen() {
             accessibilityRole="button"
             accessibilityLabel="เดือนก่อนหน้า"
             style={styles.navButton}
-            onPress={() =>
-              setCursor(({ y, m }) => (m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 }))
-            }
+            onPress={() => goMonth(-1)}
           >
             <ChevronLeft size={20} color={colors.ink} />
           </Pressable>
@@ -86,9 +93,7 @@ export default function CalendarScreen() {
             accessibilityRole="button"
             accessibilityLabel="เดือนถัดไป"
             style={styles.navButton}
-            onPress={() =>
-              setCursor(({ y, m }) => (m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))
-            }
+            onPress={() => goMonth(1)}
           >
             <ChevronRight size={20} color={colors.ink} />
           </Pressable>
@@ -107,7 +112,7 @@ export default function CalendarScreen() {
               {cells.slice(week * 7, week * 7 + 7).map((date, index) => {
                 if (!date) return <View key={`x${index}`} style={styles.cell} />;
                 const key = isoDay(date);
-                const isToday = key === isoDay(today);
+                const isToday = key === todayKey;
                 const isSelected = key === selected;
                 const hasEvents = byDay.has(key);
                 return (
@@ -143,7 +148,14 @@ export default function CalendarScreen() {
       ) : null}
 
       <View style={styles.dayHead}>
-        <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>{thDate(new Date(selected))}</SectionLabel>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 }}>
+          <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>
+            {selected === todayKey ? 'วันนี้ · ' : ''}{thDate(new Date(selected))}{selectedEvents.length ? ` · ${selectedEvents.length} นัด` : ''}
+          </SectionLabel>
+          {selected !== todayKey && <Pressable accessibilityRole="button" accessibilityLabel="กลับไปวันนี้" hitSlop={8} onPress={goToday} style={styles.filter}>
+            <Text style={styles.filterText}>กลับวันนี้</Text>
+          </Pressable>}
+        </View>
         <Pressable
           style={styles.addButton}
           accessibilityRole="button"
@@ -156,8 +168,12 @@ export default function CalendarScreen() {
         </Pressable>
       </View>
       <Card>
-        {selectedEvents.length === 0 ? (
-          <EmptyNote>ไม่มีนัดหมายวันนี้</EmptyNote>
+        {events.isLoading ? (
+          <EmptyNote>กำลังโหลดนัดหมาย…</EmptyNote>
+        ) : events.isError && !events.data ? (
+          <EmptyNote>ยังโหลดนัดหมายไม่ได้ · ลองใหม่จากปุ่มด้านบน</EmptyNote>
+        ) : selectedEvents.length === 0 ? (
+          <EmptyNote>{selected === todayKey ? 'ไม่มีนัดหมายวันนี้' : 'ไม่มีนัดหมายในวันที่เลือก'} · กด “เพิ่มนัด” เพื่อสร้าง</EmptyNote>
         ) : (
           selectedEvents.map((event, index) => (
             <View key={event.id}>
