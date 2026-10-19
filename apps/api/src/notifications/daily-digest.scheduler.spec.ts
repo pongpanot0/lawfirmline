@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AgendaService } from '../agenda/agenda.service';
 import { LineMessagingService } from './line-messaging.service';
 import { EmailService } from './email.service';
+import { PushService } from './push.service';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 
 const NOW = new Date('2026-09-07T11:00:00Z'); // Mon 7 Sep 2026, 18:00 Bangkok
@@ -40,6 +41,7 @@ describe('DailyDigestScheduler', () => {
     sendDailyDigestEmail: jest.fn().mockResolvedValue(true),
     getAppUrl: jest.fn().mockReturnValue('https://app.example'),
   };
+  const mockPush = { sendToUsers: jest.fn() };
 
   const member = {
     firmId: 'firm-1',
@@ -57,6 +59,7 @@ describe('DailyDigestScheduler', () => {
     mockLine.sendText.mockResolvedValue(true);
     mockEmail.sendDailyDigestEmail.mockResolvedValue(true);
     mockEmail.getAppUrl.mockReturnValue('https://app.example');
+    mockPush.sendToUsers.mockResolvedValue(true);
     mockAgenda.getDayBrief.mockResolvedValue({
       date: '2026-09-08',
       items: [item()],
@@ -70,6 +73,7 @@ describe('DailyDigestScheduler', () => {
         { provide: AgendaService, useValue: mockAgenda },
         { provide: LineMessagingService, useValue: mockLine },
         { provide: EmailService, useValue: mockEmail },
+        { provide: PushService, useValue: mockPush },
       ],
     }).compile();
     scheduler = module.get(DailyDigestScheduler);
@@ -119,12 +123,79 @@ describe('DailyDigestScheduler', () => {
   it('does not send twice for the same day', async () => {
     mockPrisma.dailyDigestLog.findMany.mockResolvedValue([
       { userId: 'user-1', channel: 'line' },
+      { userId: 'user-1', channel: 'push-evening' },
     ]);
 
     await scheduler.sendDigests();
 
     expect(mockAgenda.getDayBrief).not.toHaveBeenCalled();
     expect(mockLine.sendText).not.toHaveBeenCalled();
+    expect(mockPush.sendToUsers).not.toHaveBeenCalled();
+  });
+
+  it('pushes a short count for tomorrow that opens the calendar', async () => {
+    mockAgenda.getDayBrief.mockResolvedValue({
+      date: '2026-09-08',
+      items: [item(), item({ id: 'event:evt-2', title: 'ประชุม' })],
+      warnings: [],
+    });
+
+    await scheduler.sendDigests();
+
+    expect(mockPush.sendToUsers).toHaveBeenCalledWith(['user-1'], {
+      title: '📋 พรุ่งนี้มี 2 รายการ',
+      body: expect.stringMatching(/สืบพยานโจทก์.* และอีก 1 รายการ$/),
+      data: { url: '/(tabs)/calendar' },
+    });
+    expect(mockPrisma.dailyDigestLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ channel: 'push-evening', itemCount: 2 }),
+    });
+  });
+
+  it('still pushes when the LINE digest already went out', async () => {
+    mockPrisma.dailyDigestLog.findMany.mockResolvedValue([{ userId: 'user-1', channel: 'line' }]);
+
+    await scheduler.sendDigests();
+
+    expect(mockLine.sendText).not.toHaveBeenCalled();
+    expect(mockPush.sendToUsers).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs no push when no device took it', async () => {
+    mockPush.sendToUsers.mockResolvedValue(false);
+
+    await scheduler.sendDigests();
+
+    expect(mockPrisma.dailyDigestLog.create).not.toHaveBeenCalledWith({
+      data: expect.objectContaining({ channel: 'push-evening' }),
+    });
+  });
+
+  it('pushes today\'s count at 08:00 without re-sending LINE or email', async () => {
+    jest.setSystemTime(new Date('2026-09-08T01:00:00Z')); // Tue 8 Sep, 08:00 Bangkok
+
+    await scheduler.sendMorningPush();
+
+    const [, day] = mockAgenda.getDayBrief.mock.calls[0];
+    expect(bangkokDayKey(day)).toBe('2026-09-08');
+    expect(mockLine.sendText).not.toHaveBeenCalled();
+    expect(mockEmail.sendDailyDigestEmail).not.toHaveBeenCalled();
+    expect(mockPush.sendToUsers.mock.calls[0][1].title).toBe('📋 วันนี้มี 1 รายการ');
+    expect(mockPrisma.dailyDigestLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ channel: 'push-morning' }),
+    });
+  });
+
+  it('does not push twice in one morning', async () => {
+    jest.setSystemTime(new Date('2026-09-08T01:00:00Z'));
+    mockPrisma.dailyDigestLog.findMany.mockResolvedValue([
+      { userId: 'user-1', channel: 'line' },
+      { userId: 'user-1', channel: 'push-morning' },
+    ]);
+
+    await scheduler.sendMorningPush();
+
+    expect(mockPush.sendToUsers).not.toHaveBeenCalled();
   });
 
   it('only considers members who have not opted out', async () => {
@@ -167,7 +238,9 @@ describe('DailyDigestScheduler', () => {
 
     await scheduler.sendDigests();
 
-    expect(mockPrisma.dailyDigestLog.create).not.toHaveBeenCalled();
+    expect(mockPrisma.dailyDigestLog.create).not.toHaveBeenCalledWith({
+      data: expect.objectContaining({ channel: 'line' }),
+    });
   });
 
   it('includes schedule conflicts in the message', async () => {

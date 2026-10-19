@@ -18,6 +18,11 @@ export interface PushMessage {
  * Expo push delivery. Tokens are registered per device from the mobile app;
  * a token that Expo reports as DeviceNotRegistered is pruned so dead devices
  * do not accumulate.
+ *
+ * ponytail: reads send-time tickets only, never Expo push receipts — a broken
+ * APNs/FCM credential (InvalidCredentials) shows up only there. Add a receipt
+ * poll (store ticket ids, check ~15 min later) once user count makes a silent
+ * outage too costly to learn about from users.
  */
 @Injectable()
 export class PushService {
