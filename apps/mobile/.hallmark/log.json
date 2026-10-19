@@ -28,5 +28,15 @@
     "enrichment": "none",
     "brief": "Usability system pass: persistent picker labels, button hierarchy (primary/secondary/link/danger), inline validation, labelled loading/error/empty states, SwitchRow/CheckRow, plain Disclosure, single attach action, slimmer task work and add-task/expense forms",
     "designSystem": "design.md"
+  },
+  {
+    "date": "2026-10-19",
+    "scope": "app (all 47 mobile routes, split across PRs: system #118 + tabs/people/events, cases/court/documents, office/owner/account/auth)",
+    "genre": "modern-minimal",
+    "macrostructure": "Workbench (native operations)",
+    "theme": "Editorial Juris cream/navy",
+    "enrichment": "none",
+    "brief": "App-wide hallmark + impeccable audit (punch-list) and usability redesign: visible labels and inline validation everywhere, one primary per screen, row-as-target lists, zero counts hidden, single titles under native headers, explicit loading/empty/error states",
+    "designSystem": "design.md"
   }
 ]
