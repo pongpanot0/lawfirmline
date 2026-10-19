@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Text, TextInput } from '@/components/AppText';
-import { FormField, FormPage, FormSection } from '@/components/Form';
-import { Button, ErrorNote, SectionLabel } from '@/components/ui';
+import { Text } from '@/components/AppText';
+import { FormField, FormPage, FormSection, MissingSummary } from '@/components/Form';
+import { Button, ErrorNote } from '@/components/ui';
 import { useAuth } from '@/api/auth';
 import { ApiError } from '@/api/client';
-import { colors, spacing } from '@/theme';
+import { colors, fonts, spacing } from '@/theme';
 import { passwordError } from '@/account-validation';
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function nameError(value: string, label: string, max: number) {
+  const size = value.trim().length;
+  if (size < 2) return `ใส่${label}อย่างน้อย 2 ตัวอักษร`;
+  if (size > max) return `${label}ไม่เกิน ${max} ตัวอักษร`;
+  return undefined;
+}
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -18,21 +27,31 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [triedSave, setTriedSave] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Same rules as before, but each message sits under the field it belongs to.
+  const ownPasswordError = passwordError(password, password);
+  const errors = {
+    firmName: nameError(firmName, 'ชื่อสำนักงาน', 200),
+    firstName: nameError(firstName, 'ชื่อ', 100),
+    lastName: nameError(lastName, 'นามสกุล', 100),
+    email: EMAIL.test(email.trim()) ? undefined : 'กรอกอีเมลให้ถูกต้อง เช่น name@firm.co.th',
+    password: ownPasswordError ?? undefined,
+    confirmation: !ownPasswordError && password !== confirmation ? 'รหัสผ่านทั้งสองช่องไม่ตรงกัน' : undefined,
+  };
+  const shown = (key: keyof typeof errors) => (triedSave ? errors[key] : undefined);
+  const missing = triedSave ? ([
+    ['firmName', 'ชื่อสำนักงาน'], ['firstName', 'ชื่อ'], ['lastName', 'นามสกุล'], ['email', 'อีเมล'], ['password', 'รหัสผ่าน'], ['confirmation', 'ยืนยันรหัสผ่าน'],
+  ] as const).filter(([key]) => errors[key]).map(([, label]) => label) : [];
 
   const submit = async () => {
     if (busy) return;
     setError(null);
-    if ([firmName, firstName, lastName].some(value => value.trim().length < 2)) {
-      setError('กรอกชื่อสำนักงาน ชื่อ และนามสกุล อย่างน้อยช่องละ 2 ตัวอักษร'); return;
-    }
-    if (firmName.trim().length > 200 || firstName.trim().length > 100 || lastName.trim().length > 100) {
-      setError('ชื่อสำนักงานไม่เกิน 200 ตัวอักษร ชื่อและนามสกุลช่องละไม่เกิน 100 ตัวอักษร'); return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('กรอกอีเมลให้ถูกต้อง'); return; }
-    const invalidPassword = passwordError(password, confirmation);
-    if (invalidPassword) { setError(invalidPassword); return; }
+    setTriedSave(true);
+    if (Object.values(errors).some(Boolean) || passwordError(password, confirmation)) return;
     setBusy(true);
     try {
       await register({ firmName: firmName.trim(), firstName: firstName.trim(), lastName: lastName.trim(),
@@ -44,36 +63,38 @@ export default function RegisterScreen() {
   };
 
   return <FormPage>
-    <View style={{ gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.lg }}>
-      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 28 }}>สมัคร Samnuan</Text>
-      <Text style={{ color: colors.muted }}>สร้างสำนักงานใหม่ (สำหรับเจ้าของสำนักงาน)</Text>
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>ถ้าเป็นพนักงาน ไม่ต้องสมัคร ขอคำเชิญจากสำนักงานของคุณ แล้วกดลิงก์ในอีเมลเชิญ เพื่อเข้าไปเห็นคดีของสำนักงาน</Text>
+    <View style={{ gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.sm }}>
+      <Text accessibilityRole="header" style={{ color: colors.ink, fontFamily: fonts.bold, fontSize: 28, lineHeight: 40 }}>สมัคร Samnuan</Text>
+      <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>สร้างสำนักงานใหม่ สำหรับเจ้าของสำนักงาน</Text>
+      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 14, lineHeight: 22 }}>พนักงานไม่ต้องสมัคร — เปิดลิงก์ในอีเมลเชิญจากสำนักงานของคุณ</Text>
     </View>
     <FormSection title="สำนักงานและชื่อของคุณ">
-    <FormField label="ชื่อสำนักงาน" value={firmName} onChange={setFirmName} disabled={busy} />
-    <FormField label="ชื่อ" value={firstName} onChange={setFirstName} disabled={busy} />
-    <FormField label="นามสกุล" value={lastName} onChange={setLastName} disabled={busy} />
+      <FormField label="ชื่อสำนักงาน" required value={firmName} onChange={setFirmName} disabled={busy} error={shown('firmName')}
+        maxLength={200} returnKeyType="next" />
+      <FormField label="ชื่อ" required value={firstName} onChange={setFirstName} disabled={busy} error={shown('firstName')}
+        maxLength={100} autoComplete="given-name" textContentType="givenName" returnKeyType="next" />
+      <FormField label="นามสกุล" required value={lastName} onChange={setLastName} disabled={busy} error={shown('lastName')}
+        maxLength={100} autoComplete="family-name" textContentType="familyName" returnKeyType="next" />
     </FormSection>
     <FormSection title="ข้อมูลเข้าสู่ระบบ" detail="ใช้อีเมลนี้สำหรับเข้าระบบและตั้งรหัสผ่านใหม่">
-    <SectionLabel>อีเมล</SectionLabel>
-    <TextInput style={styles.input} accessibilityLabel="อีเมล" autoCapitalize="none" keyboardType="email-address"
-      autoComplete="email" value={email} onChangeText={setEmail} editable={!busy} />
-    <SectionLabel>รหัสผ่าน · อย่างน้อย 8 ตัวอักษร</SectionLabel>
-    <TextInput style={styles.input} accessibilityLabel="รหัสผ่าน" autoCapitalize="none" autoComplete="new-password"
-      secureTextEntry value={password} onChangeText={setPassword} editable={!busy} />
-    <SectionLabel>ยืนยันรหัสผ่าน</SectionLabel>
-    <TextInput style={styles.input} accessibilityLabel="ยืนยันรหัสผ่าน" autoCapitalize="none" autoComplete="new-password"
-      secureTextEntry value={confirmation} onChangeText={setConfirmation} editable={!busy} onSubmitEditing={submit} />
+      <FormField label="อีเมล" required value={email} onChange={setEmail} disabled={busy} error={shown('email')} placeholder="name@firm.co.th"
+        keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress" returnKeyType="next" />
+      <FormField label="รหัสผ่าน" required hint="อย่างน้อย 8 ตัวอักษร" value={password} onChange={setPassword} disabled={busy} error={shown('password')}
+        secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" returnKeyType="next" />
+      <FormField label="ยืนยันรหัสผ่าน" required value={confirmation} onChange={setConfirmation} disabled={busy} error={shown('confirmation')}
+        secureTextEntry={!showPassword} autoCapitalize="none" autoComplete="new-password" textContentType="newPassword"
+        returnKeyType="done" onSubmitEditing={submit} />
+      <Button title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} variant="link" onPress={() => setShowPassword(!showPassword)} />
     </FormSection>
+    <MissingSummary items={missing} />
     {error && <ErrorNote message={error} />}
     <Button title="สร้างบัญชีและสำนักงาน" onPress={submit} busy={busy} />
-    <Button ghost title="มีบัญชีแล้ว · เข้าสู่ระบบ" onPress={() => router.replace('/(auth)/login')} disabled={busy} />
-    <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://samnuan.com/privacy')}
-      style={{ minHeight: 44, justifyContent: 'center' }}>
-      <Text style={{ color: colors.info, textAlign: 'center' }}>อ่านนโยบายความเป็นส่วนตัว</Text>
-    </Pressable>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.md }}>
+      <Button variant="link" title="มีบัญชีแล้ว · เข้าสู่ระบบ" onPress={() => router.replace('/(auth)/login')} disabled={busy} />
+      <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://samnuan.com/privacy')}
+        style={({ pressed }) => [{ minHeight: 44, justifyContent: 'center' }, pressed && { opacity: 0.6 }]}>
+        <Text style={{ color: colors.info, fontSize: 14 }}>นโยบายความเป็นส่วนตัว</Text>
+      </Pressable>
+    </View>
   </FormPage>;
 }
-
-const styles = StyleSheet.create({ input: { backgroundColor: colors.surface, color: colors.text,
-  minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: 10, fontSize: 15 } });

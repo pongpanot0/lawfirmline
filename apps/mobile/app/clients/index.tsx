@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useRouter } from 'expo-router';
@@ -12,16 +12,21 @@ export default function ClientsScreen() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [committed, setCommitted] = useState('');
+  // Results follow typing after a short pause; the keyboard search key still commits at once.
+  useEffect(() => {
+    const timer = setTimeout(() => setCommitted(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
   const clients = useClients(committed);
 
   return (
     <View style={styles.screen}>
       <View style={{ ...pageContent, maxWidth: 760, paddingBottom: 0 }}>
-        <PageIntro title="สมุดลูกความ" detail="แตะชื่อเพื่อดูข้อมูลติดต่อและคดีของลูกความ" />
+        <PageIntro title="ลูกความ" detailOnly detail="แตะชื่อเพื่อดูข้อมูลติดต่อและคดีของลูกความ" />
         <SearchBox value={search} onChange={setSearch} onSearch={() => setCommitted(search.trim())} onClear={() => setCommitted('')} placeholder="ค้นหาชื่อลูกความ" />
       </View>
       {clients.isLoading ? (
-        <Loading />
+        <Loading label="กำลังโหลดรายชื่อลูกความ…" />
       ) : clients.isError ? (
         <View style={{ padding: spacing.lg }}>
           <ErrorNote message="โหลดรายชื่อลูกความไม่สำเร็จ" onRetry={() => clients.refetch()} />
@@ -30,7 +35,8 @@ export default function ClientsScreen() {
         <FlatList
           data={clients.data ?? []}
           keyExtractor={(client) => client.id}
-          contentContainerStyle={pageContent}
+          contentContainerStyle={{ ...pageContent, maxWidth: 760 }}
+          keyboardShouldPersistTaps="handled"
           refreshing={clients.isRefetching}
           onRefresh={() => clients.refetch()}
           renderItem={({ item }) => (
@@ -39,23 +45,23 @@ export default function ClientsScreen() {
               onPress={() => router.push(`/clients/${item.id}`)}
               style={({ pressed }) => pressed && { opacity: 0.7 }}
             >
-              <Card style={{ marginBottom: spacing.md }}>
+              <Card style={{ marginBottom: spacing.sm }}>
                 <View style={styles.row}>
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>{initials(item.name)}</Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>
-                      {item.name}
-                    </Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.name}>{item.name}</Text>
                     {item.type ? <Text style={styles.meta}>{item.type}</Text> : null}
                   </View>
-                  <ChevronRight size={18} color={colors.faint} />
+                  <ChevronRight size={18} color={colors.muted} />
                 </View>
               </Card>
             </Pressable>
           )}
-          ListEmptyComponent={<EmptyNote>ไม่พบลูกความ</EmptyNote>}
+          ListEmptyComponent={<EmptyNote>{committed
+            ? `ไม่พบลูกความชื่อ “${committed}” · ลองคำสั้นลง`
+            : 'ยังไม่มีลูกความ · เพิ่มได้บนเว็บ'}</EmptyNote>}
         />
       )}
     </View>
@@ -75,5 +81,5 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: colors.ink, fontWeight: '700', fontSize: 13 },
   name: { fontSize: 15, fontWeight: '600', color: colors.text },
-  meta: { fontSize: 12, color: colors.faint, marginTop: 2 },
+  meta: { fontSize: 13, color: colors.muted, marginTop: 2 },
 });
