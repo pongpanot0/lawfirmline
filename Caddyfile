@@ -7,11 +7,12 @@
 #   A  api.{$DOMAIN}       → EC2 IP
 #   A  *.{$DOMAIN}         → EC2 IP   (all firm subdomains)
 #
-# All HTTPS names use On-Demand TLS. Caddy asks the API before serving/issuing
-# a cert. The ask endpoint must allow:
-#   - platform hosts: apex, www, api
-#   - known firm slugs under ROOT_DOMAIN
-# Otherwise `*.{$DOMAIN}` can steal SNI for api/www and return ERR_SSL_PROTOCOL_ERROR.
+# Platform hosts (apex, www, api) get ordinary managed certificates. Only firm
+# subdomains use On-Demand TLS, which asks the API before serving/issuing a cert.
+# Keeping the platform hosts off On-Demand means a slow or hung API can no longer
+# stall the TLS handshake of the whole site (2026-10-25 outage: every host timed
+# out while the ask endpoint hung). Exact host blocks win over the wildcard, so
+# `*.{$DOMAIN}` cannot steal SNI for api/www.
 
 {
 	on_demand_tls {
@@ -19,21 +20,26 @@
 	}
 }
 
-{$DOMAIN}, www.{$DOMAIN}, api.{$DOMAIN}, *.{$DOMAIN} {
-	tls {
-		on_demand
-	}
-
+(common) {
 	# Auto-upgrade any http:// subresource (images, API URLs stored in data)
 	# so Chrome never flags the page as "not secure" over mixed content.
 	header Content-Security-Policy "upgrade-insecure-requests"
+}
 
-	@api host api.{$DOMAIN}
-	handle @api {
-		reverse_proxy api:3001
-	}
+{$DOMAIN}, www.{$DOMAIN} {
+	import common
+	reverse_proxy web:3000
+}
 
-	handle {
-		reverse_proxy web:3000
+api.{$DOMAIN} {
+	import common
+	reverse_proxy api:3001
+}
+
+*.{$DOMAIN} {
+	tls {
+		on_demand
 	}
+	import common
+	reverse_proxy web:3000
 }
