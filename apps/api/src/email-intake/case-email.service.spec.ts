@@ -13,6 +13,8 @@ describe('CaseEmailService', () => {
     emailThread: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     case: { findMany: jest.fn() },
     emailMessage: { findMany: jest.fn() },
+    // loadLatestMessages uses DISTINCT ON via $queryRaw; it serves the same latest-message rows.
+    $queryRaw: jest.fn(),
     firmMember: { findMany: jest.fn() },
     mailboxConnection: { findMany: jest.fn() },
     emailAttachment: { findFirst: jest.fn() },
@@ -33,6 +35,7 @@ describe('CaseEmailService', () => {
     jest.clearAllMocks();
     mockCaseAccess.getEmailThreadFilterForUser.mockResolvedValue(threadFilter);
     mockPrisma.emailMessage.findMany.mockResolvedValue([]);
+    mockPrisma.$queryRaw.mockImplementation(() => mockPrisma.emailMessage.findMany());
     mockPrisma.firmMember.findMany.mockResolvedValue([]);
     mockPrisma.mailboxConnection.findMany.mockResolvedValue([]);
     mockCaseAccess.getCaseFilterForUser.mockReturnValue({ firmId: 'firm-1' });

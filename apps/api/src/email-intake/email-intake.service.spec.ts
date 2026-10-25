@@ -17,7 +17,8 @@ describe('EmailIntakeService', () => {
       createMany: jest.fn(),
     },
     client: { findMany: jest.fn(), findFirst: jest.fn() },
-    emailAttachment: { findFirst: jest.fn() },
+    emailAttachment: { findFirst: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
+    $queryRaw: jest.fn().mockResolvedValue([]),
   };
   const mockCaseAccess = {
     getEmailThreadFilterForUser: jest.fn(async (user: { firmId: string }): Promise<any> => ({
@@ -106,19 +107,23 @@ describe('EmailIntakeService', () => {
       expect(mockPrisma.intake.create.mock.calls[0][0].data.description).toBe('ตอบกลับจากทนาย');
     });
 
-    it('list excerpt uses the latest INBOUND message, else the newest', async () => {
+    it('list excerpt comes from one SQL pick per thread (newest INBOUND, else newest)', async () => {
       mockPrisma.emailThread.findMany.mockResolvedValue([
-        { id: 't1', subject: 'a', lastMessageAt: new Date(), status: 'NEW', _count: { messages: 2 }, intake: null,
-          messages: [{ id: 'out', bodyText: 'ทนายตอบ', attachments: [] }] },
-        { id: 't2', subject: 'b', lastMessageAt: new Date(), status: 'NEW', _count: { messages: 1 }, intake: null,
-          messages: [{ id: 'o2', bodyText: 'ส่งออกอย่างเดียว', attachments: [] }] },
+        { id: 't1', subject: 'a', lastMessageAt: new Date(), status: 'NEW', _count: { messages: 2 }, intake: null },
+        { id: 't2', subject: 'b', lastMessageAt: new Date(), status: 'NEW', _count: { messages: 1 }, intake: null },
       ]);
-      mockPrisma.emailMessage.findMany.mockResolvedValue([
-        { id: 'in', threadId: 't1', bodyText: 'ลูกความถาม', attachments: [{ id: 'a1' }] },
+      // The query orders INBOUND first per thread; the service trusts that pick.
+      mockPrisma.$queryRaw.mockResolvedValue([
+        { id: 'in', threadId: 't1', excerpt: 'ลูกความถาม' },
+        { id: 'o2', threadId: 't2', excerpt: 'ส่งออกอย่างเดียว' },
       ]);
+      mockPrisma.emailAttachment.groupBy.mockResolvedValue([{ messageId: 'in', _count: { _all: 1 } }]);
       const list = await service.listThreads(user);
       expect(list[0]).toMatchObject({ bodyExcerpt: 'ลูกความถาม', attachmentCount: 1 });
-      expect(list[1].bodyExcerpt).toBe('ส่งออกอย่างเดียว');
+      expect(list[1]).toMatchObject({ bodyExcerpt: 'ส่งออกอย่างเดียว', attachmentCount: 0 });
+      // No message bodies are loaded through Prisma for the list.
+      expect(mockPrisma.emailMessage.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.emailThread.findMany.mock.calls[0][0].include.messages).toBeUndefined();
     });
   });
 

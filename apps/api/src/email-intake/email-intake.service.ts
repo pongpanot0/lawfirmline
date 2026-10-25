@@ -56,41 +56,45 @@ export class EmailIntakeService {
       include: {
         intake: { select: { id: true, status: true } },
         mailboxConnection: { select: { mailboxAddress: true } },
-        messages: {
-          orderBy: { receivedAt: 'desc' },
-          take: 1,
-          select: { id: true, bodyText: true, attachments: { select: { id: true } } },
-        },
         _count: { select: { messages: true } },
       },
       orderBy: { lastMessageAt: 'desc' },
     });
+    if (threads.length === 0) return [];
 
-    // The excerpt is the client's words, not our own outgoing reply: newest INBOUND per thread,
-    // falling back to the newest message when a thread has none.
-    const inbound = await this.prisma.emailMessage.findMany({
-      where: { threadId: { in: threads.map((t) => t.id) }, direction: EmailDirection.INBOUND },
-      orderBy: { receivedAt: 'desc' },
-      distinct: ['threadId'],
-      select: { id: true, threadId: true, bodyText: true, attachments: { select: { id: true } } },
+    // One excerpt per thread, picked and trimmed in Postgres: the newest INBOUND message
+    // (the client's words, not our reply), else the newest message. Prisma's `distinct`
+    // and nested `take` run in memory, which pulled every synced e-mail body into the API
+    // and starved the 2 GB host (prod hang, 2026-10-25).
+    const threadIds = threads.map((t) => t.id);
+    const excerpts = await this.prisma.$queryRaw<{ id: string; threadId: string; excerpt: string | null }[]>`
+      SELECT DISTINCT ON ("threadId") "id", "threadId", left("bodyText", 200) AS "excerpt"
+      FROM "EmailMessage"
+      WHERE "threadId" = ANY(${threadIds}::text[])
+      ORDER BY "threadId", ("direction" = 'INBOUND') DESC, "receivedAt" DESC`;
+    const attachmentCounts = await this.prisma.emailAttachment.groupBy({
+      by: ['messageId'],
+      where: { messageId: { in: excerpts.map((e) => e.id) } },
+      _count: { _all: true },
     });
-    const inboundByThread = new Map(inbound.map((m) => [m.threadId, m]));
+    const excerptByThread = new Map(excerpts.map((e) => [e.threadId, e]));
+    const attachmentsByMessage = new Map(attachmentCounts.map((a) => [a.messageId, a._count._all]));
 
     return threads.map((thread) => {
-      const excerptMessage = inboundByThread.get(thread.id) ?? thread.messages[0];
+      const excerpt = excerptByThread.get(thread.id);
       return {
-      id: thread.id,
-      subject: thread.subject,
-      fromName: thread.fromName,
-      fromAddress: thread.fromAddress,
-      lastMessageAt: thread.lastMessageAt,
-      status: thread.status,
-      messageCount: thread._count.messages,
-      attachmentCount: excerptMessage?.attachments.length ?? 0,
-      bodyExcerpt: excerptMessage?.bodyText?.slice(0, 200) ?? '',
-      linkedIntake: thread.intake,
-      caseId: thread.caseId,
-      mailboxAddress: thread.mailboxConnection?.mailboxAddress ?? null,
+        id: thread.id,
+        subject: thread.subject,
+        fromName: thread.fromName,
+        fromAddress: thread.fromAddress,
+        lastMessageAt: thread.lastMessageAt,
+        status: thread.status,
+        messageCount: thread._count.messages,
+        attachmentCount: excerpt ? attachmentsByMessage.get(excerpt.id) ?? 0 : 0,
+        bodyExcerpt: excerpt?.excerpt ?? '',
+        linkedIntake: thread.intake,
+        caseId: thread.caseId,
+        mailboxAddress: thread.mailboxConnection?.mailboxAddress ?? null,
       };
     });
   }
