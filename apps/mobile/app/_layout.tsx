@@ -184,7 +184,6 @@ function AppStack() {
             >
               <Stack.Screen name="(tabs)" options={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
               <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-              <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
               <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
               <Stack.Screen name="account" options={{ title: 'บัญชีของฉัน' }} />
               <Stack.Screen name="delete-account" options={{ title: 'ลบบัญชีและข้อมูล' }} />

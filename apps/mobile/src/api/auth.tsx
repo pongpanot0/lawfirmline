@@ -10,7 +10,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, ApiError, clearTokens, getTokens, setTokens, USER_PROFILE_KEY } from './client';
 import { unregisterPush } from './push';
-import type { AuthUserInfo, LoginResponse, MfaChallenge, RegisterInput } from './types';
+import type { AuthUserInfo, LoginResponse, MfaChallenge } from './types';
 
 interface AuthContextValue {
   /** null while restoring the session from SecureStore. */
@@ -24,7 +24,6 @@ interface AuthContextValue {
   restored: boolean;
   login: (email: string, password: string) => Promise<MfaChallenge | null>;
   verifyMfa: (mfaToken: string, code: string) => Promise<void>;
-  register: (input: RegisterInput) => Promise<void>;
   refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -105,10 +104,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await acceptSession(await api<LoginResponse>('/auth/mfa/verify', { method: 'POST', body: { mfaToken, code } }));
   }, [acceptSession]);
 
-  const register = useCallback(async (input: RegisterInput) => {
-    await acceptSession(await api<LoginResponse>('/auth/register', { method: 'POST', body: input }));
-  }, [acceptSession]);
-
   const refreshUser = useCallback(async () => {
     const { refreshToken } = await getTokens();
     const me = await api<AuthUserInfo>('/auth/me');
@@ -135,8 +130,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ready, user, restored, login, verifyMfa, register, refreshUser, logout }),
-    [ready, user, restored, login, verifyMfa, register, refreshUser, logout],
+    () => ({ ready, user, restored, login, verifyMfa, refreshUser, logout }),
+    [ready, user, restored, login, verifyMfa, refreshUser, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
