@@ -25,13 +25,15 @@ export async function loadInternalAddresses(prisma: PrismaService, firmId: strin
 
 /** Latest message per thread in ONE query (newest first, first seen wins). */
 export async function loadLatestMessages(prisma: PrismaService, threadIds: string[]): Promise<Map<string, LatestMessage>> {
-  const rows = await prisma.emailMessage.findMany({
-    where: { threadId: { in: threadIds } },
-    distinct: ['threadId'],
-    orderBy: [{ threadId: 'asc' }, { receivedAt: 'desc' }],
-    select: { id: true, threadId: true, direction: true, fromAddress: true, receivedAt: true },
-  });
-  return new Map(rows.map((r) => [r.threadId, r as LatestMessage]));
+  if (threadIds.length === 0) return new Map();
+  // DISTINCT ON in Postgres: Prisma's `distinct` dedupes in memory, which loaded every
+  // message of every thread on each reminder run.
+  const rows = await prisma.$queryRaw<LatestMessage[]>`
+    SELECT DISTINCT ON ("threadId") "id", "threadId", "direction"::text AS "direction", "fromAddress", "receivedAt"
+    FROM "EmailMessage"
+    WHERE "threadId" = ANY(${threadIds}::text[])
+    ORDER BY "threadId", "receivedAt" DESC`;
+  return new Map(rows.map((r) => [r.threadId, r]));
 }
 
 /** The latest inbound message when the thread still waits for our reply, else null (see spec R "Definition"). */

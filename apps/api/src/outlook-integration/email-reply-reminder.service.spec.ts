@@ -11,6 +11,8 @@ describe('EmailReplyReminderService', () => {
     firm: { findMany: jest.fn() },
     emailThread: { findMany: jest.fn(), updateMany: jest.fn() },
     emailMessage: { findMany: jest.fn() },
+    // loadLatestMessages uses DISTINCT ON via $queryRaw; setup() feeds it the latest-message rows.
+    $queryRaw: jest.fn(),
     firmMember: { findMany: jest.fn() },
     mailboxConnection: { findMany: jest.fn() },
     case: { findUnique: jest.fn() },
@@ -40,6 +42,7 @@ describe('EmailReplyReminderService', () => {
   const setup = (threads: any[], messages: any[]) => {
     prisma.emailThread.findMany.mockResolvedValue(threads);
     prisma.emailMessage.findMany.mockResolvedValue(messages);
+    prisma.$queryRaw.mockResolvedValue(messages);
   };
 
   it('reminds once for an overdue client email and records the message id', async () => {
