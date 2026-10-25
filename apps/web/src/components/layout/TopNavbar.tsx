@@ -70,22 +70,24 @@ export function TopNavbar({ user, onLogout, searchQuery, onSearchChange, onMenuC
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-        <Link href={taskHref} onClick={() => setOpen(false)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:opacity-90">
-          <Plus className="h-4 w-4" aria-hidden />
-          <span>{d.topbar.newTask}</span>
-        </Link>
-        <div ref={menuRef} className="relative">
-          <Button
-            size="sm"
-            variant="outline"
+        {/* One outlined split button: quick "new task" plus the other create actions.
+            Outlined so the page's own primary stays the only filled button on screen. */}
+        <div ref={menuRef} className="relative flex">
+          <Link href={taskHref} onClick={() => setOpen(false)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-l-lg border border-r-0 border-input bg-card px-3 text-sm font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Plus className="h-4 w-4" aria-hidden />
+            <span>{d.topbar.newTask}</span>
+          </Link>
+          <button
+            type="button"
             aria-label={d.topbar.createMenu}
+            title={d.topbar.createMenu}
             aria-haspopup="menu"
             aria-expanded={open}
             onClick={() => setOpen((o) => !o)}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-r-lg border border-input bg-card text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <span className="hidden lg:inline">{d.topbar.createMenu}</span>
-            <ChevronDown className="h-3.5 w-3.5" />
-          </Button>
+            <ChevronDown className="h-4 w-4" aria-hidden />
+          </button>
           {open && (
             <div
               role="menu"
