@@ -85,6 +85,16 @@ jobs:
               echo "RESEND_API_KEY=${RESEND_API_KEY}" >> .env
             fi
             unset RESEND_API_KEY
+            # Stripe keys too: `gh secret set STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` + redeploy.
+            STRIPE_SECRET_KEY='${{ secrets.STRIPE_SECRET_KEY }}'
+            STRIPE_WEBHOOK_SECRET='${{ secrets.STRIPE_WEBHOOK_SECRET }}'
+            for key in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET; do
+              if [ -n "${!key}" ]; then
+                sed -i "/^${key}=/d" .env
+                echo "${key}=${!key}" >> .env
+              fi
+            done
+            unset STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET
             # The api refuses to boot without these (production-secrets.ts). Check the
             # values compose will actually pass, before touching the running containers.
             resolved="$(docker compose -f docker-compose.prod.yml config)"
@@ -100,6 +110,8 @@ jobs:
               grep -qE "^ +${key}: [\"']?[^\"' ]" <<<"$resolved" \
                 || echo "::warning::${key} not reaching the api; no email is sent (password reset, MFA, invites, deletion notices)"
             done
+            grep -qE "^ +STRIPE_SECRET_KEY: [\"']?[^\"' ]" <<<"$resolved" \
+              || echo "::warning::STRIPE_SECRET_KEY not reaching the api; checkout returns 503 (set it with gh secret set)"
             grep -qE "^ +MS_CLIENT_ID: [\"']?[^\"' ]" <<<"$resolved" \
               || echo "::warning::MS_CLIENT_ID not set in .env; Outlook connect stays disabled"
             unset resolved
