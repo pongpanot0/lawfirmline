@@ -136,6 +136,11 @@ jobs:
             fi
             docker compose -f docker-compose.prod.yml pull api web
             docker compose -f docker-compose.prod.yml up -d
+            # The Caddyfile is a bind mount: `up -d` does not recreate caddy when only
+            # its content changes, so reload it explicitly (no downtime; a bad config
+            # is rejected and the running one stays).
+            docker compose -f docker-compose.prod.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile \
+              || echo "::warning::caddy reload failed; previous Caddyfile still active"
             # Apply pending Prisma migrations from the image just deployed.
             # migrate deploy is a no-op when nothing is pending, so running it
             # on every deploy keeps schema and code in the same release.
