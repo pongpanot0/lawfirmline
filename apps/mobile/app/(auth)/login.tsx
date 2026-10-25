@@ -125,10 +125,7 @@ export default function LoginScreen() {
             <Text style={{ color: colors.info, textAlign: 'center' }}>ลืมรหัสผ่าน</Text>
           </Pressable>
           <View style={styles.footer}>
-            <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/register')} disabled={busy}
-              style={({ pressed }) => [styles.link, pressed && { opacity: 0.6 }]}>
-              <Text style={{ color: colors.info, textAlign: 'center' }}>เจ้าของสำนักงาน · สร้างสำนักงานใหม่</Text>
-            </Pressable>
+            <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 13, lineHeight: 20 }}>บัญชีสร้างโดยสำนักงานของคุณ ขอคำเชิญจากเจ้าของสำนักงาน</Text>
             <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://samnuan.com/privacy')}
               style={({ pressed }) => [styles.link, pressed && { opacity: 0.6 }]}>
               <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 13 }}>นโยบายความเป็นส่วนตัว</Text>
