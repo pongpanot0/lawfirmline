@@ -96,7 +96,7 @@ export function ProductTour({ steps, storageKey }: { steps: TourStep[]; storageK
         aria-modal="true"
         aria-labelledby="tour-step-title"
         tabIndex={-1}
-        className="fixed z-[101] w-[320px] rounded-xl border border-border bg-card p-4 shadow-lg outline-none"
+        className="fixed z-[101] w-[min(320px,calc(100vw-32px))] rounded-xl border border-border bg-card p-4 shadow-lg outline-none"
         style={{ top: ttop, left: tleft }}
       >
         <div className="mb-2 flex items-start justify-between gap-2">
@@ -106,10 +106,10 @@ export function ProductTour({ steps, storageKey }: { steps: TourStep[]; storageK
           <button
             type="button"
             aria-label="ปิดคำแนะนำ"
-            className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="-mr-2 -mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={skip}
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
         <p className="text-sm text-muted-foreground">{step.body}</p>

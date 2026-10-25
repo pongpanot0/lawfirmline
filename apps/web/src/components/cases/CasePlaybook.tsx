@@ -59,7 +59,7 @@ export function CasePlaybook({ caseId, caseTypeId, initialReleaseId = '', onAppl
   }, [token, caseId, releaseId, reload]);
   const readyPreview = preview?.release.id === releaseId ? preview : null;
   return <details open={Boolean(initialReleaseId)} className="mb-4 rounded-xl border bg-card p-4">
-    <summary className="cursor-pointer font-medium">{th ? 'นำ SOP ไปใช้กับคดี' : 'Apply an SOP to this case'}</summary>
+    <summary className="flex min-h-11 cursor-pointer items-center font-medium">{th ? 'นำ SOP ไปใช้กับคดี' : 'Apply an SOP to this case'}</summary>
     <div className="mt-3 space-y-3">
       <p className="text-xs text-muted-foreground">{th ? 'เลือก SOP แล้วตรวจรายการด้านล่าง ระบบจะเพิ่มงานเมื่อคุณยืนยันเท่านั้น' : 'Choose an SOP and check the steps below. Tasks are added only after confirmation.'}</p>
       {(loadError || error) && <div role="alert" className="text-sm text-destructive">{loadError || error}<Button variant="outline" className="ml-2" disabled={busy || previewBusy} onClick={() => setReload(value => value + 1)}>{th ? 'ลองโหลดรายการงานอีกครั้ง' : 'Retry loading tasks'}</Button></div>}
@@ -87,7 +87,7 @@ export function CasePlaybook({ caseId, caseTypeId, initialReleaseId = '', onAppl
         try {
           await setupRequest(token, `/cases/${caseId}/apply`, { releaseId }); setApplied(true); onApplied();
         } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); }
-      }}>{busy ? '…' : (th ? 'ยืนยันเพิ่มงานตามรายการ' : 'Confirm these tasks')}</Button>
+      }}>{busy ? (th ? 'กำลังเพิ่มงาน…' : 'Adding tasks…') : (th ? 'ยืนยันเพิ่มงานตามรายการ' : 'Confirm these tasks')}</Button>
     </div>
   </details>;
 }

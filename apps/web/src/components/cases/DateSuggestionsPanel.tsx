@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { InlineEmptyState } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
 
 type Draft = { label: string; date: string; time: string; eventType: DateSuggestionItem['eventType']; assigneeId: string };
@@ -43,13 +45,14 @@ export function DateSuggestionsPanel({
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(() => {
     if (!token || !caseId) return;
     api
       .getDateSuggestions(token, caseId, 'PENDING')
-      .then((all) => setSuggestions(all.filter((s) => s.source === source)))
-      .catch(console.error);
+      .then((all) => { setSuggestions(all.filter((s) => s.source === source)); setLoadFailed(false); })
+      .catch((err) => { console.error(err); setLoadFailed(true); });
   }, [token, caseId, source]);
 
   useEffect(() => {
@@ -114,16 +117,18 @@ export function DateSuggestionsPanel({
     }
   };
 
-  if (suggestions.length === 0 && hideWhenEmpty) return null;
+  if (suggestions.length === 0 && hideWhenEmpty && !loadFailed) return null;
 
   return (
-    <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
+    <div className="mb-6 rounded-xl border bg-card p-6">
       <h2 className="mb-4 font-semibold text-foreground">{title}</h2>
 
-      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
 
-      {suggestions.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{d.dateSuggestions.empty}</p>
+      {loadFailed ? (
+        <LoadFailed onRetry={load} />
+      ) : suggestions.length === 0 ? (
+        <InlineEmptyState title={d.dateSuggestions.empty} />
       ) : (
         <div className="space-y-3">
           {suggestions.map((s) => {
@@ -131,21 +136,28 @@ export function DateSuggestionsPanel({
             return (
               <div key={s.id} className="rounded-lg border p-3">
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  <input
-                    type="text"
-                    aria-label={d.deadlineRules.label}
-                    value={draft.label}
-                    onChange={(e) =>
-                      setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, label: e.target.value } }))
-                    }
-                    className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-                  />
-                  <ThaiDateInput
-                    value={draft.date}
-                    onChange={(v) =>
-                      setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, date: v } }))
-                    }
-                  />
+                  <label className="text-xs text-muted-foreground">
+                    {d.deadlineRules.label}
+                    <input
+                      type="text"
+                      value={draft.label}
+                      onChange={(e) =>
+                        setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, label: e.target.value } }))
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground"
+                    />
+                  </label>
+                  <div className="text-xs text-muted-foreground">
+                    <label htmlFor={`suggestion-date-${s.id}`}>วันที่</label>
+                    <ThaiDateInput
+                      id={`suggestion-date-${s.id}`}
+                      className="mt-1"
+                      value={draft.date}
+                      onChange={(v) =>
+                        setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, date: v } }))
+                      }
+                    />
+                  </div>
                   <label className="text-xs text-muted-foreground">
                     เวลา (ประเทศไทย)
                     <input
@@ -153,11 +165,12 @@ export function DateSuggestionsPanel({
                       required
                       value={draft.time}
                       onChange={(e) => setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, time: e.target.value } }))}
-                      className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground"
+                      className="mt-1 min-h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground"
                     />
                   </label>
+                  <label className="text-xs text-muted-foreground">
+                    ประเภทนัด
                   <select
-                    aria-label={d.calendar.typeDeadline}
                     value={draft.eventType}
                     onChange={(e) =>
                       setDrafts((prev) => ({
@@ -165,13 +178,14 @@ export function DateSuggestionsPanel({
                         [s.id]: { ...draft, eventType: e.target.value as Draft['eventType'] },
                       }))
                     }
-                    className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+                    className="mt-1 min-h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground"
                   >
                     <option value="COURT_DATE">{d.calendar.typeCourtDate}</option>
                     <option value="CLIENT_MEETING">{d.calendar.typeClientMeeting}</option>
                     <option value="DEADLINE">{d.calendar.typeDeadline}</option>
                     <option value="OTHER">{d.calendar.typeOther}</option>
                   </select>
+                  </label>
                 </div>
 
                 {source === 'DOCUMENT' && (
@@ -205,12 +219,12 @@ export function DateSuggestionsPanel({
                     )}
 
                 {s.holidayDataIncomplete && s.dueYear && (
-                  <p role="alert" className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  <p role="alert" className="mt-2 text-xs font-medium text-warning">
                     {fmt(d.dateSuggestions.holidayIncomplete, { year: s.dueYear + 543 })}
                   </p>
                 )}
 
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
                     size="sm"

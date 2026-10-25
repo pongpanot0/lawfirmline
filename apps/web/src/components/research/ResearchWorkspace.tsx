@@ -4,11 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { api, IntakePrecedentAnalysisItem, DocumentItem, ResearchFact } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/misc';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
 import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 
 const STATUS = { PENDING: 'รอตรวจ', REVIEWED: 'ตรวจแล้ว', CONFLICT: 'มีข้อขัดแย้ง', MISSING: 'ข้อมูลขาด' };
+const STATUS_VARIANT: Record<keyof typeof STATUS, BadgeProps['variant']> = { PENDING: 'muted', REVIEWED: 'success', CONFLICT: 'destructive', MISSING: 'warning' };
 
 export function ResearchWorkspace({ intakeId, caseId, initialText = '', documents = [], onUploaded, onResult }: {
   intakeId?: string;
@@ -99,15 +102,13 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
   return <section aria-label="ข้อเท็จจริงและฎีกา" className="min-w-0 space-y-5">
     {caseId && <CaseSummaryPanel caseId={caseId} />}
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5">
-      <h2 className="text-lg font-semibold">เริ่มจากเรื่องที่ต้องการรู้</h2>
-      <p className="text-sm text-muted-foreground">พิมพ์เหตุการณ์เพื่อจัดข้อเท็จจริงหรือค้นฎีกา หรือเลือกเอกสารเพื่อสรุปข้อมูลจากไฟล์</p>
+      <h2 className="text-lg font-semibold">ค้นข้อเท็จจริงและฎีกา</h2>
       <label htmlFor="research-text" className="block text-sm font-medium">เหตุการณ์หรือประเด็นที่ต้องการค้น</label>
       <textarea id="research-text" rows={5} maxLength={12000} value={text} onChange={(e) => setText(e.target.value)} disabled={!!busy} className={field} placeholder="เช่น บริษัทประกันมอบหมายให้ต่อสู้คดี ผู้เอาประกันโต้แย้งว่าไม่ได้เป็นฝ่ายประมาท ต้องการหาแนวฎีกาเรื่องภาระการพิสูจน์…" />
       {(intakeId || caseId) && <details className="rounded-lg border border-border p-3" open={filesExpanded} onToggle={(e) => setFilesExpanded(e.currentTarget.open)}>
         <summary className="cursor-pointer text-sm font-medium">เอกสาร · เลือก {selected.length} ไฟล์</summary>
         <div className="mt-3 space-y-3">
           <DocumentDropZone multiple accept=".pdf,.txt,application/pdf,text/plain" disabled={!!busy} onFiles={(files) => void upload(files)} label="แนบเอกสารของเรื่อง" hint="PDF / TXT ไม่เกิน 30MB ต่อไฟล์ · ไฟล์สแกนจะอ่านข้อความเมื่อกดวิเคราะห์" />
-          <p className="text-xs text-muted-foreground">ไฟล์เก็บไว้ในเรื่องทันที การเก็บไฟล์ยังไม่ใช่การอ่านด้วย AI</p>
           {documents.map((doc) => <label key={doc.id} className="flex items-start gap-2 text-sm">
             <input type="checkbox" checked={selected.includes(doc.id)} disabled={!!busy || (!selected.includes(doc.id) && selected.length >= 10) || !['application/pdf','text/plain'].includes(doc.mimeType)} onChange={() => setSelected((prev) => prev.includes(doc.id) ? prev.filter((id) => id !== doc.id) : [...prev, doc.id])} />
             <span className="min-w-0 break-words">{doc.filename} <span className="text-xs text-muted-foreground">· {['application/pdf','text/plain'].includes(doc.mimeType) ? 'เก็บไฟล์แล้ว' : 'เก็บได้ แต่ AI ยังไม่รองรับชนิดนี้'}</span></span>
@@ -119,18 +120,18 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
         <Button variant="outline" disabled={!!busy || (!text.trim() && !selected.length)} onClick={() => void run(true)}>จัดข้อเท็จจริง · 5 เครดิต</Button>
         {(intakeId || caseId) && <Button variant="outline" disabled={!!busy || !selected.length} onClick={() => void summarize()}>สรุปข้อมูลจากเอกสาร · 5 เครดิต</Button>}
       </div>
-      {(intakeId || caseId) && <p className="text-xs text-muted-foreground">สรุปเอกสารใช้เฉพาะไฟล์ที่เลือก ไม่รวมข้อความในช่องด้านบน{!selected.length && ' · เปิดส่วนเอกสารแล้วเลือกไฟล์ก่อนสรุป'}</p>}
+      {(intakeId || caseId) && <p className="text-xs text-muted-foreground">สรุปเอกสารใช้เฉพาะไฟล์ที่เลือก ไม่รวมข้อความในช่องด้านบน</p>}
       <p className="text-xs text-muted-foreground">ผลสำเร็จบันทึกอัตโนมัติ{caseId ? 'ในคดีนี้' : intakeId ? 'ในเรื่องนี้ และติดตามไปเมื่อเปิดเป็นคดี' : 'ในประวัติของคุณ'} · ข้อความเป็นข้อมูลที่ผู้ใช้ระบุ จนกว่าจะตรวจเทียบหลักฐาน</p>
       {busy && <p role="status" className="text-sm text-primary">{busy}</p>}
       {error && <div role="alert" className="text-sm text-destructive">{error} <button type="button" disabled={!!busy} className="underline" onClick={() => { setError(''); setRetry((n) => n + 1); }}>โหลดผลล่าสุด</button></div>}
     </div>
-    {loading ? <p role="status">กำลังโหลดประวัติ…</p> : history.length > 0 && <label className="block text-sm">ผลที่บันทึกไว้
+    {loading ? <div role="status" aria-label="กำลังโหลดผลที่บันทึกไว้" className="space-y-1"><Skeleton className="h-4 w-28" /><Skeleton className="h-10 w-full" /></div> : history.length > 0 && <label className="block text-sm">ผลที่บันทึกไว้
       <select className={`${field} mt-1`} disabled={!!busy} value={result?.id ?? ''} onChange={(e) => { setResult(history.find((r) => r.id === e.target.value) ?? null); setEditing(null); setChosenFacts([]); }}>
         {history.map((row) => <option key={row.id} value={row.id}>{new Date(row.createdAt).toLocaleString('th-TH')} · {row.status === 'FAILED' ? 'ไม่สำเร็จ' : row.extractedFacts?.caseSummary ? 'สรุปคดี' : row.extractedFacts?.summaryOnly ? 'สรุปเอกสาร' : row.extractedFacts?.factsOnly ? 'ข้อเท็จจริง' : 'ข้อเท็จจริงและฎีกา'}</option>)}
       </select>
     </label>}
     {result?.extractedFacts?.description && <Button variant="ghost" disabled={!!busy} onClick={() => { setText(result.extractedFacts?.description ?? ''); document.getElementById('research-text')?.focus(); }}>ใช้ข้อความเดิมค้นต่อ</Button>}
-    {result && (result.status !== 'COMPLETE' ? <p role="alert">ผลนี้วิเคราะห์ไม่สำเร็จ: {result.errorMessage}</p> : <>
+    {result && (result.status !== 'COMPLETE' ? <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">ผลนี้วิเคราะห์ไม่สำเร็จ: {result.errorMessage}</p> : <>
       {!!result.extractedFacts?.attachmentWarnings?.length && <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
         <p className="font-semibold">ผลจากข้อมูลไม่ครบ — ตรวจขอบเขตก่อนนำไปใช้</p>
         {result.extractedFacts.attachmentWarnings.map((warning) => <p key={warning}>{warning}</p>)}
@@ -146,7 +147,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
         <p className="text-xs text-muted-foreground">“ตรวจแล้ว” คืออ่านเทียบแหล่งที่มา ไม่ใช่ข้อยุติของคดี เลือกข้อที่ต้องการใช้ค้นฎีกาต่อได้</p>
         {facts.length === 0 && <p className="text-sm text-muted-foreground">ผลนี้ยังไม่มีข้อเท็จจริงพร้อมข้อความอ้างอิง กดจัดข้อเท็จจริงจากข้อความหรือไฟล์อีกครั้ง</p>}
         <ul className="space-y-3">{facts.map((fact,index) => ({fact,index})).filter(({fact}) => (filter === 'ALL' || filter === fact.status) && `${fact.statement} ${fact.source}`.toLowerCase().includes(search.toLowerCase())).map(({fact,index}) => <li key={`${result.id}-${index}`} className="rounded-lg border border-border p-3 space-y-2">
-          <div className="flex items-start gap-2"><input type="checkbox" aria-label={`เลือกข้อเท็จจริง ${index+1}`} checked={chosenFacts.includes(index)} onChange={() => setChosenFacts((prev) => prev.includes(index) ? prev.filter((i) => i !== index) : [...prev,index])} /><span className="text-xs font-medium">{STATUS[fact.status]}</span></div>
+          <div className="flex items-start gap-2"><input type="checkbox" aria-label={`เลือกข้อเท็จจริง ${index+1}`} checked={chosenFacts.includes(index)} onChange={() => setChosenFacts((prev) => prev.includes(index) ? prev.filter((i) => i !== index) : [...prev,index])} /><Badge variant={STATUS_VARIANT[fact.status] ?? 'muted'}>{STATUS[fact.status]}</Badge></div>
           {editing === index ? <textarea aria-label="แก้ไขข้อเท็จจริง" className={field} rows={3} maxLength={2000} value={draft} onChange={(e) => setDraft(e.target.value)} /> : <p className="text-sm whitespace-pre-wrap break-words">{fact.statement}</p>}
           <p className="text-xs text-muted-foreground break-words">{fact.source}{fact.page ? ` · หน้า ${fact.page}` : ''}</p>
           {fact.quote && <blockquote className="border-l-2 border-border pl-3 text-sm text-muted-foreground whitespace-pre-wrap break-words">“{fact.quote}”</blockquote>}
@@ -169,13 +170,13 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
           <div className="flex flex-wrap gap-2">
             {editing === index ? <><Button size="sm" disabled={!!busy || !draft.trim()} onClick={() => void saveFact(index,draft,fact.quote ? 'PENDING' : fact.status)}>บันทึกการแก้ไข</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)}>ยกเลิก</Button></> : <>
               <Button size="sm" variant="outline" disabled={!!busy} onClick={() => {setEditing(index);setDraft(fact.statement);}}>แก้ไข</Button>
-              {fact.quote && fact.status !== 'REVIEWED' && <Button size="sm" disabled={!!busy} onClick={() => void saveFact(index,fact.statement,'REVIEWED')}>ตรวจเทียบแล้ว</Button>}
+              {fact.quote && fact.status !== 'REVIEWED' && <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void saveFact(index,fact.statement,'REVIEWED')}>ตรวจเทียบแล้ว</Button>}
               {fact.quote && <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => void saveFact(index,fact.statement, fact.status === 'CONFLICT' ? 'PENDING' : 'CONFLICT')}>{fact.status === 'CONFLICT' ? 'กลับไปรอตรวจ' : 'ระบุข้อขัดแย้ง'}</Button>}
             </>}
           </div>
           {!!fact.revisions?.length && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">ประวัติแก้ไข ({fact.revisions.length})</summary>{fact.revisions.map((rev,i) => <p key={i}>{new Date(rev.at).toLocaleString('th-TH')} · {rev.statement}</p>)}</details>}
         </li>)}</ul>
-        {chosenFacts.length > 0 && <Button disabled={!!busy} onClick={() => void run(false, chosenFacts.map((index) => `[ผู้ใช้เลือกจากผล ${result.id} ข้อ ${index + 1} · ${STATUS[facts[index].status]} · ${facts[index].source}] ${facts[index].statement}`).join('\n'))}>ค้นฎีกาจาก {chosenFacts.length} ข้อที่เลือก · 10 เครดิต</Button>}
+        {chosenFacts.length > 0 && <Button variant="outline" disabled={!!busy} onClick={() => void run(false, chosenFacts.map((index) => `[ผู้ใช้เลือกจากผล ${result.id} ข้อ ${index + 1} · ${STATUS[facts[index].status]} · ${facts[index].source}] ${facts[index].statement}`).join('\n'))}>ค้นฎีกาจาก {chosenFacts.length} ข้อที่เลือก · 10 เครดิต</Button>}
       </div>}
       <details key={result.id} open={result.extractedFacts?.summaryOnly || undefined} className="rounded-xl border border-border p-4"><summary className="cursor-pointer font-medium">{result.extractedFacts?.caseSummary ? 'สรุปข้อมูลคดีและเอกสาร' : result.extractedFacts?.summaryOnly ? 'สรุปข้อมูลจากเอกสาร' : 'สรุปเหตุการณ์และลำดับเวลา'}</summary>{result.extractedFacts?.summaryOnly && <p className="mt-2 text-xs text-muted-foreground">{result.extractedFacts.caseSummary && 'ใช้ข้อมูลคดีที่บันทึกไว้ร่วมด้วย · '}ไฟล์ที่ใช้: {result.extractedFacts.selectedAttachments?.map(file => `${file.filename} · รุ่น ${file.version ?? '—'}`).join(', ') || 'ไม่มี'} · โปรดตรวจเทียบต้นฉบับก่อนใช้งาน</p>}<p className="mt-3 whitespace-pre-wrap text-sm">{result.documentSummary}</p>{result.timeline?.map((item,index) => <p key={index} className="mt-2 text-sm"><strong>{item.date}</strong> · {item.event}</p>)}</details>
       {!result.extractedFacts?.factsOnly && <div className="rounded-xl border border-border bg-card p-4 space-y-3">

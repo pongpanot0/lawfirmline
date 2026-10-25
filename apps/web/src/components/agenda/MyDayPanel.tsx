@@ -4,7 +4,9 @@ import { ActionCenter } from './ActionCenter';
 import { ReviewQueueList } from '@/components/tasks/ReviewQueueList';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CalendarClock, Car, Check, Gavel, ListTodo, Users } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Car, Check, ChevronRight, Gavel, ListTodo, Users } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { AgendaItemKind, TaskStatus } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, AgendaItem, MyDayResponse } from '@/lib/api';
@@ -57,17 +59,17 @@ function AgendaRow({
             <span className="font-mono text-xs text-muted-foreground">{item.caseRef}</span>
           )}
           {someoneElses && item.assigneeName && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            <Badge variant="muted" className="py-0.5">
               {fmt(d.myDay.assignedTo, { name: item.assigneeName })}
-            </span>
+            </Badge>
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           <span>{d.myDay.kind[item.kind]}</span>
-          {item.kind === AgendaItemKind.COURT_DATE && <span className="font-medium text-primary">{locale === 'th' ? 'เปิดแฟ้มไปศาล →' : 'Open court file →'}</span>}
+          {item.kind === AgendaItemKind.COURT_DATE && <span className="inline-flex items-center font-medium text-primary">{locale === 'th' ? 'เปิดแฟ้มไปศาล' : 'Open court file'}<ChevronRight className="h-3.5 w-3.5" aria-hidden /></span>}
           {item.location && <span>· {item.location}</span>}
           {item.departBy && (
-            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-500">
+            <span className="inline-flex items-center gap-1 text-warning">
               <Car className="size-3" aria-hidden />
               {fmt(d.myDay.departBy, { time: bangkokTime(item.departBy) })}
             </span>
@@ -120,7 +122,7 @@ function Section({
           className={cn('text-base', tone === 'danger' && 'text-destructive')}
         >
           {title}
-          <span className="ml-2 text-sm font-normal text-muted-foreground">{items.length}</span>
+          <span className="ml-2 text-sm font-normal tabular-nums text-muted-foreground">{items.length}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
@@ -214,12 +216,7 @@ export function MyDayPanel() {
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <p role="alert" className="text-sm text-destructive">{error}</p>
-        <Button size="sm" variant="outline" onClick={load}>
-          {d.common.retry}
-        </Button>
-      </div>
+      <LoadFailed message={error} onRetry={load} />
     );
   }
 
@@ -251,7 +248,7 @@ export function MyDayPanel() {
               type="button"
               aria-selected={scope === s}
               onClick={() => setScope(s)}
-              className={`rounded-md px-2.5 py-1 text-xs ${scope === s ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+              className={`min-h-11 rounded-md px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9 ${scope === s ? 'bg-muted font-semibold text-foreground' : 'text-muted-foreground hover:bg-muted'}`}
             >
               {s === 'mine' ? d.todos.scopeMine : d.todos.scopeTeam}
             </button>
@@ -313,7 +310,7 @@ export function MyDayPanel() {
           <CardContent className="space-y-4 pt-0">
             {upcoming.map((day) => (
               <div key={day.date}>
-                <p className="px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="px-3 text-xs font-medium text-muted-foreground">
                   {bangkokDayLabel(day.date, dateLocale(locale))}
                 </p>
                 <div className="-mx-1 divide-y divide-border/60">

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { Download, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 function canPreviewInline(mimeType: string) {
   return (
@@ -45,28 +46,22 @@ export function DocumentPreviewModal({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={filename}
         className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-card shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <p className="truncate text-sm font-medium text-foreground">{filename}</p>
+          <p className="min-w-0 truncate text-sm font-medium text-foreground">{filename}</p>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
-            >
-              <Download className="h-3.5 w-3.5" />
+            <Button type="button" variant="outline" size="sm" onClick={handleDownload}>
+              <Download className="h-4 w-4" aria-hidden />
               ดาวน์โหลด
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg p-1.5 hover:bg-muted"
-              aria-label="ปิดหน้าตัวอย่าง"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            </Button>
+            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="ปิดหน้าตัวอย่าง">
+              <X className="h-4 w-4" aria-hidden />
+            </Button>
           </div>
         </div>
 
@@ -83,14 +78,10 @@ export function DocumentPreviewModal({
           ) : (
             <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-3 text-center">
               <p className="text-sm text-muted-foreground">ไม่สามารถแสดงตัวอย่างไฟล์ประเภทนี้ได้</p>
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-              >
-                <Download className="h-4 w-4" />
+              <Button type="button" onClick={handleDownload}>
+                <Download className="h-4 w-4" aria-hidden />
                 ดาวน์โหลดไฟล์
-              </button>
+              </Button>
             </div>
           )}
         </div>

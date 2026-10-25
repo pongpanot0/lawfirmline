@@ -7,9 +7,11 @@ import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, BillingInvoiceItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check } from 'lucide-react';
+import { ArrowUpRight, Check } from 'lucide-react';
 import { BillingPeriodToggle } from '@/components/billing/BillingPeriodToggle';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
@@ -23,7 +25,7 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 export default function BillingPage() {
   const d = useDashboardT();
   return (
-    <Suspense fallback={<p className="text-muted-foreground">{d.billing.loadingPlans}</p>}>
+    <Suspense fallback={<p role="status" className="text-muted-foreground">{d.billing.loadingPlans}</p>}>
       <BillingPageContent />
     </Suspense>
   );
@@ -43,6 +45,7 @@ function BillingPageContent() {
   const [loadError, setLoadError] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(BillingPeriod.MONTHLY);
+  const [reload, setReload] = useState(0);
   const loc = dateLocale(locale);
 
   useEffect(() => {
@@ -55,6 +58,7 @@ function BillingPageContent() {
     const t = token ?? getStoredToken();
     if (!t) return;
     setLoadError('');
+    setLoading(true);
     Promise.all([api.getPlans(t), api.getBillingHistory(t)])
       .then(([p, h]) => {
         setPlans(p);
@@ -64,7 +68,7 @@ function BillingPageContent() {
       // payments" — an owner would read that as the truth about their account.
       .catch((err) => setLoadError(err instanceof Error ? err.message : d.billing.loadFailed))
       .finally(() => setLoading(false));
-  }, [token, d.billing.loadFailed]);
+  }, [token, d.billing.loadFailed, reload]);
 
   useEffect(() => {
     const planParam = searchParams.get('plan') as SubscriptionPlan | null;
@@ -79,7 +83,7 @@ function BillingPageContent() {
 
   const handleCancel = async () => {
     if (cancelling) return;
-    if (!confirm(d.billing.cancelConfirm)) return;
+    if (!confirm(`${d.billing.cancelConfirm}\n${user?.subscriptionPlan ? PLAN_CONFIG[user.subscriptionPlan].name : ''}`)) return;
     const t = token ?? getStoredToken();
     if (!t) return;
     setCancelling(true);
@@ -125,173 +129,156 @@ function BillingPageContent() {
   };
 
   const paymentSuccess = searchParams.get('success') === '1';
+  const canManagePayment = user.subscriptionStatus === SubscriptionStatus.ACTIVE || user.subscriptionStatus === SubscriptionStatus.PAST_DUE;
+  const formatDay = (value: string | Date) => new Date(value).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={d.billing.title}
         description={fmt(d.billing.description, { firmName: user.firmName })}
+        actions={canManagePayment ? (
+          <Button
+            className="whitespace-normal text-left"
+            disabled={redirecting}
+            onClick={() => goToStripe(() => api.billingPortal(authToken()))}
+          >
+            {d.billing.manageBilling}
+          </Button>
+        ) : undefined}
       />
 
       {paymentSuccess && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+        <div role="status" className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
           {d.billing.paymentSuccess}
         </div>
       )}
 
-      {loadError && (
-        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          {loadError}
-        </div>
-      )}
-
       {paymentError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {paymentError}
         </div>
       )}
 
       {user.subscriptionStatus === SubscriptionStatus.EXPIRED && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div role="alert" className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
           {d.billing.trialExpired}
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{d.billing.currentStatus}</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
+      <section aria-label={d.billing.currentStatus} className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2">
+        <div className="min-w-0 bg-card p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">{d.billing.currentStatus}</p>
             {statusBadge()}
-            <p className="text-2xl font-bold">{user.subscriptionPlan ? PLAN_CONFIG[user.subscriptionPlan].name : d.billing.trial}</p>
-            {user.trialEndAt && user.subscriptionStatus === SubscriptionStatus.TRIAL && (
-              <p className="text-sm text-muted-foreground">
-                {fmt(d.billing.trialEnds, {
-                  date: new Date(user.trialEndAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' }),
-                })}
-              </p>
-            )}
-            {user.currentPeriodEnd && user.subscriptionStatus === SubscriptionStatus.ACTIVE && (
-              <p className="text-sm text-muted-foreground">
-                {fmt(d.billing.renews, {
-                  date: new Date(user.currentPeriodEnd).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' }),
-                })}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{d.billing.teamSeats}</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{fmt(d.billing.maxUsers, { count: user.maxUsers })}</p>
-            <p className="text-sm text-muted-foreground">{d.billing.seatsHint}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{d.billing.actions}</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {(user.subscriptionStatus === SubscriptionStatus.ACTIVE || user.subscriptionStatus === SubscriptionStatus.PAST_DUE) && (
-              <Button
-                size="sm"
-                className="w-full"
-                disabled={redirecting}
-                onClick={() => goToStripe(() => api.billingPortal(authToken()))}
-              >
-                {d.billing.manageBilling}
-              </Button>
-            )}
-            {user.subscriptionStatus === SubscriptionStatus.ACTIVE && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                disabled={cancelling}
-                onClick={handleCancel}
-              >
-                {d.billing.cancelSubscription}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+          <p className="mt-1 text-2xl font-semibold">{user.subscriptionPlan ? PLAN_CONFIG[user.subscriptionPlan].name : d.billing.trial}</p>
+          {user.trialEndAt && user.subscriptionStatus === SubscriptionStatus.TRIAL && (
+            <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">{fmt(d.billing.trialEnds, { date: formatDay(user.trialEndAt) })}</p>
+          )}
+          {user.currentPeriodEnd && user.subscriptionStatus === SubscriptionStatus.ACTIVE && (
+            <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">{fmt(d.billing.renews, { date: formatDay(user.currentPeriodEnd) })}</p>
+          )}
+        </div>
+        <div className="min-w-0 bg-card p-4">
+          <p className="text-sm text-muted-foreground">{d.billing.teamSeats}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{fmt(d.billing.maxUsers, { count: user.maxUsers })}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{d.billing.seatsHint}</p>
+        </div>
+      </section>
 
-      <div>
-        <h2 className="mb-4 text-lg font-semibold">{d.billing.plans}</h2>
+      <section aria-labelledby="billing-plans-heading">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 id="billing-plans-heading" className="text-lg font-semibold">{d.billing.plans}</h2>
+          {!loading && !loadError && <BillingPeriodToggle value={billingPeriod} onChange={setBillingPeriod} />}
+        </div>
         {loading ? (
-          <p className="text-muted-foreground">{d.billing.loadingPlans}</p>
+          <div role="status" aria-label={d.billing.loadingPlans} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-96 w-full rounded-xl" />)}
+          </div>
+        ) : loadError ? (
+          <LoadFailed message={loadError} onRetry={() => setReload((n) => n + 1)} />
         ) : (
-          <>
-          <BillingPeriodToggle value={billingPeriod} onChange={setBillingPeriod} className="mb-4 justify-start" />
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {plans.map((plan) => {
               const yearly = billingPeriod === BillingPeriod.YEARLY;
               const total = planPriceThb(plan.plan as SubscriptionPlan, billingPeriod);
               const shownMonthly = yearly ? Math.round(total / 12) : plan.priceThb;
               return (
-              <Card key={plan.plan} className={plan.isCurrent ? 'border-primary ring-2 ring-primary/20' : ''}>
-                <CardContent className="space-y-4 p-6">
-                  <div>
+              <Card
+                key={plan.plan}
+                aria-current={plan.isCurrent ? 'true' : undefined}
+                className={plan.isCurrent ? 'border-2 border-primary' : ''}
+              >
+                <CardContent className="flex h-full flex-col gap-4 p-6">
+                  {/* Same order on every card: name, price, seats, then features. */}
+                  <div className="flex min-h-7 flex-wrap items-center justify-between gap-2">
                     <h3 className="font-semibold">{plan.name}</h3>
-                    <p className="text-2xl font-bold text-primary">
+                    {plan.isCurrent && <Badge variant="default">{d.billing.currentPlan}</Badge>}
+                  </div>
+                  <div className="border-b pb-4">
+                    <p className="text-3xl font-semibold tabular-nums text-foreground">
                       {shownMonthly.toLocaleString(loc)}{' '}
                       <span className="text-sm font-normal text-muted-foreground">{d.billing.perMonth}</span>
                     </p>
-                    {yearly && (
-                      <p className="text-xs text-muted-foreground">
-                        {fmt(d.billing.billedYearly, {
-                          amount: total.toLocaleString(loc),
-                          monthly: shownMonthly.toLocaleString(loc),
-                        })}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
+                    <p className="mt-1 min-h-4 text-xs tabular-nums text-muted-foreground">
+                      {yearly && fmt(d.billing.billedYearly, {
+                        amount: total.toLocaleString(loc),
+                        monthly: shownMonthly.toLocaleString(loc),
+                      })}
+                    </p>
+                    <p className="mt-2 text-sm font-medium tabular-nums">
                       {fmt(d.billing.upToUsers, { count: plan.maxUsers })}
                     </p>
                   </div>
-                  <ul className="space-y-1 text-sm">
+                  <ul className="flex-1 space-y-1.5 text-sm">
                     {plan.features.map((f) => (
-                      <li key={f} className="flex items-center gap-2">
-                        <Check className="h-3.5 w-3.5 text-success" />{f}
+                      <li key={f} className="flex items-start gap-2">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />{f}
                       </li>
                     ))}
                   </ul>
-                  <Button
-                    className="w-full"
-                    variant={plan.isCurrent ? 'outline' : 'default'}
-                    disabled={plan.isCurrent || redirecting}
-                    onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod))}
-                  >
-                    {plan.isCurrent ? d.billing.currentPlan : redirecting ? d.billing.redirecting : d.billing.subscribe}
-                  </Button>
-                  {!plan.isCurrent && (
-                    <Button
-                      className="w-full whitespace-normal leading-snug"
-                      variant="outline"
-                      disabled={redirecting}
-                      onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod, 'promptpay'))}
-                    >
-                      {d.billing.payPromptPay}
-                    </Button>
+                  {plan.isCurrent ? (
+                    <p className="flex min-h-11 items-center justify-center rounded-lg bg-muted text-sm font-medium text-muted-foreground">{d.billing.currentPlan}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        disabled={redirecting}
+                        onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod))}
+                      >
+                        {redirecting ? d.billing.redirecting : d.billing.subscribe}
+                      </Button>
+                      <Button
+                        className="w-full whitespace-normal leading-snug"
+                        variant="outline"
+                        disabled={redirecting}
+                        onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod, 'promptpay'))}
+                      >
+                        {d.billing.payPromptPay}
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
               );
             })}
           </div>
-          </>
         )}
-      </div>
+      </section>
 
       <Card>
         <CardHeader><CardTitle>{d.billing.paymentHistory}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto p-0">
           <table className="w-full min-w-[480px] text-sm">
-            <thead className="border-b bg-muted/50">
+            <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 text-left">{d.billing.invoice}</th>
-                <th className="px-4 py-3 text-left">{d.billing.plan}</th>
-                <th className="px-4 py-3 text-right">{d.billing.amount}</th>
-                <th className="px-4 py-3 text-left">{d.billing.status}</th>
-                <th className="px-4 py-3 text-left">{d.billing.date}</th>
+                <th className="px-4 py-3 text-left font-semibold">{d.billing.invoice}</th>
+                <th className="px-4 py-3 text-left font-semibold">{d.billing.plan}</th>
+                <th className="px-4 py-3 text-right font-semibold">{d.billing.amount}</th>
+                <th className="px-4 py-3 text-left font-semibold">{d.billing.status}</th>
+                <th className="px-4 py-3 text-left font-semibold">{d.billing.date}</th>
               </tr>
             </thead>
             <tbody>
@@ -299,22 +286,35 @@ function BillingPageContent() {
                 <tr key={inv.id} className="border-b">
                   <td className="px-4 py-3 font-medium">
                     {inv.hostedInvoiceUrl ? (
-                      <a href={inv.hostedInvoiceUrl} target="_blank" rel="noopener noreferrer" className="underline" title={d.billing.receipt}>{inv.invoiceNumber}</a>
+                      <a href={inv.hostedInvoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-primary underline sm:min-h-0" title={d.billing.receipt}>{inv.invoiceNumber}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden /></a>
                     ) : inv.invoiceNumber}
                   </td>
                   <td className="px-4 py-3">{PLAN_CONFIG[inv.plan as SubscriptionPlan]?.name ?? inv.plan}</td>
-                  <td className="px-4 py-3 text-right">{inv.amount.toLocaleString(loc)} THB</td>
-                  <td className="px-4 py-3"><Badge variant={inv.status === 'PAID' ? 'default' : 'muted'}>{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</Badge></td>
-                  <td className="px-4 py-3 text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{inv.amount.toLocaleString(loc)} THB</td>
+                  <td className="px-4 py-3"><Badge variant={inv.status === 'PAID' ? 'success' : inv.status === 'FAILED' ? 'destructive' : 'muted'}>{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</Badge></td>
+                  <td className="px-4 py-3 tabular-nums text-muted-foreground">{formatDay(inv.createdAt)}</td>
                 </tr>
               ))}
-              {history.length === 0 && (
+              {history.length === 0 && !loading && !loadError && (
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">{d.billing.noPayments}</td></tr>
               )}
             </tbody>
           </table>
         </CardContent>
       </Card>
+
+      {user.subscriptionStatus === SubscriptionStatus.ACTIVE && (
+        <div className="flex justify-end border-t pt-6">
+          <Button
+            variant="outline"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={cancelling}
+            onClick={handleCancel}
+          >
+            {d.billing.cancelSubscription}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

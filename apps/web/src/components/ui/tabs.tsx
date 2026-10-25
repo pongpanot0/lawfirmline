@@ -28,9 +28,9 @@ export function Tabs({
   );
 }
 
-export function TabsList({ children, className }: { children: React.ReactNode; className?: string }) {
+export function TabsList({ children, className, ...props }: { children: React.ReactNode; className?: string } & Omit<React.HTMLAttributes<HTMLDivElement>, 'children' | 'className'>) {
   return (
-    <div className={cn('flex max-w-full flex-wrap items-center gap-1 border-b border-border', className)}>
+    <div {...props} className={cn('flex max-w-full flex-wrap items-center gap-1 border-b border-border', className)}>
       {children}
     </div>
   );

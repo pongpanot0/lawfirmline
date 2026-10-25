@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { ArrowRight, ListChecks, MessageSquare, Paperclip } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { canActOnReview, effectiveReviewerId, isEligibleReviewer, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
 import { ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -8,6 +10,10 @@ import { caseNumberDisplay } from '@/lib/case-number-display';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { handoffNoteError, isHeld, reviewerName as reviewerNameOf } from '@/lib/task-review-view';
+
+/** Dense card action: 44px tall on touch screens, compact from sm up. */
+const act = 'inline-flex min-h-11 items-center gap-1 rounded-md border px-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:min-h-8';
+const field = 'min-h-11 w-full rounded-md border border-input bg-card px-2 text-sm sm:min-h-8 sm:text-xs';
 
 interface Task {
   id: string;
@@ -182,15 +188,15 @@ export function KanbanBoard({
         const pickReviewer = requireReviewerOnHandoff && !task.caseId;
         const priorityBar =
           task.priority === TaskPriority.HIGH
-            ? 'border-l-4 border-l-rose-500'
+            ? 'border-l-4 border-l-destructive'
             : task.priority === TaskPriority.LOW
               ? 'border-l-4 border-l-muted-foreground/30'
               : '';
         const counters = [
-          task.subtaskCount ? `☑ ${task.subtaskDoneCount ?? 0}/${task.subtaskCount}` : null,
-          task.attachmentCount ? `📎 ${task.attachmentCount}` : null,
-          task.commentCount ? `💬 ${task.commentCount}` : null,
-        ].filter(Boolean);
+          task.subtaskCount ? { key: 'sub', Icon: ListChecks, label: d.taskDetail.subtasks, value: `${task.subtaskDoneCount ?? 0}/${task.subtaskCount}` } : null,
+          task.attachmentCount ? { key: 'att', Icon: Paperclip, label: d.taskDetail.attachments, value: String(task.attachmentCount) } : null,
+          task.commentCount ? { key: 'com', Icon: MessageSquare, label: d.taskDetail.comments, value: String(task.commentCount) } : null,
+        ].filter((c): c is NonNullable<typeof c> => c !== null);
 
         return (
           <div
@@ -204,13 +210,13 @@ export function KanbanBoard({
               setDragTaskId(null);
               setDragOverStatus(null);
             }}
-            className={`rounded-lg border bg-card p-3 shadow-soft ${priorityBar} ${canSetPlainStatus ? 'cursor-grab active:cursor-grabbing' : ''} ${dragTaskId === task.id ? 'opacity-50' : ''}`}
+            className={`rounded-lg border bg-card p-3 ${priorityBar} ${canSetPlainStatus ? 'cursor-grab active:cursor-grabbing' : ''} ${dragTaskId === task.id ? 'opacity-50' : ''}`}
           >
             {onOpen ? (
               <button
                 type="button"
                 onClick={() => onOpen(task.id)}
-                className="text-left text-sm font-medium text-foreground hover:text-primary hover:underline"
+                className="min-h-11 text-left text-sm font-medium text-foreground hover:text-primary hover:underline sm:min-h-0"
               >
                 {task.title}
               </button>
@@ -223,7 +229,7 @@ export function KanbanBoard({
             {(stageChip || isHeld(task)) && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {stageChip && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">{stageChip}</span>}
-                {isHeld(task) && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300" title={task.onHold?.reason}>{d.todos.heldBadge}</span>}
+                {isHeld(task) && <Badge variant="warning" className="py-0.5 text-[11px]" title={task.onHold?.reason}>{d.todos.heldBadge}</Badge>}
               </div>
             )}
             {canReview && task.status === TaskStatus.PENDING_REVIEW && (
@@ -255,7 +261,15 @@ export function KanbanBoard({
               </p>
             )}
             {counters.length > 0 && (
-              <p className="mt-1 text-xs text-muted-foreground">{counters.join(' · ')}</p>
+              <p className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                {counters.map(({ key, Icon, label, value }) => (
+                  <span key={key} className="inline-flex items-center gap-1 tabular-nums" title={label}>
+                    <Icon className="h-3.5 w-3.5" aria-hidden />
+                    <span className="sr-only">{label}</span>
+                    {value}
+                  </span>
+                ))}
+              </p>
             )}
             <div className="mt-3 flex flex-wrap gap-1">
               {canSetPlainStatus &&
@@ -264,10 +278,12 @@ export function KanbanBoard({
                   .map((c) => (
                     <button
                       key={c.status}
+                      type="button"
                       onClick={() => onStatusChange(task.id, c.status)}
-                      className="rounded border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      className={`${act} text-muted-foreground hover:bg-accent hover:text-accent-foreground`}
                     >
-                      → {c.label}
+                      <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                      {c.label}
                     </button>
                   ))}
               {canHandoff && onHandoff && (
@@ -277,7 +293,8 @@ export function KanbanBoard({
                     setHandoffNote('');
                     setHandoffReviewerId(task.reviewerId ?? '');
                   }}
-                  className="rounded border border-sky-400 px-2 py-0.5 text-xs text-sky-600 hover:bg-sky-50"
+                  type="button"
+                  className={`${act} border-primary/40 text-primary hover:bg-primary/10`}
                 >
                   {handoffLabel
                     ? fmt(d.todos.handoffToReviewer, { name: handoffLabel })
@@ -287,7 +304,8 @@ export function KanbanBoard({
               {canReview && onAccept && (
                 <button
                   onClick={() => runAction(task.id, () => onAccept(task.id), () => undefined)}
-                  className="rounded border border-emerald-400 px-2 py-0.5 text-xs text-emerald-600 hover:bg-emerald-50"
+                  type="button"
+                  className={`${act} border-success/40 text-success hover:bg-success/10`}
                 >
                   {d.todos.accept}
                 </button>
@@ -298,7 +316,8 @@ export function KanbanBoard({
                     setRejectTaskId(task.id);
                     setRejectReason('');
                   }}
-                  className="rounded border border-rose-400 px-2 py-0.5 text-xs text-rose-600 hover:bg-rose-50"
+                  type="button"
+                  className={`${act} border-destructive/40 text-destructive hover:bg-destructive/10`}
                 >
                   {d.todos.reject}
                 </button>
@@ -314,7 +333,7 @@ export function KanbanBoard({
                       <button
                         type="button"
                         onClick={onRetryReviewers}
-                        className="rounded border px-2 py-0.5 text-xs text-muted-foreground"
+                        className={`${act} text-muted-foreground`}
                       >
                         {d.common.retry}
                       </button>
@@ -329,7 +348,8 @@ export function KanbanBoard({
                     value={handoffReviewerId}
                     disabled={!!task.reviewerId}
                     onChange={(e) => setHandoffReviewerId(e.target.value)}
-                    className="w-full rounded border px-2 py-1 text-xs"
+                    aria-label={d.todos.handoffReviewerPlaceholder}
+                    className={field}
                   >
                     <option value="">{d.todos.handoffReviewerPlaceholder}</option>
                     {reviewerChoicesFor(task).map((u) => (
@@ -343,7 +363,8 @@ export function KanbanBoard({
                   value={handoffNote}
                   onChange={(e) => setHandoffNote(e.target.value)}
                   placeholder={d.todos.handoffNotePlaceholder}
-                  className="w-full rounded border px-2 py-1 text-xs"
+                  aria-label={d.todos.handoffNotePlaceholder}
+                  className={field}
                 />
                 {handoffNote && handoffNoteError(handoffNote) && (
                   <p className="text-xs text-muted-foreground">{handoffNoteError(handoffNote)}</p>
@@ -363,13 +384,15 @@ export function KanbanBoard({
                         () => setHandoffTaskId(null),
                       )
                     }
-                    className="rounded bg-sky-500 px-2 py-1 text-xs text-white hover:bg-sky-600 disabled:opacity-50"
+                    type="button"
+                    className={`${act} border-primary bg-primary text-primary-foreground hover:bg-primary/90`}
                   >
                     {d.todos.handoffSubmit}
                   </button>
                   <button
+                    type="button"
                     onClick={() => setHandoffTaskId(null)}
-                    className="rounded border px-2 py-1 text-xs text-muted-foreground"
+                    className={`${act} text-muted-foreground`}
                   >
                     {d.todos.cancel}
                   </button>
@@ -383,7 +406,8 @@ export function KanbanBoard({
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   placeholder={d.todos.rejectReasonPlaceholder}
-                  className="w-full rounded border px-2 py-1 text-xs"
+                  aria-label={d.todos.rejectReasonPlaceholder}
+                  className={field}
                 />
                 <div className="flex gap-2">
                   <button
@@ -396,13 +420,15 @@ export function KanbanBoard({
                         () => setRejectTaskId(null),
                       );
                     }}
-                    className="rounded bg-rose-500 px-2 py-1 text-xs text-white hover:bg-rose-600 disabled:opacity-50"
+                    type="button"
+                    className={`${act} border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/90`}
                   >
                     {d.todos.rejectSubmit}
                   </button>
                   <button
+                    type="button"
                     onClick={() => setRejectTaskId(null)}
-                    className="rounded border px-2 py-1 text-xs text-muted-foreground"
+                    className={`${act} text-muted-foreground`}
                   >
                     {d.todos.cancel}
                   </button>
@@ -454,14 +480,8 @@ export function KanbanBoard({
           return (
             <li key={task.id}>
               <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
-                <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
-                  {statusLabels[task.status] ?? task.status}
-                </span>
-                {overdue && (
-                  <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">
-                    {d.todos.overdue}
-                  </span>
-                )}
+                <Badge variant="muted">{statusLabels[task.status] ?? task.status}</Badge>
+                {overdue && <Badge variant="destructive">{d.todos.overdue}</Badge>}
               </div>
               {renderTask(task)}
             </li>
@@ -501,7 +521,7 @@ export function KanbanBoard({
             <div className="border-b px-4 py-3">
               <h3 className="text-sm font-semibold text-foreground">
                 {col.label}
-                <span className="ml-2 rounded-full bg-card px-2 py-0.5 text-xs text-muted-foreground">
+                <span className="ml-2 rounded-full bg-card px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
                   {colTasks.length}
                 </span>
               </h3>

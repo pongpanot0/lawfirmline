@@ -138,7 +138,7 @@ export function AvailabilityPanel({
       {error ? (
         <p role="alert" className="text-destructive">
           {error}{' '}
-          <button type="button" className="underline" onClick={() => setRetry((n) => n + 1)}>ลองใหม่</button>
+          <button type="button" className="min-h-11 font-medium underline" onClick={() => setRetry((n) => n + 1)}>ลองใหม่</button>
         </p>
       ) : (
         <div className="overflow-x-auto">

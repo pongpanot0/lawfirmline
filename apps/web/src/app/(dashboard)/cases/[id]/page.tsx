@@ -37,6 +37,12 @@ import {
   Sparkles,
   Trash2,
   Mail,
+  ArrowLeft,
+  ListChecks,
+  BookOpen,
+  ScrollText,
+  AlertTriangle,
+  ChevronRight,
 } from 'lucide-react';
 import {
   ActivityType,
@@ -140,11 +146,13 @@ import { AiTrayCards } from '@/components/ai/AiTrayCards';
 import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
 import { CaseNumberInline } from '@/components/cases/CaseNumberInline';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   TODO: 'ยังไม่เริ่ม',
@@ -753,7 +761,16 @@ export default function CaseDetailPage() {
   };
 
   if (loading) return <PageLoading title={d.common.loading} lines={5} />;
-  if (!legalCase) return <p className="text-destructive">{d.admin.caseNotFound}</p>;
+  if (!legalCase) {
+    return (
+      <div className="space-y-3">
+        <Link href="/cases" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />กลับไปหน้าคดี
+        </Link>
+        <LoadFailed message={d.admin.caseNotFound} onRetry={() => { setLoading(true); loadCase(); }} />
+      </div>
+    );
+  }
 
   const customFields = legalCase.customFields as Record<string, string> | null;
   const chargeSection = typeof legalCase.customFields?.chargeSection === 'string' ? legalCase.customFields.chargeSection.trim() : '';
@@ -867,8 +884,9 @@ export default function CaseDetailPage() {
   return (
     <div className={styles.workbench}>
       <header className={styles.identity} data-testid="case-identity">
-        <button type="button" onClick={() => router.push('/cases')} className={styles.backButton}>
-          ← กลับไปหน้าคดี
+        <button type="button" onClick={() => router.push('/cases')} className={`${styles.backButton} gap-1.5`}>
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          กลับไปหน้าคดี
         </button>
         <div className={styles.identityGrid}>
           <div className={styles.identityMain}>
@@ -883,13 +901,15 @@ export default function CaseDetailPage() {
             <div className={styles.titleRow}>
               <h1 className={styles.title}>{legalCase.title}</h1>
               {legalCase.partyRole && (
-                <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-900">
+                <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-foreground">
                   {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}
                 </span>
               )}
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                {legalCase.stage ? caseStageLabel(legalCase.stage, 'th') : null}
-              </span>
+              {legalCase.stage && (
+                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                  {caseStageLabel(legalCase.stage, 'th')}
+                </span>
+              )}
               <CaseStatusBadge status={legalCase.status} />
             </div>
             <div className={styles.identityMeta}>
@@ -900,15 +920,15 @@ export default function CaseDetailPage() {
           </div>
           <div className={styles.identityActions}>
             <CasePrintForms key={legalCase.id} legalCase={legalCase} />
-            {legalCase.intake && preFiling && (
+            {legalCase.intake && preFiling && activeTab !== 'overview' && (
               <Button size="sm" className="min-h-11" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>
             )}
             <Button variant="outline" className="min-h-11" onClick={() => setRecordingOutcome(true)}>
-              <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
+              <Gavel aria-hidden="true" className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
             </Button>
             {hasFirmCapability(user?.firmRole, 'deleteCase') && (
-              <Button variant="outline" className="min-h-11 text-destructive hover:text-destructive" onClick={() => void deleteCase()}>
-                <Trash2 className="h-4 w-4" />ลบคดี
+              <Button variant="outline" className="min-h-11 border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" onClick={() => void deleteCase()}>
+                <Trash2 aria-hidden="true" className="h-4 w-4" />ลบคดี
               </Button>
             )}
           </div>
@@ -917,10 +937,11 @@ export default function CaseDetailPage() {
 
       {bannerProposals.length > 0 && pendingStage === null && legalCase.stage && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
-          <span>
-            ⚡ ขั้น <b>{caseStageLabel(legalCase.stage, 'th')}</b> มีงานแนะนำ {bannerProposals.length} งาน
+          <span className="flex items-center gap-2">
+            <ListChecks aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
+            <span>ขั้น <b>{caseStageLabel(legalCase.stage, 'th')}</b> มีงานแนะนำ {bannerProposals.length} งาน</span>
           </span>
-          <Button size="sm" onClick={openBannerProposals}>ดูและสร้างงาน</Button>
+          <Button size="sm" variant="outline" onClick={openBannerProposals}>ดูและสร้างงาน</Button>
         </div>
       )}
 
@@ -1031,35 +1052,27 @@ export default function CaseDetailPage() {
             <p className="text-sm">
               แนะนำ SOP <span className="font-medium">{suggestedPlaybook.name}</span> · {suggestedPlaybook.steps.length} ขั้นตอน
             </p>
-            <button
-              type="button"
-              onClick={() => previewPlaybook(suggestedPlaybook.id)}
-              className="inline-flex h-9 shrink-0 items-center rounded-lg border border-primary bg-primary px-3 text-sm text-primary-foreground disabled:opacity-60"
-            >
+            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => previewPlaybook(suggestedPlaybook.id)}>
               ดูรายการงานจาก SOP
-            </button>
+            </Button>
           </div>
         )}
       </div>
 
       {showCloseForm && (
-        <Card className="mb-6 border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+        <Card className="mb-6 border-warning/40 bg-warning/5">
           <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">ปิดคดี / Close Case</CardTitle>
-            <button type="button" onClick={() => setShowCloseForm(false)}>
-              <X className="h-4 w-4 text-muted-foreground" />
-            </button>
+            <CardTitle className="text-base">ปิดคดี</CardTitle>
+            <Button type="button" variant="ghost" size="icon" aria-label="ปิดแบบฟอร์มปิดคดี" onClick={() => setShowCloseForm(false)}>
+              <X aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
+            </Button>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCloseCase} className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                กรุณาสรุปผลคดี ข้อตกลง หรือบันทึกสำคัญก่อนปิดคดี
-              </p>
-
               {/* ของค้าง: ปิดคดีทับของค้างเงียบ ๆ คือการซ่อน ไม่ใช่ทำให้เสร็จ */}
               {outstanding && outstanding.total > 0 && (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
-                  <p className="font-medium text-amber-700">
+                <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
+                  <p className="font-medium text-warning">
                     ยังมีของค้าง {outstanding.total} รายการ
                   </p>
                   <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
@@ -1073,7 +1086,7 @@ export default function CaseDetailPage() {
                       <li key={docItem.id}>• เอกสารยังไม่อนุมัติ: {docItem.filename}</li>
                     ))}
                   </ul>
-                  <label className="mt-2 flex items-center gap-2">
+                  <label className="mt-2 flex min-h-11 items-center gap-2">
                     <input
                       type="checkbox"
                       checked={ackOutstanding}
@@ -1085,12 +1098,12 @@ export default function CaseDetailPage() {
               )}
 
               <label className="block text-sm">
-                <span className="mb-1 block font-medium">ผลของคดี</span>
+                <span className="mb-1 block font-medium">ผลของคดี <span className="text-destructive">*</span></span>
                 <select
                   value={closingOutcome}
                   onChange={(e) => setClosingOutcome(e.target.value)}
                   required
-                  className="h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                  className="min-h-11 w-full rounded-lg border border-input bg-card px-3 text-sm"
                 >
                   <option value="" disabled>เลือกผลคดี</option>
                   <option value="WON">ชนะคดี</option>
@@ -1100,7 +1113,9 @@ export default function CaseDetailPage() {
                   <option value="WITHDRAWN">ถอนฟ้อง / ยุติ</option>
                 </select>
               </label>
+              <label htmlFor="closing-summary" className="block text-sm font-medium">สรุปผลคดี <span className="text-destructive">*</span></label>
               <textarea
+                id="closing-summary"
                 required
                 rows={5}
                 value={closingSummary}
@@ -1108,7 +1123,7 @@ export default function CaseDetailPage() {
                 placeholder="เช่น ศาลพิพากษาให้จำเลยชำระหนี้ 500,000 บาท พร้อมดอกเบี้ย ลูกค้าได้รับชำระครบแล้ว..."
                 className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
               />
-              {closeError && <p className="text-sm text-destructive">{closeError}</p>}
+              {closeError && <p role="alert" className="text-sm text-destructive">{closeError}</p>}
               <div className="flex gap-2">
                 <Button
                   type="submit"
@@ -1127,7 +1142,7 @@ export default function CaseDetailPage() {
 
       {legalCase.status === CaseStatus.CLOSED && legalCase.closingSummary && (
         <Card className="mb-6">
-          <CardHeader><CardTitle className="text-sm">สรุปคดี / Case Summary</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">สรุปคดี</CardTitle></CardHeader>
           <CardContent>
             <p className="text-sm whitespace-pre-wrap text-muted-foreground">{legalCase.closingSummary}</p>
           </CardContent>
@@ -1156,19 +1171,6 @@ export default function CaseDetailPage() {
               );
             })}
           </div>
-        </div>
-        <div className={styles.tabUtility}>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            hidden={activeTab !== 'documents'}
-            aria-expanded={showAiAnalysis}
-            aria-controls="case-ai-analysis-panel"
-            onClick={() => setShowAiAnalysis(true)}
-          >
-            <Sparkles className="h-4 w-4" />สรุปเอกสารรวม
-          </Button>
         </div>
       </nav>
 
@@ -1202,6 +1204,18 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-documents"
           className="min-w-0"
         >
+          <div className="mb-3 flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-expanded={showAiAnalysis}
+              aria-controls="case-ai-analysis-panel"
+              onClick={() => setShowAiAnalysis(true)}
+            >
+              <Sparkles aria-hidden="true" className="h-4 w-4" />สรุปเอกสารรวม
+            </Button>
+          </div>
           <CaseDocumentsPanel caseId={id} onChanged={loadCase} />
         </div>
       )}
@@ -1297,7 +1311,7 @@ export default function CaseDetailPage() {
                   className="min-h-11 px-3 text-sm"
                   onClick={startEditOverview}
                 >
-                  <Pencil className="h-3 w-3" />
+                  <Pencil aria-hidden="true" className="h-4 w-4" />
                   แก้ไขข้อมูลคดี
                 </Button>
               )}
@@ -1411,7 +1425,7 @@ export default function CaseDetailPage() {
                   <p className="text-xs font-medium text-muted-foreground">ทีมของคดี</p>
                   {!editingTeam && hasFirmCapability(user?.firmRole, 'reassignCaseLead') && (
                     <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={startEditTeam}>
-                      <Pencil className="h-3 w-3" />
+                      <Pencil aria-hidden="true" className="h-4 w-4" />
                       แก้ไขทีม
                     </Button>
                   )}
@@ -1491,7 +1505,7 @@ export default function CaseDetailPage() {
                     {teamError && <p className="text-xs text-destructive">{teamError}</p>}
                     <div className="flex gap-2">
                       <Button type="button" size="sm" disabled={savingTeam} onClick={handleSaveTeam}>
-                        {savingTeam ? 'กำลังบันทึก...' : 'บันทึก'}
+                        {savingTeam ? 'กำลังบันทึก...' : 'บันทึกทีมคดี'}
                       </Button>
                       <Button
                         type="button"
@@ -1507,7 +1521,7 @@ export default function CaseDetailPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">รายได้โดยประมาณ</p>
-                <p className="font-medium text-green-600">
+                <p className="font-medium tabular-nums">
                   {legalCase.estimatedFee != null
                     ? formatCurrency(legalCase.estimatedFee)
                     : '—'}
@@ -1515,7 +1529,7 @@ export default function CaseDetailPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">ค่าใช้จ่ายที่อนุมัติ</p>
-                <p className="font-medium text-primary">{formatCurrency(totalSpent)}</p>
+                <p className="font-medium tabular-nums">{formatCurrency(totalSpent)}</p>
               </div>
               {customFields && Object.entries(customFields).filter(([key, value]) => key !== CASE_COSTS_KEY && key !== 'chargeSection' && key !== 'opposingParty' && value !== '').map(([k, v]) => (
                 <div key={k}>
@@ -1547,14 +1561,14 @@ export default function CaseDetailPage() {
           <div className="min-w-0 space-y-4">
           {legalCase.intake && preFiling && (
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-base">หนังสือทวงถาม (Notice)</CardTitle>
-                <div className="flex gap-2">
-                  <Link href={`/intake/${legalCase.intake.id}`}>
-                    <Button variant="outline" size="sm">✦ AI ร่างหนังสือ</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/intake/${legalCase.intake.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                    <Sparkles aria-hidden="true" className="h-4 w-4" />AI ร่างหนังสือ
                   </Link>
                   <Button variant="outline" size="sm" onClick={() => setPreLitOpen(true)}>อัปเดตสถานะเจรจา</Button>
-                  <Button size="sm" onClick={() => setNoticeOpen(true)}>+ ออก Notice {legalCase.intake.noticeIssuedAt ? 'ฉบับใหม่' : ''}</Button>
+                  <Button size="sm" onClick={() => setNoticeOpen(true)}><Plus aria-hidden="true" className="h-4 w-4" />ออก Notice{legalCase.intake.noticeIssuedAt ? 'ฉบับใหม่' : ''}</Button>
                 </div>
               </CardHeader>
               <CaseNoticeDialog
@@ -1575,7 +1589,7 @@ export default function CaseDetailPage() {
               <CardContent className="space-y-2 text-sm">
                 {legalCase.intake.noticeIssuedAt ? (
                   <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2">
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">ฉบับล่าสุด</span>
+                    <Badge variant="success">ฉบับล่าสุด</Badge>
                     <span>
                       ถึง {legalCase.intake.noticeRecipient ?? '—'} · ออก {new Date(legalCase.intake.noticeIssuedAt).toLocaleDateString('th-TH')}
                       {legalCase.intake.noticeDeadline ? ` · ครบกำหนด ${new Date(legalCase.intake.noticeDeadline).toLocaleDateString('th-TH')}` : ''}
@@ -1586,20 +1600,19 @@ export default function CaseDetailPage() {
                     </span>
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">ยังไม่ออกหนังสือ — ออกตอนไหนก็ได้ กดปุ่มด้านบน</p>
+                  <p className="text-muted-foreground">ยังไม่ออกหนังสือ</p>
                 )}
                 <p className="text-xs text-muted-foreground">
                   สถานะเจรจา: {legalCase.intake.preLitigationStatus ? (PRE_LITIGATION_STATUS_LABELS[legalCase.intake.preLitigationStatus] ?? legalCase.intake.preLitigationStatus) : '—'}
                   {legalCase.intake.settlementOfferAmount != null && ` · ข้อเสนอจ่ายล่าสุด ${legalCase.intake.settlementOfferAmount.toLocaleString('th-TH')} บาท`}
-                  {' · '}ออกได้หลายฉบับ ทุกฉบับเก็บประวัติที่นี่
                 </p>
               </CardContent>
             </Card>
           )}
           {/* ใช้เป็นครั้งคราว — พับไว้ให้หน้าโล่ง */}
           <details className="rounded-xl border border-border bg-card">
-            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-              ประมาณการค่าใช้จ่ายคดี <span className="font-normal text-muted-foreground">· กดเพื่อดู/แก้ไข</span>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+              ประมาณการค่าใช้จ่ายคดี
             </summary>
             <div className="border-t border-border p-4">
               <SavedCaseCostCalculator key={legalCase.id} caseId={id} customFields={customFields} onSaved={loadCase} />
@@ -1609,7 +1622,7 @@ export default function CaseDetailPage() {
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm">ความเคลื่อนไหวคดี</CardTitle>
               <Button variant="outline" size="sm" onClick={openActivityForm}>
-                <Plus className="h-3 w-3" />เพิ่มกิจกรรม
+                <Plus aria-hidden="true" className="h-4 w-4" />เพิ่มกิจกรรม
               </Button>
             </CardHeader>
             <CardContent>
@@ -1671,9 +1684,9 @@ export default function CaseDetailPage() {
                   return (
                     <div key={item.id} className="flex gap-3">
                       <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                        item.isOpened ? 'bg-primary/10' : isCourt ? 'bg-orange-100 dark:bg-orange-950' : 'bg-muted'
+                        item.isOpened ? 'bg-primary/10' : isCourt ? 'bg-warning/10' : 'bg-muted'
                       }`}>
-                        <Icon className={`h-4 w-4 ${item.isOpened ? 'text-primary' : isCourt ? 'text-orange-600' : 'text-muted-foreground'}`} />
+                        <Icon className={`h-4 w-4 ${item.isOpened ? 'text-primary' : isCourt ? 'text-warning' : 'text-muted-foreground'}`} aria-hidden="true" />
                       </div>
                       <div>
                         <p className="text-sm font-medium">{item.label}</p>
@@ -1700,7 +1713,7 @@ export default function CaseDetailPage() {
                   </button>
                 )}
                 {timeline.length <= 1 && (
-                  <InlineEmptyState title="ยังไม่มีกิจกรรม" description="เพิ่มนัดหมายหรือบันทึกความคืบหน้าเพื่อเริ่มติดตามคดี" />
+                  <InlineEmptyState title="ยังไม่มีกิจกรรม" action={<Button variant="outline" size="sm" onClick={openActivityForm}><Plus aria-hidden="true" className="h-4 w-4" />เพิ่มกิจกรรม</Button>} />
                 )}
               </div>
             </CardContent>
@@ -1723,14 +1736,14 @@ export default function CaseDetailPage() {
                   <span className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-semibold">{d.admin.precedentAnalysis}</span>
                     <span className="text-xs text-muted-foreground">
-                      วิเคราะห์เมื่อ {formatDateTime(latestPrecedentAnalysis.createdAt)} · กดเพื่อดู
+                      วิเคราะห์เมื่อ {formatDateTime(latestPrecedentAnalysis.createdAt)}
                     </span>
                   </span>
                 </summary>
               <CardContent className="space-y-3">
                 {latestPrecedentAnalysis.documentSummary && (
                   <div>
-                    <p className="text-sm font-medium">📝 {d.admin.documentEventSummary}</p>
+                    <p className="flex items-center gap-1.5 text-sm font-medium"><FileText aria-hidden="true" className="h-4 w-4 text-muted-foreground" />{d.admin.documentEventSummary}</p>
                     <p className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm leading-relaxed">
                       {latestPrecedentAnalysis.documentSummary}
                     </p>
@@ -1740,7 +1753,7 @@ export default function CaseDetailPage() {
                 <AnalysisFactsTimeline analysis={latestPrecedentAnalysis} />
 
                 <div className={latestPrecedentAnalysis.documentSummary ? 'border-t border-border pt-3' : undefined}>
-                  <p className="text-sm font-medium">📚 ฎีกาที่เกี่ยวข้อง</p>
+                  <p className="flex items-center gap-1.5 text-sm font-medium"><BookOpen aria-hidden="true" className="h-4 w-4 text-muted-foreground" />ฎีกาที่เกี่ยวข้อง</p>
                   {latestPrecedentAnalysis.precedents.length > 0 ? (
                     <ul className="mt-2 space-y-2">
                       {latestPrecedentAnalysis.precedents.map((p) => (
@@ -1769,14 +1782,15 @@ export default function CaseDetailPage() {
                 </div>
 
                 <div className="border-t border-border pt-3">
-                  <p className="text-sm font-medium">📄 ข้อมูลพร้อมร่าง Notice</p>
+                  <p className="flex items-center gap-1.5 text-sm font-medium"><ScrollText aria-hidden="true" className="h-4 w-4 text-muted-foreground" />ข้อมูลพร้อมร่าง Notice</p>
                   <p className="mt-1 whitespace-pre-wrap rounded-lg bg-muted/40 p-2 text-xs text-muted-foreground">
                     {latestPrecedentAnalysis.noticeFacts}
                   </p>
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  ⚠️ ผลลัพธ์นี้เป็นการช่วยค้นเบื้องต้นด้วย AI โปรดตรวจสอบกับฉบับเต็มก่อนใช้อ้างอิงจริง
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <AlertTriangle aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                  ผลลัพธ์นี้เป็นการช่วยค้นเบื้องต้นด้วย AI โปรดตรวจสอบกับฉบับเต็มก่อนใช้อ้างอิงจริง
                 </p>
               </CardContent>
               </details>
@@ -1837,7 +1851,7 @@ export default function CaseDetailPage() {
                       data-testid="case-checklist-task"
                       data-status={t.status}
                       data-assignee-id={t.assignee?.id ?? 'UNASSIGNED'}
-                      className="flex items-center gap-2 text-sm"
+                      className="flex min-h-11 items-center gap-2 text-sm sm:min-h-8"
                     >
                       <input
                         type="checkbox"
@@ -1858,12 +1872,12 @@ export default function CaseDetailPage() {
                 <div className="space-y-1.5 border-t border-border pt-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-medium text-muted-foreground">เอกสารที่ต้องมี</p>
-                    <button type="button" className="text-xs text-primary hover:underline" onClick={() => selectTab('documents')}>
-                      เอกสารทั้งหมด →
+                    <button type="button" className="inline-flex min-h-11 items-center gap-0.5 text-xs text-primary hover:underline sm:min-h-0" onClick={() => selectTab('documents')}>
+                      เอกสารทั้งหมด<ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
                   </div>
                   {requiredDocs.required.map((r) => (
-                    <label key={r.category} className="flex items-center gap-2 text-sm">
+                    <label key={r.category} className="flex min-h-11 items-center gap-2 text-sm sm:min-h-8">
                       <input
                         type="checkbox"
                         checked={r.present}
@@ -1878,15 +1892,16 @@ export default function CaseDetailPage() {
                     loading={uploadingDocs}
                     onFiles={handleQuickUpload}
                   />
-                  {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+                  {uploadError && <p role="alert" className="text-xs text-destructive">{uploadError}</p>}
                 </div>
               )}
               {!hasAppliedPlaybook && playbooks.length > 0 && (
                 <div className="space-y-1.5 border-t border-border pt-2">
-                  <p className="text-xs font-medium text-muted-foreground">เลือก SOP เพื่อดูรายการงานก่อนเพิ่ม</p>
+                  <p className="text-xs font-medium text-muted-foreground">SOP</p>
                   <div className="flex gap-2">
                     <select
-                      className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm"
+                      aria-label="เลือก SOP"
+                      className="min-h-11 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm"
                       value={pendingPlaybookId}
                       onChange={(e) => setPendingPlaybookId(e.target.value)}
                     >
@@ -1897,6 +1912,7 @@ export default function CaseDetailPage() {
                     </select>
                     <Button
                       type="button"
+                      variant="outline"
                       disabled={!pendingPlaybookId}
                       onClick={() => previewPlaybook(pendingPlaybookId)}
                     >
@@ -1912,10 +1928,10 @@ export default function CaseDetailPage() {
               <CardTitle className="text-sm">ภาระงาน</CardTitle>
               <button
                 type="button"
-                className="text-xs text-primary hover:underline"
+                className="inline-flex min-h-11 items-center gap-0.5 text-xs text-primary hover:underline sm:min-h-0"
                 onClick={() => selectTab('tasks')}
               >
-                ดูทั้งหมด
+                ดูทั้งหมด<ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -1926,7 +1942,7 @@ export default function CaseDetailPage() {
                   key={t.id}
                   className="flex w-full items-start gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <CheckSquare aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{t.title}</span>
                     <span className="mt-1 block text-xs text-muted-foreground">{t.dueDate ? `กำหนดส่ง ${formatDate(t.dueDate)}` : 'ยังไม่กำหนดวันส่ง'}</span>
@@ -1935,7 +1951,7 @@ export default function CaseDetailPage() {
                 </button>
               ))}
               {nextActionTasks.length === 0 && (
-                <InlineEmptyState title="ยังไม่มีภาระงาน" description="พิมพ์ด้านล่างเพื่อเพิ่มงานแรก" />
+                <InlineEmptyState title="ยังไม่มีภาระงาน" />
               )}
               <div className="space-y-2 border-t border-border pt-3">
                 <input
@@ -1947,26 +1963,28 @@ export default function CaseDetailPage() {
                       void addQuickTask();
                     }
                   }}
-                  placeholder="เพิ่มงานคดี — พิมพ์แล้วกด Enter"
-                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                  aria-label="ชื่องานใหม่"
+                  placeholder="เพิ่มงานคดี"
+                  className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm"
                 />
                 <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={quickTaskAssignee}
                   onChange={(e) => setQuickTaskAssignee(e.target.value)}
-                  className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+                  className="min-h-11 rounded-lg border border-input bg-background px-2 text-sm"
                   aria-label="ผู้รับผิดชอบ"
                 >
                   <option value="">ฉันเอง</option>
                   <AssigneeOptions users={lawyers} flags={quickTaskLeaveFlags} nameOf={(u) => u.firstName} />
                 </select>
                 <ThaiDateInput value={quickTaskDue} onChange={setQuickTaskDue} />
-                <Button type="button" size="sm" className="ml-auto" onClick={addQuickTask} disabled={!quickTaskTitle.trim() || quickTaskBusy}>
-                  เพิ่ม
+                <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={addQuickTask} disabled={!quickTaskTitle.trim() || quickTaskBusy}>
+                  เพิ่มงาน
                 </Button>
                 </div>
                 {quickTaskAssignee && quickTaskLeaveFlags.has(quickTaskAssignee) && (
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <p className="flex items-start gap-1 text-xs text-warning">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                     {leaveWarning(
                       lawyers.find((u) => u.id === quickTaskAssignee)?.firstName ?? '',
                       quickTaskDate,
@@ -1975,14 +1993,13 @@ export default function CaseDetailPage() {
                   </p>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">แนบไฟล์ได้หลังสร้าง — กดที่งานเพื่อเปิดรายละเอียด</p>
             </CardContent>
           </Card>
 
           <Card className={styles.actionSection}>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-sm">นัดหมาย</CardTitle>
-              <Button size="sm" variant="outline" onClick={() => selectTab('calendar')}>+ เพิ่มนัด</Button>
+              <Button size="sm" variant="outline" onClick={() => selectTab('calendar')}><Plus aria-hidden="true" className="h-4 w-4" />เพิ่มนัด</Button>
             </CardHeader>
             <CardContent>
               {upcomingEvents.length > 0 ? (
@@ -1993,11 +2010,8 @@ export default function CaseDetailPage() {
                   </div>
                 ))
               ) : (
-                <InlineEmptyState title="ไม่มีนัดที่จะถึง" description="เพิ่มนัดศาลหรือนัดลูกค้าจากปฏิทินคดีนี้" />
+                <InlineEmptyState title="ไม่มีนัดที่จะถึง" />
               )}
-              <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => selectTab('calendar')}>
-                <CalendarDays className="h-4 w-4" />เปิดปฏิทิน
-              </Button>
             </CardContent>
           </Card>
 
@@ -2019,8 +2033,8 @@ export default function CaseDetailPage() {
                 disabled={!note.trim() || savingNote}
                 onClick={handleSaveNote}
               >
-                <StickyNote className="h-4 w-4" />
-                {savingNote ? 'กำลังบันทึก...' : 'บันทึก'}
+                <StickyNote aria-hidden="true" className="h-4 w-4" />
+                {savingNote ? 'กำลังบันทึก...' : 'บันทึกย่อ'}
               </Button>
             </CardContent>
           </Card>
@@ -2030,8 +2044,8 @@ export default function CaseDetailPage() {
 
       <div className="mt-6 space-y-6">
         <details className="rounded-xl border border-border bg-card">
-          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-            สายติดต่อลูกความ <span className="font-normal text-muted-foreground">· กดเพื่อดูประวัติการติดต่อ</span>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+            สายติดต่อลูกความ
           </summary>
           <div className="border-t border-border p-4">
             <CaseMessagesPanel caseId={id} />
@@ -2060,9 +2074,7 @@ export default function CaseDetailPage() {
           >
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                </div>
+                <Sparkles aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <div>
                   <p id="case-ai-analysis-title" className="text-sm font-semibold">
                     วิเคราะห์เนื้อหาไฟล์ด้วย AI

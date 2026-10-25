@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { X } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import {
   EXPENSE_CATEGORIES,
   ExpenseStatus,
@@ -16,7 +16,7 @@ import { api, ApiError, CaseListItem, CashAdvanceItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { SelectField, TextField } from '@/components/ui/form-fields';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -114,7 +114,8 @@ export default function NewExpensePage() {
 
   return (
     <div className="w-full">
-      <Link href="/expenses" className="text-sm text-primary hover:underline">
+      <Link href="/expenses" className="inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
+        <ArrowLeft className="h-4 w-4" aria-hidden />
         {d.expenses.back}
       </Link>
       <PageHeader
@@ -125,9 +126,11 @@ export default function NewExpensePage() {
       <Card>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium">{d.expenses.amount} *</label>
+            <div className="space-y-1.5">
+              <label htmlFor="expense-amount" className="block text-sm font-medium">{d.expenses.amount}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
               <MoneyInput
+                id="expense-amount"
+                aria-describedby="expense-amount-hint"
                 required
                 min={MONEY_MIN}
                 max={MONEY_MAX}
@@ -135,53 +138,44 @@ export default function NewExpensePage() {
                 placeholder={d.expenses.amount}
                 value={form.amount}
                 onValueChange={(next) => setForm({ ...form, amount: next })}
-                className="mt-1"
+                className="h-10 tabular-nums"
               />
-              <p className="mt-1 text-xs text-muted-foreground">{MONEY_HINT}</p>
+              <p id="expense-amount-hint" className="text-xs text-muted-foreground">{MONEY_HINT}</p>
             </div>
 
-            <div>
-              <label className="text-sm font-medium">{d.expenses.category}</label>
-              <select
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
-              >
-                {EXPENSE_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SelectField
+              label={d.expenses.category}
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            >
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </SelectField>
 
-            <div>
-              <label className="text-sm font-medium">{d.expenses.descriptionField} *</label>
-              <Input
-                required
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="mt-1"
-              />
-            </div>
+            <TextField
+              label={d.expenses.descriptionField}
+              required
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
 
-            <div>
-              <label className="text-sm font-medium">{d.expenses.purpose}</label>
-              <Input
-                value={form.expensePurpose}
-                onChange={(e) => setForm({ ...form, expensePurpose: e.target.value })}
-                className="mt-1"
-              />
-            </div>
+            <TextField
+              label={d.expenses.purpose}
+              value={form.expensePurpose}
+              onChange={(e) => setForm({ ...form, expensePurpose: e.target.value })}
+            />
 
             {advances.length > 0 && (
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium">{d.expenses.paidFrom}</label>
-                <select
-                  value={form.paidFromAdvanceId}
-                  onChange={(e) => setForm({ ...form, paidFromAdvanceId: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
-                >
+              <SelectField
+                label={d.expenses.paidFrom}
+                containerClassName="md:col-span-2"
+                error={advanceAmountExceeded ? d.expenses.advanceExceeded : undefined}
+                value={form.paidFromAdvanceId}
+                onChange={(e) => setForm({ ...form, paidFromAdvanceId: e.target.value })}
+              >
                   <option value="">{d.expenses.paidFromSelf}</option>
                   {advances.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -189,36 +183,26 @@ export default function NewExpensePage() {
                       {a.note ? ` (${a.note})` : ''}
                     </option>
                   ))}
-                </select>
-                {advanceAmountExceeded && (
-                  <p className="mt-1 text-xs text-destructive">{d.expenses.advanceExceeded}</p>
-                )}
-              </div>
+              </SelectField>
             )}
 
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium">{d.expenses.caseField}</label>
-              <select
-                value={form.caseId}
-                onChange={(e) => setForm({ ...form, caseId: e.target.value })}
-                className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
-              >
-                <option value="">{d.expenses.noCase}</option>
-                {cases.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.ownRef} — {c.title}
-                  </option>
-                ))}
-              </select>
-              {caseIdParam && form.caseId === caseIdParam && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  เลือกคดีจากหน้าที่แล้วให้อัตโนมัติ เปลี่ยนได้ถ้าต้องการ
-                </p>
-              )}
-            </div>
+            <SelectField
+              label={d.expenses.caseField}
+              containerClassName="md:col-span-2"
+              hint={caseIdParam && form.caseId === caseIdParam ? 'เลือกคดีจากหน้าที่แล้วให้อัตโนมัติ' : undefined}
+              value={form.caseId}
+              onChange={(e) => setForm({ ...form, caseId: e.target.value })}
+            >
+              <option value="">{d.expenses.noCase}</option>
+              {cases.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.ownRef} — {c.title}
+                </option>
+              ))}
+            </SelectField>
 
             <div className="md:col-span-2">
-              <label className="text-sm font-medium">{d.expenses.receipt}</label>
+              <p className="text-sm font-medium">{d.expenses.receipt}</p>
               <div className="mt-2 space-y-3">
                 <DocumentDropZone
                   accept={RECEIPT_ACCEPT}
@@ -229,7 +213,7 @@ export default function NewExpensePage() {
                 />
                 {receipt && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setReceipt(null)}>
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-3.5 w-3.5" aria-hidden />
                     {d.expenses.removeReceipt}
                   </Button>
                 )}
@@ -250,9 +234,9 @@ export default function NewExpensePage() {
               )}
             </div>
 
-            {error && <p className="text-sm text-destructive md:col-span-2">{error}</p>}
+            {error && <p role="alert" className="text-sm text-destructive md:col-span-2">{error}</p>}
 
-            <div className="flex gap-3 md:col-span-2">
+            <div className="flex flex-wrap justify-end gap-3 border-t pt-4 md:col-span-2">
               <Button type="button" variant="outline" onClick={() => router.push('/expenses')}>
                 {d.common.cancel}
               </Button>

@@ -8,9 +8,10 @@ import { fmt } from '@/lib/i18n/dashboard';
 import { api, AuditLogItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { TextField } from '@/components/ui/form-fields';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Button } from '@/components/ui/button';
-import { EmptyState } from '@/components/ui/misc';
+import { EmptyState, Skeleton } from '@/components/ui/misc';
 
 export default function AuditLogPage() {
   const d = useDashboardT();
@@ -49,30 +50,30 @@ export default function AuditLogPage() {
     <div>
       <PageHeader title={d.admin.auditLogTitle} description={d.admin.auditLogDescription} />
 
-      <div className="mb-4 max-w-sm">
-        <label className="text-sm font-medium">{d.admin.auditLogFilterAction}</label>
-        <Input
-          placeholder={d.admin.auditLogAllActions}
-          value={actionFilter}
-          onChange={(e) => setActionFilter(e.target.value.trim())}
-          className="mt-1"
-        />
-      </div>
+      <TextField
+        label={d.admin.auditLogFilterAction}
+        placeholder={d.admin.auditLogAllActions}
+        value={actionFilter}
+        onChange={(e) => setActionFilter(e.target.value.trim())}
+        containerClassName="mb-4 max-w-sm"
+      />
 
       {error ? (
-        <p role="alert" className="text-sm text-destructive">{d.admin.auditLogLoadFailed}</p>
-      ) : items.length === 0 && !loading ? (
+        <LoadFailed message={d.admin.auditLogLoadFailed} onRetry={() => load(false)} />
+      ) : items.length === 0 && loading ? (
+        <div role="status" aria-label={d.common.loading} className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>
+      ) : items.length === 0 ? (
         <EmptyState title={d.admin.auditLogEmpty} />
       ) : (
         <>
-          <p className="mb-2 text-xs text-muted-foreground">{fmt(d.admin.auditLogTotal, { count: total })}</p>
+          <p className="mb-2 text-xs tabular-nums text-muted-foreground">{fmt(d.admin.auditLogTotal, { count: total })}</p>
           <div className="space-y-2">
             {items.map((item) => (
               <Card key={item.id}>
                 <CardContent className="p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs">{item.action}</span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs tabular-nums text-muted-foreground">
                       {new Date(item.createdAt).toLocaleString('th-TH')}
                     </span>
                   </div>
@@ -81,7 +82,7 @@ export default function AuditLogPage() {
                   </p>
                   {item.metadata && (
                     <details className="mt-2">
-                      <summary className="cursor-pointer text-xs text-primary underline">รายละเอียด</summary>
+                      <summary className="inline-flex min-h-11 cursor-pointer items-center text-xs text-primary underline sm:min-h-0">รายละเอียด</summary>
                       <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 text-xs">
                         {JSON.stringify(item.metadata, null, 2)}
                       </pre>

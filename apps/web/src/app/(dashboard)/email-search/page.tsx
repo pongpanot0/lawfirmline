@@ -6,6 +6,8 @@ import { Mail, Paperclip, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, type EmailSearchResult } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Input } from '@/components/ui/input';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
@@ -59,15 +61,10 @@ export default function EmailSearchPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">ค้นหาอีเมล</h1>
-        <p className="text-sm text-muted-foreground">
-          ค้นจากทุกคดีที่คุณเข้าถึงได้ — พิมพ์ชื่อลูกความ อีเมล หัวเรื่อง เลขคดี ข้อความในอีเมล หรือชื่อไฟล์แนบ
-        </p>
-      </div>
+      <PageHeader title="ค้นหาอีเมล" description="อีเมลจากทุกคดีที่คุณเข้าถึงได้: ลูกความ ผู้ส่ง หัวเรื่อง เลขคดี เนื้อหา และไฟล์แนบ" />
 
       <div className="relative mb-4">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input
           autoFocus
           type="search"
@@ -105,7 +102,7 @@ export default function EmailSearchPage() {
                       <p className="truncate font-medium">{r.subject || '(ไม่มีหัวเรื่อง)'}</p>
                       {r.attachmentCount > 0 && (
                         <span className="inline-flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
-                          <Paperclip className="h-3 w-3" />
+                          <Paperclip className="h-3.5 w-3.5" aria-label="ไฟล์แนบ" />
                           {r.attachmentCount}
                         </span>
                       )}
@@ -116,14 +113,13 @@ export default function EmailSearchPage() {
                     </p>
                     {r.excerpt && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{r.excerpt}</p>}
                   </div>
-                  <span
-                    className={`max-w-[40%] shrink-0 truncate rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      r.case ? 'bg-blue-100 text-blue-700' : 'bg-muted text-foreground'
-                    }`}
+                  <Badge
+                    variant={r.case ? 'default' : 'muted'}
+                    className="block max-w-[40%] shrink-0 truncate"
                     title={r.case ? `${r.case.ownRef} · ${r.case.title}` : undefined}
                   >
                     {r.case ? `${r.case.ownRef} · ${r.case.title}` : r.intakeId ? 'รับเรื่องแล้ว' : 'ยังไม่ผูกคดี'}
-                  </span>
+                  </Badge>
                 </Link>
               ))}
             </div>

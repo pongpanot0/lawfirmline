@@ -9,6 +9,7 @@ import { redirectToFirmApp } from '@/lib/firm-slug';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/auth/PasswordInput';
 
 /**
  * หน้า join แบรนด์ของสำนักงาน เช่น /join/thesiambarristers
@@ -60,7 +61,7 @@ export default function JoinFirmPage() {
         <p className="text-sm text-muted-foreground">
           ไม่พบสำนักงาน &ldquo;{params.slug}&rdquo; ในระบบ
         </p>
-        <Link href="/login" className="mt-4 inline-block text-sm text-primary underline">
+        <Link href="/login" className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">
           กลับไปหน้าเข้าสู่ระบบ
         </Link>
       </AuthShell>
@@ -70,63 +71,40 @@ export default function JoinFirmPage() {
   return (
     <AuthShell
       title={firmName ? `เข้าร่วม ${firmName}` : 'เข้าร่วมสำนักงาน'}
-      description="กรอกข้อมูลเพื่อสร้างบัญชีและเข้าร่วมสำนักงานได้เลย"
+      description="สร้างบัญชีเพื่อเข้าร่วมสำนักงาน"
     >
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input
-            required
-            minLength={2}
-            autoFocus
-            autoComplete="given-name"
-            aria-label="ชื่อ"
-            placeholder="ชื่อ"
-            value={form.firstName}
-            onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-          />
-          <Input
-            required
-            minLength={2}
-            autoComplete="family-name"
-            aria-label="นามสกุล"
-            placeholder="นามสกุล"
-            value={form.lastName}
-            onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-          />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="join-first-name" className="text-sm font-medium">ชื่อ</label>
+            <Input id="join-first-name" required minLength={2} autoFocus autoComplete="given-name" className="mt-1 h-11" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+          </div>
+          <div>
+            <label htmlFor="join-last-name" className="text-sm font-medium">นามสกุล</label>
+            <Input id="join-last-name" required minLength={2} autoComplete="family-name" className="mt-1 h-11" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+          </div>
         </div>
-        <Input
-          required
-          type="email"
-          autoComplete="email"
-          aria-label="อีเมล"
-          placeholder="อีเมล"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-        />
-        <Input
-          required
-          type="password"
-          minLength={6}
-          autoComplete="new-password"
-          aria-label="รหัสผ่าน"
-          placeholder="รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
+        <div>
+          <label htmlFor="join-email" className="text-sm font-medium">อีเมล</label>
+          <Input id="join-email" required type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} className="mt-1 h-11" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        </div>
+        <div>
+          <label htmlFor="join-password" className="text-sm font-medium">รหัสผ่าน</label>
+          <PasswordInput id="join-password" required minLength={6} autoComplete="new-password" aria-describedby="join-password-hint" className="mt-1" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          <p id="join-password-hint" className="mt-1.5 text-xs text-muted-foreground">อย่างน้อย 6 ตัวอักษร</p>
+        </div>
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
           </p>
         )}
-        <Button type="submit" disabled={joining} className="w-full">
+        <Button type="submit" disabled={joining} className="h-11 w-full">
           {joining ? 'กำลังสมัคร…' : 'สมัครและเข้าร่วมสำนักงาน'}
         </Button>
-        <p className="text-center text-xs text-muted-foreground">
-          <Link href="/login" className="text-primary underline">
-            มีบัญชีแล้ว? เข้าสู่ระบบ
-          </Link>
-        </p>
       </form>
+      <p className="mt-6 border-t pt-5 text-center text-sm text-muted-foreground">
+        มีบัญชีแล้ว? <Link href="/login" className="font-medium text-primary hover:underline">เข้าสู่ระบบ</Link>
+      </p>
     </AuthShell>
   );
 }

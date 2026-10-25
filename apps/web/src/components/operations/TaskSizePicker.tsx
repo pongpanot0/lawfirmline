@@ -32,10 +32,10 @@ export function TaskSizePicker({ taskId, title, size, onSaved }: {
     {open
       ? <span role="group" aria-label={`ขนาดของ ${title}`} className="flex overflow-hidden rounded-full border">
         {TASK_SIZES.map((s) => <button key={s.value} type="button" disabled={saving} aria-pressed={size === s.value} onClick={() => void save(s.value)}
-          className={`px-2.5 py-0.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${size === s.value ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>{SIZE_LABELS[s.value]}</button>)}
+          className={`min-h-11 px-3 text-xs font-medium sm:min-h-0 sm:px-2.5 sm:py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${size === s.value ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>{SIZE_LABELS[s.value]}</button>)}
       </span>
       : <button type="button" onClick={() => { setOpen(true); setError(''); }} aria-label={`แก้ขนาดงาน ${title}`}
-        className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        className="min-h-11 rounded-full bg-muted px-3 text-xs font-medium text-muted-foreground hover:bg-muted/70 sm:min-h-0 sm:px-2.5 sm:py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {SIZE_LABELS[size]}
       </button>}
     {error && <span role="alert" className="mt-1 text-xs text-destructive">{error}</span>}

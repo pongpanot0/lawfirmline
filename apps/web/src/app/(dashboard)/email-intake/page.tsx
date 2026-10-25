@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Mail, Paperclip } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, EmailThreadListItem } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 
@@ -15,10 +17,10 @@ const STATUS_LABELS: Record<string, string> = {
   ARCHIVED: 'เก็บถาวร',
 };
 
-const STATUS_VARIANT: Record<string, string> = {
-  PENDING_INTAKE: 'bg-amber-100 text-amber-700',
-  LINKED: 'bg-green-100 text-green-700',
-  ARCHIVED: 'bg-muted text-foreground',
+const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
+  PENDING_INTAKE: 'warning',
+  LINKED: 'success',
+  ARCHIVED: 'muted',
 };
 
 function formatDateTime(date: string) {
@@ -33,7 +35,6 @@ function formatDateTime(date: string) {
 
 export default function EmailIntakePage() {
   const { token } = useAuth();
-  const router = useRouter();
   const [threads, setThreads] = useState<EmailThreadListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -52,12 +53,7 @@ export default function EmailIntakePage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">รับเรื่องจากอีเมล</h1>
-        <p className="text-sm text-muted-foreground">
-          อีเมลจากลูกค้าที่ระบบเตรียมข้อมูลไว้แล้ว รอทนายตรวจและยืนยันก่อนรับเข้าพิจารณา
-        </p>
-      </div>
+      <PageHeader title="รับเรื่องจากอีเมล" description="อีเมลจากลูกค้าที่รอทนายตรวจและรับเรื่อง" />
 
       <Card>
         <CardContent className="p-0">
@@ -74,17 +70,17 @@ export default function EmailIntakePage() {
           ) : (
             <div className="divide-y">
               {threads.map((thread) => (
-                <div
+                <Link
                   key={thread.id}
-                  className="flex cursor-pointer items-start gap-4 px-4 py-3 hover:bg-muted/50"
-                  onClick={() => router.push(`/email-intake/${thread.id}`)}
+                  href={`/email-intake/${thread.id}`}
+                  className="flex items-start gap-4 px-4 py-3 hover:bg-muted/50"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">{thread.subject}</p>
                       {thread.attachmentCount > 0 && (
                         <span className="inline-flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
-                          <Paperclip className="h-3 w-3" />
+                          <Paperclip className="h-3.5 w-3.5" aria-label="ไฟล์แนบ" />
                           {thread.attachmentCount}
                         </span>
                       )}
@@ -94,14 +90,10 @@ export default function EmailIntakePage() {
                     </p>
                     <p className="mt-1 truncate text-xs text-muted-foreground">{thread.bodyExcerpt}</p>
                   </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      STATUS_VARIANT[thread.status] ?? 'bg-muted text-foreground'
-                    }`}
-                  >
+                  <Badge variant={STATUS_VARIANT[thread.status] ?? 'muted'} className="shrink-0">
                     {STATUS_LABELS[thread.status] ?? thread.status}
-                  </span>
-                </div>
+                  </Badge>
+                </Link>
               ))}
             </div>
           )}

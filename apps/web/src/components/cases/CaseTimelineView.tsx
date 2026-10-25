@@ -4,6 +4,7 @@ import { AlertTriangle } from 'lucide-react';
 import { CalendarEventItem } from '@/lib/api';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { InlineEmptyState } from '@/components/ui/misc';
 
 /** A gap this long between consecutive events gets flagged — the lawyer
  * decides whether it means anything (spec: show the gap, never interpret it). */
@@ -24,15 +25,15 @@ export function CaseTimelineView({
 
   if (!sorted.length) {
     return (
-      <div className="rounded-xl border bg-card p-6 shadow-soft">
-        <p className="text-sm text-muted-foreground">{d.caseCalendar.emptyTimeline}</p>
+      <div className="rounded-xl border bg-card p-6">
+        <InlineEmptyState title={d.caseCalendar.emptyTimeline} />
       </div>
     );
   }
 
   const now = Date.now();
   return (
-    <div className="rounded-xl border bg-card p-6 shadow-soft">
+    <div className="rounded-xl border bg-card p-6">
       <ol className="relative ml-3 border-l border-border">
         {sorted.map((event, i) => {
           const start = new Date(event.startAt);
@@ -44,7 +45,7 @@ export function CaseTimelineView({
           return (
             <li key={event.id} className="mb-6 ml-6 last:mb-0">
               {gapDays >= GAP_WARNING_DAYS && (
-                <p className="-ml-6 mb-4 flex items-center gap-1.5 pl-6 text-xs text-amber-700 dark:text-amber-400">
+                <p className="-ml-6 mb-4 flex items-center gap-1.5 pl-6 text-xs text-warning">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
                   {fmt(d.caseCalendar.gapDays, { days: gapDays })}
                 </p>

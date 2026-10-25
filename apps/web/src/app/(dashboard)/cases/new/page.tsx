@@ -34,7 +34,8 @@ import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
 import { litigationPayload, missingRequiredMessage, type OpponentRow } from '@/lib/case-create';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, X } from 'lucide-react';
+import { ArrowLeft, Plus, X } from 'lucide-react';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import type { CaseFieldSchema } from '@lawfirm/shared';
 import {
   TMP_CLIENT_PLACEHOLDER,
@@ -367,27 +368,17 @@ function NewCaseForm() {
       data-hallmark="case-create-flow"
       className="mx-auto w-full max-w-3xl min-w-0 pb-24 [overflow-wrap:anywhere]"
     >
-      <header className="mb-6 border-b border-border/70 pb-5 sm:pb-6">
-        <Link
-          href="/cases"
-          className="inline-flex min-h-11 items-center whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:text-primary"
-        >
-          ← กลับไปหน้าคดี
-        </Link>
-        <div className="mt-3 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              สร้างคดีใหม่
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              เลือกประเภทคดี ตั้งชื่อ และระบุทนาย ก็เริ่มคดีได้ · ข้อมูลอื่นเติมภายหลังได้
-            </p>
-          </div>
-          <p className="w-fit whitespace-nowrap rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary">
-            {nextOwnRef ? `เลขอ้างอิงคาดการณ์ ${nextOwnRef}` : 'เลขอ้างอิงสร้างอัตโนมัติ'}
-          </p>
-        </div>
-      </header>
+      <Link
+        href="/cases"
+        className="mb-2 inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:text-primary"
+      >
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+        กลับไปหน้าคดี
+      </Link>
+      <PageHeader
+        title="สร้างคดีใหม่"
+        description={nextOwnRef ? `เลขอ้างอิงคาดการณ์ ${nextOwnRef}` : 'เลขอ้างอิงสร้างอัตโนมัติ'}
+      />
 
       <div className="min-w-0">
         <div className="min-w-0">
@@ -431,7 +422,7 @@ function NewCaseForm() {
             </div>
           )}
 
-            <div className="space-y-5 rounded-2xl border border-border/80 bg-card p-4 shadow-soft sm:p-6">
+            <div className="space-y-5 rounded-2xl border border-border/80 bg-card p-4 sm:p-6">
               <label htmlFor="case-type" className={fieldLabel}>ประเภทคดี <span className="text-destructive">*</span>
                 <select id="case-type" required disabled={loadingTypes} value={form.caseTypeId} className={inputClass}
                   onChange={(event) => setForm((current) => current.caseTypeId === event.target.value ? current : {

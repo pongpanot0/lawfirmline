@@ -48,13 +48,14 @@ export function ConflictOverrideDialog({
         </div>
         <ul className="max-h-60 space-y-2 overflow-y-auto text-sm">
           {matches.map((m, i) => (
-            <li key={`${m.kind}-${m.caseId ?? m.intakeId ?? m.name}-${i}`} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950">
+            <li key={`${m.kind}-${m.caseId ?? m.intakeId ?? m.name}-${i}`} className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2">
               {m.caseId ? <Link href={`/cases/${m.caseId}`} target="_blank" className="underline">{describeConflictMatch(m)}</Link> : describeConflictMatch(m)}
             </li>
           ))}
         </ul>
         <label className="block text-sm font-medium">
-          เหตุผลที่เปิดต่อ (อย่างน้อย {OVERRIDE_MIN_LENGTH} ตัวอักษร)
+          เหตุผลที่เปิดต่อ<span aria-hidden="true" className="ml-1 text-destructive">*</span>
+          <span className="ml-1 font-normal text-muted-foreground">(อย่างน้อย {OVERRIDE_MIN_LENGTH} ตัวอักษร)</span>
           <textarea
             required
             rows={3}

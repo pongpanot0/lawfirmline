@@ -6,9 +6,10 @@ import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, type CaseListItem, type OutlookFolderRow } from '@/lib/api';
 import { defaultFolderCaseId } from '@/lib/case-email';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DriveFolderMatchingTab } from '@/components/settings/DriveFolderMatchingTab';
 import { FolderMatchTable, type FolderMatchRow } from '@/components/settings/FolderMatchTable';
 
@@ -89,62 +90,38 @@ export default function OutlookFolderMatchPage() {
 
   return (
     <div className="space-y-4">
-      <Link href="/settings" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-        <ArrowLeft className="h-4 w-4" /> กลับไปหน้าตั้งค่า
-      </Link>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">จับคู่ folder กับคดี</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          ระบบแนะนำคดีจากเลขอ้างอิง เลขคดีดำ/แดง และชื่อลูกความในชื่อ folder (Outlook หรือ OneDrive / SharePoint) — ไม่มีการผูกจนกว่าคุณจะกด &quot;ยืนยัน&quot;.
-          อีเมลใน folder ที่ผูกจะเข้าแท็บอีเมลของคดี และทุกคนที่มีสิทธิ์ในคดีจะเห็น
-        </p>
+        <Link href="/settings?view=integrations" className="inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" aria-hidden />การเชื่อมต่อ
+        </Link>
+        <PageHeader
+          title="จับคู่ folder กับคดี"
+          description="คดีที่แนะนำมาจากเลขอ้างอิง เลขคดีดำ/แดง และชื่อลูกความในชื่อ folder ผูกเมื่อกดยืนยันเท่านั้น อีเมลใน folder ที่ผูกเข้าแท็บอีเมลของคดี"
+        />
       </div>
 
-      <div className="flex gap-1.5">
-        {(
-          [
-            ['outlook', 'Outlook'],
-            ['drive', 'OneDrive / SharePoint'],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setMatchTab(value)}
-            className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
-              matchTab === value ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={matchTab} onValueChange={(v) => setMatchTab(v as 'outlook' | 'drive')}>
+        <TabsList>
+          <TabsTrigger value="outlook">Outlook</TabsTrigger>
+          <TabsTrigger value="drive">OneDrive / SharePoint</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {matchTab === 'drive' && <DriveFolderMatchingTab />}
 
       {matchTab === 'outlook' && loadError && (
-        <div role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-          <p>{loadError}</p>
-          <div className="mt-2 flex items-center gap-3">
-            <Button size="sm" variant="outline" onClick={load}>
-              ลองใหม่
-            </Button>
-            <Link href="/settings" className="underline">
-              ไปหน้าตั้งค่า
-            </Link>
-          </div>
-        </div>
+        <LoadFailed message={loadError} onRetry={load} />
       )}
       {matchTab === 'outlook' && notice && (
         <p
-          role="status"
-          className={`rounded-lg p-3 text-sm ${notice.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-destructive/10 text-destructive'}`}
+          role={notice.type === 'success' ? 'status' : 'alert'}
+          className={`rounded-lg p-3 text-sm ${notice.type === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}
         >
           {notice.text}
         </p>
       )}
 
-      {matchTab === 'outlook' && !rows && !loadError && <PageLoading title="กำลังดึงรายชื่อ folder จาก Outlook" lines={4} />}
+      {matchTab === 'outlook' && !rows && !loadError && <div role="status" aria-label="กำลังดึงรายชื่อ folder จาก Outlook" className="h-64 animate-pulse rounded-xl bg-muted" />}
 
       {matchTab === 'outlook' && rows && (
         <Card>

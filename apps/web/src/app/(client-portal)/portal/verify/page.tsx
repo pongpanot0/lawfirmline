@@ -3,10 +3,10 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { portalApi, PortalApiError } from '@/lib/portal-api';
 import { portalHomeFor, usePortalAuth } from '@/lib/portal-auth';
-import { Card, CardContent } from '@/components/ui/card';
+import { PortalAuthCard } from '@/components/portal/PortalAuthCard';
 import { buttonVariants } from '@/components/ui/button';
 
 function PortalVerifyContent() {
@@ -30,33 +30,23 @@ function PortalVerifyContent() {
       });
   }, [searchParams, setSession, router]);
 
+  if (error) {
+    return (
+      <PortalAuthCard title="ลิงก์นี้ใช้ไม่ได้แล้ว" description={<p role="alert">{error}</p>}>
+        <Link href="/portal/login" className={buttonVariants({ className: 'w-full' })}>
+          ขอลิงก์ใหม่
+        </Link>
+      </PortalAuthCard>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-md border-0 shadow-card">
-        <CardContent className="flex flex-col items-center gap-1 p-9 text-center">
-          {error ? (
-            <>
-              <div className="mb-3 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-warning/15 text-warning">
-                <AlertTriangle className="h-6 w-6" />
-              </div>
-              <h1 className="text-[19px] font-bold">ลิงก์นี้ไม่ถูกต้องหรือหมดอายุแล้ว</h1>
-              <p className="mb-6 text-sm leading-relaxed text-muted-foreground">{error}</p>
-              <Link href="/portal/login" className={buttonVariants({ variant: 'default', className: 'w-full' })}>
-                ขอลิงก์ใหม่
-              </Link>
-            </>
-          ) : (
-            <>
-              <div className="mb-3 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-              <h1 className="text-[19px] font-bold">กำลังเข้าสู่ระบบ...</h1>
-              <p className="text-sm text-muted-foreground">กรุณารอสักครู่ ระบบกำลังตรวจสอบลิงก์ของท่าน</p>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <PortalAuthCard title="กำลังเข้าสู่ระบบ">
+      <p role="status" className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        กำลังตรวจสอบลิงก์ของคุณ
+      </p>
+    </PortalAuthCard>
   );
 }
 

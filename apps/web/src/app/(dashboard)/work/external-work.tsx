@@ -6,6 +6,9 @@ import { useAuth } from '@/lib/auth';
 import { api, type ExternalStep } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { EmptyState, Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { fileSize, saveBlob, shortThaiDate } from '@/components/workflows/workflow-ui';
 
 /** The whole app, for a freelancer: their own workflow steps and nothing else. */
@@ -26,17 +29,18 @@ export default function ExternalWorkPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">งานของฉัน</h1>
-        <p className="mt-1 text-sm text-muted-foreground">สวัสดี คุณ{user?.firstName ?? ''} — งานที่สำนักงานส่งมาให้คุณทำ</p>
-      </header>
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {!steps && !error && <p className="text-sm text-muted-foreground">กำลังโหลด…</p>}
-      {steps && !steps.length && <p className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">ยังไม่มีงานที่มอบหมายให้คุณ</p>}
+      <PageHeader title="งานของฉัน" description={`งานที่สำนักงานมอบหมายให้คุณ${user?.firstName ?? ''}`} />
+      {error && <LoadFailed onRetry={() => { setError(''); load(); }} />}
+      {!steps && !error && (
+        <div role="status" aria-label="กำลังโหลด" className="space-y-4">
+          {[0, 1].map((i) => <Skeleton key={i} className="h-48 w-full rounded-xl" />)}
+        </div>
+      )}
+      {steps && !steps.length && <EmptyState title="ยังไม่มีงานที่มอบหมายให้คุณ" description="งานจะขึ้นที่นี่เมื่อสำนักงานส่งงานให้" />}
       {open.map((step) => <StepCard key={step.taskId} step={step} token={token} onChanged={load} />)}
       {handedIn.length > 0 && (
         <details>
-          <summary className="cursor-pointer text-sm text-muted-foreground">ส่งแล้ว ({handedIn.length})</summary>
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">ส่งแล้ว ({handedIn.length})</summary>
           <div className="mt-3 space-y-4">{handedIn.map((step) => <StepCard key={step.taskId} step={step} token={token} onChanged={load} />)}</div>
         </details>
       )}
@@ -66,7 +70,7 @@ function StepCard({ step, token, onChanged }: { step: ExternalStep; token: strin
         <h2 className="text-lg font-semibold">{step.title}</h2>
         {step.status === 'DONE' && <Badge variant="success">ส่งแล้ว</Badge>}
         {step.status === 'PENDING_REVIEW' && <Badge variant="warning">ส่งแล้ว · รอตรวจ</Badge>}
-        {step.blocked && !handedIn && <Badge variant="muted"><Clock className="mr-1 h-3 w-3" />รอขั้นก่อนหน้า</Badge>}
+        {step.blocked && !handedIn && <Badge variant="muted"><Clock className="mr-1 h-3.5 w-3.5" aria-hidden />รอขั้นก่อนหน้า</Badge>}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         {step.run.name} · คดี {step.run.caseRef} ·{' '}
@@ -84,8 +88,8 @@ function StepCard({ step, token, onChanged }: { step: ExternalStep; token: strin
           <ul className="space-y-1">
             {step.inputs.map((f) => (
               <li key={f.attachmentId}>
-                <button type="button" className="inline-flex items-center gap-1 text-sm text-primary hover:underline" onClick={() => download(f.attachmentId, f.filename)}>
-                  <Download className="h-4 w-4" />{f.filename} <span className="text-xs text-muted-foreground">({fileSize(f.size)})</span>
+                <button type="button" className="inline-flex min-h-11 items-center gap-1 text-left text-sm text-primary hover:underline" onClick={() => download(f.attachmentId, f.filename)}>
+                  <Download className="h-4 w-4 shrink-0" aria-hidden />{f.filename} <span className="text-xs text-muted-foreground">({fileSize(f.size)})</span>
                 </button>
               </li>
             ))}
@@ -99,13 +103,13 @@ function StepCard({ step, token, onChanged }: { step: ExternalStep; token: strin
         <ul className="space-y-1">
           {step.outputs.map((f) => (
             <li key={f.attachmentId} className="flex items-center gap-2 text-sm">
-              <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline" onClick={() => download(f.attachmentId, f.filename)}>
-                <Paperclip className="h-4 w-4" />{f.filename}
+              <button type="button" className="inline-flex min-h-11 min-w-0 items-center gap-1 break-all text-left text-primary hover:underline" onClick={() => download(f.attachmentId, f.filename)}>
+                <Paperclip className="h-4 w-4 shrink-0" aria-hidden />{f.filename}
               </button>
               <span className="text-xs text-muted-foreground">({fileSize(f.size)})</span>
               {!handedIn && (
                 <Button size="icon" variant="ghost" aria-label={`ลบ ${f.filename}`} disabled={busy}
-                  onClick={() => run(() => api.deleteExternalFile(token, f.attachmentId))}><Trash2 className="h-4 w-4" /></Button>
+                  onClick={() => run(() => api.deleteExternalFile(token, f.attachmentId))}><Trash2 className="h-4 w-4" aria-hidden /></Button>
               )}
             </li>
           ))}
@@ -119,8 +123,9 @@ function StepCard({ step, token, onChanged }: { step: ExternalStep; token: strin
                 if (file) run(() => api.uploadExternalFile(token, step.taskId, file));
               }} />
             <Button size="sm" variant="outline" className="mt-2" disabled={busy} onClick={() => fileInput.current?.click()}>
-              <Upload className="mr-1 h-4 w-4" />แนบไฟล์ (PDF, Word, Excel, รูป ไม่เกิน 30MB)
+              <Upload className="h-4 w-4" aria-hidden />แนบไฟล์งาน
             </Button>
+            <p className="mt-1 text-xs text-muted-foreground">PDF, Word, Excel หรือรูป ไม่เกิน 30MB</p>
           </>
         )}
       </section>
@@ -134,7 +139,7 @@ function StepCard({ step, token, onChanged }: { step: ExternalStep; token: strin
               if (!step.outputs.length && !window.confirm('ยังไม่ได้แนบไฟล์งาน ส่งงานเลยไหม?')) return;
               run(() => api.completeExternalStep(token, step.taskId));
             }}>
-            <CheckCircle2 className="mr-1 h-4 w-4" />{step.blocked ? 'รอขั้นก่อนหน้า' : 'ส่งงาน / เสร็จแล้ว'}
+            <CheckCircle2 className="h-4 w-4" aria-hidden />{step.blocked ? 'รอขั้นก่อนหน้า' : 'ส่งงาน'}
           </Button>
         </div>
       )}

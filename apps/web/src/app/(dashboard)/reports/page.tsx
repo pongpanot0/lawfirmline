@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { hasFirmCapability } from '@lawfirm/shared';
-import { BarChart3, PieChart, TrendingUp, Briefcase, CheckCircle2, Clock } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import {
   api,
@@ -12,7 +11,9 @@ import {
   FinanceSummary,
   ReportsSummary,
 } from '@/lib/api';
-import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { KpiStrip } from '@/components/reports/KpiStrip';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { OwnerKpiSection } from '@/components/reports/OwnerKpiSection';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
@@ -29,12 +30,12 @@ import { formatCurrency } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 
-/** Copy lives in the dictionary; this only fixes the order and the icons. */
+/** Copy lives in the dictionary; this only fixes the order. */
 const REPORT_META = [
-  { key: 'caseVolumeByType' as const, titleKey: 'caseVolumeByType' as const, descKey: 'caseVolumeHint' as const, icon: PieChart },
-  { key: 'revenueByLawyer' as const, titleKey: 'revenueByLawyer' as const, descKey: 'revenueByLawyerHint' as const, icon: BarChart3 },
-  { key: 'courtAppearancesByMonth' as const, titleKey: 'courtAppearanceLog' as const, descKey: 'courtAppearanceHint' as const, icon: TrendingUp },
-  { key: 'expenseSummary' as const, titleKey: 'expenseSummary' as const, descKey: 'expenseSummaryHint' as const, icon: BarChart3 },
+  { key: 'caseVolumeByType' as const, titleKey: 'caseVolumeByType' as const, descKey: 'caseVolumeHint' as const },
+  { key: 'revenueByLawyer' as const, titleKey: 'revenueByLawyer' as const, descKey: 'revenueByLawyerHint' as const },
+  { key: 'courtAppearancesByMonth' as const, titleKey: 'courtAppearanceLog' as const, descKey: 'courtAppearanceHint' as const },
+  { key: 'expenseSummary' as const, titleKey: 'expenseSummary' as const, descKey: 'expenseSummaryHint' as const },
 ];
 
 function MiniBarChart({ items }: { items: Array<{ label: string; value: number }> }) {
@@ -45,7 +46,7 @@ function MiniBarChart({ items }: { items: Array<{ label: string; value: number }
     return (
       <InlineEmptyState
         title={d.reports.noData}
-        description="รายงานจะเริ่มมีภาพรวมเมื่อมีคดี ค่าใช้จ่าย หรือบันทึกขึ้นศาล"
+        description="ภาพรวมจะแสดงเมื่อมีคดี ค่าใช้จ่าย หรือบันทึกขึ้นศาล"
       />
     );
   }
@@ -63,7 +64,7 @@ function MiniBarChart({ items }: { items: Array<{ label: string; value: number }
             {item.value >= 1000 ? `${Math.round(item.value / 1000)}k` : item.value}
           </span>
           <div
-            className="w-full max-w-14 rounded-t-md bg-gradient-to-t from-primary/80 to-primary/45"
+            className="w-full max-w-14 rounded-t-md bg-primary/70"
             style={{ height: `${Math.max((item.value / max) * 100, 6)}%` }}
           />
           <span className="w-full truncate text-center text-[10px] text-muted-foreground">{item.label}</span>
@@ -131,6 +132,7 @@ export default function ReportsPage() {
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const authToken = token ?? getStoredToken();
@@ -152,16 +154,12 @@ export default function ReportsPage() {
         setError(err instanceof Error ? err.message : d.reports.loadFailed);
       })
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, reload]);
 
   if (loading) return <PageLoading title={d.common.loading} lines={3} />;
 
   if (error) {
-    return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
-        <p className="text-destructive">{error}</p>
-      </div>
-    );
+    return <LoadFailed message={error} onRetry={() => { setLoading(true); setReload((n) => n + 1); }} />;
   }
 
   if (!data || !user) return null;
@@ -185,42 +183,30 @@ export default function ReportsPage() {
 
       {hasFirmCapability(user.firmRole, 'runOperations') && token && <OwnerKpiSection token={token} />}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          icon={Briefcase}
-          label={d.reports.casesClosedYtd}
-          href="/cases?status=CLOSED"
-          value={data.kpis.casesClosedYtd}
-          trend={data.kpis.casesClosedChange >= 0 ? 'up' : 'down'}
-          change={changeLabel}
-        />
-        <KpiCard
-          icon={CheckCircle2}
-          label={d.reports.completionRate}
-          value={`${data.kpis.winRate}%`}
-          trend="neutral"
-          change={d.reports.completionRateHint}
-        />
-        <KpiCard
-          icon={Clock}
-          label={d.reports.avgCaseDuration}
-          value={
-            data.kpis.avgCaseDurationMonths != null
+      <KpiStrip
+        className="mb-6"
+        items={[
+          {
+            label: d.reports.casesClosedYtd,
+            href: '/cases?status=CLOSED',
+            value: data.kpis.casesClosedYtd,
+            note: <span className={data.kpis.casesClosedChange >= 0 ? 'text-success' : 'text-destructive'}>{changeLabel}</span>,
+          },
+          { label: d.reports.completionRate, value: `${data.kpis.winRate}%`, note: d.reports.completionRateHint },
+          {
+            label: d.reports.avgCaseDuration,
+            value: data.kpis.avgCaseDurationMonths != null
               ? fmt(d.reports.months, { count: data.kpis.avgCaseDurationMonths })
-              : '—'
-          }
-          trend="neutral"
-        />
-        {finance && (
-          <KpiCard
-            icon={TrendingUp}
-            label={d.reports.netProfit}
-            value={formatCurrency(finance.netProfit)}
-            trend={finance.netProfit >= 0 ? 'up' : 'down'}
-            change={d.reports.caseProfitHint}
-          />
-        )}
-      </div>
+              : '—',
+          },
+          ...(finance ? [{
+            label: d.reports.netProfit,
+            value: formatCurrency(finance.netProfit),
+            tone: finance.netProfit >= 0 ? 'default' as const : 'destructive' as const,
+            note: d.reports.caseProfitHint,
+          }] : []),
+        ]}
+      />
 
       <Card className="mb-6">
         <CardHeader>
@@ -263,14 +249,14 @@ export default function ReportsPage() {
                     <TableCell className="text-muted-foreground">
                       {row.clientName ?? '—'}
                     </TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.revenue)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCurrency(row.revenue)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {revenueSourceLabel(row.revenueSource, d)}
                     </TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.expenses)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCurrency(row.expenses)}</TableCell>
                     <TableCell
-                      className={`text-right font-semibold ${
-                        row.profit >= 0 ? 'text-green-600' : 'text-destructive'
+                      className={`text-right font-semibold tabular-nums ${
+                        row.profit >= 0 ? 'text-success' : 'text-destructive'
                       }`}
                     >
                       {formatCurrency(row.profit)}
@@ -288,16 +274,12 @@ export default function ReportsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {REPORT_META.map((report) => {
-          const Icon = report.icon;
           const total = reportTotal(data, report.key);
           const chartItems = reportChartItems(data, report.key);
 
           return (
-            <Card key={report.key} className="transition-shadow hover:shadow-card">
-              <CardHeader className="flex-row items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Icon className="h-5 w-5 text-primary" />
-                </div>
+            <Card key={report.key}>
+              <CardHeader>
                 <div>
                   <CardTitle className="text-base">{d.reports[report.titleKey]}</CardTitle>
                   <p className="mt-0.5 text-xs text-muted-foreground">{d.reports[report.descKey]}</p>
@@ -305,7 +287,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <MiniBarChart items={chartItems} />
-                <p className="mt-3 text-lg font-bold">
+                <p className="mt-3 text-lg font-bold tabular-nums">
                   {report.key === 'caseVolumeByType'
                     ? fmt(d.reports.caseCount, { count: total })
                     : report.key === 'courtAppearancesByMonth'

@@ -11,7 +11,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 export function LoadFailed({ message, onRetry }: { message?: string; onRetry: () => void }) {
   const d = useDashboardT();
   return (
-    <div className="rounded-xl border bg-card p-6 shadow-soft">
+    <div className="rounded-xl border bg-card p-6">
       <p role="alert" className="text-sm text-destructive">{message ?? d.common.loadFailed}</p>
       <Button size="sm" variant="outline" className="mt-3" onClick={onRetry}>
         {d.common.retry}

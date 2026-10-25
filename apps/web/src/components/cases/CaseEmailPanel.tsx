@@ -15,6 +15,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { Badge } from '@/components/ui/badge';
 import { EmailHtmlFrame } from '@/components/email/EmailHtmlFrame';
 import { CaseEmailComposer, type CaseEmailComposerMode } from './CaseEmailComposer';
 import { MATCH_REASON_LABELS } from '@/lib/case-email';
@@ -219,7 +221,7 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
       {notice && (
         <p
           role="status"
-          className={`rounded-lg p-3 text-sm ${notice.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-destructive/10 text-destructive'}`}
+          className={`rounded-lg p-3 text-sm ${notice.type === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}
         >
           {notice.text}
           {undoId && notice.type === 'success' && notice.text.startsWith('ทำเครื่องหมาย') && (
@@ -234,14 +236,14 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 font-semibold">
-              <FolderOpen className="h-4 w-4" /> folder Outlook ที่ผูกกับคดี
+              <FolderOpen aria-hidden="true" className="h-4 w-4 text-muted-foreground" /> folder Outlook ที่ผูกกับคดี
             </h2>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" disabled={busy !== null} onClick={() => setComposer({ kind: 'new' })}>
                 เขียนอีเมล
               </Button>
               <Button size="sm" variant="outline" disabled={busy !== null || links.length === 0} onClick={syncNow}>
-                <RefreshCw className="h-4 w-4" /> {busy === 'sync' ? 'กำลังซิงก์…' : 'ซิงก์ตอนนี้'}
+                <RefreshCw aria-hidden="true" className="h-4 w-4" /> {busy === 'sync' ? 'กำลังซิงก์…' : 'ซิงก์ตอนนี้'}
               </Button>
               <Button size="sm" variant="outline" disabled={busy !== null} onClick={openPicker}>
                 ผูก folder Outlook
@@ -258,12 +260,10 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
             </p>
           )}
           {!linksFailed && links.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              ยังไม่ได้ผูก folder — อีเมลที่ผูกทีละฉบับจากคิวอีเมลจะแสดงด้านล่าง
-            </p>
+            <p className="text-sm text-muted-foreground">ยังไม่ได้ผูก folder</p>
           )}
           {links.map((link) => (
-            <div key={link.id} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+            <div key={link.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{link.displayPath}</p>
                 <p className="text-xs text-muted-foreground">
@@ -272,7 +272,7 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
                 </p>
                 {link.lastError && <p className="mt-0.5 text-xs text-destructive">{link.lastError}</p>}
               </div>
-              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => unlinkFolder(link)}>
+              <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" disabled={busy !== null} onClick={() => unlinkFolder(link)}>
                 ยกเลิกการผูก
               </Button>
             </div>
@@ -287,7 +287,7 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
                 id="case-email-folder"
                 value={pickedFolderId}
                 onChange={(e) => setPickedFolderId(e.target.value)}
-                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                className="min-h-10 w-full rounded-md border bg-background px-2 py-1.5 text-sm"
               >
                 <option value="">— เลือก folder —</option>
                 {folders.map((row) => {
@@ -325,17 +325,12 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
         </p>
       )}
       {threadsFailed && threads.length === 0 ? (
-        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
-          โหลดอีเมลไม่สำเร็จ
-          <Button size="sm" variant="outline" onClick={retryLoad}>
-            ลองใหม่
-          </Button>
-        </div>
+        <LoadFailed message="โหลดอีเมลไม่สำเร็จ" onRetry={retryLoad} />
       ) : threads.length === 0 ? (
         <InlineEmptyState
           icon={Mail}
           title="ยังไม่มีอีเมลในคดีนี้"
-          description="ผูก folder Outlook ของคดี หรือผูกอีเมลทีละฉบับจากหน้าคิวอีเมล"
+          action={<Button size="sm" variant="outline" disabled={busy !== null} onClick={openPicker}>ผูก folder Outlook</Button>}
         />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
@@ -346,19 +341,19 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
                   type="button"
                   onClick={() => selectThread(thread.id)}
                   aria-current={selectedId === thread.id ? 'true' : undefined}
-                  className={`w-full rounded-lg border p-3 text-left ${selectedId === thread.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                  className={`w-full rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedId === thread.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
                 >
                   <p className="truncate text-sm font-medium">{thread.subject}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {thread.fromName ?? thread.fromAddress ?? '—'} · {formatDateTime(thread.lastMessageAt)}
                   </p>
                   {thread.awaitingReplySince && (
-                    <span className="mb-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                    <Badge variant="warning" className="mb-1">
                       {awaitingReplyLabel(thread.awaitingReplySince)}
-                    </span>
+                    </Badge>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    {thread.messageCount} ข้อความ
+                    <span className="tabular-nums">{thread.messageCount}</span> ข้อความ
                     {thread.attachmentCount > 0 && ` · ไฟล์แนบ ${thread.attachmentCount}`}
                   </p>
                 </button>
@@ -367,7 +362,7 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
           </ul>
 
           <div className="min-w-0">
-            {!selectedId && <p className="text-sm text-muted-foreground">เลือกอีเมลทางซ้ายเพื่ออ่าน</p>}
+            {!selectedId && <InlineEmptyState title="ยังไม่ได้เลือกอีเมล" />}
             {selectedId && detailFailed && (
               <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
                 {detail ? 'รีเฟรชอีเมลไม่สำเร็จ — แสดงข้อมูลล่าสุด' : 'เปิดอีเมลไม่สำเร็จ'}
@@ -387,14 +382,14 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
             {detail && (
               <Card>
                 <CardContent className="space-y-4 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-semibold">{detail.subject}</h3>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <h3 className="min-w-0 font-semibold">{detail.subject}</h3>
                     <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => unlinkThread(detail.id)}>
-                      <Unlink className="h-4 w-4" /> นำออกจากคดี
+                      <Unlink aria-hidden="true" className="h-4 w-4" /> นำออกจากคดี
                     </Button>
                   </div>
                   {awaiting && lastInbound && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
                       <span>อีเมลนี้ยังไม่ได้ตอบ</span>
                       <span className="flex gap-2">
                         <Button
@@ -430,18 +425,18 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
                         <ul className="space-y-1" aria-label="ไฟล์แนบ">
                           {message.attachments.map((attachment) => (
                             <li key={attachment.id} className="flex flex-wrap items-center gap-2 text-sm">
-                              <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                              <Paperclip aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground" />
                               <span className="min-w-0 truncate">{attachment.filename}</span>
                               <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => download(attachment)}>
-                                <Download className="h-4 w-4" /> ดาวน์โหลด
+                                <Download aria-hidden="true" className="h-4 w-4" /> ดาวน์โหลด
                               </Button>
                               {attachment.savedDocumentId ? (
-                                <span className="inline-flex items-center gap-1 text-xs text-green-700">
-                                  <CheckCircle2 className="h-4 w-4" /> อยู่ในเอกสารคดีแล้ว
+                                <span className="inline-flex items-center gap-1 text-xs text-success">
+                                  <CheckCircle2 aria-hidden="true" className="h-4 w-4" /> อยู่ในเอกสารคดีแล้ว
                                 </span>
                               ) : (
                                 <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => saveToDocuments(attachment)}>
-                                  <FilePlus2 className="h-4 w-4" /> บันทึกเข้าเอกสารคดี
+                                  <FilePlus2 aria-hidden="true" className="h-4 w-4" /> บันทึกเข้าเอกสารคดี
                                 </Button>
                               )}
                             </li>
@@ -452,7 +447,7 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
                         const unsaved = message.attachments.filter((a) => !a.savedDocumentId);
                         return unsaved.length > 1 ? (
                           <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => saveAllToDocuments(unsaved)}>
-                            <FilePlus2 className="h-4 w-4" />
+                            <FilePlus2 aria-hidden="true" className="h-4 w-4" />
                             {busy === 'save-all' ? 'กำลังบันทึก…' : `บันทึกไฟล์แนบทั้งหมดเข้าเอกสารคดี (${unsaved.length})`}
                           </Button>
                         ) : null;

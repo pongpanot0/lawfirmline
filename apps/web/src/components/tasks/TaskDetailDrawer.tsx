@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { X, Trash2, Download } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Download, MessageSquare, NotebookPen, Paperclip, Pause, Trash2, X } from 'lucide-react';
 import { canActOnReview, canDelegateTask, FirmRole, hasFirmCapability, isEligibleReviewer, normalizeTaskLabels, TASK_WORK_TYPES, TaskLogAction, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
 import { getMentionContext, mentionedIdsIn } from '@/lib/mentions';
 import { ON_HOLD_CATEGORY_LABEL } from '@/lib/on-hold';
@@ -13,6 +13,8 @@ import { useAuth } from '@/lib/auth';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { bangkokDateInputValue, bangkokInputValue, bangkokInputToIso, bangkokDateInputToIso } from '@/lib/bangkok';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/misc';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { DateField, DateTimeField, SelectField, TextField, TextareaField } from '@/components/ui/form-fields';
 import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
@@ -318,7 +320,8 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
         <div className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div className="min-w-0 flex-1">
             {task?.parent && (
-              <button type="button" onClick={() => onNavigate(task.parent!.id)} className="text-xs text-primary hover:underline">
+              <button type="button" onClick={() => onNavigate(task.parent!.id)} className="inline-flex min-h-11 items-center gap-1 text-left text-xs text-primary hover:underline">
+                <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 {d.taskDetail.backToParent} {task.parent.title}
               </button>
             )}
@@ -345,23 +348,30 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               aria-label={d.taskDetail.titleField}
               className="mt-1 w-full rounded-md border border-transparent bg-transparent px-1 text-lg font-semibold hover:border-input focus:border-input focus:outline-none"
             />}
-            {task && <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full bg-muted px-2 py-1">{statusLabel[task.status]}</span><span className="rounded-full bg-muted px-2 py-1">{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>{task.assignee && <span>{task.assignee.firstName} {task.assignee.lastName}</span>}{isHeld(task) && <span className="rounded-full bg-amber-500/15 px-2 py-1 font-medium text-amber-700 dark:text-amber-300">{d.todos.heldBadge}</span>}</div>}
+            {task && <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><Badge variant={task.status === TaskStatus.DONE ? 'success' : task.status === TaskStatus.PENDING_REVIEW ? 'default' : task.status === TaskStatus.NEEDS_REVISION ? 'destructive' : 'muted'}>{statusLabel[task.status]}</Badge><span>{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>{task.assignee && <span>{task.assignee.firstName} {task.assignee.lastName}</span>}{isHeld(task) && <Badge variant="warning">{d.todos.heldBadge}</Badge>}</div>}
           </div>
           {task && (manager || task.createdById === user?.id) && (
-            <button type="button" onClick={() => void removeTask()} disabled={busy} aria-label={text('ลบงาน', 'Delete task')} title={text('ลบงาน', 'Delete task')} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive">
-              <Trash2 className="h-4 w-4" />
+            <button type="button" onClick={() => void removeTask()} disabled={busy} aria-label={text('ลบงาน', 'Delete task')} title={text('ลบงาน', 'Delete task')} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Trash2 className="h-4 w-4" aria-hidden />
             </button>
           )}
-          <button type="button" onClick={onClose} aria-label={d.taskDetail.close} className="rounded-lg p-1.5 hover:bg-muted">
-            <X className="h-4 w-4" />
+          <button type="button" onClick={onClose} aria-label={d.taskDetail.close} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
 
         {aiPanel && task && <nav className="flex shrink-0 gap-4 overflow-x-auto border-b px-4 pt-3" aria-label={text('รายละเอียดงาน', 'Task details')}>
-          {([['edit', text('ทำงาน / ส่งตรวจ', 'Work / Review')], ['summary', text('สรุปโดย AI', 'AI summary')], ['source', text('ข้อความต้นทาง', 'Source updates')], ['history', text('ประวัติงาน', 'History')]] as const).map(([key, label]) => <button key={key} type="button" aria-current={activeTab === key ? 'page' : undefined} onClick={() => setActiveTab(key)} className={`whitespace-nowrap border-b-2 pb-3 text-xs font-semibold ${activeTab === key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
+          {([['edit', text('ทำงาน / ส่งตรวจ', 'Work / Review')], ['summary', text('สรุปโดย AI', 'AI summary')], ['source', text('ข้อความต้นทาง', 'Source updates')], ['history', text('ประวัติงาน', 'History')]] as const).map(([key, label]) => <button key={key} type="button" aria-current={activeTab === key ? 'page' : undefined} onClick={() => setActiveTab(key)} className={`min-h-11 whitespace-nowrap border-b-2 pb-3 text-xs font-semibold ${activeTab === key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
         </nav>}
 
-        {error && <p role="alert" className="mx-4 mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {error && <div role="alert" className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"><span>{error}</span>{!task && <Button size="sm" variant="outline" onClick={() => void load()}>{d.common.retry}</Button>}</div>}
+        {!task && !error && (
+          <div role="status" aria-label={d.common.loading} className="space-y-3 p-4">
+            <Skeleton className="h-6 w-2/3" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        )}
         {notice && <p role="status" className="mx-4 mt-3 text-xs text-muted-foreground">{notice}</p>}
 
         {task && aiPanel && <div className={activeTab === 'edit' ? 'hidden' : 'p-4'}><TaskAiPanel task={task} users={users} tab={activeTab === 'edit' ? 'summary' : activeTab} onTabChange={setActiveTab} onChanged={() => { void load(); onChanged(); }} onNavigate={onNavigate} /></div>}
@@ -369,7 +379,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
         {task && (!aiPanel || activeTab === 'edit') && (
           <div className="space-y-6 p-4">
             <details>
-              <summary className="cursor-pointer text-sm font-semibold">{d.taskDetail.relatedPeople || 'ผู้เกี่ยวข้อง'}</summary>
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">{d.taskDetail.relatedPeople || 'ผู้เกี่ยวข้อง'}</summary>
               <div className="mt-3 space-y-3">
                 {task.createdBy && (
                   <div className="text-sm">
@@ -418,8 +428,8 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 {task.attachments.map(a => <li key={a.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
                   <span className="min-w-0 flex-1 basis-40 break-words">{a.filename}</span>
                   <span className="text-xs text-muted-foreground">{formatBytes(a.size)} · {a.uploadedBy.firstName}</span>
-                  <button type="button" disabled={downloadingId === a.id} aria-label={`${d.taskDetail.download} ${a.filename}`} onClick={() => void download(a.id, a.filename)} className="rounded p-2 hover:bg-muted disabled:opacity-50"><Download className="h-4 w-4" /></button>
-                  <button type="button" aria-label={`${d.taskDetail.delete} ${a.filename}`} disabled={busy} onClick={() => window.confirm(d.taskDetail.confirmDeleteAttachment) && run(() => api.deleteTaskAttachment(token!, task.id, a.id))} className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                  <button type="button" disabled={downloadingId === a.id} aria-label={`${d.taskDetail.download} ${a.filename}`} onClick={() => void download(a.id, a.filename)} className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-muted disabled:opacity-50"><Download className="h-4 w-4" aria-hidden /></button>
+                  <button type="button" aria-label={`${d.taskDetail.delete} ${a.filename}`} disabled={busy} onClick={() => window.confirm(d.taskDetail.confirmDeleteAttachment) && run(() => api.deleteTaskAttachment(token!, task.id, a.id))} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive"><Trash2 className="h-4 w-4" aria-hidden /></button>
                 </li>)}
                 {task.attachments.length === 0 && <li className="text-xs text-muted-foreground">{d.taskDetail.noAttachments}</li>}
               </ul>
@@ -432,7 +442,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 <DateField label="แผนทำงานวันที่" value={task.scheduledFor?.slice(0, 10) ?? ''} disabled={busy} onChange={(e) => { if (e.target.value) void run(() => api.confirmTaskPlan(token!, task.id, e.target.value), 'ยืนยันแผนแล้ว'); }} />
                 <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => api.confirmTaskPlan(token!, task.id, today), 'ยืนยันแผนวันนี้แล้ว')}>{task.planConfirmedAt && task.scheduledFor?.slice(0, 10) === today ? 'ยืนยันแผนวันนี้แล้ว · ยืนยันอีกครั้ง' : 'ยืนยันว่าจะทำงานนี้วันนี้'}</Button>
                 <details>
-                  <summary className="cursor-pointer text-sm font-medium">บันทึกความคืบหน้า / ขอความช่วยเหลือ</summary>
+                  <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">บันทึกความคืบหน้า / ขอความช่วยเหลือ</summary>
                 <form className="mt-3 space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.dailyTaskUpdate(token!, task.id, { completed, remaining, blocker }); setCompleted(''); setRemaining(''); setBlocker(''); }, 'บันทึกความคืบหน้าแล้ว'); }}>
                   <TextareaField label="ทำถึงไหนแล้ว" value={completed} required maxLength={1500} rows={2} disabled={busy} onChange={(e) => setCompleted(e.target.value)} />
                   <TextareaField label="เหลืออะไร" value={remaining} required maxLength={1500} rows={2} disabled={busy} onChange={(e) => setRemaining(e.target.value)} />
@@ -443,7 +453,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 {task.requiresReview && <div className="space-y-2 border-t pt-3">
                   <p className="text-xs text-muted-foreground">แนบผลงานด้านล่าง แล้วส่งให้ผู้ตรวจ</p>
                   {!task.reviewerId && !task.caseId && <SelectField label="ผู้ตรวจ" value={reviewerId} required onChange={(e) => setReviewerId(e.target.value)}><option value="">เลือกผู้ตรวจ</option>{users.filter((u) => u.id !== user?.id && isEligibleReviewer({ role: u.firmRole, userId: u.id, assigneeId: task.assignee?.id })).map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}</SelectField>}
-                  <TextareaField label="หมายเหตุถึงผู้ตรวจ *" value={handoffNote} required maxLength={1500} rows={2} disabled={busy} onChange={(e) => setHandoffNote(e.target.value)} />
+                  <TextareaField label="หมายเหตุถึงผู้ตรวจ" value={handoffNote} required maxLength={1500} rows={2} disabled={busy} onChange={(e) => setHandoffNote(e.target.value)} />
                   {handoffNote && handoffNoteError(handoffNote) && <p className="text-xs text-muted-foreground">{handoffNoteError(handoffNote)}</p>}
                   {task.requiresAttachment && task.attachments.length === 0 && <p className="text-xs text-destructive">งานนี้ต้องแนบไฟล์ผลงานก่อนส่งตรวจ</p>}
                   <Button disabled={busy || (!task.caseId && !reviewerId) || !!handoffNoteError(handoffNote) || (!!task.requiresAttachment && task.attachments.length === 0)} onClick={() => void run(() => task.caseId ? api.handoffTask(token!, task.caseId, task.id, { note: handoffNote.trim() }) : api.handoffTodo(token!, task.id, { reviewerId, note: handoffNote.trim() }), 'ส่งตรวจแล้ว')}>{`ส่งให้ ${reviewerName(task) ?? 'ผู้ตรวจ'} ตรวจ`}</Button>
@@ -451,7 +461,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               </>}
               {canReview && <div className="space-y-3">
                 {(() => { const sent = task.assignmentLogs?.filter((l) => l.action === TaskLogAction.HANDED_OFF).at(-1); return sent?.note
-                  ? <p className="whitespace-pre-line rounded-lg bg-muted/50 p-2 text-sm">📝 {sent.note}<span className="mt-1 block text-xs text-muted-foreground">{sent.fromUser ? `${sent.fromUser.firstName} ${sent.fromUser.lastName}` : ''} · {formatDateTime(sent.createdAt)}</span></p>
+                  ? <p className="whitespace-pre-line rounded-lg bg-muted/50 p-2 text-sm"><NotebookPen className="mr-1 inline h-4 w-4 align-text-bottom text-muted-foreground" aria-label="หมายเหตุผู้ส่ง" />{sent.note}<span className="mt-1 block text-xs text-muted-foreground">{sent.fromUser ? `${sent.fromUser.firstName} ${sent.fromUser.lastName}` : ''} · {formatDateTime(sent.createdAt)}</span></p>
                   : null; })()}
                 <p className="text-xs text-muted-foreground">ตรวจผลงานและประวัติด้านล่างก่อนยืนยัน</p>
                 <Button disabled={busy} onClick={() => void run(() => task.caseId ? api.acceptTask(token!, task.caseId, task.id) : api.acceptTodo(token!, task.id), 'ตรวจผ่าน งานเสร็จแล้ว')}>ตรวจผ่านและปิดงาน</Button>
@@ -473,7 +483,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   <h3 className="text-sm font-semibold">พักงาน</h3>
                   {isHeld(task) ? (
                     <>
-                      <p className="text-sm">⏸️ {ON_HOLD_CATEGORY_LABEL[task.onHold!.category ?? 'OTHER']} · {task.onHold!.reason}</p>
+                      <p className="flex items-start gap-1.5 text-sm"><Pause className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden /><span>{ON_HOLD_CATEGORY_LABEL[task.onHold!.category ?? 'OTHER']} · {task.onHold!.reason}</span></p>
                       {task.onHold!.nextFollowUpAt && <p className="text-xs text-muted-foreground">ติดตามครั้งถัดไป {formatDate(task.onHold!.nextFollowUpAt)}</p>}
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(() => api.resumeTaskFromOnHold(token!, task.caseId!, task.id), 'กลับมาทำต่อแล้ว')}>กลับมาทำต่อ</Button>
                     </>
@@ -530,7 +540,8 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   />
                 </SelectField>
                 {task.assignee && taskLeaveFlags.has(task.assignee.id) && (
-                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                  <p className="mt-1 flex items-start gap-1 text-xs text-warning">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                     {leaveWarning(
                       `${task.assignee.firstName} ${task.assignee.lastName}`,
                       taskDate,
@@ -576,7 +587,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                     <option value="">— ไม่รอใคร —</option>
                     {siblingTasks.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.status === 'DONE' ? '✓ ' : ''}{t.title}
+                        {t.title}{t.status === 'DONE' ? ` (${d.todos.columnDone})` : ''}
                       </option>
                     ))}
                   </select>
@@ -589,7 +600,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   {visibleTaskLabels(task.labels).map((l) => (
                     <span key={l} className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
                       {l}
-                      <button type="button" aria-label={`${d.taskDetail.delete} ${l}`} disabled={busy} onClick={() => patch({ labels: task.labels.filter((x) => x !== l) })} className="text-muted-foreground hover:text-foreground">×</button>
+                      <button type="button" aria-label={`${d.taskDetail.delete} ${l}`} disabled={busy} onClick={() => patch({ labels: task.labels.filter((x) => x !== l) })} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" aria-hidden /></button>
                     </span>
                   ))}
                   <input
@@ -645,9 +656,9 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                       )}
                       {s.dueDate && <span className="text-xs text-muted-foreground">{formatDate(s.dueDate)}</span>}
                       {s._count && (s._count.attachments > 0 || s._count.comments > 0) && (
-                        <div className="flex gap-1 text-xs text-muted-foreground">
-                          {s._count.attachments > 0 && <span>📎{s._count.attachments}</span>}
-                          {s._count.comments > 0 && <span>💬{s._count.comments}</span>}
+                        <div className="flex gap-2 text-xs tabular-nums text-muted-foreground">
+                          {s._count.attachments > 0 && <span className="inline-flex items-center gap-0.5" title={d.taskDetail.attachments}><Paperclip className="h-3.5 w-3.5" aria-hidden /><span className="sr-only">{d.taskDetail.attachments}</span>{s._count.attachments}</span>}
+                          {s._count.comments > 0 && <span className="inline-flex items-center gap-0.5" title={d.taskDetail.comments}><MessageSquare className="h-3.5 w-3.5" aria-hidden /><span className="sr-only">{d.taskDetail.comments}</span>{s._count.comments}</span>}
                         </div>
                       )}
                     </li>
@@ -698,7 +709,8 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                     onChange={(e) => setSubtaskDue(e.target.value)}
                   />
                   {subtaskAssigneeId && subtaskLeaveFlags.has(subtaskAssigneeId) && (
-                    <p className="w-full text-xs text-amber-700 dark:text-amber-400">
+                    <p className="flex w-full items-start gap-1 text-xs text-warning">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                       {leaveWarning(
                         (() => {
                           const u = users.find((x) => x.id === subtaskAssigneeId);
@@ -726,7 +738,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   <li key={c.id} className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
                     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                       <span>{c.author.firstName} {c.author.lastName} · {formatDateTime(c.createdAt)}</span>
-                      <button type="button" aria-label={d.taskDetail.delete} disabled={busy} onClick={() => window.confirm(d.taskDetail.confirmDeleteComment) && run(() => api.deleteTaskComment(token!, task.id, c.id))} className="hover:text-destructive">×</button>
+                      <button type="button" aria-label={d.taskDetail.delete} disabled={busy} onClick={() => window.confirm(d.taskDetail.confirmDeleteComment) && run(() => api.deleteTaskComment(token!, task.id, c.id))} className="-my-2 inline-flex h-9 w-9 items-center justify-center rounded-lg hover:text-destructive"><X className="h-3.5 w-3.5" aria-hidden /></button>
                     </div>
                     <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
                   </li>

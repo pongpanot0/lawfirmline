@@ -81,16 +81,17 @@ export function LinkThreadToCaseCard({
           <Button
             size="sm"
             variant="outline"
+            className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
             disabled={busy}
             onClick={() => {
-              if (window.confirm('ยกเลิกการผูกอีเมลนี้กับคดี? อีเมลจะกลับเข้าคิว')) {
+              if (window.confirm(`ยกเลิกการผูกอีเมลนี้กับคดี ${linkedCase.ownRef}? อีเมลจะกลับเข้าคิว`)) {
                 submit((t) => api.unlinkThreadFromCase(t, threadId), 'ยกเลิกการผูกไม่สำเร็จ');
               }
             }}
           >
             ยกเลิกการผูก
           </Button>
-          {error && <p className="w-full text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="w-full text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
     );
@@ -101,7 +102,7 @@ export function LinkThreadToCaseCard({
       <CardContent className="space-y-3 p-4">
         {!open ? (
           <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-            <Link2 className="h-4 w-4" /> ผูกกับคดี
+            <Link2 className="h-4 w-4" aria-hidden /> ผูกกับคดี
           </Button>
         ) : (
           <fieldset className="space-y-2">
@@ -154,7 +155,7 @@ export function LinkThreadToCaseCard({
                   onChange={(e) => setOtherRef(e.target.value)}
                   placeholder="พิมพ์เลขอ้างอิงคดี"
                   aria-label="เลขอ้างอิงคดี"
-                  className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                  className="min-h-11 w-full rounded-md border bg-background px-2 py-1.5 text-sm"
                 />
                 <datalist id="link-case-refs">
                   {cases.map((c) => (
@@ -179,7 +180,7 @@ export function LinkThreadToCaseCard({
             </div>
           </fieldset>
         )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       </CardContent>
     </Card>
   );

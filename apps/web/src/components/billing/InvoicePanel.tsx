@@ -17,6 +17,9 @@ import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { MoneyInput } from '@/components/ui/MoneyInput';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Plus } from 'lucide-react';
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'ร่าง',
@@ -191,7 +194,7 @@ export function InvoicePanel({
   const hasWork = Boolean(draft?.timeEntries.length || draft?.expenses.length);
 
   return (
-    <div className={formOnly ? 'contents' : 'rounded-xl border border-border bg-card p-6 shadow-sm'}>
+    <div className={formOnly ? 'contents' : 'rounded-xl border border-border bg-card p-6'}>
       {!formOnly && <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="font-semibold">ใบแจ้งหนี้</h2>
         <button
@@ -200,9 +203,10 @@ export function InvoicePanel({
             setShowForm(true);
             setError('');
           }}
-          className="min-h-11 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted active:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted active:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
         >
-          {standalone ? '+ ออกใบเปล่า' : '+ ออกใบแจ้งหนี้'}
+          <Plus className="h-4 w-4" aria-hidden />
+          {standalone ? 'ออกใบเปล่า' : 'ออกใบแจ้งหนี้'}
         </button>
       </div>}
 
@@ -220,7 +224,7 @@ export function InvoicePanel({
               <div className="space-y-1">
                 <p className="text-sm font-medium">งานในคดีที่ยังไม่ได้เก็บเงิน</p>
                 {draft!.timeEntries.map((entry) => (
-                  <label key={entry.id} className="flex items-center gap-2 text-sm">
+                  <label key={entry.id} className="flex min-h-11 items-center gap-2 text-sm sm:min-h-8">
                     <input
                       type="checkbox"
                       checked={pickedTimeIds.includes(entry.id)}
@@ -238,11 +242,11 @@ export function InvoicePanel({
                         · {entry.hours} ชม. × {formatCurrency(entry.rate)}
                       </span>
                     </span>
-                    <span className="font-medium">{formatCurrency(entry.amount)}</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(entry.amount)}</span>
                   </label>
                 ))}
                 {draft!.expenses.map((expense) => (
-                  <label key={expense.id} className="flex items-center gap-2 text-sm">
+                  <label key={expense.id} className="flex min-h-11 items-center gap-2 text-sm sm:min-h-8">
                     <input
                       type="checkbox"
                       checked={pickedExpenseIds.includes(expense.id)}
@@ -257,7 +261,7 @@ export function InvoicePanel({
                       {expense.description}
                       <span className="text-muted-foreground"> · ค่าใช้จ่าย</span>
                     </span>
-                    <span className="font-medium">{formatCurrency(expense.amount)}</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(expense.amount)}</span>
                   </label>
                 ))}
               </div>
@@ -291,7 +295,7 @@ export function InvoicePanel({
                     )
                   }
                   placeholder="เช่น ค่าว่าความศาลชั้นต้น"
-                  className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm"
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <input
                   aria-label={`จำนวนของรายการที่ ${index + 1}`}
@@ -302,7 +306,7 @@ export function InvoicePanel({
                     )
                   }
                   inputMode="decimal"
-                  className="w-16 rounded-lg border border-border px-2 py-2 text-sm"
+                  className="h-10 w-16 rounded-lg border border-border px-2 py-2 text-right text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <MoneyInput
                   aria-label={`ราคาต่อหน่วยของรายการที่ ${index + 1}`}
@@ -313,14 +317,14 @@ export function InvoicePanel({
                     )
                   }
                   placeholder="ราคา"
-                  className="w-28 rounded-lg border border-border px-3 py-2 text-sm"
+                  className="h-10 w-28 rounded-lg border border-border px-3 py-2 text-right text-sm tabular-nums"
                 />
                 {items.length > 1 && (
                   <button
                     type="button"
                     aria-label={`ลบรายการที่ ${index + 1}`}
                     onClick={() => setItems((rows) => rows.filter((_, i) => i !== index))}
-                    className="px-1 text-sm text-muted-foreground"
+                    className="inline-flex h-11 items-center rounded-md px-2 text-sm text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     ลบ
                   </button>
@@ -343,9 +347,10 @@ export function InvoicePanel({
                   },
                 ])
               }
-              className="text-sm underline"
+              className="inline-flex min-h-11 items-center gap-1 rounded-md text-sm text-primary underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {caseId ? '+ เพิ่มรายการที่ไม่ได้อยู่ในคดี' : '+ เพิ่มรายการ'}
+              <Plus className="h-4 w-4" aria-hidden />
+              {caseId ? 'เพิ่มรายการที่ไม่ได้อยู่ในคดี' : 'เพิ่มรายการ'}
             </button>
           </div>
 
@@ -358,7 +363,7 @@ export function InvoicePanel({
               />
             </label>
             <p className="text-sm">
-              รวม <span className="font-semibold">{formatCurrency(total)}</span>
+              รวม <span className="font-semibold tabular-nums">{formatCurrency(total)}</span>
             </p>
           </div>
 
@@ -375,10 +380,10 @@ export function InvoicePanel({
                       setShareOverrides((rows) => ({ ...rows, [customer.customerId]: e.target.value }))
                     }
                     inputMode="decimal"
-                    className="w-16 rounded-lg border border-border px-2 py-1 text-right text-sm"
+                    className="h-10 w-16 rounded-lg border border-border px-2 py-1 text-right text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                   <span className="text-muted-foreground">%</span>
-                  <span className="w-28 text-right font-medium">
+                  <span className="w-28 text-right font-medium tabular-nums">
                     {formatCurrency(splitPreview[index] ?? 0)}
                   </span>
                 </div>
@@ -389,27 +394,23 @@ export function InvoicePanel({
             <p className="text-sm text-muted-foreground">วางบิลที่ {customers[0].customer.name}</p>
           )}
           {customers.length === 0 && !standalone && (
-            <p className="text-sm text-amber-600">
+            <p className="text-sm text-warning">
               งานนี้ยังไม่ได้ระบุลูกค้า (ผู้ว่าจ้าง) — ใบแจ้งหนี้จะออกโดยไม่ผูกกับใคร
             </p>
           )}
 
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-destructive">
               {error}
             </p>
           )}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="min-h-11 rounded-lg bg-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-sidebar active:bg-sidebar focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-          >
+          <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
             {submitting
               ? 'กำลังออก…'
               : customers.length > 1
                 ? `ออกใบแจ้งหนี้ ${customers.length} ใบ`
                 : 'ออกใบแจ้งหนี้'}
-          </button>
+          </Button>
         </form>
       </SideDrawer>
 
@@ -417,7 +418,7 @@ export function InvoicePanel({
         {invoices.map((inv) => (
           <div
             key={inv.id}
-            className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
           >
             <div className="min-w-0">
               <span className="font-medium">{inv.invoiceNumber}</span>
@@ -427,15 +428,15 @@ export function InvoicePanel({
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <p>{formatCurrency(inv.totalAmount)}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="tabular-nums">{formatCurrency(inv.totalAmount)}</p>
+                <Badge variant={inv.status === 'PAID' ? 'success' : inv.status === 'SENT' ? 'default' : 'muted'}>
                   {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
-                </p>
+                </Badge>
               </div>
               <button
                 type="button"
                 onClick={() => void handlePrint(inv.id, inv.status === 'PAID' ? 'RECEIPT' : 'INVOICE')}
-                className="rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                className="min-h-11 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent sm:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {inv.status === 'PAID' ? 'พิมพ์ใบเสร็จ' : 'พิมพ์ใบแจ้งหนี้'}
               </button>

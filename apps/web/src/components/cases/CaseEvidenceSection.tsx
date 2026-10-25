@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, KnowledgeCitationItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { ChevronDown } from 'lucide-react';
 
 /**
  * หลักฐาน = จุดในเอกสารที่รองรับข้อเท็จจริง (spec: EVIDENCE แยกจาก FACT).
@@ -35,10 +36,10 @@ export function CaseEvidenceSection({ caseId, refreshKey }: { caseId: string; re
   if (!byDocument.length) return null;
 
   return (
-    <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
+    <div className="mb-6 rounded-xl border bg-card p-6">
       <h3 className="font-semibold text-foreground">หลักฐานอ้างอิง ({citations.length})</h3>
       <p className="mb-3 mt-1 text-sm text-muted-foreground">
-        จุดในเอกสารที่ AI พบว่ารองรับข้อเท็จจริง — คลิกเพื่อดูรายการต่อเอกสาร
+        จุดในเอกสารที่ AI พบว่ารองรับข้อเท็จจริง
       </p>
       <ul className="space-y-2">
         {byDocument.map(([docId, group]) => (
@@ -47,10 +48,13 @@ export function CaseEvidenceSection({ caseId, refreshKey }: { caseId: string; re
               type="button"
               aria-expanded={openDoc === docId}
               onClick={() => setOpenDoc(openDoc === docId ? null : docId)}
-              className="flex w-full items-center justify-between p-3 text-left text-sm hover:bg-muted"
+              className="flex min-h-11 w-full items-center justify-between gap-2 p-3 text-left text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="font-medium">{group.filename}</span>
-              <span className="text-xs text-muted-foreground">{group.items.length} จุด</span>
+              <span className="min-w-0 break-words font-medium">{group.filename}</span>
+              <span className="flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
+                {group.items.length} จุด
+                <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${openDoc === docId ? 'rotate-180' : ''}`} />
+              </span>
             </button>
             {openDoc === docId && (
               <ul className="space-y-2 border-t border-border p-3">

@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { KeyRound } from 'lucide-react';
 import { portalApi, PortalApiError } from '@/lib/portal-api';
 import { usePortalAuth } from '@/lib/portal-auth';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
+import { PasswordInput } from '@/components/auth/PasswordInput';
+import { PortalAuthCard } from '@/components/portal/PortalAuthCard';
 
 export default function PortalSetPasswordPage() {
   const router = useRouter();
@@ -15,6 +14,7 @@ export default function PortalSetPasswordPage() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [fieldError, setFieldError] = useState<{ field: 'password' | 'confirm'; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -32,12 +32,13 @@ export default function PortalSetPasswordPage() {
     e.preventDefault();
     if (!token) return;
     setError('');
+    setFieldError(null);
     if (password.length < 6) {
-      setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+      setFieldError({ field: 'password', message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' });
       return;
     }
     if (password !== confirm) {
-      setError('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
+      setFieldError({ field: 'confirm', message: 'รหัสผ่านทั้งสองช่องไม่ตรงกัน' });
       return;
     }
     setSubmitting(true);
@@ -54,47 +55,36 @@ export default function PortalSetPasswordPage() {
 
   if (loading || !contact || contact.hasPassword) return null;
 
+  const errorFor = (field: 'password' | 'confirm') => (fieldError?.field === field ? fieldError.message : '');
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-md border-0 shadow-card">
-        <CardContent className="p-9">
-          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <KeyRound className="h-5 w-5" />
+    <PortalAuthCard title="ตั้งรหัสผ่านสำหรับพอร์ทัล" description="ครั้งต่อไปเข้าด้วยอีเมลและรหัสผ่านได้เลย ไม่ต้องรอลิงก์ทางอีเมล">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {(['password', 'confirm'] as const).map((field) => (
+          <div key={field}>
+            <label htmlFor={`portal-${field}`} className="text-sm font-medium">
+              {field === 'password' ? 'รหัสผ่านใหม่' : 'ยืนยันรหัสผ่าน'}
+            </label>
+            <PasswordInput
+              id={`portal-${field}`}
+              value={field === 'password' ? password : confirm}
+              onChange={(e) => (field === 'password' ? setPassword : setConfirm)(e.target.value)}
+              required
+              minLength={6}
+              autoComplete="new-password"
+              className="mt-1"
+              aria-invalid={errorFor(field) ? true : undefined}
+              aria-describedby={[field === 'password' && 'portal-password-hint', errorFor(field) && `portal-${field}-error`].filter(Boolean).join(' ') || undefined}
+            />
+            {field === 'password' && <p id="portal-password-hint" className="mt-1.5 text-xs text-muted-foreground">อย่างน้อย 6 ตัวอักษร</p>}
+            {errorFor(field) && <p id={`portal-${field}-error`} role="alert" className="mt-1.5 text-sm text-destructive">{errorFor(field)}</p>}
           </div>
-          <h1 className="mb-1.5 text-[19px] font-bold">ตั้งรหัสผ่านสำหรับพอร์ทัล</h1>
-          <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-            ครั้งถัดไปเข้าด้วยอีเมลและรหัสผ่านได้เลย ไม่ต้องรอลิงก์จากอีเมลทุกครั้ง
-          </p>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-[12.5px] font-semibold">รหัสผ่านใหม่</label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                autoComplete="new-password"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-[12.5px] font-semibold">ยืนยันรหัสผ่าน</label>
-              <Input
-                type="password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
-                minLength={6}
-                autoComplete="new-password"
-              />
-            </div>
-            {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? 'กำลังบันทึก...' : 'บันทึกรหัสผ่านและเข้าพอร์ทัล'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+        ))}
+        {error && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        <Button type="submit" className="h-11 w-full" disabled={submitting}>
+          {submitting ? 'กำลังบันทึก...' : 'บันทึกรหัสผ่านและเข้าพอร์ทัล'}
+        </Button>
+      </form>
+    </PortalAuthCard>
   );
 }

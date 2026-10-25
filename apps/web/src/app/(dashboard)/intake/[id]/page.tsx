@@ -30,9 +30,13 @@ import { ConflictCheckPanel } from '@/components/intake/ConflictCheckPanel';
 import { IntakeFollowUpPanel } from '@/components/intake/IntakeFollowUpPanel';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { AlertCircle, Check, ChevronRight, Circle, HelpCircle, Plus, Sparkles, X } from 'lucide-react';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { formatDate } from '@/lib/utils';
 import { CaseCostLine, initialCaseCosts } from '@/lib/case-costs';
@@ -49,13 +53,13 @@ const STATUS_LABELS: Record<string, string> = {
   CONSULTED: 'ให้คำปรึกษาเรียบร้อยแล้ว',
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  RECEIVED: 'bg-muted text-foreground',
-  ASSESSING: 'bg-accent text-primary',
-  ACCEPTED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  CONVERTED: 'bg-purple-100 text-purple-700',
-  CONSULTED: 'bg-muted text-foreground',
+const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
+  RECEIVED: 'muted',
+  ASSESSING: 'default',
+  ACCEPTED: 'success',
+  REJECTED: 'destructive',
+  CONVERTED: 'secondary',
+  CONSULTED: 'muted',
 };
 
 const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
@@ -218,10 +222,10 @@ function IntakeAssignees({
                 <button
                   type="button"
                   aria-label={`เอา ${name} ออก`}
-                  className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                  className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => save(assignedIds.filter((x) => x !== uid))}
                 >
-                  ×
+                  <X className="h-3.5 w-3.5" aria-hidden />
                 </button>
               )}
             </span>
@@ -239,7 +243,7 @@ function IntakeAssignees({
           }}
         >
           <option value="">
-            {assignable.length === 0 ? 'ไม่มีสมาชิกบทบาทต่ำกว่าให้มอบหมาย' : '+ มอบหมายให้...'}
+            {assignable.length === 0 ? 'ไม่มีสมาชิกบทบาทต่ำกว่าให้มอบหมาย' : 'มอบหมายให้...'}
           </option>
           {assignable.map((u) => (
             <option key={u.id} value={u.id}>
@@ -262,6 +266,8 @@ export default function IntakeDetailPage() {
   const router = useRouter();
   const [intake, setIntake] = useState<IntakeItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [modal, setModal] = useState<ModalType>(null);
   const [submitting, setSubmitting] = useState(false);
   const [conflict, setConflict] = useState<{ matches: ConflictMatchItem[]; retry: (reason: string) => void } | null>(null);
@@ -447,6 +453,7 @@ export default function IntakeDetailPage() {
   useEffect(() => {
     if (!token || !id) return;
     setLoading(true);
+    setLoadFailed(false);
     api.getIntake(token, id)
       .then((data) => {
         setIntake(data);
@@ -461,9 +468,13 @@ export default function IntakeDetailPage() {
           })
           .catch(() => setAnalyses([]));
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        // 404 = the record is gone; anything else is a failed load the user can retry.
+        if (!(err instanceof ApiError && err.status === 404)) setLoadFailed(true);
+      })
       .finally(() => setLoading(false));
-  }, [token, id]);
+  }, [token, id, loadAttempt]);
 
   const reload = async () => {
     if (!token || !id) return;
@@ -938,6 +949,7 @@ export default function IntakeDetailPage() {
   };
 
   if (loading) return <PageLoading title="กำลังโหลดเรื่องรับเข้า" lines={4} />;
+  if (!intake && loadFailed) return <LoadFailed onRetry={() => setLoadAttempt((n) => n + 1)} />;
   if (!intake) return <EmptyState title="ไม่พบข้อมูล" description="เรื่องรับเข้านี้อาจถูกลบหรือแปลงเป็นคดีไปแล้ว" />;
 
   const STEPS = ['RECEIVED', 'ASSESSING', 'ACCEPTED'];
@@ -973,51 +985,44 @@ export default function IntakeDetailPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="min-w-0 text-2xl font-bold">
-              {intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
-            </h1>
+      <PageHeader
+        title={intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
+        description={`${intake.referralName || intake.clientName || intake.client?.name || '—'} · รับเมื่อ ${formatDateOrDash(intake.receivedDate)}`}
+        actions={
+          <>
             {intake.partyRole && (
-              <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-900">
-                {intake.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}
-              </span>
+              <Badge variant="warning">{intake.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}</Badge>
             )}
-          </div>
-          <p className="text-sm text-muted-foreground">{intake.referralName || intake.clientName || intake.client?.name || '—'} · รับเมื่อ {formatDateOrDash(intake.receivedDate)}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button size="sm" onClick={() => openNoticeModal()}>ออก Notice</Button>
-          <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[intake.status] ?? 'bg-muted text-foreground'}`}>
-            {STATUS_LABELS[intake.status] ?? intake.status}
-          </span>
-        </div>
-      </div>
+            <Badge variant={STATUS_VARIANT[intake.status] ?? 'muted'}>
+              {STATUS_LABELS[intake.status] ?? intake.status}
+            </Badge>
+            <Button variant="outline" onClick={() => openNoticeModal()}>ออก Notice</Button>
+          </>
+        }
+      />
 
       {/* Summary strip — ตัวเลขที่ทนายเปิดหน้านี้มาดูก่อนอย่างอื่น */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <button type="button" onClick={() => setWorkspaceTab('overview')} className="rounded-xl border border-border bg-card p-3 text-left shadow-sm hover:bg-muted/40">
+      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <button type="button" onClick={() => setWorkspaceTab('overview')} className="bg-card p-3 text-left hover:bg-muted/40">
           <p className="text-xs text-muted-foreground">งานที่ต้องทำ</p>
-          <p className="mt-0.5 text-xl font-bold">{taskCounts.done}/{taskCounts.total}</p>
+          <p className="mt-0.5 text-xl font-bold tabular-nums">{taskCounts.done}/{taskCounts.total}</p>
           <div className="mt-1.5 h-1.5 rounded-full bg-muted">
             <div className="h-1.5 rounded-full bg-primary" style={{ width: taskCounts.total ? `${Math.round((taskCounts.done / taskCounts.total) * 100)}%` : '0%' }} />
           </div>
         </button>
-        <button type="button" onClick={() => setWorkspaceTab('documents')} className="rounded-xl border border-border bg-card p-3 text-left shadow-sm hover:bg-muted/40">
+        <button type="button" onClick={() => setWorkspaceTab('documents')} className="bg-card p-3 text-left hover:bg-muted/40">
           <p className="text-xs text-muted-foreground">เอกสารที่ต้องมี</p>
-          <p className="mt-0.5 text-xl font-bold">
+          <p className="mt-0.5 text-xl font-bold tabular-nums">
             {matchedExpectedDocuments.length}/{expectedDocuments.length}
             {missingExpectedDocuments > 0 && (
               <span className="ml-2 text-xs font-medium text-destructive">ขาด {missingExpectedDocuments} รายการ</span>
             )}
           </p>
           <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-            <div className="h-1.5 rounded-full bg-emerald-600" style={{ width: expectedDocuments.length ? `${Math.round((matchedExpectedDocuments.length / expectedDocuments.length) * 100)}%` : '0%' }} />
+            <div className="h-1.5 rounded-full bg-success" style={{ width: expectedDocuments.length ? `${Math.round((matchedExpectedDocuments.length / expectedDocuments.length) * 100)}%` : '0%' }} />
           </div>
         </button>
-        <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+        <div className="bg-card p-3">
           <p className="text-xs text-muted-foreground">Notice / เจรจา</p>
           {intake.noticeIssuedAt ? (
             <>
@@ -1029,13 +1034,14 @@ export default function IntakeDetailPage() {
           ) : (
             <>
               <p className="mt-0.5 text-sm font-bold">ยังไม่ออก Notice</p>
-              <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => openNoticeModal()}>
-                ออก Notice ตอนไหนก็ได้ →
+              <button type="button" className="inline-flex min-h-[44px] items-center gap-0.5 text-xs font-medium text-primary hover:underline sm:min-h-0" onClick={() => openNoticeModal()}>
+                ออก Notice
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </button>
             </>
           )}
         </div>
-        <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+        <div className="bg-card p-3">
           <p className="text-xs text-muted-foreground">กำหนด/อายุความ</p>
           {intake.deadlineDate ? (
             <>
@@ -1087,10 +1093,6 @@ export default function IntakeDetailPage() {
             {intake.status === 'ASSESSING' && (
               <Button onClick={() => setModal('decide')}>ตัดสินใจแนวทาง</Button>
             )}
-            {/* งานก่อนฟ้องยังทำต่อได้หลังเปิดคดี — โนติส/เจรจา/ใบเสนอราคาบันทึกที่นี่ */}
-            {['ACCEPTED', 'CONVERTED'].includes(intake.status) && (
-              <Button variant="outline" onClick={() => openNoticeModal()}>ออก Notice</Button>
-            )}
             <Button variant="outline" onClick={handleQuotePdfExport}>
               Export ใบเสนอราคา PDF
             </Button>
@@ -1116,7 +1118,10 @@ export default function IntakeDetailPage() {
 
       </div>
       <div id="intake-documents" role="tabpanel" aria-label="เอกสาร" hidden={workspaceTab !== 'documents'}>
-      <Button variant="outline" onClick={() => setWorkspaceTab('research')}>ใช้เอกสารจัดข้อเท็จจริงหรือค้นฎีกา →</Button>
+      <Button variant="outline" onClick={() => setWorkspaceTab('research')}>
+        จัดข้อเท็จจริงและค้นฎีกา
+        <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
+      </Button>
       {currentAnalysis?.extractedFacts?.selectedAttachments && <p className="text-xs text-muted-foreground">ไฟล์ที่ใช้ในผลวิเคราะห์ที่แสดง: {currentAnalysis.extractedFacts.selectedAttachments.map((file) => file.filename).join(', ') || 'ใช้เฉพาะรายละเอียดเรื่อง'}</p>}
       {currentAnalysis?.extractedFacts?.attachmentWarnings?.map((warning) => <p key={warning} className="text-sm text-destructive">{warning}</p>)}
 
@@ -1194,7 +1199,13 @@ export default function IntakeDetailPage() {
                               : 'bg-muted text-muted-foreground'
                         }`}
                       >
-                        {matched ? '✓' : pending ? '?' : '○'}
+                        {matched ? (
+                          <Check className="h-3.5 w-3.5" aria-hidden />
+                        ) : pending ? (
+                          <HelpCircle className="h-3.5 w-3.5" aria-hidden />
+                        ) : (
+                          <Circle className="h-3.5 w-3.5" aria-hidden />
+                        )}
                       </span>
                       <div className="min-w-0">
                         <span className={matched ? 'text-foreground' : 'text-muted-foreground'}>
@@ -1298,6 +1309,7 @@ export default function IntakeDetailPage() {
                         <Button
                           type="button"
                           size="sm"
+                          variant="outline"
                           disabled={matchingRequests.length > 1 && !selectedRequestId}
                           onClick={() => confirmChecklistSuggestion(suggestion, selectedRequestId ?? matchingRequests[0]?.id)}
                         >
@@ -1414,12 +1426,15 @@ export default function IntakeDetailPage() {
               <CardTitle className="text-base">
                 เอกสารที่ต้องมี{' '}
                 {missingExpectedDocuments > 0 ? (
-                  <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">ขาด {missingExpectedDocuments} รายการ</span>
+                  <Badge variant="destructive" className="ml-1">ขาด {missingExpectedDocuments} รายการ</Badge>
                 ) : (
-                  <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">ครบ</span>
+                  <Badge variant="success" className="ml-1">ครบ</Badge>
                 )}
               </CardTitle>
-              <Button variant="outline" size="sm" onClick={() => setWorkspaceTab('documents')}>อัปโหลด / จัดการไฟล์ →</Button>
+              <Button variant="outline" size="sm" onClick={() => setWorkspaceTab('documents')}>
+                จัดการไฟล์
+                <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="grid gap-1.5 sm:grid-cols-2">
@@ -1427,7 +1442,11 @@ export default function IntakeDetailPage() {
                   const ok = isChecklistMatched(item);
                   return (
                     <div key={item.label} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${ok ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/60'}`}>
-                      <span className={ok ? 'text-emerald-600' : 'text-red-600'}>{ok ? '✓' : '!'}</span>
+                      {ok ? (
+                        <Check className="h-4 w-4 shrink-0 text-success" aria-label="มีแล้ว" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 shrink-0 text-destructive" aria-label="ยังขาด" />
+                      )}
                       <span className="min-w-0 break-words">{item.label}</span>
                     </div>
                   );
@@ -1442,15 +1461,21 @@ export default function IntakeDetailPage() {
               <CardTitle className="text-base">หนังสือทวงถาม (Notice)</CardTitle>
               <div className="flex flex-wrap gap-2">
                 {currentAnalysis?.status === 'COMPLETE' && (
-                  <Button variant="outline" size="sm" onClick={() => handleDraftFromAnalysis(currentAnalysis.id)}>✦ AI ร่างหนังสือ</Button>
+                  <Button variant="outline" size="sm" onClick={() => handleDraftFromAnalysis(currentAnalysis.id)}>
+                    <Sparkles className="mr-1 h-4 w-4" aria-hidden />
+                    AI ร่างหนังสือ
+                  </Button>
                 )}
-                <Button size="sm" onClick={() => openNoticeModal()}>+ ออก Notice ฉบับใหม่</Button>
+                <Button variant="outline" size="sm" onClick={() => openNoticeModal()}>
+                  <Plus className="mr-1 h-4 w-4" aria-hidden />
+                  ออก Notice ฉบับใหม่
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
               {intake.noticeIssuedAt ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">ฉบับล่าสุด</span>
+                  <Badge variant="success">ฉบับล่าสุด</Badge>
                   <span>ถึง {intake.noticeRecipient ?? '—'} · ออก {formatDateOrDash(intake.noticeIssuedAt)}{intake.noticeDeadline ? ` · ครบกำหนด ${formatDateOrDash(intake.noticeDeadline)}` : ''}</span>
                   {intake.noticeResult && <span className="text-muted-foreground">· ผล: {intake.noticeResult}</span>}
                 </div>
@@ -1584,7 +1609,7 @@ export default function IntakeDetailPage() {
             ) : intake.preferredPlaybookId ? (
               <p className="text-sm">
                 <span className="font-semibold">{playbooks.find((p) => p.id === intake.preferredPlaybookId)?.name ?? 'Playbook ที่เลือกไว้'}</span>
-                <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800">ใช้อยู่ · งาน {taskCounts.done}/{taskCounts.total}</span>
+                <Badge className="ml-2 tabular-nums">ใช้อยู่ · งาน {taskCounts.done}/{taskCounts.total}</Badge>
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">ยังไม่ใช้ Playbook — เลือกแล้วได้งานทุกขั้นทันที</p>
@@ -1910,7 +1935,7 @@ export default function IntakeDetailPage() {
                   {!playbooks.length && editCaseTypeId && (
                     <p className="text-xs text-muted-foreground">
                       ยังไม่มี Playbook เลย{' '}
-                      <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
+                      <Link href="/playbooks" className="inline-flex items-center text-primary underline">สร้าง Playbook<ChevronRight className="h-3.5 w-3.5" aria-hidden /></Link>
                     </p>
                   )}
                   <div className="grid gap-3 sm:grid-cols-2">

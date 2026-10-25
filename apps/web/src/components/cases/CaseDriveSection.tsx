@@ -6,6 +6,9 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, CaseDriveListing, DriveItemView, DrivePickerItem } from '@/lib/api';
 import { driveDateTime, formatFileSize, openInNewTab } from '@/lib/drive-view';
 import { DriveFolderPicker } from '@/components/drive/DriveFolderPicker';
+import { Button } from '@/components/ui/button';
+import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 /** ส่วน "OneDrive" ในแท็บเอกสารคดี — ไฟล์สดจาก folder ที่ผูกไว้ (ไม่เก็บสำเนา จนกว่าจะกดนำเข้า). */
 export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImported: () => void }) {
@@ -97,7 +100,7 @@ export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImp
   const hasFiles = listing?.state === 'OK' && listing.items.some((item) => !item.isFolder);
 
   return (
-    <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
+    <div className="mb-6 rounded-xl border bg-card p-6">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="font-semibold text-foreground">OneDrive</h2>
@@ -110,8 +113,8 @@ export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImp
         </div>
         <div className="flex flex-wrap gap-2">
           {listing?.link && (
-            <button type="button" onClick={load} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent">
-              <RefreshCw className="h-3.5 w-3.5" />
+            <button type="button" onClick={load} className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs sm:min-h-8 hover:bg-accent">
+              <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
               รีเฟรช
             </button>
           )}
@@ -120,47 +123,55 @@ export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImp
               type="button"
               onClick={importAll}
               disabled={busyId === '*'}
-              className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent disabled:opacity-50"
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs sm:min-h-8 hover:bg-accent disabled:opacity-50"
             >
-              <FileDown className="h-3.5 w-3.5" />
+              <FileDown aria-hidden="true" className="h-3.5 w-3.5" />
               {busyId === '*' ? 'กำลังนำเข้า…' : 'นำเข้าไฟล์ทั้ง folder'}
             </button>
           )}
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+            className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs sm:min-h-8 font-medium hover:bg-accent"
           >
-            <Link2 className="h-3.5 w-3.5" />
+            <Link2 aria-hidden="true" className="h-3.5 w-3.5" />
             {listing?.link ? 'เปลี่ยน folder' : 'ผูก folder OneDrive'}
           </button>
           {listing?.link && (
-            <button type="button" onClick={unlink} className="rounded-lg border px-2.5 py-1 text-xs hover:bg-accent">
+            <button type="button" onClick={unlink} className="inline-flex min-h-11 items-center rounded-lg border border-destructive/40 px-2.5 py-1 text-xs text-destructive hover:bg-destructive/5 sm:min-h-8">
               ยกเลิกการผูก
             </button>
           )}
         </div>
       </div>
 
-      {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
-      {notice && <p className="mb-2 text-sm text-emerald-700 dark:text-emerald-300">{notice}</p>}
-      {loading && <p className="text-sm text-muted-foreground">กำลังโหลดจาก OneDrive…</p>}
+      {error && !loading && !listing ? (
+        <LoadFailed message={error} onRetry={load} />
+      ) : error ? (
+        <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>
+      ) : null}
+      {notice && <p role="status" className="mb-2 text-sm text-success">{notice}</p>}
+      {loading && (
+        <div role="status" aria-label="กำลังโหลดจาก OneDrive" className="space-y-2">
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
+        </div>
+      )}
 
       {!loading && listing?.state === 'NO_LINK' && (
-        <p className="text-sm text-muted-foreground">
-          ยังไม่ได้ผูก folder — กด &quot;ผูก folder OneDrive&quot; เพื่อแสดงไฟล์คดีจาก OneDrive/SharePoint ที่นี่
-        </p>
+        <InlineEmptyState title="ยังไม่ได้ผูก folder OneDrive ของคดี" />
       )}
 
       {!loading && listing && (listing.state === 'DISCONNECTED' || listing.state === 'ERROR') && (
-        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-          {listing.message}
-        </p>
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-foreground">
+          <span>{listing.message}</span>
+          <Button type="button" size="sm" variant="outline" onClick={load}>ลองใหม่</Button>
+        </div>
       )}
 
       {!loading && listing?.state === 'OK' && (
         <div className="space-y-2">
-          {listing.items.length === 0 && <p className="text-sm text-muted-foreground">folder นี้ยังไม่มีไฟล์</p>}
+          {listing.items.length === 0 && <InlineEmptyState title="folder นี้ยังไม่มีไฟล์" />}
           {listing.items.map((item) => (
             <div
               key={item.id}
@@ -179,9 +190,9 @@ export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImp
                 <button
                   type="button"
                   onClick={() => openItem(item)}
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs sm:min-h-8 font-medium hover:bg-accent"
                 >
-                  <ExternalLink className="h-3.5 w-3.5" />
+                  <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
                   {item.isFolder ? 'เปิดใน OneDrive' : 'เปิดใน Office ออนไลน์'}
                 </button>
                 {!item.isFolder && (
@@ -189,9 +200,9 @@ export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImp
                     type="button"
                     onClick={() => importItem(item)}
                     disabled={busyId === item.id}
-                    className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs sm:min-h-8 font-medium hover:bg-accent disabled:opacity-50"
                   >
-                    <FileDown className="h-3.5 w-3.5" />
+                    <FileDown aria-hidden="true" className="h-3.5 w-3.5" />
                     {busyId === item.id ? 'กำลังนำเข้า…' : 'นำเข้าเป็นเอกสารคดี'}
                   </button>
                 )}

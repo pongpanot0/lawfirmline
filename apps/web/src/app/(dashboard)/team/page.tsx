@@ -8,13 +8,14 @@ import { api } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
-import { InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
+import { InlineEmptyState, Skeleton, TableEmptyRow } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { SelectField, TextField } from '@/components/ui/form-fields';
 
 type TeamMember = Awaited<ReturnType<typeof api.getTeamMembers>>[number];
 type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
@@ -81,7 +82,7 @@ export default function TeamPage() {
   }, [loadTeam]);
 
   if (!canInvite) {
-    return <p className="text-destructive">{d.team.accessDenied}</p>;
+    return <div><PageHeader title={d.team.title} /><p role="alert" className="text-sm text-destructive">{d.team.accessDenied}</p></div>;
   }
 
   const firmRoleLabel = (role: string) => {
@@ -205,57 +206,55 @@ export default function TeamPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={d.team.title} description={d.team.description} />
-      {loadError && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-        <p className="text-sm text-destructive">{loadError}</p>
-        <Button variant="outline" onClick={loadTeam} disabled={loading}>{d.common.retry}</Button>
-      </div>}
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <UserPlus className="h-4 w-4" />
+            <UserPlus className="h-4 w-4 text-muted-foreground" aria-hidden />
             {d.team.inviteMember}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="mb-4 text-sm text-muted-foreground">{d.team.inviteHint}</p>
           <form onSubmit={handleInvite} className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Input
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <TextField
+                label={d.team.email}
                 type="email"
-                aria-label={d.team.email}
                 autoComplete="email"
                 required
                 placeholder={d.team.emailPlaceholder}
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                className="flex-1"
+                className="h-11"
+                containerClassName="flex-1"
+                error={inviteError || undefined}
               />
-              <select
-                aria-label={d.team.role}
+              {/* Picking a role is picking what someone sees; say it before the invite goes out. */}
+              <SelectField
+                label={d.team.role}
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as FirmRole)}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+                className="h-11"
+                containerClassName="sm:w-64"
+                hint={d.team[ROLE_OPTIONS.find((o) => o.value === inviteRole)!.hintKey]}
               >
                 {inviteRoleOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
                 ))}
-              </select>
-              <Button type="submit" disabled={inviting}>
+              </SelectField>
+              <Button type="submit" disabled={inviting} className="sm:mt-7">
                 {inviting ? d.team.sending : d.team.sendInvite}
               </Button>
             </div>
           </form>
-          {/* Picking a role is picking what someone sees; say it before the invite goes out. */}
-          <p className="mt-2 text-xs text-muted-foreground">{d.team[ROLE_OPTIONS.find((o) => o.value === inviteRole)!.hintKey]}</p>
-          {inviteError && <p role="alert" className="mt-2 text-sm text-destructive">{inviteError}</p>}
           {inviteUrl && (
             <div className="mt-4 rounded-lg bg-muted p-3">
               <p className="text-xs font-medium text-muted-foreground">{d.team.shareLink}</p>
               <div className="mt-2 flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate text-xs">{inviteUrl}</code>
                 <Button type="button" variant="outline" size="sm" aria-label={d.team.shareLink} onClick={copyInviteUrl}>
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
                 </Button>
               </div>
             </div>
@@ -269,14 +268,16 @@ export default function TeamPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-4">
-              <PageLoading title={d.common.loading} lines={3} />
+            <div role="status" aria-label={d.common.loading} className="space-y-3 p-4">
+              {[0, 1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
+          ) : loadError ? (
+            <div className="p-4"><LoadFailed message={loadError} onRetry={loadTeam} /></div>
           ) : (
             <>
               <div className="space-y-3 p-4 md:hidden">
                 {members.length === 0 ? (
-                  <InlineEmptyState title="ยังไม่มีสมาชิกทีม" description="เชิญสมาชิกคนแรกด้วยอีเมลด้านบน แล้วสิทธิ์สำนักงานจะถูกผูกให้ทันที" />
+                  <InlineEmptyState title="ยังไม่มีสมาชิกทีม" description="เชิญสมาชิกคนแรกด้วยอีเมลด้านบน" />
                 ) : (
                   members.map((m) => (
                     <div key={m.id} className="grid grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-3 rounded-lg border p-3">
@@ -284,7 +285,7 @@ export default function TeamPage() {
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">{m.firstName} {m.lastName}</p>
                         <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
-                          <Mail className="h-3 w-3 shrink-0" />
+                          <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
                           {m.email}
                         </p>
                       </div>
@@ -294,7 +295,7 @@ export default function TeamPage() {
                           value={m.firmRole}
                           disabled={changingRoleId === m.id}
                           onChange={(e) => handleRoleChange(m, e.target.value as FirmRole)}
-                          className="min-w-0 max-w-full flex-1 rounded-lg border border-input bg-card px-3 text-sm"
+                          className="min-h-11 min-w-0 max-w-full flex-1 rounded-lg border border-input bg-card px-3 text-sm"
                           aria-label={d.team.changeRole}
                         >
                           {ROLE_OPTIONS.map((opt) => (
@@ -311,11 +312,12 @@ export default function TeamPage() {
                           type="button"
                           variant="outline"
                           size="sm"
+                          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                           disabled={removingId === m.id}
                           onClick={() => handleRemoveMember(m)}
                           aria-label={d.team.removeMember}
                         >
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <Trash2 className="h-4 w-4" aria-hidden />
                         </Button>
                       )}
                       </div>
@@ -335,7 +337,7 @@ export default function TeamPage() {
                 </TableHeader>
                 <TableBody>
                   {members.length === 0 ? (
-                    <TableEmptyRow colSpan={5} title="ยังไม่มีสมาชิกทีม" description="เชิญสมาชิกคนแรกด้วยอีเมลด้านบน แล้วสิทธิ์สำนักงานจะถูกผูกให้ทันที" />
+                    <TableEmptyRow colSpan={5} title="ยังไม่มีสมาชิกทีม" description="เชิญสมาชิกคนแรกด้วยอีเมลด้านบน" />
                   ) : members.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell>
@@ -373,10 +375,11 @@ export default function TeamPage() {
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                             disabled={removingId === m.id}
                             onClick={() => handleRemoveMember(m)}
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Trash2 className="h-4 w-4" aria-hidden />
                             <span className="sr-only">{d.team.removeMember}</span>
                           </Button>
                         )}
@@ -396,9 +399,13 @@ export default function TeamPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <PageLoading title={d.common.loading} lines={2} />
+            <div role="status" aria-label={d.common.loading} className="space-y-3">
+              {[0, 1].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : loadError ? (
+            <LoadFailed message={loadError} onRetry={loadTeam} />
           ) : invitations.length === 0 ? (
-            <InlineEmptyState title={d.team.noPending} description="คำเชิญที่ยังไม่ถูกตอบรับจะแสดงที่นี่ พร้อมวันหมดอายุและปุ่มยกเลิก" />
+            <InlineEmptyState title={d.team.noPending} />
           ) : (
             <ul className="space-y-3">
               {invitations.map((inv) => (
@@ -407,13 +414,13 @@ export default function TeamPage() {
                   className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <Mail className="h-4 w-4 text-muted-foreground" aria-hidden />
                     <span className="min-w-0 break-all font-medium">{inv.email}</span>
                     <Badge variant="muted">{firmRoleLabel(inv.role)}</Badge>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
+                      <Clock className="h-3.5 w-3.5" aria-hidden />
                       {fmt(d.team.expires, {
                         date: new Date(inv.expiresAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' }),
                       })}
@@ -422,6 +429,7 @@ export default function TeamPage() {
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       disabled={cancellingId === inv.id}
                       onClick={() => handleCancelInvite(inv)}
                     >

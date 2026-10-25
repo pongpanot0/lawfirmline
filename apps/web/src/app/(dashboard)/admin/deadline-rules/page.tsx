@@ -23,9 +23,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
-import { InlineEmptyState } from '@/components/ui/misc';
+import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
+import { Badge } from '@/components/ui/badge';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
-const SELECT = 'h-9 w-full rounded-md border border-input bg-background px-3 text-sm';
+const SELECT = 'h-10 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
 
 type Form = {
   label: string;
@@ -83,9 +85,16 @@ export default function DeadlineRulesPage() {
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = () => {
-    if (token) api.getDeadlineRules(token).then(setRules).catch(console.error);
+    if (!token) return;
+    setLoadError(false);
+    api.getDeadlineRules(token)
+      .then(setRules)
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
   };
   useEffect(load, [token]);
 
@@ -119,7 +128,7 @@ export default function DeadlineRulesPage() {
     );
 
   const remove = (rule: DeadlineRuleItem) => {
-    if (window.confirm(t.confirmDelete)) run(() => api.deleteDeadlineRule(token!, rule.id));
+    if (window.confirm(`${t.confirmDelete}\n${rule.label}`)) run(() => api.deleteDeadlineRule(token!, rule.id));
   };
 
   const describe = (rule: DeadlineRuleItem) =>
@@ -139,19 +148,20 @@ export default function DeadlineRulesPage() {
       <div className="min-w-0 flex-1">
         <p className="font-medium text-foreground">
           {rule.label}
-          {origin && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{t.origin[origin]}</span>}
+          {origin && <Badge variant="muted" className="ml-2 align-middle">{t.origin[origin]}</Badge>}
+          {!rule.isActive && <Badge variant="muted" className="ml-2 align-middle">{t.inactive}</Badge>}
         </p>
         <p className="text-xs text-muted-foreground">{describe(rule)}</p>
       </div>
       {fromGlobal && (
         <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setForm(fromRule(rule))}>{t.customize}</Button>
       )}
-      <Button type="button" size="sm" variant={rule.isActive ? 'secondary' : 'outline'} disabled={busy} onClick={() => toggle(rule, fromGlobal)}>
-        {fromGlobal ? (rule.isActive ? t.disableForFirm : t.enableForFirm) : rule.isActive ? t.active : t.inactive}
+      <Button type="button" size="sm" variant="outline" disabled={busy} aria-pressed={rule.isActive} onClick={() => toggle(rule, fromGlobal)}>
+        {rule.isActive ? t.disableForFirm : t.enableForFirm}
       </Button>
       {rule.canEdit && !fromGlobal && (
-        <Button type="button" size="sm" variant="ghost" disabled={busy} aria-label={origin === 'OVERRIDE' ? t.revert : t.confirmDelete} onClick={() => remove(rule)}>
-          {origin === 'OVERRIDE' ? t.revert : <Trash2 className="size-4" />}
+        <Button type="button" size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busy} aria-label={origin === 'OVERRIDE' ? `${t.revert}: ${rule.label}` : `ลบ ${rule.label}`} onClick={() => remove(rule)}>
+          {origin === 'OVERRIDE' ? t.revert : <Trash2 className="size-4" aria-hidden />}
         </Button>
       )}
     </li>
@@ -160,7 +170,7 @@ export default function DeadlineRulesPage() {
 
   const field = (label: string, input: React.ReactNode, wide = false) => (
     <label className={`text-sm ${wide ? 'sm:col-span-2' : ''}`}>
-      <span className="mb-1 block text-muted-foreground">{label}</span>
+      <span className="mb-1 block font-medium">{label}</span>
       {input}
     </label>
   );
@@ -171,14 +181,14 @@ export default function DeadlineRulesPage() {
         title={t.title}
         description={t.description}
         actions={
-          <Button size="sm" onClick={() => setForm(form ? null : EMPTY)} className="w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
+          <Button size="sm" aria-expanded={!!form} onClick={() => setForm(form ? null : EMPTY)}>
+            <Plus className="h-4 w-4" aria-hidden />
             {t.add}
           </Button>
         }
       />
 
-      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
 
       {form && (
         <Card className="mb-4">
@@ -235,7 +245,8 @@ export default function DeadlineRulesPage() {
                   {t.global}
                 </label>
               )}
-              <div className="sm:col-span-2">
+              <div className="flex flex-wrap justify-end gap-2 border-t pt-4 sm:col-span-2">
+                <Button type="button" size="sm" variant="ghost" onClick={() => setForm(null)}>{d.common.cancel}</Button>
                 <Button type="submit" size="sm" disabled={busy}>{t.save}</Button>
               </div>
             </form>
@@ -245,8 +256,12 @@ export default function DeadlineRulesPage() {
 
       <Card>
         <CardContent className="pt-6">
-          {rows.length === 0 ? (
-            <InlineEmptyState title={t.empty} description="เพิ่มกฎแรกเพื่อให้ระบบช่วยคำนวณกำหนดตามเหตุการณ์ของคดี" />
+          {loadError ? (
+            <LoadFailed onRetry={load} />
+          ) : loading ? (
+            <div role="status" aria-label={d.common.loading} className="space-y-3">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+          ) : rows.length === 0 ? (
+            <InlineEmptyState title={t.empty} description="กฎที่ตั้งไว้ใช้คำนวณวันครบกำหนดตามเหตุการณ์ของคดี" action={<Button size="sm" variant="outline" onClick={() => setForm(EMPTY)}><Plus className="h-4 w-4" aria-hidden />{t.add}</Button>} />
           ) : (
             <ul className="divide-y divide-border">{rows.map(({ rule, origin }) => row(rule, origin))}</ul>
           )}

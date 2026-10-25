@@ -1,6 +1,8 @@
 'use client';
 
 import type { CSSProperties } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
@@ -87,19 +89,19 @@ export function CalendarView({
   const goToday = () => onMonthChange(new Date());
 
   return (
-    <div className="rounded-xl border bg-card shadow-soft">
-      <div className="flex items-center justify-between border-b px-6 py-4">
+    <div className="rounded-xl border bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6">
         <h2 className="text-lg font-semibold text-foreground">{monthName}</h2>
         <div className="flex gap-2">
-          <button onClick={prevMonth} className="rounded-lg border px-3 py-1 text-sm hover:bg-accent">
-            ←
-          </button>
-          <button onClick={goToday} className="rounded-lg border px-3 py-1 text-sm hover:bg-accent">
+          <Button type="button" variant="outline" size="icon" onClick={prevMonth} aria-label={locale === 'th' ? 'เดือนก่อน' : 'Previous month'}>
+            <ChevronLeft className="h-4 w-4" aria-hidden />
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={goToday}>
             {d.calendar.today}
-          </button>
-          <button onClick={nextMonth} className="rounded-lg border px-3 py-1 text-sm hover:bg-accent">
-            →
-          </button>
+          </Button>
+          <Button type="button" variant="outline" size="icon" onClick={nextMonth} aria-label={locale === 'th' ? 'เดือนถัดไป' : 'Next month'}>
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Button>
         </div>
       </div>
       <div className="grid grid-cols-7 gap-px bg-border p-px">

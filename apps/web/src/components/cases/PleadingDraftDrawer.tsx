@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { SideDrawer } from '@/components/ui/SideDrawer';
+import { ArrowLeft } from 'lucide-react';
 import { api, ApiError, PleadingCitation, PleadingDraftItem } from '@/lib/api';
 import { publishActionFeedback } from '@/lib/action-feedback';
 import { splitDraftParagraphs, splitParagraphSegments } from '@/lib/pleading-draft-format';
@@ -106,7 +107,7 @@ export function PleadingDraftDrawer({
 
   return (
     <SideDrawer open={open} title="AI ร่างคำคู่ความ" onClose={onClose}>
-      <div className="flex h-full gap-4">
+      <div className="flex h-full flex-col gap-4 sm:flex-row">
         <div className="min-w-0 flex-1">
           {drafts.length > 0 && (
             <div className="mb-4 flex flex-wrap gap-1.5 border-b border-border pb-3">
@@ -156,12 +157,12 @@ export function PleadingDraftDrawer({
                   placeholder="เช่น เน้นประเด็นผิดสัญญาเช่า"
                 />
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
               <button
                 type="button"
                 onClick={handleGenerate}
                 disabled={generating}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
               >
                 {generating ? (
                   <>
@@ -182,8 +183,8 @@ export function PleadingDraftDrawer({
                 <span
                   className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
                     draft.status === 'APPROVED'
-                      ? 'border-emerald-300 text-emerald-700 dark:text-emerald-300'
-                      : 'border-amber-400 text-amber-700 dark:text-amber-300'
+                      ? 'border-success/40 text-success'
+                      : 'border-warning/50 text-warning'
                   }`}
                 >
                   {draft.status === 'APPROVED' ? 'บันทึกเป็นเอกสารแล้ว' : 'ร่าง AI · ยังไม่บันทึก'}
@@ -191,13 +192,14 @@ export function PleadingDraftDrawer({
                 <button
                   type="button"
                   onClick={() => setDraft(null)}
-                  className="rounded-lg border px-2.5 py-1 text-xs hover:bg-accent"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent sm:min-h-8"
                 >
-                  ← กลับไปสร้างร่างใหม่
+                  <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
+                  กลับไปสร้างร่างใหม่
                 </button>
               </div>
 
-              {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+              {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
 
               {editing ? (
                 <textarea
@@ -246,7 +248,7 @@ export function PleadingDraftDrawer({
                   type="button"
                   onClick={handleGenerate}
                   disabled={generating || draft.status === 'APPROVED'}
-                  className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                  className="min-h-11 rounded-lg border px-3 py-1.5 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
                   {generating ? 'AI กำลังร่าง…' : 'ร่างใหม่'}
                 </button>
@@ -255,7 +257,7 @@ export function PleadingDraftDrawer({
                     type="button"
                     onClick={handleSaveEdit}
                     disabled={saving}
-                    className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                    className="min-h-11 rounded-lg border px-3 py-1.5 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   >
                     {saving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
                   </button>
@@ -267,7 +269,7 @@ export function PleadingDraftDrawer({
                       setEditing(true);
                     }}
                     disabled={draft.status === 'APPROVED'}
-                    className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                    className="min-h-11 rounded-lg border px-3 py-1.5 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                   >
                     แก้ไข
                   </button>
@@ -276,7 +278,7 @@ export function PleadingDraftDrawer({
                   type="button"
                   onClick={handleApprove}
                   disabled={approving || editing || draft.status === 'APPROVED'}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+                  className="min-h-11 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
                   {approving ? 'กำลังบันทึก...' : 'ตรวจแล้ว บันทึกเป็นเอกสาร'}
                 </button>
@@ -287,7 +289,7 @@ export function PleadingDraftDrawer({
         </div>
 
         {draft && (
-          <div className="w-56 shrink-0 border-l border-border pl-3">
+          <div className="shrink-0 border-t border-border pt-3 sm:w-56 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
             <h3 className="mb-2 text-sm font-semibold">แหล่งอ้างอิง</h3>
             {activeCitation ? (
               <div className="text-xs">

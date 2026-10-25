@@ -45,7 +45,7 @@ export function CaseNumberPrefixCard() {
   };
 
   return (
-    <Card className="lg:col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle>คำนำหน้าเลขคดี</CardTitle>
         <p className="text-sm text-muted-foreground">มีผลกับคดีที่เปิดใหม่เท่านั้น เลขคดีเดิมไม่เปลี่ยน และยังแก้เลขแต่ละคดีเองได้ในหน้าคดี</p>
@@ -63,16 +63,16 @@ export function CaseNumberPrefixCard() {
             />
           </label>
           <Button onClick={save} disabled={saving || !valid || normalized === saved}>
-            {saving ? 'กำลังบันทึก…' : 'บันทึก'}
+            {saving ? 'กำลังบันทึก…' : 'บันทึกคำนำหน้า'}
           </Button>
         </div>
         {valid ? (
           <p className="text-sm text-muted-foreground">เลขคดีถัดไปจะหน้าตาแบบ <span className="font-mono text-foreground">{normalized}{year}0001</span></p>
         ) : (
-          <p className="text-sm text-destructive">ใช้ได้เฉพาะ A–Z, 0–9 และ - ยาว 1–12 ตัว</p>
+          <p role="alert" className="text-sm text-destructive">ใช้ได้เฉพาะ A–Z, 0–9 และ - ยาว 1–12 ตัว</p>
         )}
         {message && (
-          <p className={`text-sm ${message.type === 'error' ? 'text-destructive' : 'text-green-600'}`}>{message.text}</p>
+          <p role={message.type === 'error' ? 'alert' : 'status'} className={`text-sm ${message.type === 'error' ? 'text-destructive' : 'text-success'}`}>{message.text}</p>
         )}
       </CardContent>
     </Card>

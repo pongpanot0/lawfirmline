@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowRight, Check, Loader2, Sparkles, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, Check, ChevronRight, Loader2, Sparkles, X } from 'lucide-react';
 import { AI_CREDIT_COST, canAssignFirmRole, TASK_WORK_TYPES, TaskStatus, TaskLogAction } from '@lawfirm/shared';
 import { api, ApiError, TaskAiInsight, TaskDetail, UserItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -168,7 +168,7 @@ export function TaskAiPanel({ task, users, tab, onTabChange, onChanged, onNaviga
             <h3 className="flex items-center gap-2 text-sm font-semibold text-rose-900 dark:text-rose-200"><AlertCircle className="h-4 w-4" />{t('สิ่งที่ติดขัด', 'Blocker')}</h3>
             <p className="mt-2 text-sm font-semibold">{insight.blocker}</p>
             <blockquote className="mt-3 border-l-2 border-rose-300 pl-3 text-xs leading-6 text-muted-foreground">“{insight.quote}”</blockquote>
-            <button type="button" className="mt-2 text-xs font-semibold text-primary hover:underline" onClick={() => onTabChange('source')}>{t('ดูข้อความต้นทาง', 'View source update')} →</button>
+            <button type="button" className="mt-2 inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline" onClick={() => onTabChange('source')}>{t('ดูข้อความต้นทาง', 'View source update')}<ChevronRight className="h-3.5 w-3.5" aria-hidden /></button>
           </section>
           <section className="rounded-xl border border-border bg-accent p-4 dark:border-input dark:bg-brand-700/30">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-primary dark:text-primary"><ArrowRight className="h-4 w-4" />{t('ข้อเสนอขั้นตอนต่อไป', 'Suggested next step')}</h3>
@@ -181,7 +181,7 @@ export function TaskAiPanel({ task, users, tab, onTabChange, onChanged, onNaviga
           </section>
         </> : null}
       {currentData}
-      {!!task.followUps?.length && <section className="rounded-xl border p-4"><h3 className="text-sm font-semibold">{t('งานติดตามที่สร้างแล้ว', 'Created follow-ups')}</h3>{task.followUps.map((followUp) => <button key={followUp.id} type="button" className="mt-3 block w-full text-left text-xs text-primary hover:underline" onClick={() => onNavigate(followUp.id)}>{followUp.title} · {statusLabels[followUp.status]} →</button>)}</section>}
+      {!!task.followUps?.length && <section className="rounded-xl border p-4"><h3 className="text-sm font-semibold">{t('งานติดตามที่สร้างแล้ว', 'Created follow-ups')}</h3>{task.followUps.map((followUp) => <button key={followUp.id} type="button" className="mt-1 flex min-h-11 w-full items-center gap-1 text-left text-xs text-primary hover:underline" onClick={() => onNavigate(followUp.id)}><span className="min-w-0 flex-1">{followUp.title} · {statusLabels[followUp.status]}</span><ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden /></button>)}</section>}
     </>}
 
     {tab === 'source' && <section className="space-y-3">
@@ -195,12 +195,12 @@ export function TaskAiPanel({ task, users, tab, onTabChange, onChanged, onNaviga
 
     {tab === 'history' && <section className="space-y-3">
       <h3 className="text-sm font-semibold">{t('ประวัติงาน', 'Task history')}</h3>
-      {history.map((event) => <article key={event.id} className="border-l-2 border-primary/30 py-1 pl-3 text-sm"><p className="whitespace-pre-wrap break-words">{event.text}</p><p className="mt-1 text-xs text-muted-foreground">{event.actor} · {formatDateTime(event.date)}</p>{event.taskId && <button type="button" className="mt-2 text-xs font-semibold text-primary hover:underline" onClick={() => onNavigate(event.taskId!)}>{t('เปิดงานติดตาม', 'Open follow-up')} →</button>}</article>)}
+      {history.map((event) => <article key={event.id} className="border-l-2 border-primary/30 py-1 pl-3 text-sm"><p className="whitespace-pre-wrap break-words">{event.text}</p><p className="mt-1 text-xs text-muted-foreground">{event.actor} · {formatDateTime(event.date)}</p>{event.taskId && <button type="button" className="mt-2 inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline" onClick={() => onNavigate(event.taskId!)}>{t('เปิดงานติดตาม', 'Open follow-up')}<ChevronRight className="h-3.5 w-3.5" aria-hidden /></button>}</article>)}
       <p className="text-xs text-muted-foreground">{t('ประวัติเปลี่ยนสถานะและกำหนดส่งเริ่มเก็บตั้งแต่เปิดใช้ฟีเจอร์นี้', 'Status and due-date changes are recorded from when this feature is enabled.')}</p>
     </section>}
 
     <dialog ref={dialogRef} onCancel={(event) => { if (saving) event.preventDefault(); }} onClose={() => setConfirm(false)} aria-labelledby="ai-followup-title" className="max-h-[calc(100dvh-2rem)] overflow-y-auto w-[min(28rem,calc(100vw-2rem))] rounded-2xl border border-border bg-card p-0 text-foreground shadow-2xl backdrop:bg-sidebar/50">
-      <div className="flex items-start justify-between gap-3 border-b p-5"><div><h2 id="ai-followup-title" className="font-semibold">{t('ตรวจและสร้างงานติดตาม', 'Review and create follow-up')}</h2><p className="mt-1 text-xs text-muted-foreground">{t('ข้อมูลนี้ยังไม่เปลี่ยนจนกว่าจะกดยืนยัน', 'Nothing changes until you confirm.')}</p></div><button type="button" aria-label={t('ปิด', 'Close')} onClick={() => setConfirm(false)}><X className="h-4 w-4" /></button></div>
+      <div className="flex items-start justify-between gap-3 border-b p-5"><div><h2 id="ai-followup-title" className="font-semibold">{t('ตรวจและสร้างงานติดตาม', 'Review and create follow-up')}</h2><p className="mt-1 text-xs text-muted-foreground">{t('ข้อมูลนี้ยังไม่เปลี่ยนจนกว่าจะกดยืนยัน', 'Nothing changes until you confirm.')}</p></div><button type="button" aria-label={t('ปิด', 'Close')} onClick={() => setConfirm(false)} className="-m-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" aria-hidden /></button></div>
       <form onSubmit={(event) => void createFollowUp(event)} className="space-y-4 p-5">
         <fieldset disabled={saving} className="space-y-4">
         <label className="block text-xs font-medium">{t('ชื่องานติดตาม', 'Follow-up title')}<input required maxLength={200} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" /></label>

@@ -147,7 +147,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <label htmlFor="password" className="text-sm font-medium">{d.auth.password}</label>
-                <PasswordInput id="password" name="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1" required />
+                <PasswordInput id="password" name="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1" required />
               </div>
               <div className="text-right">
                 <Link href="/forgot-password" className="text-xs text-primary hover:underline">{d.auth.forgotPassword}</Link>

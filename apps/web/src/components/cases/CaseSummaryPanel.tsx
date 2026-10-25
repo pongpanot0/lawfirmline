@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { api, IntakePrecedentAnalysisItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
+import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
+import { Sparkles } from 'lucide-react';
 import type { CaseDetail } from '@/lib/api';
 
 const FIELD_LABELS: Record<string, string> = { courtName: 'ศาล', blackCaseNumber: 'หมายเลขคดีดำ', redCaseNumber: 'หมายเลขคดีแดง', claimedAmount: 'ทุนทรัพย์', chargeSection: 'ข้อหาหรือฐานความผิด' };
@@ -60,19 +62,19 @@ export function CaseSummaryPanel({ caseId, onChanged }: { caseId: string; onChan
     finally { lock.current = false; setApplying(''); }
   };
   return <section aria-label="สรุปคดีด้วย AI" className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5">
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">สรุปคดีด้วย AI</h2><Button disabled={loading || busy || !!applying} onClick={() => void summarize()}>{busy ? 'กำลังสรุปและค้นฎีกา…' : 'สรุปข้อมูลคดีล่าสุด · 5 เครดิต'}</Button></div>
-    <p className="text-sm text-muted-foreground">สรุปข้อมูลคดีและเอกสาร พร้อมค้นหาฎีกาที่เกี่ยวข้องจากข้อเท็จจริงล่าสุด</p>
-    {loading && <p role="status">กำลังโหลดสรุป…</p>}
+    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">สรุปคดีด้วย AI</h2><Button variant="outline" disabled={loading || busy || !!applying} onClick={() => void summarize()}><Sparkles aria-hidden="true" className="h-4 w-4" />{busy ? 'กำลังสรุปและค้นฎีกา…' : 'สรุปข้อมูลคดีล่าสุด · 5 เครดิต'}</Button></div>
+    <p className="text-sm text-muted-foreground">สรุปข้อมูลคดีและเอกสาร พร้อมฎีกาที่เกี่ยวข้อง</p>
+    {loading && <div role="status" aria-label="กำลังโหลดสรุป" className="space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" /></div>}
     {busy && <p role="status">กำลังสรุปคดีและค้นหาฎีกาที่เกี่ยวข้อง</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {result && <>
       <p className="text-xs text-muted-foreground">{result.extractedFacts?.caseSummary ? 'สรุปคดี' : 'ผลวิเคราะห์เดิม — ยังไม่ใช่สรุปทั้งคดี'} · {new Date(result.createdAt).toLocaleString('th-TH')} · ข้อมูลเปลี่ยนแล้วให้กดสรุปใหม่</p>
-      {!!result.extractedFacts?.attachmentWarnings?.length && <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><p className="font-medium">ข้อมูลที่อ่านไม่ครบ</p>{result.extractedFacts.attachmentWarnings.map((warning, index) => <p key={index}>{warning}</p>)}</div>}
+      {!!result.extractedFacts?.attachmentWarnings?.length && <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground"><p className="font-medium">ข้อมูลที่อ่านไม่ครบ</p>{result.extractedFacts.attachmentWarnings.map((warning, index) => <p key={index}>{warning}</p>)}</div>}
       <h3 className="text-sm font-semibold">ประเด็นสำคัญ</h3>
       <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed">{(result.factsList?.length ? result.factsList : result.documentSummary?.split(/\n+/).filter(Boolean) ?? []).map((point, index) => <li key={index} className="whitespace-pre-wrap break-words">{point}</li>)}</ol>
       <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
         <h3 className="text-sm font-semibold">ฎีกาที่เกี่ยวข้อง</h3>
-        {result.extractedFacts?.precedentWarning && <p role="status" className="text-sm text-amber-800">{result.extractedFacts.precedentWarning}</p>}
+        {result.extractedFacts?.precedentWarning && <p role="status" className="text-sm text-warning">{result.extractedFacts.precedentWarning}</p>}
         {result.summaryBullets && <p className="whitespace-pre-wrap text-sm leading-relaxed">{result.summaryBullets}</p>}
         {result.precedents.length ? <ul className="space-y-2">
           {result.precedents.map((precedent) => <li key={precedent.dekaId} className="rounded-md border bg-card p-3 text-sm">
@@ -93,7 +95,7 @@ export function CaseSummaryPanel({ caseId, onChanged }: { caseId: string; onChan
         {result.extractedFacts?.suggestions?.filter(s => FIELD_LABELS[s.field]).map((s, i) => {
           const key = `field:${i}`;
           const old = valueFor(current, s.field);
-          return <div key={key} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{FIELD_LABELS[s.field]}</p><p>ปัจจุบัน: {hasValue(old) ? String(old) : 'ยังไม่ระบุ'}</p><p className="break-words">AI เสนอ: {s.value}</p><blockquote className="border-l-2 pl-3 text-muted-foreground whitespace-pre-wrap break-words">{s.quote}</blockquote><Button size="sm" disabled={!current || busy || !!applying || applied.includes(key) || hasValue(old)} onClick={() => void apply(key, s.field, s.value)}>{applied.includes(key) ? 'บันทึกแล้ว' : applying === key ? 'กำลังบันทึก…' : `ยืนยันเติม${FIELD_LABELS[s.field]}`}</Button></div>;
+          return <div key={key} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{FIELD_LABELS[s.field]}</p><p>ปัจจุบัน: {hasValue(old) ? String(old) : 'ยังไม่ระบุ'}</p><p className="break-words">AI เสนอ: {s.value}</p><blockquote className="border-l-2 pl-3 text-muted-foreground whitespace-pre-wrap break-words">{s.quote}</blockquote><Button size="sm" variant="outline" disabled={!current || busy || !!applying || applied.includes(key) || hasValue(old)} onClick={() => void apply(key, s.field, s.value)}>{applied.includes(key) ? 'บันทึกแล้ว' : applying === key ? 'กำลังบันทึก…' : `ยืนยันเติม${FIELD_LABELS[s.field]}`}</Button></div>;
         })}
       </div>
       <div className="space-y-3 border-t pt-3"><h3 className="text-sm font-semibold">งานที่มีหลักฐานว่าเสร็จแล้ว</h3><p className="text-xs text-muted-foreground">ติ๊กเพื่อยืนยันและบันทึกงานเป็นเสร็จแล้ว การแนบไฟล์อย่างเดียวไม่ถือว่างานเสร็จ</p>
@@ -109,6 +111,6 @@ export function CaseSummaryPanel({ caseId, onChanged }: { caseId: string; onChan
       {!!result.extractedFacts?.selectedAttachments?.length && <p className="text-xs text-muted-foreground">เอกสารที่ใช้: {result.extractedFacts.selectedAttachments.map(file => `${file.filename} · รุ่น ${file.version ?? '—'}`).join(', ')}</p>}
       <p className="text-xs text-muted-foreground">สรุปเพื่อช่วยทบทวน โปรดตรวจข้อมูลและต้นฉบับก่อนใช้งาน</p>
     </>}
-    {!loading && !busy && !result && !error && <p className="text-sm text-muted-foreground">ยังไม่มีสรุป กดสรุปข้อมูลคดีล่าสุดเพื่อเริ่ม</p>}
+    {!loading && !busy && !result && !error && <InlineEmptyState title="ยังไม่มีสรุปคดี" />}
   </section>;
 }

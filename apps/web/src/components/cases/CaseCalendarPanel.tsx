@@ -16,6 +16,7 @@ import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onChanged?: () => void }) {
   const d = useDashboardT();
@@ -121,7 +122,7 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
           <h2 className="font-semibold tracking-tight text-foreground">{d.caseCalendar.title}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">นัด เหตุการณ์ และกำหนดติดตามในมุมมองเดียว</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label={d.caseCalendar.title} className="flex rounded-md border border-border p-0.5">
           {(['timeline', 'calendar'] as const).map((v) => (
             <button
@@ -131,8 +132,8 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
               onClick={() => setView(v)}
               className={
                 view === v
-                  ? 'rounded px-3 py-1 text-sm font-semibold bg-primary text-primary-foreground'
-                  : 'rounded px-3 py-1 text-sm text-muted-foreground hover:text-foreground'
+                  ? 'min-h-10 rounded px-3 py-1 text-sm font-semibold bg-muted text-foreground'
+                  : 'min-h-10 rounded px-3 py-1 text-sm text-muted-foreground hover:text-foreground'
               }
             >
               {v === 'timeline' ? d.caseCalendar.viewTimeline : d.caseCalendar.viewCalendar}
@@ -140,19 +141,14 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
           ))}
         </div>
         <Button size="sm" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
-          <Plus className="h-4 w-4" />
+          <Plus aria-hidden="true" className="h-4 w-4" />
           {d.calendar.addEventForCase}
         </Button>
         </div>
       </div>
 
       {loadError ? (
-        <div className="rounded-xl border bg-card p-6 shadow-soft">
-          <p role="alert" className="text-sm text-destructive">{loadError}</p>
-          <Button size="sm" variant="outline" className="mt-3" onClick={() => setReloadKey((n) => n + 1)}>
-            {d.common.retry}
-          </Button>
-        </div>
+        <LoadFailed message={loadError} onRetry={() => setReloadKey((n) => n + 1)} />
       ) : view === 'timeline' ? (
         <CaseTimelineView events={events} onEventClick={(event) => setDialog({ event })} />
       ) : (
@@ -166,7 +162,7 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
       )}
 
       <details className="mt-4 rounded-xl border bg-card px-4 py-3">
-        <summary className="cursor-pointer text-sm font-medium text-foreground">{d.dateSuggestions.applyTrigger}</summary>
+        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">{d.dateSuggestions.applyTrigger}</summary>
         <div className="pt-3">
         <p className="mb-3 mt-1 text-sm text-muted-foreground">{d.dateSuggestions.applyTriggerHint}</p>
 
@@ -182,13 +178,13 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
             />
           </label>
 
-          <Button type="submit" size="sm" disabled={applying}>
+          <Button type="submit" size="sm" variant="outline" disabled={applying}>
             {d.dateSuggestions.applyTrigger}
           </Button>
         </form>
 
         {notice && <p className="mt-3 text-sm text-muted-foreground">{notice}</p>}
-        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+        {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
         </div>
       </details>
 

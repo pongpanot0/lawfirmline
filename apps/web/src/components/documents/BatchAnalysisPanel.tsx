@@ -171,8 +171,7 @@ export function BatchAnalysisPanel({
     >
       <h2 className="font-semibold">วิเคราะห์เนื้อหาไฟล์ด้วย AI</h2>
       <p className="text-sm text-muted-foreground">
-        สรุปเหตุการณ์จากเอกสารที่เลือก พร้อมแหล่งที่มา ·
-        PDF/TXT ไม่เกิน 30MB ต่อไฟล์
+        สรุปเหตุการณ์จากเอกสารที่เลือก พร้อมแหล่งที่มา
       </p>
       {!caseId && (
         <p className="text-xs text-muted-foreground">
@@ -241,7 +240,7 @@ export function BatchAnalysisPanel({
             {!caseId && (
               <button
                 type="button"
-                className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
+                className="-my-2 min-h-11 shrink-0 px-2 text-xs text-muted-foreground hover:text-destructive"
                 disabled={disabled || busy}
                 onClick={() => {
                   onFilesChange?.(
@@ -262,7 +261,7 @@ export function BatchAnalysisPanel({
       </ul>
       {!rows.length && (
         <p className="text-sm text-muted-foreground">
-          ยังไม่มีไฟล์ — ลากไฟล์มาวางด้านบน หรือคลิกเพื่อเลือก
+          ยังไม่มีไฟล์ที่เลือก
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">

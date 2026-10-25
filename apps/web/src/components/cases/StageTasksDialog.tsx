@@ -1,5 +1,7 @@
 'use client';
 
+import { AlertTriangle } from 'lucide-react';
+
 import { useEffect, useState } from 'react';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { Button } from '@/components/ui/button';
@@ -115,7 +117,8 @@ export function StageTasksDialog({
                       </select>
                     </div>
                     {rowAssignee && row.dueDate && rowFlags.has(rowAssignee.id) && (
-                      <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                      <p className="flex items-start gap-1 mt-1 text-xs text-warning">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                         {leaveWarning(rowAssignee.firstName, row.dueDate, rowFlags.get(rowAssignee.id)?.kind)}
                       </p>
                     )}

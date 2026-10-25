@@ -35,7 +35,7 @@ export function PageLoading({
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: lines }).map((_, index) => (
-          <div key={index} className="rounded-xl border bg-card p-5 shadow-soft">
+          <div key={index} className="rounded-xl border bg-card p-5">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="mt-4 h-8 w-20" />
             <Skeleton className="mt-3 h-3 w-32" />
@@ -56,7 +56,7 @@ export function EmptyState({
   description,
   action,
 }: {
-  icon?: React.ComponentType<{ className?: string }>;
+  icon?: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
   title: string;
   description?: string;
   action?: React.ReactNode;
@@ -64,9 +64,7 @@ export function EmptyState({
   return (
     <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed bg-card px-6 py-12 text-center">
       {Icon && (
-        <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-muted">
-          <Icon className="h-6 w-6 text-muted-foreground" />
-        </div>
+        <Icon className="mb-3 h-6 w-6 text-muted-foreground" aria-hidden />
       )}
       <h3 className="text-base font-semibold">{title}</h3>
       {description && <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>}
@@ -81,7 +79,7 @@ export function InlineEmptyState({
   description,
   action,
 }: {
-  icon?: React.ComponentType<{ className?: string }>;
+  icon?: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
   title: string;
   description?: string;
   action?: React.ReactNode;
@@ -89,9 +87,7 @@ export function InlineEmptyState({
   return (
     <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-6 text-center">
       {Icon && (
-        <div className="mx-auto mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-background">
-          <Icon className="h-5 w-5 text-muted-foreground" />
-        </div>
+        <Icon className="mx-auto mb-2 h-5 w-5 text-muted-foreground" aria-hidden />
       )}
       <p className="text-sm font-medium">{title}</p>
       {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}

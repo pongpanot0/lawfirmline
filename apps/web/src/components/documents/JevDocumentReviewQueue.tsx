@@ -116,7 +116,7 @@ export function JevDocumentReviewQueue() {
           <h2 className="font-semibold">{working ? 'Jev กำลังแนะนำหมวดเอกสาร…' : `ตรวจหมวดเอกสาร (${items.length})`}</h2>
           <p className="mt-1 text-xs text-muted-foreground">Jev เสนอจากชื่อและเนื้อหาไฟล์ · จะบันทึกเมื่อทนายยืนยันเท่านั้น</p>
         </div>
-        {!working && <Button type="button" variant="ghost" size="icon" aria-label="ปิดข้อเสนอ" onClick={() => setItems([])}><X className="h-4 w-4" /></Button>}
+        {!working && <Button type="button" variant="ghost" size="icon" aria-label="ปิดข้อเสนอ" onClick={() => setItems([])}><X className="h-4 w-4" aria-hidden /></Button>}
       </div>
       {error && <p role="alert" className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">{error}</p>}
       {items.length > 0 && <div className="mt-3 space-y-2">

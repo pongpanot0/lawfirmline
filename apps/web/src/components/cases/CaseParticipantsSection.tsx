@@ -28,18 +28,11 @@ const SIDE_LABELS: Record<string, string> = {
   NEUTRAL: 'กลาง',
 };
 
+// Role is not a status: the label carries it, so every role reads in one quiet tint.
 const ROLE_BADGE_COLORS: Record<string, string> = {
-  PLAINTIFF: 'bg-accent text-primary dark:bg-brand-700 dark:text-primary',
-  JOINT_PLAINTIFF: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300',
-  DEFENDANT: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
-  JOINT_DEFENDANT: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-  PETITIONER: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300',
-  RESPONDENT: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300',
-  WITNESS: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
-  EXPERT: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
-  OPPOSING_LAWYER: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
-  OPPOSING_INSURER: 'bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-300',
-  OTHER: 'bg-muted text-foreground dark:bg-sidebar dark:text-muted-foreground',
+  PLAINTIFF: 'bg-accent text-primary',
+  JOINT_PLAINTIFF: 'bg-accent text-primary',
+  OTHER: 'bg-muted text-foreground',
 };
 
 const SIDES = ['OURS', 'OPPONENT', 'NEUTRAL'];
@@ -435,18 +428,18 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
                     <button
                       type="button"
                       onClick={() => openEdit(p)}
-                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:w-8"
                       aria-label={`แก้ไข ${p.name}`}
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(p.id, p.name)}
-                      className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:w-8"
                       aria-label={`ลบ ${p.name}`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>

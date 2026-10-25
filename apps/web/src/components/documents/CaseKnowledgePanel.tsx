@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { api, KnowledgeItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 function KnowledgeCitations({ item }: { item: KnowledgeItem }) {
   if (!item.citations || item.citations.length === 0) return null;
@@ -96,6 +98,7 @@ function ReviewAction({ item, caseId, onReviewed }: { item: KnowledgeItem; caseI
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={6}
+            aria-label="แก้ไขสรุปผลวิเคราะห์"
             className="w-full rounded-md border border-input bg-card p-2 text-sm"
           />
           <div className="flex flex-wrap gap-2">
@@ -135,12 +138,14 @@ export function CaseKnowledgePanel({ caseId, refreshKey = 0 }: { caseId: string;
   return (
     <section id="case-analyses" className="min-w-0 scroll-mt-24 space-y-3 rounded-xl border border-border bg-card p-4">
       <h2 className="font-semibold">ผลวิเคราะห์เอกสารของคดี</h2>
-      <p className="text-sm text-muted-foreground">ผลวิเคราะห์รายไฟล์และหลายไฟล์ของคดีนี้ เก็บไว้ที่เดียวกับคลังความรู้</p>
-      {loading ? <p role="status" className="text-sm">กำลังโหลดผลวิเคราะห์…</p> : error ? (
-        <div role="alert" className="text-sm">
-          โหลดผลวิเคราะห์ไม่สำเร็จ{' '}
-          <button type="button" onClick={() => setRetry((value) => value + 1)} className="text-primary underline">ลองใหม่</button>
+      <p className="text-sm text-muted-foreground">ผลวิเคราะห์รายไฟล์และหลายไฟล์ของคดีนี้</p>
+      {loading ? (
+        <div role="status" aria-label="กำลังโหลดผลวิเคราะห์" className="space-y-2">
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-full" />
         </div>
+      ) : error ? (
+        <LoadFailed message="โหลดผลวิเคราะห์ไม่สำเร็จ" onRetry={() => setRetry((value) => value + 1)} />
       ) : items.length === 0 ? (
         <p className="text-sm text-muted-foreground">ยังไม่มีผลวิเคราะห์ เมื่อวิเคราะห์เอกสารในคดีนี้ ผลจะปรากฏที่นี่</p>
       ) : (

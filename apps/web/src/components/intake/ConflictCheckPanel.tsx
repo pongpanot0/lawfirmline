@@ -111,13 +111,13 @@ export function ConflictCheckPanel({
   const latest = history[0];
 
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-soft">
+    <div className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           {latest?.result === 'CLEAR' ? (
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            <ShieldCheck className="h-4 w-4 text-success" aria-hidden />
           ) : (
-            <ShieldAlert className="h-4 w-4 text-amber-600" />
+            <ShieldAlert className="h-4 w-4 text-warning" aria-hidden />
           )}
           {th ? 'ตรวจผลประโยชน์ขัดกัน (Conflict check)' : 'Conflict check'}
         </h3>
@@ -147,10 +147,11 @@ export function ConflictCheckPanel({
           value={terms}
           onChange={(e) => setTerms(e.target.value)}
           placeholder={th ? 'ชื่อที่จะค้น คั่นด้วย ,' : 'Names to search, comma separated'}
+          aria-label={th ? 'ชื่อที่จะค้น' : 'Names to search'}
           className="max-w-xl"
         />
-        <Button type="button" onClick={runSearch} disabled={busy} className="min-h-9">
-          <Search className="mr-1 h-4 w-4" />
+        <Button type="button" variant={found ? 'outline' : 'default'} onClick={runSearch} disabled={busy}>
+          <Search className="mr-1 h-4 w-4" aria-hidden />
           {th ? 'ค้น' : 'Search'}
         </Button>
       </div>
@@ -207,7 +208,7 @@ export function ConflictCheckPanel({
                 ))}
               </select>
             </label>
-            <Button type="button" onClick={save} disabled={busy || !result} className="min-h-9">
+            <Button type="button" onClick={save} disabled={busy || !result}>
               {th ? 'บันทึกผลตรวจ' : 'Record result'}
             </Button>
           </div>
@@ -216,11 +217,12 @@ export function ConflictCheckPanel({
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             placeholder={th ? 'บันทึกเหตุผล / สิ่งที่ตรวจเพิ่ม' : 'Notes on the decision'}
+            aria-label={th ? 'เหตุผลของคำตัดสิน' : 'Decision notes'}
           />
         </div>
       )}
 
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
 
       {history.length > 0 && (
         <details className="mt-3 text-xs">

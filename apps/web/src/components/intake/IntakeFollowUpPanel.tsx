@@ -89,10 +89,10 @@ export function IntakeFollowUpPanel({
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-soft">
+    <div className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <BellRing className="h-4 w-4" />
+          <BellRing className="h-4 w-4 text-muted-foreground" aria-hidden />
           {th ? 'การติดตาม' : 'Follow-up'}
         </h3>
         <span
@@ -120,10 +120,11 @@ export function IntakeFollowUpPanel({
         rows={2}
         className="mt-3"
         placeholder={th ? 'ติดตามอะไรไป ผลเป็นอย่างไร' : 'What you did, and what came of it'}
+        aria-label={th ? 'บันทึกการติดตาม' : 'Follow-up note'}
       />
 
       <div className="mt-2 flex flex-wrap items-end gap-2">
-        <label className="flex items-center gap-1.5 text-xs">
+        <label className="flex min-h-11 items-center gap-1.5 text-xs">
           <input type="checkbox" checked={contacted} onChange={(e) => setContacted(e.target.checked)} />
           {th ? 'ติดต่อได้' : 'Reached them'}
         </label>
@@ -142,7 +143,7 @@ export function IntakeFollowUpPanel({
             ))}
           </select>
         </label>
-        <Button type="button" onClick={submit} disabled={busy || !note.trim()} className="min-h-9">
+        <Button type="button" onClick={submit} disabled={busy || !note.trim()}>
           {th ? 'บันทึกการติดตาม' : 'Log follow-up'}
         </Button>
         <Button
@@ -150,14 +151,13 @@ export function IntakeFollowUpPanel({
           variant="outline"
           onClick={markNoResponse}
           disabled={busy}
-          className="min-h-9"
         >
-          <PhoneOff className="mr-1 h-4 w-4" />
+          <PhoneOff className="mr-1 h-4 w-4" aria-hidden />
           {th ? 'ไม่ตอบกลับ' : 'No response'}
         </Button>
       </div>
 
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
 
       {items.length > 0 && (
         <ul className="mt-3 space-y-1 text-xs">

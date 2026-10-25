@@ -20,7 +20,8 @@ export function StageTrack({
   const segments = Array.from({ length: CASE_STAGE_COUNT });
 
   return (
-    <div className={cn('flex items-center gap-1', className)}>
+    // Decorative: the status Badge beside it carries the stage in text.
+    <div aria-hidden className={cn('flex items-center gap-1', className)}>
       {segments.map((_, i) => (
         <div
           key={i}

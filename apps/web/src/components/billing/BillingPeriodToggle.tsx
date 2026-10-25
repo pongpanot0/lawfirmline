@@ -19,11 +19,12 @@ export function BillingPeriodToggle({
       <div className="inline-flex items-center rounded-full border border-border bg-muted/50 p-1">
         <button
           type="button"
+          aria-pressed={value === BillingPeriod.MONTHLY}
           onClick={() => onChange(BillingPeriod.MONTHLY)}
           className={cn(
-            'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+            'min-h-10 rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             value === BillingPeriod.MONTHLY
-              ? 'bg-card text-foreground shadow-sm'
+              ? 'bg-card text-foreground ring-1 ring-border'
               : 'text-muted-foreground',
           )}
         >
@@ -31,11 +32,12 @@ export function BillingPeriodToggle({
         </button>
         <button
           type="button"
+          aria-pressed={value === BillingPeriod.YEARLY}
           onClick={() => onChange(BillingPeriod.YEARLY)}
           className={cn(
-            'flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+            'flex min-h-10 items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             value === BillingPeriod.YEARLY
-              ? 'bg-card text-foreground shadow-sm'
+              ? 'bg-card text-foreground ring-1 ring-border'
               : 'text-muted-foreground',
           )}
         >

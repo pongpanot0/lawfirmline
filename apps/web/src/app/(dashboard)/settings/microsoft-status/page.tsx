@@ -8,18 +8,23 @@ import { api, ApiError, type M365AdminStatus } from '@/lib/api';
 import { relativeTimeTh } from '@/lib/relative-time';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { InlineEmptyState } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { KpiStrip } from '@/components/reports/KpiStrip';
 
 type Conn = M365AdminStatus['connections'][number];
 
-const BADGE: Record<Conn['health'], { text: string; cls: string }> = {
-  OK: { text: 'ปกติ', cls: 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-200' },
-  WARN: { text: 'ควรตรวจ', cls: 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200' },
-  BROKEN: { text: 'หลุด', cls: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200' },
+const BADGE: Record<Conn['health'], { text: string; variant: BadgeProps['variant'] }> = {
+  OK: { text: 'ปกติ', variant: 'success' },
+  WARN: { text: 'ควรตรวจ', variant: 'warning' },
+  BROKEN: { text: 'หลุด', variant: 'destructive' },
 };
 
 function HealthBadge({ health }: { health: Conn['health'] }) {
   const b = BADGE[health];
-  return <span className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${b.cls}`}>{b.text}</span>;
+  return <Badge variant={b.variant}>{b.text}</Badge>;
 }
 
 const onOff = (v: boolean) => (v ? 'เปิด' : 'ปิด');
@@ -64,29 +69,38 @@ export default function MicrosoftStatusPage() {
   }
 
   const header = (
-    <div className="mb-4 flex items-center gap-2">
-      <Link href="/settings" className="text-muted-foreground" aria-label="กลับ"><ArrowLeft className="h-5 w-5" /></Link>
-      <h1 className="text-xl font-bold">สถานะ Microsoft 365</h1>
+    <div>
+      <Link href="/settings?view=office" className="inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
+        <ArrowLeft className="h-4 w-4" aria-hidden />ตั้งค่าสำนักงาน
+      </Link>
+      <PageHeader
+        title="สถานะ Microsoft 365"
+        description={data ? `อัปเดตล่าสุด ${relativeTimeTh(data.generatedAt, new Date(), '-')}` : undefined}
+        actions={
+          <Button variant="outline" disabled={loading} onClick={() => void load()}>
+            <RefreshCw className="h-4 w-4" aria-hidden />รีเฟรช
+          </Button>
+        }
+      />
     </div>
   );
 
   if (loading && !data) {
     return (
-      <div className="mx-auto max-w-4xl p-4">
+      <div role="status" aria-label="กำลังโหลดสถานะ" className="mx-auto max-w-4xl">
         {header}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-muted" />)}
-        </div>
+        <div className="h-20 animate-pulse rounded-lg bg-muted" />
         <div className="mt-4 h-40 animate-pulse rounded-xl bg-muted" />
       </div>
     );
   }
   if (error || !data) {
     return (
-      <div className="mx-auto max-w-4xl p-4">
+      <div className="mx-auto max-w-4xl">
         {header}
-        <p className="rounded-xl bg-destructive/10 p-4 text-base text-destructive">{error?.text ?? 'โหลดสถานะไม่สำเร็จ'}</p>
-        {!error?.forbidden && <Button className="mt-3" onClick={() => void load()}>ลองใหม่</Button>}
+        {error?.forbidden
+          ? <p role="alert" className="rounded-xl bg-destructive/10 p-4 text-base text-destructive">{error.text}</p>
+          : <LoadFailed message={error?.text ?? 'โหลดสถานะไม่สำเร็จ'} onRetry={() => void load()} />}
       </div>
     );
   }
@@ -95,42 +109,22 @@ export default function MicrosoftStatusPage() {
   const rank = { BROKEN: 0, WARN: 1, OK: 2 } as const;
   const problems = connections.filter((c) => c.health !== 'OK').sort((a, b) => rank[a.health] - rank[b.health]);
   const allGood = problems.length === 0 && failingLinks.length === 0;
-  const tiles: Array<{ label: string; value: string; red?: boolean }> = [
-    { label: 'เชื่อมต่อแล้ว', value: `${summary.connected}/${summary.members}` },
-    { label: 'มีปัญหา', value: String(summary.problems), red: summary.problems > 0 },
-    { label: 'ยังไม่เชื่อมต่อ', value: String(summary.notConnected) },
-  ];
-
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-4">
+    <div className="mx-auto max-w-4xl space-y-6">
       {header}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {tiles.map((t) => (
-          <Card key={t.label}>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">{t.label}</p>
-              <p className={`text-3xl font-bold ${t.red ? 'text-red-600' : ''}`}>{t.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">อัปเดตล่าสุด</p>
-            <p className="text-base font-semibold">{relativeTimeTh(data.generatedAt, new Date(), '-')}</p>
-            <Button size="sm" variant="outline" className="mt-1" disabled={loading} onClick={() => void load()}>
-              <RefreshCw className="mr-1 h-3.5 w-3.5" />รีเฟรช
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <KpiStrip items={[
+        { label: 'เชื่อมต่อแล้ว', value: `${summary.connected}/${summary.members}` },
+        { label: 'มีปัญหา', value: String(summary.problems), tone: summary.problems > 0 ? 'destructive' : 'default' },
+        { label: 'ยังไม่เชื่อมต่อ', value: String(summary.notConnected) },
+      ]} />
 
       {notice && (
-        <p className={`rounded-xl p-3 text-base ${notice.ok ? 'bg-green-50 text-green-800' : 'bg-destructive/10 text-destructive'}`}>{notice.text}</p>
+        <p role={notice.ok ? 'status' : 'alert'} className={`rounded-xl p-3 text-base ${notice.ok ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>{notice.text}</p>
       )}
 
       {allGood ? (
-        <p className="rounded-xl bg-green-50 p-4 text-lg font-semibold text-green-800 dark:bg-green-950/30 dark:text-green-200">ทุกบัญชีทำงานปกติ</p>
+        <p className="rounded-xl bg-success/10 p-4 text-lg font-semibold text-success">ทุกบัญชีทำงานปกติ</p>
       ) : (
         <section>
           <h2 className="mb-2 text-lg font-bold">ต้องแก้ไข</h2>
@@ -150,12 +144,12 @@ export default function MicrosoftStatusPage() {
                   {c.lastErrorThai && <p className="text-sm">{c.lastErrorThai}</p>}
                   {c.lastError && (
                     <details className="text-xs text-muted-foreground">
-                      <summary className="cursor-pointer">รายละเอียด</summary>
+                      <summary className="inline-flex min-h-11 cursor-pointer items-center sm:min-h-0">รายละเอียด</summary>
                       <p className="mt-1 break-all">{c.lastError}</p>
                     </details>
                   )}
                   {c.health === 'BROKEN' && (
-                    <Button disabled={reminding === c.id} onClick={() => void remind(c)}>แจ้งให้เชื่อมต่อใหม่</Button>
+                    <Button variant="outline" disabled={reminding === c.id} onClick={() => void remind(c)}>แจ้ง {connName(c)} ให้เชื่อมต่อใหม่</Button>
                   )}
                 </CardContent>
               </Card>
@@ -170,7 +164,7 @@ export default function MicrosoftStatusPage() {
                   {l.lastErrorThai && <p className="text-sm">{l.lastErrorThai}</p>}
                   <Link
                     href={`/cases/${l.caseId}?tab=${l.kind === 'OUTLOOK_FOLDER' ? 'email' : 'documents'}`}
-                    className="inline-block text-sm text-primary underline"
+                    className="inline-flex min-h-11 items-center text-sm text-primary underline"
                   >
                     เปิดคดี
                   </Link>
@@ -200,21 +194,21 @@ export default function MicrosoftStatusPage() {
                   <div><dt className="text-muted-foreground">ปฏิทิน</dt><dd>{onOff(c.syncCalendar)}</dd></div>
                   <div>
                     <dt className="text-muted-foreground">Folder ที่ผูก</dt>
-                    <dd>{c.folderLinks.total}{c.folderLinks.failing > 0 && <span className="text-red-600"> (ผิดพลาด {c.folderLinks.failing})</span>}</dd>
+                    <dd className="tabular-nums">{c.folderLinks.total}{c.folderLinks.failing > 0 && <span className="text-destructive"> (ผิดพลาด {c.folderLinks.failing})</span>}</dd>
                   </div>
-                  <div><dt className="text-muted-foreground">OneDrive ที่ผูก</dt><dd>{c.driveLinks}</dd></div>
+                  <div><dt className="text-muted-foreground">OneDrive ที่ผูก</dt><dd className="tabular-nums">{c.driveLinks}</dd></div>
                 </dl>
               </CardContent>
             </Card>
           ))}
-          {connections.length === 0 && <p className="text-base text-muted-foreground">ยังไม่มีบัญชีที่เชื่อมต่อ</p>}
+          {connections.length === 0 && <InlineEmptyState title="ยังไม่มีบัญชีที่เชื่อมต่อ" />}
         </div>
       </section>
 
       {notConnected.length > 0 && (
         <section>
           <h2 className="mb-1 text-lg font-bold">ยังไม่ได้เชื่อมต่อ</h2>
-          <p className="mb-2 text-sm text-muted-foreground">ให้เข้า ตั้งค่า → Microsoft 365 → เชื่อมต่อ</p>
+          <p className="mb-2 text-sm text-muted-foreground">แต่ละคนเชื่อมต่อเองได้ที่ <Link href="/settings?view=integrations" className="text-primary underline">ตั้งค่า แท็บการเชื่อมต่อ</Link></p>
           <ul className="divide-y rounded-xl border">
             {notConnected.map((m) => (
               <li key={m.userId} className="p-3">
@@ -229,10 +223,10 @@ export default function MicrosoftStatusPage() {
       <section className="rounded-xl bg-muted p-4 text-base">
         <h2 className="mb-2 font-bold">อีเมลไม่เข้า? ตรวจตามนี้</h2>
         <ol className="list-decimal space-y-1 pl-5">
-          <li>บัญชีของคนนั้นขึ้น &quot;หลุด&quot; ไหม → กดแจ้งให้เชื่อมต่อใหม่</li>
-          <li>folder ผูกกับคดีหรือยัง (หน้า จับคู่ folder)</li>
-          <li>ซิงก์ล่าสุดนานเกิน 2 ชม. → กด ซิงก์ตอนนี้ ในหน้าตั้งค่าของเจ้าของบัญชี</li>
-          <li>ถ้า error ว่า &quot;ไม่มีสิทธิ์เข้าถึง&quot; → ผู้ดูแล Microsoft ขององค์กรต้องกด admin consent</li>
+          <li>บัญชีของคนนั้นขึ้น &quot;หลุด&quot; ให้กดแจ้งให้เชื่อมต่อใหม่</li>
+          <li>folder ผูกกับคดีหรือยัง (<Link href="/settings/outlook-folders" className="text-primary underline">หน้าจับคู่ folder</Link>)</li>
+          <li>ซิงก์ล่าสุดนานเกิน 2 ชม. ให้เจ้าของบัญชีกด ซิงก์ตอนนี้ ในหน้าตั้งค่าของตน</li>
+          <li>error ว่า &quot;ไม่มีสิทธิ์เข้าถึง&quot; ผู้ดูแล Microsoft ขององค์กรต้องกด admin consent</li>
         </ol>
       </section>
     </div>

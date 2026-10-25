@@ -283,7 +283,7 @@ export function CaseEmailComposer({
                 </div>
               )}
               {templateMissing.length > 0 && (
-                <p className="rounded-lg bg-amber-50 p-2 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                <p className="rounded-lg bg-warning/10 p-2 text-foreground">
                   ยังไม่มีข้อมูล: {templateMissing.join(', ')} — กรอกแทน {'{{…}}'} ในข้อความก่อนส่ง
                 </p>
               )}

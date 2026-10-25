@@ -13,6 +13,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { RecordPaymentForm } from '@/components/billing/RecordPaymentForm';
+import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
+import { KpiStrip } from '@/components/reports/KpiStrip';
 
 const REMINDER_THROTTLE_MESSAGE = 'ทวงใบนี้ไปแล้วภายใน 24 ชม.';
 
@@ -24,12 +26,6 @@ const BUCKET_LABELS: Record<BucketKey, string> = {
   '31-60': '31-60 วัน',
   '61-90': '61-90 วัน',
   '90+': 'เกิน 90 วัน',
-};
-const BUCKET_TINT: Record<BucketKey, string> = {
-  '0-30': '',
-  '31-60': '',
-  '61-90': 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950',
-  '90+': 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950',
 };
 
 /** อายุลูกหนี้ (receivables aging) — สรุปยอดค้างเป็นช่วงอายุ พร้อมบันทึกรับเงิน/ทวงผ่าน LINE ทีละใบ */
@@ -72,6 +68,7 @@ export function ReceivablesPanel({ onChanged }: { onChanged?: () => void }) {
 
   const handleRemindSelected = async () => {
     if (!token || !selected.length) return;
+    if (!confirm(`ส่งข้อความทวงชำระทาง LINE ถึงผู้ติดต่อของ ${selected.length} ใบแจ้งหนี้?`)) return;
     setReminding(true);
     let sent = 0;
     let noContact = 0;
@@ -97,8 +94,9 @@ export function ReceivablesPanel({ onChanged }: { onChanged?: () => void }) {
 
   if (loading) {
     return (
-      <div role="status" className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-        กำลังโหลดยอดลูกหนี้…
+      <div role="status" aria-label="กำลังโหลดยอดลูกหนี้" className="space-y-4">
+        <Skeleton className="h-24 w-full rounded-lg" />
+        <Skeleton className="h-40 w-full rounded-xl" />
       </div>
     );
   }
@@ -107,45 +105,43 @@ export function ReceivablesPanel({ onChanged }: { onChanged?: () => void }) {
   }
 
   return (
-    <section aria-label="ยอดลูกหนี้ค้างชำระ" className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {BUCKET_ORDER.map((bucket) => (
-          <Card key={bucket} className={BUCKET_TINT[bucket]}>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">{BUCKET_LABELS[bucket]}</p>
-              <p className="mt-1 text-xl font-semibold tabular-nums">
-                {formatCurrency(data?.buckets[bucket] ?? 0)}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+    <section aria-labelledby="receivables-heading" className="space-y-4">
+      <h2 id="receivables-heading" className="text-lg font-semibold">ลูกหนี้ค้างชำระ</h2>
+      <KpiStrip
+        className="grid-cols-2"
+        items={BUCKET_ORDER.map((bucket) => ({
+          label: BUCKET_LABELS[bucket],
+          value: formatCurrency(data?.buckets[bucket] ?? 0),
+          tone: bucket === '90+' && (data?.buckets[bucket] ?? 0) > 0 ? 'destructive' as const : 'default' as const,
+        }))}
+      />
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle>รายการค้างชำระ</CardTitle>
           <Button
             type="button"
             size="sm"
+            variant="outline"
             disabled={!selected.length || reminding}
             onClick={() => void handleRemindSelected()}
           >
-            {reminding ? 'กำลังส่ง…' : 'ทวงที่เลือกผ่าน LINE'}
+            {reminding ? 'กำลังส่ง…' : `ทวงที่เลือกผ่าน LINE${selected.length ? ` (${selected.length})` : ''}`}
           </Button>
         </CardHeader>
         <CardContent className="p-0">
           {rows.length === 0 ? (
-            <p className="px-5 pb-5 text-sm text-muted-foreground">ไม่มีใบแจ้งหนี้ค้างชำระ</p>
+            <div className="px-5 pb-5"><InlineEmptyState title="ไม่มีใบแจ้งหนี้ค้างชำระ" /></div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10" />
+                  <TableHead className="w-10"><span className="sr-only">เลือก</span></TableHead>
                   <TableHead>เลขที่ / ผู้ว่าจ้าง</TableHead>
                   <TableHead>คดี</TableHead>
                   <TableHead className="text-right">ค้างชำระ</TableHead>
                   <TableHead>สถานะ</TableHead>
-                  <TableHead />
+                  <TableHead><span className="sr-only">บันทึกรับเงิน</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -214,7 +210,7 @@ function ReceivableRow({
           </Badge>
         </TableCell>
         <TableCell>
-          <Button type="button" size="sm" variant="outline" onClick={onToggleOpen}>
+          <Button type="button" size="sm" variant="outline" aria-expanded={open} onClick={onToggleOpen}>
             บันทึกรับเงิน
           </Button>
         </TableCell>

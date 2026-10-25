@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CalendarCheck, Sparkles } from 'lucide-react';
+import { CalendarCheck, CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, type AiTrayCard } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 
 type DocStatus = 'running' | 'done' | 'failed';
 type UnreadCard = Extract<AiTrayCard, { type: 'UNREAD_DOCUMENTS' }>;
@@ -38,11 +38,11 @@ export function AiTrayCards({ caseId, compact = false, onChanged }: { caseId?: s
         ) : (
           <div key={`p-${card.caseId}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3 text-sm">
             <span className="flex items-center gap-2">
-              <CalendarCheck className="h-4 w-4 text-primary" />
+              <CalendarCheck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
               {!caseId && <b>{card.caseRef ?? card.caseTitle}:</b>} มีวันนัด/ครบกำหนด {card.count} รายการที่ AI เสนอ รอยืนยัน
             </span>
-            <Link href={`/cases/${card.caseId}?tab=documents`}>
-              <Button size="sm" variant="outline">ตรวจวันที่</Button>
+            <Link href={`/cases/${card.caseId}?tab=documents`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
+              ตรวจวันที่
             </Link>
           </div>
         ),
@@ -105,12 +105,16 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
     }
   };
 
-  const mark = (id: string) => (status[id] === 'running' ? '⏳' : status[id] === 'done' ? '✓' : status[id] === 'failed' ? '✕' : '');
+  const mark = (id: string) =>
+    status[id] === 'running' ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="กำลังอ่าน" />
+      : status[id] === 'done' ? <CheckCircle2 className="h-4 w-4 text-success" aria-label="อ่านแล้ว" />
+        : status[id] === 'failed' ? <XCircle className="h-4 w-4 text-destructive" aria-label="อ่านไม่สำเร็จ" />
+          : null;
 
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
       <p className="flex items-center gap-2 font-medium">
-        <Sparkles className="h-4 w-4 text-primary" />
+        <Sparkles className="h-4 w-4 shrink-0 text-primary" aria-hidden />
         {showCase && (
           <Link href={`/cases/${card.caseId}`} className="text-primary underline">{card.caseRef ?? card.caseTitle}</Link>
         )}
@@ -119,22 +123,22 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
       <ul className="mt-2 space-y-1">
         {card.documents.map((d) => (
           <li key={d.id}>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={!deselected.has(d.id)} disabled={busy} onChange={() => toggle(d.id)} />
-              <span className="truncate">{d.filename}</span>
-              <span className="w-4">{mark(d.id)}</span>
+            <label className="flex min-h-11 items-center gap-2 sm:min-h-8">
+              <input type="checkbox" className="h-4 w-4 shrink-0" checked={!deselected.has(d.id)} disabled={busy} onChange={() => toggle(d.id)} />
+              <span className="min-w-0 truncate">{d.filename}</span>
+              <span className="inline-flex w-4 shrink-0">{mark(d.id)}</span>
             </label>
-            {errors[d.id] && <p className="ml-6 text-xs text-red-600">{errors[d.id]}</p>}
+            {errors[d.id] && <p role="alert" className="ml-6 text-xs text-destructive">{errors[d.id]}</p>}
           </li>
         ))}
       </ul>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button size="sm" onClick={run} disabled={busy || !chosen.length}>
-          ✦ ให้ AI อ่าน ({cost} เครดิต)
+          <Sparkles className="h-4 w-4" aria-hidden />ให้ AI อ่าน ({cost} เครดิต)
         </Button>
         <Button size="sm" variant="ghost" onClick={skip} disabled={busy || !chosen.length}>ข้าม</Button>
       </div>
-      {skipError && <p className="mt-1 text-xs text-red-600">ข้ามไม่สำเร็จ: {skipError}</p>}
+      {skipError && <p role="alert" className="mt-1 text-xs text-destructive">ข้ามไม่สำเร็จ: {skipError}</p>}
     </div>
   );
 }

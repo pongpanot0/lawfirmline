@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ChevronRight, Folder } from 'lucide-react';
+import { Skeleton } from '@/components/ui/misc';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, DriveLibraryItem, DrivePickerItem, DriveSiteItem } from '@/lib/api';
@@ -114,7 +115,8 @@ export function DriveFolderPicker({
             key={s.value}
             type="button"
             onClick={() => switchSource(s.value)}
-            className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+            aria-pressed={source === s.value}
+            className={`min-h-11 sm:min-h-9 rounded-lg px-3 py-1 text-xs ${
               source === s.value ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground'
             }`}
           >
@@ -130,7 +132,7 @@ export function DriveFolderPicker({
           </button>
           {path.map((crumb, index) => (
             <span key={`${crumb.driveId}:${crumb.id}`} className="flex items-center gap-1">
-              <ChevronRight className="h-3 w-3" />
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
               <button type="button" className="text-primary hover:underline" onClick={() => setPath(path.slice(0, index + 1))}>
                 {crumb.name}
               </button>
@@ -155,7 +157,8 @@ export function DriveFolderPicker({
               onChange={(e) => setSiteQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && searchSites()}
               placeholder="ค้นหา SharePoint site (อย่างน้อย 2 ตัวอักษร)"
-              className="min-h-9 flex-1 rounded-lg border bg-background px-3 text-sm"
+              aria-label="ค้นหา SharePoint site"
+              className="min-h-11 flex-1 rounded-lg border bg-background px-3 text-sm"
             />
             <button type="button" onClick={searchSites} className="rounded-lg border px-3 text-sm hover:bg-accent">
               ค้นหา
@@ -185,8 +188,14 @@ export function DriveFolderPicker({
         </div>
       )}
 
-      {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
-      {loading && <p className="text-sm text-muted-foreground">กำลังโหลด…</p>}
+      {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
+      {loading && (
+        <div role="status" aria-label="กำลังโหลด folder" className="space-y-1.5">
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-full" />
+        </div>
+      )}
 
       {!loading && !showSiteSearch && (
         <div className="space-y-1.5">
@@ -194,14 +203,15 @@ export function DriveFolderPicker({
           {folders.map((folder) => (
             <div key={`${folder.driveId}:${folder.id}`} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
               <button type="button" onClick={() => setPath([...path, folder])} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Folder className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 <span className="truncate">{folder.name}</span>
               </button>
               <button
                 type="button"
                 disabled={picking}
                 onClick={() => pick(folder)}
-                className="rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                aria-label={`เลือก folder ${folder.name}`}
+                className="min-h-9 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
               >
                 เลือก
               </button>
