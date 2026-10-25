@@ -14,8 +14,8 @@ export const landingCopy = {
       badge: 'เริ่มต้น 149 บาท/เดือน · ทดลองฟรี 30 วัน',
       title: 'ระบบจัดการสำนักงานกฎหมาย',
       titleHighlight: 'ไม่พลาดนัดศาล จ่ายตามขนาดทีม',
-      subtitle: 'เก็บคดี นัด เอกสาร และงานทีมไว้ด้วยกัน ใช้งานผ่านเว็บและมือถือ เหมาะทั้งทนายคนเดียวและสำนักงานกฎหมาย',
-      facts: { solo: 'ทนายคนเดียว / เดือน', team: 'ทีม 3 คน / เดือน', trial: 'ทดลองฟรี ไม่ใช้บัตร' },
+      subtitle: 'เก็บคดี นัด เอกสาร และงานทีมไว้ด้วยกัน ใช้งานผ่านเว็บและมือถือ สำหรับสำนักงานกฎหมายทุกขนาด ตั้งแต่สำนักงานทนายความ 1 คน',
+      facts: { solo: 'สำนักงาน 1 ที่นั่ง / เดือน', team: 'ทีม 3 คน / เดือน', trial: 'ทดลองฟรี ไม่ใช้บัตร' },
       trialUnit: 'วัน',
       currency: 'บาท',
       ctaPrimary: 'ขอทดลองใช้งานฟรี',
@@ -68,11 +68,11 @@ export const landingCopy = {
     },
     audience: {
       title: 'เหมาะสำหรับ',
-      items: ['ทนายเดี่ยว', 'สำนักงานกฎหมายขนาดเล็ก', 'สำนักงานกฎหมายขนาดกลาง', 'ทีมทนายภายในองค์กร'],
+      items: ['สำนักงานทนายความ 1 คน', 'สำนักงานกฎหมายขนาดเล็ก', 'สำนักงานกฎหมายขนาดกลาง', 'ทีมทนายภายในองค์กร'],
     },
     pricing: {
       title: 'แพ็กเกจและราคา',
-      subtitle: 'ทนายคนเดียวเริ่ม 149 บาท ทีม 3 คน 499 บาท — ทดลองใช้ฟรี 30 วัน ไม่ต้องใช้บัตรเครดิต',
+      subtitle: 'สำนักงาน 1 ที่นั่งเริ่ม 149 บาท ทีม 3 คน 499 บาท — ทดลองใช้ฟรี 30 วัน ไม่ต้องใช้บัตรเครดิต · บริการสำหรับสำนักงานกฎหมายและองค์กรเท่านั้น',
       grandfather: 'ลูกค้าที่สมัครไว้แล้วยังได้สิทธิ์ราคาและข้อเสนอเดิมตามที่ตกลงไว้',
       recommended: 'แนะนำ',
       perMonth: 'บาท/เดือน',
@@ -91,7 +91,7 @@ export const landingCopy = {
       upToUsers: 'สูงสุด {count} คน',
       plans: {
         solo: {
-          tagline: 'ทนายอิสระ',
+          tagline: 'สำนักงาน 1 ที่นั่ง',
           features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'Client Portal ลูกความ', 'แจ้งเตือนลูกความผ่าน LINE'],
         },
         team: {
@@ -144,7 +144,7 @@ export const landingCopy = {
       title: 'Law firm management',
       titleHighlight: 'Never miss a court date.',
       subtitle: 'Manage cases, appointments, documents, and client notifications in one place — and cut the admin work.',
-      facts: { solo: 'Solo lawyer / month', team: 'Team of 3 / month', trial: 'Free trial, no card' },
+      facts: { solo: 'Law firm, 1 seat / month', team: 'Team of 3 / month', trial: 'Free trial, no card' },
       trialUnit: 'days',
       currency: 'THB',
       ctaPrimary: 'Start free trial',
@@ -197,11 +197,11 @@ export const landingCopy = {
     },
     audience: {
       title: 'Built for',
-      items: ['Solo lawyers', 'Small law firms', 'Mid-size law firms', 'In-house legal teams'],
+      items: ['One-lawyer firms', 'Small law firms', 'Mid-size law firms', 'In-house legal teams'],
     },
     pricing: {
       title: 'Plans & pricing',
-      subtitle: 'Solo lawyers from 149 THB, a 3-person team for 499 THB — 30-day free trial, no credit card required.',
+      subtitle: 'Law firms from 149 THB (1 seat), a 3-person team for 499 THB — 30-day free trial, no credit card required. For law firms and organizations only.',
       grandfather: 'Existing customers keep the price and offer they signed up with.',
       recommended: 'Popular',
       perMonth: 'THB/month',
@@ -220,7 +220,7 @@ export const landingCopy = {
       upToUsers: 'Up to {count} users',
       plans: {
         solo: {
-          tagline: 'Independent lawyers',
+          tagline: 'One-lawyer firms',
           features: ['Case & document management', 'Court calendar', 'Client portal', 'LINE client notifications'],
         },
         team: {
