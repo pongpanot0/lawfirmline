@@ -65,13 +65,19 @@ export class EmailIntakeService {
     // One excerpt per thread, picked and trimmed in Postgres: the newest INBOUND message
     // (the client's words, not our reply), else the newest message. Prisma's `distinct`
     // and nested `take` run in memory, which pulled every synced e-mail body into the API
-    // and starved the 2 GB host (prod hang, 2026-10-25).
+    // and starved the 2 GB host (prod hang, 2026-10-25). The id is picked first and the
+    // body read only for that row: `left("bodyText")` in the DISTINCT ON select list runs
+    // before the sort, which still read every body off disk and took minutes.
     const threadIds = threads.map((t) => t.id);
     const excerpts = await this.prisma.$queryRaw<{ id: string; threadId: string; excerpt: string | null }[]>`
-      SELECT DISTINCT ON ("threadId") "id", "threadId", left("bodyText", 200) AS "excerpt"
-      FROM "EmailMessage"
-      WHERE "threadId" = ANY(${threadIds}::text[])
-      ORDER BY "threadId", ("direction" = 'INBOUND') DESC, "receivedAt" DESC`;
+      SELECT m."id", m."threadId", left(m."bodyText", 200) AS "excerpt"
+      FROM (
+        SELECT DISTINCT ON ("threadId") "id"
+        FROM "EmailMessage"
+        WHERE "threadId" = ANY(${threadIds}::text[])
+        ORDER BY "threadId", ("direction" = 'INBOUND') DESC, "receivedAt" DESC
+      ) latest
+      JOIN "EmailMessage" m ON m."id" = latest."id"`;
     const attachmentCounts = await this.prisma.emailAttachment.groupBy({
       by: ['messageId'],
       where: { messageId: { in: excerpts.map((e) => e.id) } },
