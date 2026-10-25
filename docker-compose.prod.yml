@@ -22,8 +22,13 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
+    # t4g.small has 2 GB. Caps keep one runaway process from starving the host
+    # (2026-10-25: the box hung for 20 min with every TLS handshake stalled).
+    # Over the cap the container is OOM-killed and restarted, the rest stays up.
+    mem_limit: 900m
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=640
       DATABASE_URL: ${DATABASE_URL}
       S3_BUCKET: ${S3_BUCKET:-}
       S3_REGION: ${S3_REGION:-ap-southeast-7}
@@ -75,6 +80,9 @@ services:
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
         NEXT_PUBLIC_ROOT_DOMAIN: ${DOMAIN}
     restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      NODE_OPTIONS: --max-old-space-size=384
     depends_on:
       - api
     networks: [internal]
@@ -82,6 +90,7 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    mem_limit: 160m
     ports:
       - '80:80'
       - '443:443'

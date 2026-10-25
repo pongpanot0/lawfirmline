@@ -127,6 +127,13 @@ jobs:
             else
               echo "IMAGE_TAG=${IMAGE_TAG}" >> .env
             fi
+            # 2 GB swap on the 2 GB box: under memory pressure it slows down instead of
+            # freezing (no swap = reclaim thrash, sshd and TLS stall). Idempotent.
+            if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then
+              sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile >/dev/null && sudo swapon /swapfile
+              grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+              echo "swap enabled"
+            fi
             docker compose -f docker-compose.prod.yml pull api web
             docker compose -f docker-compose.prod.yml up -d
             # Apply pending Prisma migrations from the image just deployed.
