@@ -264,7 +264,7 @@ function BillingPageContent() {
                   </Button>
                   {!plan.isCurrent && (
                     <Button
-                      className="w-full"
+                      className="w-full whitespace-normal leading-snug"
                       variant="outline"
                       disabled={redirecting}
                       onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod, 'promptpay'))}
