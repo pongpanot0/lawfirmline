@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Check,
   CheckCircle2,
+  ChevronRight,
   Download,
   FileText,
   Plus,
@@ -18,6 +19,9 @@ import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
@@ -253,7 +257,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
       await navigator.clipboard.writeText(
         [
           state.checklist
-            .map((x) => `${x.done ? '✓' : '☐'} ${x.title}`)
+            .map((x) => `[${x.done ? 'x' : ' '}] ${x.title}`)
             .join('\n'),
           state.notes,
           state.outcome,
@@ -282,21 +286,26 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
 
   if (loading)
     return (
-      <p role="status" className="py-12 text-muted-foreground">
-        {t.loading}
-      </p>
+      <div role="status" aria-label={t.loading} className="mx-auto max-w-5xl space-y-5 pb-8">
+        <Skeleton className="h-5 w-24" />
+        <Skeleton className="h-9 w-2/3" />
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-14 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
     );
   if (!data || !state)
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">{t.title}</h1>
-        <p role="alert">
-          {error === 'LOAD_ERROR' ? t.loadError : error || t.loadError}
-        </p>
-        <Button onClick={load}>{t.retry}</Button>
+      <div className="mx-auto max-w-5xl space-y-4">
         <Link className={linkClass} href="/my-day">
+          <ArrowLeft className="h-4 w-4" aria-hidden />
           {t.back}
         </Link>
+        <PageHeader title={t.title} />
+        <LoadFailed
+          message={error === 'LOAD_ERROR' ? t.loadError : error || t.loadError}
+          onRetry={load}
+        />
       </div>
     );
   const { event, workspace } = data;
@@ -336,7 +345,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
     >
       <div className="flex flex-wrap items-center justify-between gap-x-4">
         <Link href="/my-day" className={linkClass} onClick={canLeave}>
-          <ArrowLeft className="size-4" />
+          <ArrowLeft className="h-4 w-4" aria-hidden />
           {t.back}
         </Link>
         <Link
@@ -347,17 +356,12 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
           {t.case}
         </Link>
       </div>
-      <header className="space-y-2">
-        <p className="text-sm font-medium text-primary">
-          {t.title} · {event.case.ownRef}
-        </p>
-        <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">
-          {event.title}
-        </h1>
-        <p className="break-words text-sm text-muted-foreground">
-          {event.case.title}
-        </p>
-        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+      <header>
+        <PageHeader
+          title={event.title}
+          description={`${t.title} · ${event.case.ownRef} · ${event.case.title}`}
+        />
+        <div className="-mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
           <p className="font-medium">
             {date(event.startAt)}{' '}
             <span className="font-normal text-muted-foreground">
@@ -442,7 +446,8 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   className={linkClass}
                   href={`/court-day/${result.nextEventId}`}
                 >
-                  {t.eventSaved} →
+                  {t.eventSaved}
+                  <ChevronRight className="h-4 w-4" aria-hidden />
                 </Link>
               </li>
             )}
@@ -452,7 +457,8 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   className={linkClass}
                   href={`/cases/${event.caseId}?tab=tasks`}
                 >
-                  {t.taskSaved} →
+                  {t.taskSaved}
+                  <ChevronRight className="h-4 w-4" aria-hidden />
                 </Link>
               </li>
             )}
@@ -462,7 +468,8 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   className={linkClass}
                   href={`/cases/${event.caseId}?tab=billing`}
                 >
-                  {t.expenseSaved} →
+                  {t.expenseSaved}
+                  <ChevronRight className="h-4 w-4" aria-hidden />
                 </Link>
               </li>
             )}
@@ -474,7 +481,8 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   className={linkClass}
                   href={`/cases/${event.caseId}?tab=closing-report&draftId=${result.draftId}`}
                 >
-                  {t.draftOpen} →
+                  {t.draftOpen}
+                  <ChevronRight className="h-4 w-4" aria-hidden />
                 </Link>
               </li>
             )}
@@ -488,7 +496,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
           <section className="rounded-lg border p-3">
             <p className="text-sm font-medium">{locale === 'th' ? 'เตรียมใช้งานเมื่อไม่มีอินเทอร์เน็ต' : 'Prepare for offline use'}</p>
             <p className="mt-1 text-xs text-muted-foreground">{locale === 'th' ? 'บันทึกแฟ้มก่อน แล้วเก็บไฟล์ที่เลือกและแบบบันทึกไว้ในเครื่อง 24 ชั่วโมง รวมไฟล์ไม่เกิน 50 MB' : 'Save first, then store selected files and notes on this device for 24 hours, up to 50 MB.'}</p>
-            <div className="mt-2 flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={dirty || busy || offlineBusy || conflict} className="min-h-11" onClick={async () => { if (!token || !user || !data || !state) return; setOfflineBusy(true); try { setOfflineUrl(await prepareCourtOffline(token, user, data, state, locale)); } catch(e) { setError(e instanceof Error ? e.message : t.error); } finally { setOfflineBusy(false); } }}>{offlineBusy ? (locale === 'th' ? 'กำลังเก็บไฟล์…' : 'Saving files…') : (locale === 'th' ? 'เก็บแฟ้มไว้ใช้แบบออฟไลน์' : 'Save an offline pack')}</Button>{offlineUrl && <a className={linkClass} href={offlineUrl}>{locale === 'th' ? 'เปิดแฟ้มออฟไลน์ →' : 'Open offline pack →'}</a>}</div>
+            <div className="mt-2 flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={dirty || busy || offlineBusy || conflict} className="min-h-11" onClick={async () => { if (!token || !user || !data || !state) return; setOfflineBusy(true); try { setOfflineUrl(await prepareCourtOffline(token, user, data, state, locale)); } catch(e) { setError(e instanceof Error ? e.message : t.error); } finally { setOfflineBusy(false); } }}>{offlineBusy ? (locale === 'th' ? 'กำลังเก็บไฟล์…' : 'Saving files…') : (locale === 'th' ? 'เก็บแฟ้มไว้ใช้แบบออฟไลน์' : 'Save an offline pack')}</Button>{offlineUrl && <a className={linkClass} href={offlineUrl}>{locale === 'th' ? 'เปิดแฟ้มออฟไลน์' : 'Open offline pack'}<ChevronRight className="h-4 w-4" aria-hidden /></a>}</div>
           </section>
           <nav
             aria-label={t.title}
@@ -796,7 +804,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                               {task.title}
                               <span className="mt-1 block text-xs text-muted-foreground">
                                 {task.status === TaskStatus.DONE
-                                  ? `✓ ${t.done}`
+                                  ? <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-success" aria-hidden />{t.done}</span>
                                   : locale === 'th'
                                     ? 'ยังไม่เสร็จ'
                                     : 'Not complete'}

@@ -99,7 +99,7 @@ export function CustomerSelect({
             id={id}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="h-9 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm shadow-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-10 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">ยังไม่ระบุ</option>
             {clients.map((client) => (

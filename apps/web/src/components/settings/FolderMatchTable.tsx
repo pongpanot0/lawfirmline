@@ -67,20 +67,20 @@ export function FolderMatchTable({
 
   return (
     <div className="space-y-3">
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={onlySuggested} onChange={(e) => setOnlySuggested(e.target.checked)} />
-        แสดงเฉพาะ folder ที่มีคดีแนะนำหรือผูกแล้ว ({visible.length}/{rows.length})
+      <label className="flex min-h-11 items-center gap-2 text-sm">
+        <input type="checkbox" className="h-4 w-4" checked={onlySuggested} onChange={(e) => setOnlySuggested(e.target.checked)} />
+        แสดงเฉพาะ folder ที่มีคดีแนะนำหรือผูกแล้ว <span className="tabular-nums">({visible.length}/{rows.length})</span>
       </label>
       {visible.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          {rows.length === 0 ? 'ไม่พบ folder' : 'ไม่มี folder ที่ระบบแนะนำ — ติ๊กช่องด้านบนออกเพื่อแสดงทั้งหมด'}
+        <p className="rounded-lg border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+          {rows.length === 0 ? 'ไม่พบ folder' : 'ไม่มี folder ที่ระบบแนะนำ เอาเครื่องหมายด้านบนออกเพื่อแสดงทั้งหมด'}
         </p>
       )}
       <div className="overflow-x-auto" hidden={visible.length === 0}>
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="text-left text-xs text-muted-foreground">
-              <th className="py-2 pr-3 font-medium">folder</th>
+              <th className="py-2 pr-3 font-medium">Folder</th>
               <th className="py-2 pr-3 font-medium">คดี</th>
               <th className="py-2 font-medium">ความมั่นใจ</th>
             </tr>
@@ -95,8 +95,8 @@ export function FolderMatchTable({
                       <span>
                         ผูกกับ <strong>{row.link.ownRef}</strong> · {row.link.title}
                       </span>
-                      <Button size="sm" variant="outline" disabled={saving} onClick={() => onUnlink(row.link!.id)}>
-                        ยกเลิก
+                      <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={saving} onClick={() => onUnlink(row.link!.id)}>
+                        ยกเลิกการผูก
                       </Button>
                     </div>
                   ) : (
@@ -105,7 +105,7 @@ export function FolderMatchTable({
                         aria-label={`คดีสำหรับ ${row.name}`}
                         value={selection[row.id] ?? ''}
                         onChange={(e) => setSelection((s) => ({ ...s, [row.id]: e.target.value }))}
-                        className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                        className="h-10 w-full rounded-md border bg-background px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <option value="">— ข้าม —</option>
                         {row.suggestions.map((s) => (
@@ -122,7 +122,7 @@ export function FolderMatchTable({
                           onChange={(e) => setOtherRefs((r) => ({ ...r, [row.id]: e.target.value }))}
                           placeholder="พิมพ์เลขอ้างอิงคดี"
                           aria-label={`เลขอ้างอิงคดีสำหรับ ${row.name}`}
-                          className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                          className="h-10 w-full rounded-md border bg-background px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
                       )}
                     </div>
@@ -142,7 +142,7 @@ export function FolderMatchTable({
         </datalist>
       </div>
       <Button disabled={pending.length === 0 || saving} onClick={() => onConfirm(pending)}>
-        {saving ? 'กำลังผูก…' : `ยืนยันการผูก (${pending.length} folder)`}
+        {saving ? 'กำลังผูก…' : `ยืนยันผูก ${pending.length} folder`}
       </Button>
     </div>
   );

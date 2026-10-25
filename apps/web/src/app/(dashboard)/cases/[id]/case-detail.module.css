@@ -48,8 +48,6 @@
   color: var(--case-color-muted);
   font-size: var(--case-text-xs);
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .titleRow {
@@ -245,8 +243,7 @@
   gap: var(--case-space-2);
   margin: 0 0 var(--case-space-5);
   border-bottom: var(--case-rule);
-  background: color-mix(in oklch, var(--case-color-paper) 94%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--case-color-paper);
 }
 
 .tabScroller {

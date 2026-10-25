@@ -8,6 +8,9 @@ import { useAuth } from '@/lib/auth';
 import { api, type WorkflowPipelineRun } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { EmptyState, Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { WorkflowTemplates } from '@/components/workflows/WorkflowTemplates';
 import { shortThaiDate } from '@/components/workflows/workflow-ui';
 
@@ -24,10 +27,7 @@ function WorkflowsContent() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">สายงาน</h1>
-        <p className="mt-1 text-sm text-muted-foreground">งานที่ส่งต่อกันเป็นทอด — อยู่ขั้นไหน ค้างที่ใคร และจะส่งลูกความทันไหม</p>
-      </header>
+      <PageHeader title="สายงาน" description="งานที่ส่งต่อกันเป็นทอด อยู่ขั้นไหน ค้างที่ใคร และส่งลูกความทันไหม" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="pipeline">กำลังเดิน</TabsTrigger>
@@ -43,11 +43,15 @@ function WorkflowsContent() {
 function Pipeline({ token }: { token: string }) {
   const [runs, setRuns] = useState<WorkflowPipelineRun[] | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => { api.getWorkflowRuns(token, 'ACTIVE').then(setRuns).catch((e) => setError(e.message)); }, [token]);
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    setError('');
+    api.getWorkflowRuns(token, 'ACTIVE').then(setRuns).catch((e) => setError(e.message));
+  }, [token, reload]);
 
-  if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
-  if (!runs) return <p className="text-sm text-muted-foreground">กำลังโหลด…</p>;
-  if (!runs.length) return <p className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">ไม่มีสายงานที่กำลังเดิน — เริ่มได้จากหน้าคดี แท็บงาน</p>;
+  if (error) return <LoadFailed message={error} onRetry={() => setReload((n) => n + 1)} />;
+  if (!runs) return <div role="status" aria-label="กำลังโหลดสายงาน" className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-28 w-full rounded-lg" />)}</div>;
+  if (!runs.length) return <EmptyState title="ไม่มีสายงานที่กำลังเดิน" description="เริ่มสายงานได้จากแท็บงานในหน้าคดี" action={<Link href="/cases" className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">ไปที่คดี</Link>} />;
 
   // Late or overdue first: that is what the owner opens this page for.
   const sorted = [...runs].sort((a, b) => (b.lateByDays + (b.currentStep?.overdueDays ?? 0)) - (a.lateByDays + (a.currentStep?.overdueDays ?? 0)));
@@ -60,8 +64,8 @@ function Pipeline({ token }: { token: string }) {
             <div className="flex flex-wrap items-center gap-2">
               <Link href={`/cases/${run.case.id}?tab=tasks`} className="font-medium text-primary hover:underline">{run.case.ownRef}</Link>
               <span className="font-medium">{run.name}</span>
-              <span className="text-xs text-muted-foreground">{run.stepsDone}/{run.stepsTotal} ขั้น</span>
-              {run.lateByDays > 0 && <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3" />ช้ากว่าที่สัญญา {run.lateByDays} วัน</Badge>}
+              <span className="text-xs tabular-nums text-muted-foreground">{run.stepsDone}/{run.stepsTotal} ขั้น</span>
+              {run.lateByDays > 0 && <Badge variant="destructive"><AlertTriangle className="mr-1 h-3.5 w-3.5" aria-hidden />ช้ากว่าที่สัญญา {run.lateByDays} วัน</Badge>}
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
               <div className="h-full bg-primary" style={{ width: `${(run.stepsDone / Math.max(run.stepsTotal, 1)) * 100}%` }} />

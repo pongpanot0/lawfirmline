@@ -15,6 +15,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -118,6 +119,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
 
   const runSummarize = async () => {
     if (!token || !file || !selectedCaseId) return;
+    if (!confirm(`ให้ AI สรุป "${file.name}" ใช้ ${CREDIT_COST} เครดิต?`)) return;
     setLoading(true);
     setError(null);
     try {
@@ -133,6 +135,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
 
   const runDraft = async () => {
     if (!token || !selectedIntakeId) return;
+    if (!confirm(`ให้ AI ร่างหนังสือจากเรื่องนี้ ใช้ ${CREDIT_COST} เครดิต?`)) return;
     setLoading(true);
     setError(null);
     try {
@@ -160,8 +163,9 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
         onClick={() => setOpen(true)}
         className="fixed bottom-6 right-6 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-card transition-transform hover:scale-105"
       >
-        <Sparkles className="h-4 w-4" />
+        <Sparkles className="h-4 w-4" aria-hidden />
         <span className="hidden sm:inline">AI Assistant</span>
+        <span className="sr-only sm:hidden">AI Assistant</span>
       </button>
     );
   }
@@ -170,9 +174,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
     <div className="fixed bottom-0 right-0 top-14 z-40 flex w-full max-w-sm flex-col border-l border-border bg-card shadow-card sm:bottom-6 sm:right-6 sm:top-auto sm:h-[calc(100vh-5rem)] sm:max-h-[640px] sm:rounded-xl sm:border">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Sparkles className="h-4 w-4 text-primary" />
-          </div>
+          <Sparkles className="h-4 w-4 text-primary" aria-hidden />
           <div>
             <p className="text-sm font-semibold">Samnuan AI</p>
             <p className="text-xs text-muted-foreground">ขับเคลื่อนโดย GPT-4o</p>
@@ -181,12 +183,13 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
         <Button
           variant="ghost"
           size="icon"
+          aria-label="ปิด AI Assistant"
           onClick={() => {
             setOpen(false);
             setActive(null);
           }}
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4" aria-hidden />
         </Button>
       </div>
 
@@ -200,7 +203,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
               <p className="text-sm font-medium">งานที่ AI เตรียมไว้</p>
               <AiTrayCards compact />
             </div>
-            <p className="text-sm text-muted-foreground">เลือกฟีเจอร์ AI ที่ต้องการใช้งาน</p>
+            <p className="text-sm font-medium">ฟีเจอร์ AI</p>
             {AI_ACTIONS.map((item) => {
               const Icon = item.icon;
               return (
@@ -208,23 +211,19 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                   key={item.id}
                   type="button"
                   onClick={() => openAction(item.id)}
-                  className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-accent"
+                  className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                    <Icon className="h-4 w-4 text-primary" />
-                  </div>
+                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium">{item.label}</p>
                       {!item.ready && (
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          เร็วๆ นี้
-                        </span>
+                        <Badge variant="muted">เร็วๆ นี้</Badge>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
                 </button>
               );
             })}
@@ -246,10 +245,10 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" className="flex-1" onClick={copyResult}>
-                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
                       {copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}
                     </Button>
-                    <Button size="sm" variant="secondary" onClick={resetActionState}>
+                    <Button size="sm" variant="ghost" onClick={resetActionState}>
                       เริ่มใหม่
                     </Button>
                   </div>
@@ -266,9 +265,10 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                     <>
                       {!caseId && (
                         <select
+                          aria-label="เลือกคดี"
                           value={selectedCaseId}
                           onChange={(e) => setSelectedCaseId(e.target.value)}
-                          className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                          className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <option value="">เลือกคดี...</option>
                           {(cases ?? []).map((c) => (
@@ -289,7 +289,8 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                         role="button"
                         tabIndex={0}
                         onClick={() => fileInputRef.current?.click()}
-                        onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
+                        aria-label="เลือกไฟล์เอกสาร"
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
                         onDragOver={(e) => {
                           e.preventDefault();
                           setDragOver(true);
@@ -302,7 +303,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                           if (dropped) setFile(dropped);
                         }}
                         className={cn(
-                          'cursor-pointer rounded-lg border border-dashed p-6 text-center text-sm transition-colors',
+                          'cursor-pointer rounded-lg border border-dashed p-6 text-center text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                           dragOver ? 'border-primary bg-primary/5' : 'border-border text-muted-foreground',
                         )}
                       >
@@ -313,9 +314,10 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
 
                   {action?.id === 'draft' && (
                     <select
+                      aria-label="เลือกเรื่องรับเข้า"
                       value={selectedIntakeId}
                       onChange={(e) => setSelectedIntakeId(e.target.value)}
-                      className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                      className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <option value="">เลือก intake...</option>
                       {(intakes ?? []).map((i) => (
@@ -326,7 +328,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                     </select>
                   )}
 
-                  {error && <p className="text-sm text-destructive">{error}</p>}
+                  {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
                   <div className="flex gap-2">
                     <Button
@@ -339,7 +341,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                       }
                       onClick={action?.id === 'summarize' ? runSummarize : runDraft}
                     >
-                      {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
                       {loading ? 'กำลังประมวลผล...' : action?.id === 'summarize' ? 'สรุปเอกสาร' : 'สร้างร่าง'}
                     </Button>
                   </div>

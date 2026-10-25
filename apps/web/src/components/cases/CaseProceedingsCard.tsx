@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { InlineEmptyState } from '@/components/ui/misc';
 
 type Action = 'filing' | 'service' | 'judgment' | 'appeal';
 
@@ -28,7 +29,7 @@ const ACTIONS: { id: Action; label: string }[] = [
   { id: 'appeal', label: 'บันทึกการได้รับสำเนาอุทธรณ์' },
 ];
 
-const SELECT = 'h-9 w-full rounded-md border border-input bg-background px-3 text-sm';
+const SELECT = 'h-10 w-full rounded-md border border-input bg-background px-3 text-sm';
 const toIso = (day: string) => new Date(`${day}T00:00:00+07:00`).toISOString();
 
 /** ศาล / เลขคดี: one row per court level, plus the four facts that start procedural clocks. */
@@ -110,7 +111,7 @@ export function CaseProceedingsCard({
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         {rows.length === 0 ? (
-          <p className="text-muted-foreground">ยังไม่ได้ยื่นฟ้อง</p>
+          <InlineEmptyState title="ยังไม่ได้ยื่นฟ้อง" />
         ) : (
           <ul className="divide-y divide-border">
             {rows.map((p) => (
@@ -176,7 +177,7 @@ export function CaseProceedingsCard({
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-muted-foreground">จำนวนเงินตามคำพิพากษา (บาท)</span>
-                  <Input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                  <Input type="number" min={0} step="0.01" className="text-right tabular-nums" value={amount} onChange={(e) => setAmount(e.target.value)} />
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-muted-foreground">หมายเลขคดีแดง</span>
@@ -188,9 +189,9 @@ export function CaseProceedingsCard({
                 </label>
               </>
             )}
-            {error && <p className="text-destructive sm:col-span-2">{error}</p>}
+            {error && <p role="alert" className="text-destructive sm:col-span-2">{error}</p>}
             <div className="sm:col-span-2">
-              <Button type="submit" size="sm" disabled={busy || !date}>{busy ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+              <Button type="submit" size="sm" disabled={busy || !date}>{busy ? 'กำลังบันทึก…' : ACTIONS.find((a) => a.id === action)?.label ?? 'บันทึก'}</Button>
             </div>
           </form>
         )}

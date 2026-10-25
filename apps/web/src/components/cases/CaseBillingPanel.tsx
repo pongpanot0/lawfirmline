@@ -17,6 +17,10 @@ import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { Button } from '@/components/ui/button';
+import { SelectField, TextField } from '@/components/ui/form-fields';
+import { Plus } from 'lucide-react';
 
 export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const d = useDashboardT();
@@ -28,6 +32,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const [caseRevenue, setCaseRevenue] = useState(0);
   const [caseProfit, setCaseProfit] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [expenseError, setExpenseError] = useState('');
   const [savingExpense, setSavingExpense] = useState(false);
@@ -57,7 +62,8 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         setCaseRevenue(summary.revenue ?? 0);
         setCaseProfit(summary.profit ?? 0);
       })
-      .catch(console.error)
+      .then(() => setLoadError(false))
+      .catch((err) => { console.error(err); setLoadError(true); })
       .finally(() => setLoading(false));
   };
 
@@ -104,6 +110,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   };
 
   if (loading) return <PageLoading title={d.caseBilling.loading} lines={3} />;
+  if (loadError) return <LoadFailed onRetry={load} />;
 
   const totalHours = timeEntries.reduce((sum, e) => sum + e.hours, 0);
   const totalBilled = timeEntries.reduce((sum, e) => sum + e.hours * e.rate, 0);
@@ -113,89 +120,89 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
     <div>
       <h2 className="mb-6 text-xl font-bold text-foreground">{d.caseBilling.title}</h2>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <p className="text-sm text-muted-foreground">รายได้</p>
-          <p className="text-2xl font-bold text-emerald-600">{formatCurrency(caseRevenue)}</p>
+      <dl className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border md:grid-cols-3 xl:grid-cols-6 [&>div]:bg-card [&>div]:p-4">
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">รายได้</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(caseRevenue)}</dd>
         </div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <p className="text-sm text-muted-foreground">ค่าใช้จ่ายอนุมัติ</p>
-          <p className="text-2xl font-bold text-violet-600">{formatCurrency(totalSpent)}</p>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">ค่าใช้จ่ายอนุมัติ</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalSpent)}</dd>
         </div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <p className="text-sm text-muted-foreground">กำไร</p>
-          <p className={`text-2xl font-bold ${caseProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">กำไร</dt>
+          <dd className={`mt-1 text-xl font-semibold tabular-nums ${caseProfit < 0 ? 'text-destructive' : ''}`}>
             {formatCurrency(caseProfit)}
-          </p>
+          </dd>
         </div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <p className="text-sm text-muted-foreground">{d.caseBilling.billableHours}</p>
-          <p className="text-2xl font-bold text-brand-600">{totalHours.toFixed(1)}h</p>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.billableHours}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{totalHours.toFixed(1)}h</dd>
         </div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <p className="text-sm text-muted-foreground">{d.caseBilling.timeBilled}</p>
-          <p className="text-2xl font-bold text-green-600">{formatCurrency(totalBilled)}</p>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.timeBilled}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalBilled)}</dd>
         </div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <p className="text-sm text-muted-foreground">{d.caseBilling.allExpenses}</p>
-          <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalExpenses)}</p>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.allExpenses}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalExpenses)}</dd>
         </div>
-      </div>
+      </dl>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-6 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="mb-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold">{d.caseBilling.expenseClaims}</h2>
-          <button
-            onClick={() => setShowExpenseForm(!showExpenseForm)}
-            className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm text-white hover:bg-brand-700"
-          >
+          <Button type="button" size="sm" aria-expanded={showExpenseForm} onClick={() => setShowExpenseForm(!showExpenseForm)}>
+            <Plus aria-hidden="true" className="h-4 w-4" />
             {d.caseBilling.submitExpense}
-          </button>
+          </Button>
         </div>
 
         {showExpenseForm && (
-          <form onSubmit={handleCreateExpense} className="mb-4 space-y-3 rounded-lg border border-border bg-muted p-4">
+          <form onSubmit={handleCreateExpense} className="mb-4 space-y-3 rounded-lg border border-border bg-muted/40 p-4">
             <div className="grid gap-3 md:grid-cols-2">
-              <div>
+              <div className="space-y-1.5">
+                <label htmlFor="expense-amount" className="block text-sm font-medium">
+                  {d.caseBilling.amount}<span aria-hidden="true" className="ml-1 text-destructive">*</span>
+                </label>
                 <MoneyInput
+                  id="expense-amount"
                   required
                   min={MONEY_MIN}
                   max={MONEY_MAX}
                   title={MONEY_HINT}
-                  placeholder={d.caseBilling.amount}
                   value={expenseForm.amount}
                   onValueChange={(next) => setExpenseForm({ ...expenseForm, amount: next })}
-                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
+                  className="min-h-10 w-full rounded-lg border border-input bg-card px-3 py-2 text-right text-sm tabular-nums"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">{MONEY_HINT}</p>
+                <p className="text-xs text-muted-foreground">{MONEY_HINT}</p>
               </div>
-              <select
+              <SelectField
+                label="หมวดค่าใช้จ่าย"
                 value={expenseForm.category}
                 onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
-                className="rounded-lg border border-input px-3 py-2 text-sm"
               >
                 {EXPENSE_CATEGORIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
-            <input
-              required placeholder={d.caseBilling.descriptionField}
+            <TextField
+              label={d.caseBilling.descriptionField}
+              required
               value={expenseForm.description}
               onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
-              className="w-full rounded-lg border border-input px-3 py-2 text-sm"
             />
-            <input
-              placeholder={d.caseBilling.purpose}
+            <TextField
+              label={d.caseBilling.purpose}
               value={expenseForm.expensePurpose}
               onChange={(e) => setExpenseForm({ ...expenseForm, expensePurpose: e.target.value })}
-              className="w-full rounded-lg border border-input px-3 py-2 text-sm"
             />
             <p className="text-xs text-muted-foreground">{d.caseBilling.draftHint}</p>
-            {expenseError && <p role="alert" className="text-sm text-red-600">{expenseError}</p>}
-            <button type="submit" disabled={savingExpense} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white disabled:opacity-50">
+            {expenseError && <p role="alert" className="text-sm text-destructive">{expenseError}</p>}
+            <Button type="submit" disabled={savingExpense}>
               {savingExpense ? d.caseBilling.savingDraft : d.caseBilling.saveDraft}
-            </button>
+            </Button>
           </form>
         )}
 
@@ -214,7 +221,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
               <div className="flex items-center gap-3 text-right">
                 {/* ออกบิลไปแล้วเปลี่ยนไม่ได้ ต้องไปแก้ที่ใบแจ้งหนี้ */}
                 {!e.invoiceId && (
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <label className="flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground sm:min-h-0">
                     <input
                       type="checkbox"
                       aria-label={`สำนักงานออกเอง: ${e.description}`}
@@ -226,7 +233,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                   </label>
                 )}
                 <div>
-                  <p className="font-medium">{formatCurrency(e.amount)}</p>
+                  <p className="font-medium tabular-nums">{formatCurrency(e.amount)}</p>
                   <ExpenseStatusBadge status={e.status} />
                 </div>
               </div>
@@ -235,22 +242,19 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
           {expenses.length === 0 && (
             <InlineEmptyState
               title={d.caseBilling.noExpenses}
-              description="บันทึกค่าใช้จ่ายแรกของคดีนี้ ระบบจะผูกกับคดีให้อัตโนมัติ"
               action={
-                <button
-                  type="button"
-                  onClick={() => setShowExpenseForm(true)}
-                  className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm text-white hover:bg-brand-700"
-                >
-                  {d.caseBilling.submitExpense}
-                </button>
+                !showExpenseForm && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowExpenseForm(true)}>
+                    {d.caseBilling.submitExpense}
+                  </Button>
+                )
               }
             />
           )}
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-6 shadow-sm">
+      <div className="mb-6 rounded-xl border border-border bg-card p-6">
         <h2 className="mb-4 font-semibold">{d.caseBilling.timeEntries}</h2>
         <div className="space-y-2">
           {timeEntries.map((e) => (
@@ -261,7 +265,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                   {e.user.firstName} {e.user.lastName} — {formatDate(e.date)}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-right tabular-nums">
                 <p>{e.hours}h @ ฿{e.rate}</p>
                 <p className="text-xs text-muted-foreground">{formatCurrency(e.hours * e.rate)}</p>
               </div>
@@ -270,7 +274,6 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
           {timeEntries.length === 0 && (
             <InlineEmptyState
               title={d.caseBilling.noTimeEntries}
-              description="เมื่อมีการบันทึกเวลาทำงาน รายการจะสรุปยอดให้ตรงนี้"
             />
           )}
         </div>

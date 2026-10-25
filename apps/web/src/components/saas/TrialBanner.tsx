@@ -16,7 +16,7 @@ export function TrialBanner() {
 
   if (!subscriptionAllowsWrites(user.subscriptionStatus)) {
     return (
-      <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
+      <div className="border-b border-warning/30 bg-warning/10 px-4 py-2 text-center text-sm text-foreground">
         {d.trial.readOnly} —{' '}
         {owner ? (
           <Link href="/account/billing" className="font-medium underline">{d.trial.choosePlan}</Link>
@@ -36,7 +36,7 @@ export function TrialBanner() {
     <div
       className={cn(
         'border-b px-4 py-2 text-center text-sm',
-        days <= 7 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-primary/20 bg-primary/5 text-primary',
+        days <= 7 ? 'border-warning/30 bg-warning/10 text-foreground' : 'border-primary/20 bg-primary/5 text-primary',
       )}
     >
       {fmt(d.trial.daysRemaining, { days })}{' '}

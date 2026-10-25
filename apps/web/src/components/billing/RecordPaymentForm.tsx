@@ -69,21 +69,21 @@ export function RecordPaymentForm({
       className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/30 p-3"
     >
       <label className="text-sm">
-        <span className="mb-1 block text-xs text-muted-foreground">จำนวนเงิน</span>
+        <span className="mb-1 block text-sm font-medium">จำนวนเงิน</span>
         <MoneyInput
           value={amount}
           min={0.01}
           max={outstanding}
           onValueChange={setAmount}
-          className="h-9 w-32 rounded-lg border border-input bg-background px-2 text-sm"
+          className="h-10 w-32 rounded-lg border border-input bg-background px-2 text-right text-sm tabular-nums"
         />
       </label>
       <label className="text-sm">
-        <span className="mb-1 block text-xs text-muted-foreground">วิธีชำระ</span>
+        <span className="mb-1 block text-sm font-medium">วิธีชำระ</span>
         <select
           value={method}
           onChange={(e) => setMethod(e.target.value as typeof method)}
-          className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+          className="h-10 rounded-lg border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {Object.entries(METHOD_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -93,15 +93,15 @@ export function RecordPaymentForm({
         </select>
       </label>
       <label className="text-sm">
-        <span className="mb-1 block text-xs text-muted-foreground">วันที่รับเงิน</span>
+        <span className="mb-1 block text-sm font-medium">วันที่รับเงิน</span>
         <ThaiDateInput value={receivedAt} onChange={setReceivedAt} />
       </label>
       <label className="min-w-40 flex-1 text-sm">
-        <span className="mb-1 block text-xs text-muted-foreground">หมายเหตุ</span>
+        <span className="mb-1 block text-sm font-medium">หมายเหตุ</span>
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          className="h-9 w-full rounded-lg border border-input bg-background px-2 text-sm"
+          className="h-10 w-full rounded-lg border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </label>
       {error && (
@@ -110,11 +110,11 @@ export function RecordPaymentForm({
         </p>
       )}
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={submitting}>
-          {submitting ? 'กำลังบันทึก…' : 'บันทึก'}
-        </Button>
         <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={submitting}>
           ยกเลิก
+        </Button>
+        <Button type="submit" size="sm" disabled={submitting}>
+          {submitting ? 'กำลังบันทึก…' : 'บันทึกรับเงิน'}
         </Button>
       </div>
     </form>

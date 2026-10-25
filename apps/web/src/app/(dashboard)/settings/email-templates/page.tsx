@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Plus } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, type EmailTemplate, type EmailTemplateVariable } from '@/lib/api';
 import { insertAtCursor, previewTemplate } from '@/lib/case-email-compose';
@@ -11,7 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PageLoading } from '@/components/ui/misc';
+import { EmptyState, PageLoading } from '@/components/ui/misc';
+import { Badge } from '@/components/ui/badge';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { TextField } from '@/components/ui/form-fields';
 
 type Draft = { id: string | null; name: string; subject: string; body: string };
 type Field = 'subject' | 'body';
@@ -54,21 +58,24 @@ function ReplyReminderCard() {
   };
 
   return (
-    <Card>
-      <CardContent className="flex flex-wrap items-center gap-2 p-4 text-sm">
-        <label htmlFor="email-reply-hours">เตือนเมื่ออีเมลลูกความไม่ได้ตอบภายใน</label>
-        <Input id="email-reply-hours" type="number" min={1} max={168} className="w-20" value={hours} onChange={(e) => setHours(e.target.value)} />
-        <span>ชั่วโมง</span>
-        <Button size="sm" disabled={saving} onClick={() => void save()}>
-          {saving ? 'กำลังบันทึก…' : 'บันทึก'}
-        </Button>
-        {msg && (
-          <span role={msg.ok ? 'status' : 'alert'} className={msg.ok ? 'text-green-700' : 'text-destructive'}>
-            {msg.text}
-          </span>
-        )}
-      </CardContent>
-    </Card>
+    <section aria-labelledby="reply-reminder-heading" className="space-y-2">
+      <h2 id="reply-reminder-heading" className="text-base font-semibold">เตือนอีเมลที่ยังไม่ได้ตอบ</h2>
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-2 p-4 text-sm">
+          <label htmlFor="email-reply-hours">เตือนเมื่ออีเมลลูกความไม่ได้ตอบภายใน</label>
+          <Input id="email-reply-hours" type="number" min={1} max={168} className="w-20 tabular-nums" value={hours} onChange={(e) => setHours(e.target.value)} />
+          <span>ชั่วโมง</span>
+          <Button size="sm" variant="outline" disabled={saving} onClick={() => void save()}>
+            {saving ? 'กำลังบันทึก…' : 'บันทึกเวลาเตือน'}
+          </Button>
+          {msg && (
+            <span role={msg.ok ? 'status' : 'alert'} className={msg.ok ? 'text-success' : 'text-destructive'}>
+              {msg.text}
+            </span>
+          )}
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
@@ -166,31 +173,32 @@ export default function EmailTemplatesPage() {
 
   return (
     <div className="space-y-4">
-      <Link href="/settings" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> ตั้งค่า
-      </Link>
-      <ReplyReminderCard />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">เทมเพลตอีเมล</h1>
-          <p className="text-sm text-muted-foreground">ข้อความสำเร็จรูปที่ทุกคนเลือกใช้ได้ตอนเขียนอีเมลในคดี ช่อง {'{{…}}'} จะถูกเติมจากข้อมูลคดีให้อัตโนมัติ</p>
-        </div>
-        <Button onClick={() => setDraft({ id: null, name: '', subject: '', body: '' })}>+ สร้างเทมเพลต</Button>
+      <div>
+        <Link href="/settings?view=office" className="inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" aria-hidden />ตั้งค่าสำนักงาน
+        </Link>
+        <PageHeader
+          title="เทมเพลตอีเมล"
+          description={`ข้อความสำเร็จรูปสำหรับอีเมลในคดี ช่อง {{…}} เติมจากข้อมูลคดี`}
+          actions={
+            <Button onClick={() => setDraft({ id: null, name: '', subject: '', body: '' })}>
+              <Plus className="h-4 w-4" aria-hidden />สร้างเทมเพลต
+            </Button>
+          }
+        />
       </div>
 
       {listError && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{listError}</p>}
 
       {loadError ? (
-        <div role="alert" className="space-y-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-          <p>{loadError}</p>
-          <Button size="sm" variant="outline" onClick={() => void load()}>
-            ลองใหม่
-          </Button>
-        </div>
+        <LoadFailed message={loadError} onRetry={() => void load()} />
       ) : !templates ? (
-        <PageLoading />
+        <PageLoading lines={2} />
       ) : templates.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">ยังไม่มีเทมเพลต</p>
+        <EmptyState
+          title="ยังไม่มีเทมเพลต"
+          action={<Button variant="outline" onClick={() => setDraft({ id: null, name: '', subject: '', body: '' })}><Plus className="h-4 w-4" aria-hidden />สร้างเทมเพลต</Button>}
+        />
       ) : (
         <ul className="space-y-2">
           {templates.map((t) => (
@@ -200,21 +208,21 @@ export default function EmailTemplatesPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate font-medium">{t.name}</span>
-                      {t.builtIn && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">ตัวอย่าง</span>}
+                      {t.builtIn && <Badge variant="muted" className="shrink-0">ตัวอย่าง</Badge>}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {t.builtIn ? (
                         <Button size="sm" variant="outline" onClick={() => setDraft({ id: null, name: `${t.name} (สำเนา)`, subject: t.subject, body: t.body })}>
                           คัดลอกไปแก้
                         </Button>
                       ) : deletingId === t.id ? (
                         <>
-                          <span className="text-sm">ลบเทมเพลตนี้?</span>
-                          <Button size="sm" variant="destructive" disabled={deleteBusy} onClick={() => void remove(t.id)}>
-                            {deleteBusy ? 'กำลังลบ…' : 'ลบ'}
-                          </Button>
+                          <span className="text-sm">ลบเทมเพลต &quot;{t.name}&quot;?</span>
                           <Button size="sm" variant="ghost" disabled={deleteBusy} onClick={() => setDeletingId(null)}>
                             ยกเลิก
+                          </Button>
+                          <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={deleteBusy} onClick={() => void remove(t.id)}>
+                            {deleteBusy ? 'กำลังลบ…' : 'ลบเทมเพลต'}
                           </Button>
                         </>
                       ) : (
@@ -222,7 +230,7 @@ export default function EmailTemplatesPage() {
                           <Button size="sm" variant="outline" onClick={() => setDraft({ id: t.id, name: t.name, subject: t.subject, body: t.body })}>
                             แก้ไข
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setDeletingId(t.id)}>
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingId(t.id)}>
                             ลบ
                           </Button>
                         </>
@@ -240,12 +248,9 @@ export default function EmailTemplatesPage() {
       <SideDrawer open={!!draft} title={draft?.id ? 'แก้ไขเทมเพลต' : 'สร้างเทมเพลต'} onClose={closeDrawer}>
         {draft && preview && (
           <div className="space-y-4">
+            <TextField label="ชื่อเทมเพลต" required value={draft.name} maxLength={100} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="เช่น แจ้งนัดศาล" />
             <label className="block space-y-1 text-sm">
-              <span className="font-medium">ชื่อเทมเพลต</span>
-              <Input value={draft.name} maxLength={100} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="เช่น แจ้งนัดศาล" />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span className="font-medium">หัวเรื่อง</span>
+              <span className="font-medium">หัวเรื่อง<span aria-hidden="true" className="ml-1 text-destructive">*</span></span>
               <Input
                 ref={subjectRef}
                 value={draft.subject}
@@ -255,7 +260,7 @@ export default function EmailTemplatesPage() {
               />
             </label>
             <label className="block space-y-1 text-sm">
-              <span className="font-medium">ข้อความ</span>
+              <span className="font-medium">ข้อความ<span aria-hidden="true" className="ml-1 text-destructive">*</span></span>
               <Textarea
                 ref={bodyRef}
                 rows={10}
@@ -267,14 +272,14 @@ export default function EmailTemplatesPage() {
             </label>
 
             <div className="space-y-1">
-              <p className="text-sm font-medium">แทรกข้อมูลคดี (กดเพื่อแทรกตรงตำแหน่งเคอร์เซอร์)</p>
+              <p className="text-sm font-medium">แทรกข้อมูลคดี</p>
               <div className="flex flex-wrap gap-1.5">
                 {variables.map((v) => (
                   <button
                     key={v.key}
                     type="button"
                     title={`ตัวอย่าง: ${v.example}`}
-                    className="rounded-full border border-border px-2.5 py-1 text-xs hover:bg-muted"
+                    className="min-h-11 rounded-full border border-border px-2.5 py-1 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8"
                     onClick={() => insertVariable(v.key)}
                   >
                     {v.label}
@@ -295,12 +300,14 @@ export default function EmailTemplatesPage() {
                 ยกเลิก
               </Button>
               <Button onClick={() => void save()} disabled={saving}>
-                {saving ? 'กำลังบันทึก…' : 'บันทึก'}
+                {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลต'}
               </Button>
             </div>
           </div>
         )}
       </SideDrawer>
+
+      <ReplyReminderCard />
     </div>
   );
 }

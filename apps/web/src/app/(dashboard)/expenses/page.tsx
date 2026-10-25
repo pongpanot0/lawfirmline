@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Wallet, Receipt, Paperclip, FileText, Clock } from 'lucide-react';
+import { Plus, Paperclip, FileText } from 'lucide-react';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ExpenseItem, FinanceSummary } from '@/lib/api';
-import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { KpiStrip } from '@/components/reports/KpiStrip';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { SelectField } from '@/components/ui/form-fields';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
@@ -145,14 +148,10 @@ export default function ExpensesPage() {
   if (loading) return <PageLoading title={d.common.loading} lines={4} />;
 
   if (error && !expenses.length && !finance) {
-    return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
-        <p className="text-destructive">{error}</p>
-      </div>
-    );
+    return <LoadFailed message={error} onRetry={() => { setLoading(true); setReloadKey((n) => n + 1); }} />;
   }
 
-  const colSpan = (canApprove ? 1 : 0) + 5;
+  const colSpan = (canApprove ? 1 : 0) + 4;
 
   return (
     <div>
@@ -166,58 +165,39 @@ export default function ExpensesPage() {
               : `บันทึก เบิก และติดตามค่าใช้จ่ายของ ${finance.firmName}`
         }
         actions={
-          <div className="flex items-center gap-2">
+          <>
             <Button size="sm" variant="outline" onClick={openClaimSheet} disabled={!selectedDraftIds.length}>
-              <FileText className="h-4 w-4" />จัดทำใบเบิก{selectedDraftIds.length ? ` (${selectedDraftIds.length})` : ''}
+              <FileText className="h-4 w-4" aria-hidden />จัดทำใบเบิก{selectedDraftIds.length ? ` (${selectedDraftIds.length})` : ''}
             </Button>
             <Button size="sm" onClick={() => router.push('/expenses/new')}>
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4" aria-hidden />
               {d.expenses.newTitle}
             </Button>
-          </div>
+          </>
         }
       />
 
       {error && (
-        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
       {success && (
-        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <div role="status" className="mb-4 rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
           {success}
         </div>
       )}
 
-      {finance && <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <KpiCard
-          label={d.expenses.draftKpi}
-          value={formatCurrency(finance.draftTotal ?? 0)}
-          icon={Wallet}
-          change={`${finance.draftCount ?? 0} รายการ`}
-          trend="neutral"
-        />
-        <KpiCard
-          label={d.expenses.statusPending}
-          value={formatCurrency(finance.outstanding)}
-          icon={Clock}
-          change={`${finance.pendingCount} รายการ`}
-          trend="neutral"
-        />
-        <KpiCard
-          label={d.expenses.statusApproved}
-          value={formatCurrency(finance.approvedExpenses)}
-          icon={Receipt}
-          change={`${finance.expenseCount} รายการ`}
-          trend="down"
-        />
-      </div>}
+      {finance && <KpiStrip className="mb-6" items={[
+        { label: d.expenses.draftKpi, value: formatCurrency(finance.draftTotal ?? 0), note: `${finance.draftCount ?? 0} รายการ` },
+        { label: d.expenses.statusPending, value: formatCurrency(finance.outstanding), note: `${finance.pendingCount} รายการ` },
+        { label: d.expenses.statusApproved, value: formatCurrency(finance.approvedExpenses), note: `${finance.expenseCount} รายการ` },
+      ]} />}
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{d.expenses.filterStatus}</span>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+          <SelectField
+            label={d.expenses.filterStatus}
+            containerClassName="min-w-0 sm:w-48"
             value={statusFilter}
             onChange={(e) => {
               setLoading(true);
@@ -230,13 +210,11 @@ export default function ExpensesPage() {
                 {statusLabels[status]}
               </option>
             ))}
-          </select>
-        </label>
+          </SelectField>
         {canApprove && (
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{d.expenses.filterRequester}</span>
-            <select
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+            <SelectField
+              label={d.expenses.filterRequester}
+              containerClassName="min-w-0 sm:w-56"
               value={requesterFilter}
               onChange={(e) => {
                 setLoading(true);
@@ -249,8 +227,7 @@ export default function ExpensesPage() {
                   {m.firstName} {m.lastName}
                 </option>
               ))}
-            </select>
-          </label>
+            </SelectField>
         )}
       </div>
 
@@ -260,7 +237,7 @@ export default function ExpensesPage() {
         <CardHeader className="flex-row items-center justify-between gap-3">
           <div>
             <CardTitle>{d.expenses.savedDrafts}</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">เลือกรายการ แล้วกดจัดทำใบเบิกด้านบน เพื่อพิมพ์หรือดาวน์โหลดพร้อมไฟล์แนบ</p>
+            <p className="mt-1 text-xs text-muted-foreground">รายการที่ยังไม่ได้เบิก</p>
           </div>
 
         </CardHeader>
@@ -278,7 +255,7 @@ export default function ExpensesPage() {
                 <TableHead>{d.expenses.descriptionField}</TableHead>
                 {canApprove && <TableHead>{d.expenses.requester}</TableHead>}
                 <TableHead>{d.expenses.caseField}</TableHead>
-                <TableHead>{d.expenses.amount}</TableHead>
+                <TableHead className="text-right">{d.expenses.amount}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -286,7 +263,7 @@ export default function ExpensesPage() {
                 <TableEmptyRow
                   colSpan={colSpan}
                   title={d.expenses.empty}
-                  description="เพิ่มค่าใช้จ่ายแล้วติ๊กเลือกรายการเพื่อจัดทำใบเบิก"
+                  description="ค่าใช้จ่ายที่บันทึกแล้วยังไม่เบิกจะแสดงที่นี่"
                 />
               ) : (
                 draftExpenses.map((e) => (
@@ -304,10 +281,10 @@ export default function ExpensesPage() {
                       {e.receiptFilename && (
                         <button
                           type="button"
-                          className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                          className="mt-1 inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:min-h-0"
                           onClick={() => downloadReceipt(e.id, e.receiptFilename!)}
                         >
-                          <Paperclip className="h-3 w-3" />
+                          <Paperclip className="h-3.5 w-3.5" aria-hidden />
                           {d.expenses.viewReceipt}
                         </button>
                       )}
@@ -320,7 +297,7 @@ export default function ExpensesPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       {e.case?.ownRef ?? d.expenses.general}
                     </TableCell>
-                    <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">{formatCurrency(e.amount)}</TableCell>
                   </TableRow>
                 ))
               )}
@@ -334,10 +311,8 @@ export default function ExpensesPage() {
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>{d.expenses.submittedList}</CardTitle>
           {canApprove && (
-            <Link href="/admin/reimbursements">
-              <Button variant="outline" size="sm">
-                {d.expenses.approveClaims}
-              </Button>
+            <Link href="/admin/reimbursements" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              {d.expenses.approveClaims}
             </Link>
           )}
         </CardHeader>
@@ -348,7 +323,7 @@ export default function ExpensesPage() {
                 <TableHead className="w-10"><Checkbox aria-label="เลือกประวัติทั้งหมด" checked={submittedExpenses.length > 0 && submittedExpenses.every(e => selectedDraftIds.includes(e.id))} onChange={() => setSelectedDraftIds(prev => submittedExpenses.every(e => prev.includes(e.id)) ? prev.filter(id => !submittedExpenses.some(e => e.id === id)) : [...new Set([...prev, ...submittedExpenses.map(e => e.id)])])} /></TableHead><TableHead>{d.expenses.descriptionField}</TableHead>
                 {canApprove && <TableHead>{d.expenses.requester}</TableHead>}
                 <TableHead>{d.expenses.caseField}</TableHead>
-                <TableHead>{d.expenses.amount}</TableHead>
+                <TableHead className="text-right">{d.expenses.amount}</TableHead>
                 <TableHead>{d.expenses.status}</TableHead>
               </TableRow>
             </TableHeader>
@@ -364,10 +339,10 @@ export default function ExpensesPage() {
                       {e.receiptFilename && (
                         <button
                           type="button"
-                          className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                          className="mt-1 inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:min-h-0"
                           onClick={() => downloadReceipt(e.id, e.receiptFilename!)}
                         >
-                          <Paperclip className="h-3 w-3" />
+                          <Paperclip className="h-3.5 w-3.5" aria-hidden />
                           {d.expenses.viewReceipt}
                         </button>
                       )}
@@ -380,7 +355,7 @@ export default function ExpensesPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       {e.case?.ownRef ?? d.expenses.general}
                     </TableCell>
-                    <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">{formatCurrency(e.amount)}</TableCell>
                     <TableCell>
                       <ExpenseStatusBadge status={e.status} />
                     </TableCell>

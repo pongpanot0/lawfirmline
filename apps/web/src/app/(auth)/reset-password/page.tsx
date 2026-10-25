@@ -6,9 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { PasswordInput } from '@/components/auth/PasswordInput';
-import { Card, CardContent } from '@/components/ui/card';
+import { AuthShell } from '@/components/auth/AuthShell';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { LanguageSwitcher } from '@/components/landing/LanguageSwitcher';
 
 function ResetForm() {
   const d = useDashboardT();
@@ -38,23 +37,20 @@ function ResetForm() {
   };
 
   if (!token) {
-    return <p role="alert" className="text-destructive">{d.auth.invalidResetLink}</p>;
+    return <p role="alert" className="text-sm text-destructive">{d.auth.invalidResetLink}</p>;
   }
 
   return done ? (
-    <p className="text-sm text-muted-foreground">{d.auth.resetDone}</p>
+    <p role="status" className="text-sm text-muted-foreground">{d.auth.resetDone}</p>
   ) : (
-    <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label htmlFor="new-password" className="text-sm font-medium">{d.auth.newPassword}</label>
-        <PasswordInput id="new-password" autoComplete="new-password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1" />
+        <PasswordInput id="new-password" autoComplete="new-password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={error ? true : undefined} aria-describedby={error ? 'new-password-hint new-password-error' : 'new-password-hint'} className="mt-1" />
+        <p id="new-password-hint" className="mt-1.5 text-xs text-muted-foreground">{d.auth.passwordHint}</p>
+        {error && <p id="new-password-error" role="alert" className="mt-1.5 text-sm text-destructive">{error}</p>}
       </div>
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-      <Button type="submit" className="w-full" disabled={saving}>
+      <Button type="submit" className="h-11 w-full" disabled={saving}>
         {saving ? d.auth.resetSaving : d.auth.resetPassword}
       </Button>
     </form>
@@ -64,17 +60,11 @@ function ResetForm() {
 export default function ResetPasswordPage() {
   const d = useDashboardT();
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardContent className="p-8">
-          <div className="mb-4 flex justify-end">
-            <LanguageSwitcher />
-          </div>
-          <h1 className="text-xl font-semibold">{d.auth.resetTitle}</h1>
-          <Suspense><ResetForm /></Suspense>
-          <Link href="/login" className="mt-4 block text-center text-sm text-primary hover:underline">{d.auth.backToSignIn}</Link>
-        </CardContent>
-      </Card>
-    </div>
+    <AuthShell title={d.auth.resetTitle} description={d.auth.resetSubtitle}>
+      <Suspense><ResetForm /></Suspense>
+      <p className="mt-6 border-t pt-5 text-center text-sm">
+        <Link href="/login" className="font-medium text-primary hover:underline">{d.auth.backToSignIn}</Link>
+      </p>
+    </AuthShell>
   );
 }

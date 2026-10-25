@@ -52,7 +52,6 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
 
       <SamnuanSidebar
         user={user}
-        onLogout={onLogout}
         mobileOpen={mobileNavOpen}
         onMobileClose={() => setMobileNavOpen(false)}
       />
@@ -60,6 +59,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <TopNavbar
           user={user}
+          onLogout={onLogout}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onMenuClick={() => setMobileNavOpen(true)}

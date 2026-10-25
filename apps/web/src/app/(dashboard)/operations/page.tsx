@@ -1,14 +1,14 @@
 'use client';
 
 import { ON_HOLD_CATEGORY_LABEL } from '@/lib/on-hold';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { fmt, dateLocale } from '@/lib/i18n/dashboard';
 import { useAuth } from '@/lib/auth';
 import { CaseStatus, hasFirmCapability } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth, TeamPerformanceRow, WorkflowMetrics } from '@/lib/api';
-import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
 import { setupChecks, setupRequest, SetupProgress } from '@/lib/practice-setup';
 import { DailyWorkboard } from '@/components/operations/DailyWorkboard';
@@ -18,10 +18,47 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { EmptyState, InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
-import { Users, Scale, AlarmClock, PauseCircle, Sparkles, SlidersHorizontal, MousePointerClick, ChevronRight } from 'lucide-react';
+import { EmptyState, InlineEmptyState, PageLoading, Skeleton, TableEmptyRow } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { AlarmClock, Sparkles, SlidersHorizontal, MousePointerClick, ChevronRight } from 'lucide-react';
+
+type LoadState = 'loading' | 'failed' | 'ready';
+
+type KpiItem = { label: string; value: ReactNode; hint?: string; hintTone?: 'down' | 'neutral'; href?: string };
+
+/** One container, hairline dividers between cells, label over value. */
+function KpiStrip({ items }: { items: KpiItem[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border lg:grid-cols-4">
+      {items.map((item) => {
+        const body = (
+          <>
+            <p className="text-xs text-muted-foreground sm:text-sm">{item.label}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{item.value}</p>
+            {item.hint && (
+              <p className={`mt-1 text-xs ${item.hintTone === 'down' ? 'font-medium text-red-600' : 'text-muted-foreground'}`}>{item.hint}</p>
+            )}
+          </>
+        );
+        return item.href ? (
+          <Link
+            key={item.label}
+            href={item.href}
+            className="min-w-0 bg-card px-4 py-3 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {body}
+          </Link>
+        ) : (
+          <div key={item.label} className="min-w-0 bg-card px-4 py-3">
+            {body}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 type WorkloadLevelKey = 'levelLight' | 'levelMedium' | 'levelHeavy';
 
@@ -115,6 +152,11 @@ export default function OperationsPage() {
   const [caseHealth, setCaseHealth] = useState<CaseHealth | null>(null);
   const [performance, setPerformance] = useState<TeamPerformanceRow[]>([]);
   const [workflowMetrics, setWorkflowMetrics] = useState<WorkflowMetrics | null>(null);
+  const [healthState, setHealthState] = useState<LoadState>('loading');
+  const [performanceState, setPerformanceState] = useState<LoadState>('loading');
+  const [caseCountState, setCaseCountState] = useState<LoadState>('loading');
+  const [opsRetry, setOpsRetry] = useState(0);
+  const retryOps = () => setOpsRetry((n) => n + 1);
   const [setupLeft, setSetupLeft] = useState(0);
 
   useEffect(() => {
@@ -126,10 +168,18 @@ export default function OperationsPage() {
 
   useEffect(() => {
     if (!token || !canRunOps || teamTab) return;
-    api.getCaseHealth(token).then(setCaseHealth).catch(console.error);
-    api.getTeamPerformance(token).then(setPerformance).catch(console.error);
+    setHealthState('loading');
+    setPerformanceState('loading');
+    api
+      .getCaseHealth(token)
+      .then((h) => { setCaseHealth(h); setHealthState('ready'); })
+      .catch((e) => { console.error(e); setHealthState('failed'); });
+    api
+      .getTeamPerformance(token)
+      .then((rows) => { setPerformance(rows); setPerformanceState('ready'); })
+      .catch((e) => { console.error(e); setPerformanceState('failed'); });
     api.getWorkflowMetrics(token).then(setWorkflowMetrics).catch(console.error);
-  }, [token, canRunOps, tab]);
+  }, [token, canRunOps, tab, opsRetry]);
 
   useEffect(() => {
     if (!token || !canRunOps || teamTab) return;
@@ -143,11 +193,15 @@ export default function OperationsPage() {
 
   useEffect(() => {
     if (!token || !canRunOps || teamTab) return;
+    setCaseCountState('loading');
     api
       .getCases(token)
-      .then((cases) => setActiveCaseCount(cases.filter((c) => c.status !== CaseStatus.CLOSED).length))
-      .catch(() => setActiveCaseCount(null));
-  }, [token, canRunOps, tab]);
+      .then((cases) => {
+        setActiveCaseCount(cases.filter((c) => c.status !== CaseStatus.CLOSED).length);
+        setCaseCountState('ready');
+      })
+      .catch(() => { setActiveCaseCount(null); setCaseCountState('failed'); });
+  }, [token, canRunOps, tab, opsRetry]);
 
   useEffect(() => {
     if (!token || !canRunOps || !selectedUserId) {
@@ -217,36 +271,56 @@ export default function OperationsPage() {
       {setupLeft > 0 && (
         <Link href="/getting-started" className="mb-6 flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3 text-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <span>ตั้งค่าสำนักงานยังเหลืออีก {setupLeft} ขั้น: ทีม ลูกความ และคดีแรก</span>
-          <span className="font-medium text-primary">ไปที่เริ่มต้นใช้งาน →</span>
+          <span className="inline-flex items-center gap-0.5 font-medium text-primary">
+            ไปที่เริ่มต้นใช้งาน
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </span>
         </Link>
       )}
 
-      {!teamTab && <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label={d.operations.kpiLawyers} value={enriched.length} icon={Users} />
-        <KpiCard label={d.operations.kpiActiveCases} value={activeCaseCount ?? '—'} icon={Scale} change={fmt(d.operations.kpiActiveCasesChange, { count: totalAssignments })} trend="neutral" />
-        <KpiCard
-          label={fmt(d.operations.kpiNearDeadline, { days: nearDeadlineDays })}
-          value={totalNearDeadline}
-          icon={AlarmClock}
-          trend={totalNearDeadline > 0 ? 'down' : 'neutral'}
-          change={totalNearDeadline > 0 ? d.operations.kpiNeedsFollowUp : undefined}
-        />
-        <KpiCard
-          label={d.operations.kpiOnHold}
-          value={onHold.length}
-          icon={PauseCircle}
-          trend={overdueOnHoldCount > 0 ? 'down' : 'neutral'}
-          change={overdueOnHoldCount > 0 ? fmt(d.operations.kpiOnHoldOverdue, { count: overdueOnHoldCount }) : undefined}
-        />
-      </div>}
+      {!teamTab && (
+        <div className="mb-6">
+          <KpiStrip
+            items={[
+              { label: d.operations.kpiLawyers, value: enriched.length },
+              {
+                label: d.operations.kpiActiveCases,
+                value:
+                  caseCountState === 'loading' ? (
+                    <span role="status" aria-label="กำลังโหลด" className="inline-block h-7 w-12 animate-pulse rounded-md bg-muted align-middle" />
+                  ) : caseCountState === 'failed' ? (
+                    <span className="flex flex-wrap items-baseline gap-2">
+                      <span className="text-muted-foreground">—</span>
+                      <button type="button" onClick={retryOps} className="min-h-11 text-sm font-medium text-primary hover:underline">
+                        โหลดไม่สำเร็จ ลองใหม่
+                      </button>
+                    </span>
+                  ) : (
+                    activeCaseCount ?? '—'
+                  ),
+                hint: fmt(d.operations.kpiActiveCasesChange, { count: totalAssignments }),
+              },
+              {
+                label: fmt(d.operations.kpiNearDeadline, { days: nearDeadlineDays }),
+                value: totalNearDeadline,
+                hintTone: totalNearDeadline > 0 ? 'down' : 'neutral',
+                hint: totalNearDeadline > 0 ? d.operations.kpiNeedsFollowUp : undefined,
+              },
+              {
+                label: d.operations.kpiOnHold,
+                value: onHold.length,
+                hintTone: overdueOnHoldCount > 0 ? 'down' : 'neutral',
+                hint: overdueOnHoldCount > 0 ? fmt(d.operations.kpiOnHoldOverdue, { count: overdueOnHoldCount }) : undefined,
+              },
+            ]}
+          />
+        </div>
+      )}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="max-w-full overflow-x-auto">
           <TabsTrigger value="daily">ต้องจัดการวันนี้</TabsTrigger>
           <TabsTrigger value="radar">ภาพรวมทีม</TabsTrigger>
-          {/* The first two tabs are the daily job; the rest are reports a new office manager can leave for later. */}
-          <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-border" />
-          <span className="px-1 text-xs text-muted-foreground">รายงาน</span>
           <TabsTrigger value="workload">{d.operations.tabWorkload}</TabsTrigger>
           <TabsTrigger value="pairing">{d.operations.tabPairing}</TabsTrigger>
           <TabsTrigger value="onhold">
@@ -267,11 +341,9 @@ export default function OperationsPage() {
         <TabsContent value="workload">
           <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabWorkloadHint}</p>
           {recommended && (
-            <div className="mb-4 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
-              <p className="text-sm">
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+              <Sparkles className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+              <p className="min-w-0 text-sm">
                 <span className="text-muted-foreground">{d.operations.recommendPrefix}{' '}</span>
                 <span className="font-semibold text-primary">
                   {recommended.firstName} {recommended.lastName}
@@ -287,8 +359,8 @@ export default function OperationsPage() {
                   })}
                 </span>
               </p>
-              <Link href={`/todos?new=1&assignee=${recommended.userId}`} className="ml-auto shrink-0">
-                <Button size="sm">{d.operations.assignNow}</Button>
+              <Link href={`/todos?new=1&assignee=${recommended.userId}`} className={buttonVariants({ size: 'sm', className: 'ml-auto shrink-0' })}>
+                {d.operations.assignNow}
               </Link>
             </div>
           )}
@@ -419,8 +491,8 @@ export default function OperationsPage() {
                       <p className="font-semibold">
                         {detail.firstName} {detail.lastName}
                       </p>
-                      <Link href={`/todos?new=1&assignee=${selectedUserId}`} className="ml-auto">
-                        <Button size="sm" variant="outline">{d.operations.assignTask}</Button>
+                      <Link href={`/todos?new=1&assignee=${selectedUserId}`} className={buttonVariants({ size: 'sm', variant: 'outline', className: 'ml-auto' })}>
+                        {d.operations.assignTask}
                       </Link>
                     </div>
                     {detail.cases.length === 0 ? (
@@ -484,7 +556,7 @@ export default function OperationsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>{d.operations.colPair}</TableHead>
-                      <TableHead>{d.operations.colSharedCases}</TableHead>
+                      <TableHead className="text-right">{d.operations.colSharedCases}</TableHead>
                     </TableRow>
                   </TableHeader>
                     <TableBody>
@@ -500,7 +572,7 @@ export default function OperationsPage() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell>{team.count}</TableCell>
+                          <TableCell className="text-right tabular-nums">{team.count}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -585,32 +657,32 @@ export default function OperationsPage() {
 
         <TabsContent value="performance">
           {workflowMetrics && (
-            <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-              <KpiCard
-                label={locale === 'th' ? 'รับเรื่อง → เปิดคดี (วัน)' : 'Intake → case opened (days)'}
-                value={workflowMetrics.intakeToCase.averageDays ?? '—'}
-                change={`n=${workflowMetrics.intakeToCase.sampleCount}`}
-                icon={Scale}
-              />
-              <KpiCard
-                label={locale === 'th' ? 'ขอเอกสาร → ได้รับ (วัน)' : 'Document request → received (days)'}
-                value={workflowMetrics.documentTurnaround.averageDays ?? '—'}
-                change={`n=${workflowMetrics.documentTurnaround.sampleCount}`}
-                icon={AlarmClock}
-              />
-              <KpiCard
-                label={locale === 'th' ? 'นัดศาล → บันทึกผล (วัน)' : 'Hearing → outcome recorded (days)'}
-                value={workflowMetrics.hearingCloseout.averageDays ?? '—'}
-                change={`n=${workflowMetrics.hearingCloseout.sampleCount}`}
-                icon={MousePointerClick}
-              />
-              <KpiCard
-                label={locale === 'th' ? 'เอกสารที่ยังรอรับ' : 'Requested documents outstanding'}
-                value={workflowMetrics.openDocumentRequests}
-                change={locale === 'th' ? `เลยกำหนด ${workflowMetrics.overdueDocumentRequests} รายการ` : `${workflowMetrics.overdueDocumentRequests} overdue`}
-                trend={workflowMetrics.overdueDocumentRequests ? 'down' : 'neutral'}
-                icon={PauseCircle}
-                href="/cases?stage=PRE_LITIGATION"
+            <div className="mb-4">
+              <KpiStrip
+                items={[
+                  {
+                    label: locale === 'th' ? 'รับเรื่อง → เปิดคดี (วัน)' : 'Intake → case opened (days)',
+                    value: workflowMetrics.intakeToCase.averageDays ?? '—',
+                    hint: `n=${workflowMetrics.intakeToCase.sampleCount}`,
+                  },
+                  {
+                    label: locale === 'th' ? 'ขอเอกสาร → ได้รับ (วัน)' : 'Document request → received (days)',
+                    value: workflowMetrics.documentTurnaround.averageDays ?? '—',
+                    hint: `n=${workflowMetrics.documentTurnaround.sampleCount}`,
+                  },
+                  {
+                    label: locale === 'th' ? 'นัดศาล → บันทึกผล (วัน)' : 'Hearing → outcome recorded (days)',
+                    value: workflowMetrics.hearingCloseout.averageDays ?? '—',
+                    hint: `n=${workflowMetrics.hearingCloseout.sampleCount}`,
+                  },
+                  {
+                    label: locale === 'th' ? 'เอกสารที่ยังรอรับ' : 'Requested documents outstanding',
+                    value: workflowMetrics.openDocumentRequests,
+                    hintTone: workflowMetrics.overdueDocumentRequests ? 'down' : 'neutral',
+                    hint: locale === 'th' ? `เลยกำหนด ${workflowMetrics.overdueDocumentRequests} รายการ` : `${workflowMetrics.overdueDocumentRequests} overdue`,
+                    href: '/cases?stage=PRE_LITIGATION',
+                  },
+                ]}
               />
             </div>
           )}
@@ -632,7 +704,23 @@ export default function OperationsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {performance.map((row) => (
+                  {performanceState === 'loading' &&
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <TableRow key={`perf-skeleton-${i}`}>
+                        <TableCell colSpan={5}><Skeleton className="h-5 w-full" /></TableCell>
+                      </TableRow>
+                    ))}
+                  {performanceState === 'failed' && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="p-4">
+                        <LoadFailed message="โหลดผลงานทีมไม่สำเร็จ" onRetry={retryOps} />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {performanceState === 'ready' && performance.length === 0 && (
+                    <TableEmptyRow colSpan={5} title="ยังไม่มีงานของทีมใน 30 วันล่าสุด" description="ตัวเลขจะขึ้นเมื่อมีงานที่มอบหมายให้สมาชิก" />
+                  )}
+                  {performanceState === 'ready' && performance.map((row) => (
                     <TableRow key={row.userId}>
                       <TableCell className="font-medium">
                         {row.firstName} {row.lastName}
@@ -661,7 +749,19 @@ export default function OperationsPage() {
           <p className="mb-3 text-sm text-muted-foreground">
             คดีที่เงียบเกินเกณฑ์ SLA และคดีที่ค้างสถานะเดิมนานเกินไป — กดชื่อคดีเพื่อเข้าไปดู
           </p>
-          {caseHealth && (
+          {healthState === 'loading' && (
+            <div role="status" aria-label="กำลังโหลดสุขภาพคดี" className="grid gap-6 lg:grid-cols-2">
+              {[0, 1].map((i) => (
+                <div key={i} className="rounded-lg border bg-card p-4">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="mt-4 h-10 w-full" />
+                  <Skeleton className="mt-2 h-10 w-full" />
+                </div>
+              ))}
+            </div>
+          )}
+          {healthState === 'failed' && <LoadFailed message="โหลดสุขภาพคดีไม่สำเร็จ" onRetry={retryOps} />}
+          {healthState === 'ready' && caseHealth && (
             <div className="mb-4 flex flex-wrap gap-2">
               {caseHealth.byStatus.map((row) => (
                 <Link key={row.status} href={`/cases?status=${row.status}`}>
@@ -672,7 +772,7 @@ export default function OperationsPage() {
               ))}
             </div>
           )}
-          <div className="grid gap-6 lg:grid-cols-2">
+          {healthState === 'ready' && <div className="grid gap-6 lg:grid-cols-2">
             {(
               [
                 { title: `เงียบเกิน ${caseHealth?.sla.caseUpdateDays ?? 14} วัน (${caseHealth?.inactiveCases.length ?? 0})`, rows: caseHealth?.inactiveCases ?? [] },
@@ -709,7 +809,7 @@ export default function OperationsPage() {
                 </CardContent>
               </Card>
             ))}
-          </div>
+          </div>}
         </TabsContent>
       </Tabs>
     </div>

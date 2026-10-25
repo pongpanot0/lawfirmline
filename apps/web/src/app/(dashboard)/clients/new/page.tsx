@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { PHONE_HINT, PHONE_HTML } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SelectField, TextField, TextareaField } from '@/components/ui/form-fields';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 
@@ -134,7 +135,8 @@ export default function NewClientPage() {
 
   return (
     <div className="w-full">
-      <Link href="/clients" className="text-sm text-primary hover:underline">
+      <Link href="/clients" className="inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
+        <ArrowLeft className="h-4 w-4" aria-hidden />
         {d.clients.allClients}
       </Link>
       <PageHeader title={d.clients.newTitle} description={d.clients.newDescription} />
@@ -145,35 +147,27 @@ export default function NewClientPage() {
             const details = (event.target as HTMLElement).closest('details');
             if (details) details.open = true;
           }} className="space-y-5">
-            <label className="block">
-              <span className="text-sm font-medium">{d.clients.type}</span>
-              <select
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
-              >
-                <option value="INDIVIDUAL">{d.clients.individual}</option>
-                <option value="COMPANY">{d.clients.company}</option>
-              </select>
-            </label>
+            <SelectField
+              label={d.clients.type}
+              value={form.type}
+              onChange={(e) => setForm({ ...form, type: e.target.value })}
+            >
+              <option value="INDIVIDUAL">{d.clients.individual}</option>
+              <option value="COMPANY">{d.clients.company}</option>
+            </SelectField>
 
-            <label className="block">
-              <span className="text-sm font-medium">
-                {isCompany ? d.clients.companyName : d.clients.name} *
-              </span>
-              <Input
-                required
-                autoFocus
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="mt-1"
-                placeholder={
-                  isCompany
-                    ? d.clients.namePlaceholderCompany
-                    : d.clients.namePlaceholderIndividual
-                }
-              />
-            </label>
+            <TextField
+              label={isCompany ? d.clients.companyName : d.clients.name}
+              required
+              autoFocus
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder={
+                isCompany
+                  ? d.clients.namePlaceholderCompany
+                  : d.clients.namePlaceholderIndividual
+              }
+            />
 
             {!isCompany && (
               <div>
@@ -196,28 +190,22 @@ export default function NewClientPage() {
 
             {useSelf ? (
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-sm font-medium">{d.clients.email}</span>
-                  <Input
-                    type="email"
-                    className="mt-1"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-medium">{d.clients.phone}</span>
-                  <Input
-                    type="tel"
-                    inputMode="tel"
-                    pattern={PHONE_HTML}
-                    title={PHONE_HINT}
-                    className="mt-1"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  />
-                  <span className="mt-1 block text-xs text-muted-foreground">{PHONE_HINT}</span>
-                </label>
+                <TextField
+                  label={d.clients.email}
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+                <TextField
+                  label={d.clients.phone}
+                  hint={PHONE_HINT}
+                  type="tel"
+                  inputMode="tel"
+                  pattern={PHONE_HTML}
+                  title={PHONE_HINT}
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
               </div>
             ) : (
               <details open={!isCompany} className="rounded-lg border border-border p-4">
@@ -226,7 +214,7 @@ export default function NewClientPage() {
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-sm font-medium">{d.clients.contactsTab}</span>
                   <Button type="button" variant="outline" size="sm" onClick={addContact}>
-                    <Plus className="h-3 w-3" />
+                    <Plus className="h-4 w-4" aria-hidden />
                     {d.clients.addContact}
                   </Button>
                 </div>
@@ -242,9 +230,9 @@ export default function NewClientPage() {
                             type="button"
                             aria-label={d.clients.removeContact}
                             onClick={() => removeContact(index)}
-                            className="text-muted-foreground hover:text-destructive"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" aria-hidden />
                           </button>
                         )}
                       </div>
@@ -300,7 +288,7 @@ export default function NewClientPage() {
                 type="button"
                 aria-expanded={showDetails}
                 onClick={() => setShowDetails((open) => !open)}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm"
+                className="flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-3 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="font-medium">{d.clients.moreDetails}</span>
                 <span className="text-xs text-muted-foreground">
@@ -324,15 +312,13 @@ export default function NewClientPage() {
                         />
                       </label>
                     ))}
-                  <label className="block text-sm">
-                    <span className="text-muted-foreground">{d.clients.notes}</span>
-                    <textarea
-                      value={form.notes}
-                      onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                      rows={2}
-                      className="mt-1 w-full resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm"
-                    />
-                  </label>
+                  <TextareaField
+                    label={d.clients.notes}
+                    value={form.notes}
+                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                    rows={2}
+                    className="resize-none"
+                  />
                 </div>
               )}
             </div>
@@ -398,12 +384,12 @@ export default function NewClientPage() {
               </p>
             )}
 
-            <div className="flex gap-3">
-              <Button type="submit" disabled={submitting || !form.name.trim()}>
-                {submitting ? d.clients.saving : d.clients.create}
-              </Button>
+            <div className="flex flex-wrap justify-end gap-3 border-t pt-4">
               <Button type="button" variant="outline" onClick={() => router.push('/clients')}>
                 {d.common.cancel}
+              </Button>
+              <Button type="submit" disabled={submitting || !form.name.trim()}>
+                {submitting ? d.clients.saving : d.clients.create}
               </Button>
             </div>
           </form>

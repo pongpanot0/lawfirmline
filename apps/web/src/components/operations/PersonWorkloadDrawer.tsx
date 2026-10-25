@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowLeft, ArrowUp } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, X } from 'lucide-react';
 import { DailyWorkboard, DailyWorkTask, hasFirmCapability, PersonWorkload, TASK_SIZES, TASK_WORK_TYPES, TaskWorkType, taskPoints } from '@lawfirm/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -13,6 +13,8 @@ import { SideDrawer } from '@/components/ui/SideDrawer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SelectField } from '@/components/ui/form-fields';
+import { Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { TaskSizePicker } from './TaskSizePicker';
 import { WorkAssignmentForm } from './WorkAssignmentForm';
 
@@ -89,17 +91,17 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
   return <SideDrawer open={userId !== null} title={reassign ? 'ย้ายงานให้คนอื่น' : data ? `${data.firstName} ${data.lastName}` : 'ภาระงาน'} onClose={close}>
     {reassign && token
       ? <div>
-        <Button variant="ghost" size="sm" className="mx-5 mt-4" disabled={reassignBusy} onClick={() => setReassign(null)}><ArrowLeft className="mr-1 h-4 w-4" />กลับ</Button>
+        <Button variant="ghost" size="sm" className="mx-5 mt-4" disabled={reassignBusy} onClick={() => setReassign(null)}><ArrowLeft className="h-4 w-4" aria-hidden />กลับ</Button>
         <WorkAssignmentForm key={reassign.task.id} board={reassign.board} task={reassign.task} token={token} onSaving={setReassignBusy}
           onSaved={() => { setReassign(null); void changed(); }} onClose={() => setReassign(null)} />
       </div>
       : <div className="space-y-5 p-5">
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        {!data && !error && <p role="status" className="text-sm text-muted-foreground">กำลังโหลด…</p>}
+        {error && <LoadFailed message={error} onRetry={() => { setError(''); void load(); }} />}
+        {!data && !error && <div role="status" aria-label="กำลังโหลด" className="space-y-3"><Skeleton className="h-16 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-24 w-full" /></div>}
         {data && <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
             {[['งานในคิว', `${data.tasks.length}`], ['แต้มภาระ', `${points}`], ['เลยกำหนด', `${overdue}`], ['คดีที่ถือ', `${data.cases.length + data.hiddenCaseCount}`]].map(([label, value]) =>
-              <div key={label} className="rounded-lg border bg-card p-3"><p className="text-xs text-muted-foreground">{label}</p><p className={`mt-1 text-xl font-semibold ${label === 'เลยกำหนด' && overdue > 0 ? 'text-destructive' : ''}`}>{value}</p></div>)}
+              <div key={label} className="min-w-0 bg-card px-3 py-2"><p className="text-xs text-muted-foreground">{label}</p><p className={`mt-1 text-xl font-semibold tabular-nums ${label === 'เลยกำหนด' && overdue > 0 ? 'text-destructive' : ''}`}>{value}</p></div>)}
           </div>
           <p className="text-xs text-muted-foreground">{ROLE_LABELS[data.role] ?? data.role}</p>
           {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
@@ -128,9 +130,9 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
               {taskMeta(t)}
               {t.holdReason && <p className="mt-1 text-xs text-amber-700">พักไว้: {t.holdReason}</p>}
               {canRunOps && <div className="mt-1 flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={busy || i === 0} aria-label={`เลื่อน ${t.title} ขึ้น`} onClick={() => void act(() => api.moveDailyTask(token!, t.id, 'UP'))}><ArrowUp className="h-3.5 w-3.5" /></Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={busy || i === data.tasks.length - 1} aria-label={`เลื่อน ${t.title} ลง`} onClick={() => void act(() => api.moveDailyTask(token!, t.id, 'DOWN'))}><ArrowDown className="h-3.5 w-3.5" /></Button>
-                <Button variant="ghost" size="sm" className="h-7" disabled={busy} onClick={() => void openReassign(t.id)}>ย้ายให้คนอื่น</Button>
+                <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-8 sm:w-8" disabled={busy || i === 0} aria-label={`เลื่อน ${t.title} ขึ้น`} onClick={() => void act(() => api.moveDailyTask(token!, t.id, 'UP'))}><ArrowUp className="h-3.5 w-3.5" aria-hidden /></Button>
+                <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-8 sm:w-8" disabled={busy || i === data.tasks.length - 1} aria-label={`เลื่อน ${t.title} ลง`} onClick={() => void act(() => api.moveDailyTask(token!, t.id, 'DOWN'))}><ArrowDown className="h-3.5 w-3.5" aria-hidden /></Button>
+                <Button variant="ghost" size="sm" className="sm:min-h-8" disabled={busy} onClick={() => void openReassign(t.id)}>ย้ายให้คนอื่น</Button>
               </div>}
             </li>)}
           </Section>
@@ -162,8 +164,8 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
                   {TASK_WORK_TYPES.filter((t) => !types.includes(t.value)).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </SelectField>
                 <div className="flex flex-wrap gap-1.5">{types.map((v) => <button key={v} type="button" disabled={busy} onClick={() => setTypes(types.filter((x) => x !== v))} aria-label={`เอา ${TASK_WORK_TYPES.find((t) => t.value === v)?.label} ออก`}
-                  className="rounded-full bg-muted px-2.5 py-1 text-xs hover:bg-destructive/10 hover:text-destructive">{TASK_WORK_TYPES.find((t) => t.value === v)?.label} ✕</button>)}</div>
-                <div className="flex gap-2"><Button size="sm" disabled={busy} onClick={() => void act(async () => { await api.setMemberWorkTypes(token!, data.userId, types); setTypes(null); })}>{busy ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+                  className="inline-flex min-h-9 items-center gap-1 rounded-full bg-muted px-3 text-xs hover:bg-destructive/10 hover:text-destructive">{TASK_WORK_TYPES.find((t) => t.value === v)?.label}<X className="h-3.5 w-3.5" aria-hidden /></button>)}</div>
+                <div className="flex gap-2"><Button size="sm" disabled={busy} onClick={() => void act(async () => { await api.setMemberWorkTypes(token!, data.userId, types); setTypes(null); })}>{busy ? 'กำลังบันทึก…' : 'บันทึกประเภทงาน'}</Button>
                   <Button size="sm" variant="outline" disabled={busy} onClick={() => setTypes(null)}>ยกเลิก</Button></div>
               </div>}
           </section>}

@@ -5,6 +5,7 @@ import { ShieldCheck } from 'lucide-react';
 import { useAuth, REFRESH_KEY } from '@/lib/auth';
 import { api, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
@@ -76,19 +77,19 @@ export function MfaToggle() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <div>
             <p className="text-sm font-medium">{d.settings.mfaTitle}</p>
-            <p className="text-xs text-muted-foreground">
+            <Badge variant={user?.mfaEnabled ? 'success' : 'muted'} className="mt-1">
               {user?.mfaEnabled ? d.settings.mfaOn : d.settings.mfaOff}
-            </p>
+            </Badge>
           </div>
         </div>
         {step === 'idle' && (
           user?.mfaEnabled ? (
-            <Button variant="outline" size="sm" onClick={() => setStep('disabling')}>{d.settings.mfaDisable}</Button>
+            <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setStep('disabling')}>{d.settings.mfaDisable}</Button>
           ) : (
             <Button variant="outline" size="sm" disabled={busy} onClick={startEnable}>{d.settings.mfaEnable}</Button>
           )
@@ -106,7 +107,8 @@ export function MfaToggle() {
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
             placeholder="123456"
-            className="text-center text-lg tracking-[0.5em]"
+            aria-label="รหัสยืนยัน 6 หลัก"
+            className="text-center font-mono text-lg tabular-nums"
             autoFocus
             required
           />
@@ -119,11 +121,11 @@ export function MfaToggle() {
 
       {step === 'disabling' && (
         <form onSubmit={confirmDisable} className="space-y-2 border-t border-border pt-3">
-          <label className="text-xs text-muted-foreground">{d.settings.mfaEnterPasswordToDisable}</label>
-          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus required />
+          <label htmlFor="mfa-disable-password" className="block text-sm font-medium">{d.settings.mfaEnterPasswordToDisable}</label>
+          <Input id="mfa-disable-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus required />
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" size="sm" variant="destructive" disabled={busy || !password}>{d.settings.mfaConfirmDisable}</Button>
             <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => { setStep('idle'); setPassword(''); setError(''); }}>{d.common.cancel}</Button>
+            <Button type="submit" size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busy || !password}>{d.settings.mfaConfirmDisable}</Button>
           </div>
         </form>
       )}

@@ -9,6 +9,8 @@ import { useAuth } from '@/lib/auth';
 import { api, type ClosingEmailDraft, type CaseActivityItem } from '@/lib/api';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { AlertTriangle } from 'lucide-react';
 
 export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
   const { token } = useAuth();
@@ -137,12 +139,7 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
 
   if (loadError) {
     return (
-      <div className="rounded-xl border bg-card p-6 shadow-soft">
-        <p role="alert" className="text-sm text-destructive">{loadError}</p>
-        <Button size="sm" variant="outline" className="mt-3" onClick={() => void load()}>
-          ลองใหม่
-        </Button>
-      </div>
+      <LoadFailed message={loadError} onRetry={() => void load()} />
     );
   }
 
@@ -160,14 +157,11 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
           <CardTitle>เหตุการณ์ที่จะนำมาใช้</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="mb-3 text-sm text-muted-foreground">
-            ติ๊กเหตุการณ์ที่ควรอยู่ในหนังสือปิดคดี แล้วกดสร้างร่าง
-          </p>
           {activities.length === 0 ? (
-            <InlineEmptyState title="ยังไม่มีความเคลื่อนไหวของคดี" description="บันทึกผลนัดหรือกิจกรรมในหน้าคดีก่อน แล้วค่อยนำมาสร้างหนังสือปิดงาน" />
+            <InlineEmptyState title="ยังไม่มีความเคลื่อนไหวของคดี" description="ผลนัดและกิจกรรมที่บันทึกในคดีจะมาแสดงที่นี่" />
           ) : (
             activities.map((activity) => (
-              <label key={activity.id} className="flex items-start gap-2 py-1 text-sm">
+              <label key={activity.id} className="flex min-h-11 items-start gap-2 py-2 text-sm sm:min-h-0 sm:py-1">
                 <input
                   type="checkbox"
                   className="mt-1"
@@ -182,6 +176,7 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
           )}
           <Button
             className="mt-4"
+            variant={draft ? 'outline' : 'default'}
             onClick={handleGenerate}
             disabled={busy !== null}
           >
@@ -221,7 +216,10 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
               {draft.missingDataNotes.length > 0 && (
                 <div className="mb-2 rounded-lg border border-warning/40 bg-warning/10 p-2 text-sm">
                   {draft.missingDataNotes.map((note) => (
-                    <div key={note}>⚠ {note}</div>
+                    <div key={note} className="flex items-start gap-1.5">
+                      <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                      {note}
+                    </div>
                   ))}
                 </div>
               )}
@@ -249,7 +247,7 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
                 <fieldset className="mt-3 space-y-1 text-sm">
                   <legend className="text-xs text-muted-foreground">ส่งถึงผู้ติดต่อ</legend>
                   {(draft.recipientClient?.contacts ?? []).filter((c) => c.email).map((c) => (
-                    <label key={c.id} className="flex items-center gap-2">
+                    <label key={c.id} className="flex min-h-11 items-center gap-2 sm:min-h-8">
                       <input
                         type="checkbox"
                         checked={contactIds.includes(c.id)}
@@ -287,9 +285,7 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
               </p>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              เลือกเหตุการณ์แล้วกดสร้างร่าง หรือกด &quot;เขียนร่างเอง&quot; เพื่อได้โครงเปล่าไว้พิมพ์เอง
-            </p>
+            <InlineEmptyState title="ยังไม่มีร่างอีเมลปิดงาน" />
           )}
         </CardContent>
       </Card>

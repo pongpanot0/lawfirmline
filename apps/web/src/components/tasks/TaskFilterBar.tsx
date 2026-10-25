@@ -18,13 +18,15 @@ interface Props {
   /** Shown as "n of m" so a filtered-empty board is not mistaken for no work. */
   shown: number;
   total: number;
+  /** Off when the page already has its own search box for the same filter. */
+  showSearch?: boolean;
 }
 
-export function TaskFilterBar({ value, onChange, users, labels, statuses, shown, total }: Props) {
+export function TaskFilterBar({ value, onChange, users, labels, statuses, shown, total, showSearch = true }: Props) {
   const d = useDashboardT();
   const set = <K extends keyof TaskFilters>(key: K, next: TaskFilters[K]) =>
     onChange({ ...value, [key]: next });
-  const select = 'h-9 rounded-lg border border-input bg-card px-3 text-sm';
+  const select = 'h-11 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:w-auto';
   const statusLabel: Record<TaskStatus, string> = {
     [TaskStatus.TODO]: d.todos.columnTodo,
     [TaskStatus.IN_PROGRESS]: d.todos.columnInProgress,
@@ -43,13 +45,15 @@ export function TaskFilterBar({ value, onChange, users, labels, statuses, shown,
 
   return (
     <div role="search" aria-label={d.todos.filters} className="flex flex-wrap items-center gap-2">
-      <Input
-        value={value.search}
-        onChange={(e) => set('search', e.target.value)}
-        placeholder={d.todos.filterSearch}
-        aria-label={d.todos.filterSearch}
-        className="h-9 w-full sm:w-48"
-      />
+      {showSearch && (
+        <Input
+          value={value.search}
+          onChange={(e) => set('search', e.target.value)}
+          placeholder={d.todos.filterSearch}
+          aria-label={d.todos.filterSearch}
+          className="h-11 w-full sm:h-9 sm:w-48"
+        />
+      )}
       <select value={value.status} onChange={(e) => set('status', e.target.value)} aria-label={d.todos.filterStatus} className={select}>
         <option value="">{d.todos.filterStatus}</option>
         {statuses.map((s) => (
@@ -82,7 +86,7 @@ export function TaskFilterBar({ value, onChange, users, labels, statuses, shown,
           <option key={o.value} value={o.value}>{o.value ? o.label : d.todos.filterDue}</option>
         ))}
       </select>
-      <span className="text-xs text-muted-foreground" aria-live="polite">
+      <span className="text-xs tabular-nums text-muted-foreground" aria-live="polite">
         {active ? `${shown}/${total}` : total}
       </span>
       {active && (

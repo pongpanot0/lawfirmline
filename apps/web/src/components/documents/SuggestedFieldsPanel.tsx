@@ -94,7 +94,7 @@ export function SuggestedFieldsPanel({
   };
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4 shadow-soft">
+    <section className="rounded-xl border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold">ข้อมูลที่พบในเอกสาร</h3>

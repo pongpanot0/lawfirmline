@@ -251,51 +251,35 @@ function CasesPageContent() {
         actions={
           <>
             <Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={exportCsv}>
-              <Download className="h-4 w-4" />
+              <Download aria-hidden="true" className="h-4 w-4" />
               {d.common.export}
             </Button>
             {canCreate && (
               <Button size="sm" onClick={() => router.push(newCaseHref)}>
-                <Plus className="h-4 w-4" />{d.cases.newCase}
+                <Plus aria-hidden="true" className="h-4 w-4" />{d.cases.newCase}
               </Button>
             )}
           </>
         }
       />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2" aria-label="สรุปคดี">
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="flex items-center gap-3 p-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Briefcase aria-hidden="true" className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">คดีทั้งหมด</p>
-              <p className="text-xs text-muted-foreground">ตามตัวกรองปัจจุบัน</p>
-            </div>
-            <p className="text-2xl font-semibold tabular-nums text-foreground" aria-live="polite">{loading ? '—' : cases.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="flex items-center gap-3 p-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400">
-              <ClipboardList aria-hidden="true" className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">ก่อนฟ้อง</p>
-              <p className="text-xs text-muted-foreground">กำลังเตรียมเรื่องก่อนยื่นฟ้อง</p>
-            </div>
-            <p className="text-2xl font-semibold tabular-nums text-foreground" aria-live="polite">{loading ? '—' : cases.filter((legalCase) => legalCase.stage === 'PRE_LITIGATION').length}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="mb-4" aria-label="สรุปคดี">
+        <CardContent className="grid grid-cols-2 divide-x p-0">
+          <div className="min-w-0 p-4">
+            <p className="text-xs text-muted-foreground sm:text-sm">คดีทั้งหมดตามตัวกรอง</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground" aria-live="polite">{loading ? '—' : cases.length}</p>
+          </div>
+          <div className="min-w-0 p-4">
+            <p className="text-xs text-muted-foreground sm:text-sm">ก่อนฟ้อง</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground" aria-live="polite">{loading ? '—' : cases.filter((legalCase) => legalCase.stage === 'PRE_LITIGATION').length}</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {canManageLegacyIntakes && ((unlinkedIntakeCount ?? 0) > 0 || legacyConversionMessage) && (
-        <Card className="mb-4 border-amber-500/40 bg-amber-500/5">
+        <Card className="mb-4 border-warning/40 bg-warning/5">
           <CardContent className="flex flex-wrap items-center gap-3 p-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400">
-              <ClipboardList aria-hidden="true" className="h-5 w-5" />
-            </span>
+            <ClipboardList aria-hidden="true" className="h-4 w-4 shrink-0 text-warning" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">
                 {unlinkedIntakeCount
@@ -312,7 +296,7 @@ function CasesPageContent() {
               )}
             </div>
             {(unlinkedIntakeCount ?? 0) > 0 && (
-              <Button size="sm" disabled={convertingLegacyIntakes} onClick={convertLegacyIntakes}>
+              <Button size="sm" variant="outline" disabled={convertingLegacyIntakes} onClick={convertLegacyIntakes}>
                 {convertingLegacyIntakes ? 'กำลังรวมรายการ…' : 'รวมเป็นคดีก่อนฟ้อง'}
               </Button>
             )}
@@ -326,9 +310,11 @@ function CasesPageContent() {
             placeholder={d.cases.searchPlaceholder}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="max-w-xs"
+            aria-label={d.cases.searchPlaceholder}
+            className="w-full sm:max-w-xs"
           />
           <select
+            aria-label={d.cases.allStatuses}
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
             className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
@@ -362,7 +348,7 @@ function CasesPageContent() {
           </select>
           <details className="group relative ml-auto max-md:hidden">
             <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
-              <Columns3 className="h-4 w-4" /> คอลัมน์
+              <Columns3 aria-hidden="true" className="h-4 w-4" /> คอลัมน์
             </summary>
             <div className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-input bg-card p-2 text-sm shadow-soft">
               <p className="px-2 pb-1 text-xs text-muted-foreground">ซ่อน/แสดงคอลัมน์</p>
@@ -408,7 +394,6 @@ function CasesPageContent() {
       <Card>
         <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
           <div className="flex items-center gap-2">
-            <Briefcase aria-hidden="true" className="h-4 w-4 text-primary" />
             <h2 className="font-semibold">{stageFilter === 'PRE_LITIGATION' ? 'คดีก่อนฟ้อง' : 'คดีทั้งหมด'}</h2>
           </div>
           <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{sorted.length}</span>
@@ -482,7 +467,7 @@ function CasesPageContent() {
                     )}
                     <TableHead>
                       <button type="button" className="flex items-center gap-1" onClick={() => setSortAsc(!sortAsc)}>
-                        {d.cases.ownRef} <ArrowUpDown className="h-3 w-3" />
+                        {d.cases.ownRef} <ArrowUpDown aria-hidden="true" className="h-3.5 w-3.5" />
                       </button>
                     </TableHead>
                     <TableHead>{d.cases.caseTitle}</TableHead>
@@ -494,7 +479,7 @@ function CasesPageContent() {
                     {!hiddenColumns.has('courtNumbers') && <><TableHead>หมายเลขคดีดำ</TableHead><TableHead>หมายเลขคดีแดง</TableHead></>}
                     {!hiddenColumns.has('parties') && <><TableHead>โจทก์</TableHead><TableHead>จำเลย</TableHead></>}
                     {!hiddenColumns.has('description') && <TableHead>หมายเหตุ</TableHead>}
-                    {!hiddenColumns.has('estimatedFee') && <TableHead>รายได้โดยประมาณ</TableHead>}
+                    {!hiddenColumns.has('estimatedFee') && <TableHead className="text-right">รายได้โดยประมาณ</TableHead>}
                     {!hiddenColumns.has('updatedAt') && <TableHead>{d.cases.lastUpdated}</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -543,12 +528,12 @@ function CasesPageContent() {
                       {!hiddenColumns.has('parties') && <><TableCell className="max-w-[180px] text-muted-foreground">{casePartyDisplay(c.participants ?? [], 'plaintiff')}</TableCell><TableCell className="max-w-[180px] text-muted-foreground">{casePartyDisplay(c.participants ?? [], 'defendant')}</TableCell></>}
                       {!hiddenColumns.has('description') && <TableCell className="max-w-[220px] text-muted-foreground">{c.description ?? '—'}</TableCell>}
                       {!hiddenColumns.has('estimatedFee') && (
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
                           {c.estimatedFee != null ? formatCurrency(c.estimatedFee) : '—'}
                         </TableCell>
                       )}
                       {!hiddenColumns.has('updatedAt') && (
-                        <TableCell className="text-muted-foreground text-xs">
+                        <TableCell className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
                           {c.updatedAt ? formatDate(c.updatedAt) : '—'}
                         </TableCell>
                       )}

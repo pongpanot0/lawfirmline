@@ -51,14 +51,14 @@ export function TaskViewToggle({
   ];
 
   return (
-    <div className="inline-flex rounded-lg border border-border p-0.5" role="group">
+    <div className="inline-flex rounded-lg border border-border p-0.5" role="group" aria-label={`${d.todos.viewList} / ${d.todos.viewBoard}`}>
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
           aria-pressed={layout === option.value}
           onClick={() => onChange(option.value)}
-          className={`rounded-md px-3 py-1 text-xs ${
+          className={`min-h-11 rounded-md px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8 ${
             layout === option.value
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:bg-accent'

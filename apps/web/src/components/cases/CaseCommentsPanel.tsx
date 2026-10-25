@@ -8,6 +8,7 @@ import { api, ApiError, CaseCommentEntry } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 const TIME = new Intl.DateTimeFormat('th-TH', {
   hour: '2-digit',
@@ -66,12 +67,13 @@ export function CaseCommentsPanel({
     );
   }, [showMentionPicker, mentionQuery, teamMembers]);
 
+  const [loadError, setLoadError] = useState(false);
   const load = () => {
     if (!token || !caseId) return;
     api
       .getCaseComments(token, caseId)
-      .then(setComments)
-      .catch(console.error)
+      .then((items) => { setComments(items); setLoadError(false); })
+      .catch((err) => { console.error(err); setLoadError(true); })
       .finally(() => setLoading(false));
   };
 
@@ -229,6 +231,9 @@ export function CaseCommentsPanel({
 
   const handleDelete = async (commentId: string) => {
     if (!token || !caseId) return;
+    const target = comments.find((item) => item.id === commentId);
+    const preview = target ? target.body.slice(0, 40) : '';
+    if (!window.confirm(`ลบความเห็น "${preview}${target && target.body.length > 40 ? '…' : ''}"?`)) return;
     try {
       await api.deleteCaseComment(token, caseId, commentId);
       load();
@@ -242,16 +247,15 @@ export function CaseCommentsPanel({
   let lastDay = '';
 
   return (
-    <div className="rounded-xl border bg-card shadow-soft">
+    <div className="rounded-xl border bg-card">
       <div className="border-b px-5 py-4">
         <h2 className="font-semibold text-foreground">ความเห็นภายในทีม</h2>
-        <p className="text-sm text-muted-foreground">
-          ความเห็นและข้อสังเกตภายในทีมงาน — ไม่แสดงให้ลูกความเห็น
-        </p>
+        <p className="text-sm text-muted-foreground">ไม่แสดงให้ลูกความเห็น</p>
       </div>
 
       <div className="max-h-[50vh] space-y-1 overflow-y-auto px-5 py-4">
-        {comments.length === 0 && (
+        {loadError && <LoadFailed onRetry={load} />}
+        {!loadError && comments.length === 0 && (
           <InlineEmptyState
             title="ยังไม่มีความเห็น"
             description="ความเห็นจากทีมงานจะแสดงตรงนี้"
@@ -291,10 +295,10 @@ export function CaseCommentsPanel({
                       <button
                         type="button"
                         onClick={() => handleDelete(c.id)}
-                        className="rounded p-1 hover:bg-destructive/20"
-                        aria-label="ลบ"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:w-8"
+                        aria-label="ลบความเห็น"
                       >
-                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </div>
@@ -309,7 +313,7 @@ export function CaseCommentsPanel({
         <div ref={bottomRef} />
       </div>
 
-      {error && <p className="px-5 pb-2 text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="px-5 pb-2 text-sm text-destructive">{error}</p>}
 
       <div className="border-t p-4">
         <div className="relative">
@@ -319,8 +323,8 @@ export function CaseCommentsPanel({
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
             rows={3}
-            className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-soft transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="พิมพ์ความเห็น (@ เพื่อกล่าวถึง, ⌘+Enter เพื่อส่ง)..."
+            className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="ความเห็น" placeholder="พิมพ์ความเห็น (@ เพื่อกล่าวถึง)"
           />
           {showMentionPicker && filteredMembers.length > 0 && (
             <div
@@ -336,7 +340,7 @@ export function CaseCommentsPanel({
                     idx === mentionIndex ? 'bg-accent' : ''
                   }`}
                 >
-                  <AtSign className="mr-2 inline h-3.5 w-3.5" />
+                  <AtSign aria-hidden="true" className="mr-2 inline h-3.5 w-3.5" />
                   {member.firstName} {member.lastName}
                 </button>
               ))}
@@ -360,7 +364,7 @@ export function CaseCommentsPanel({
             onClick={handleSend}
             disabled={sending || !body.trim()}
           >
-            {sending ? 'กำลังส่ง...' : 'ส่ง'}
+            {sending ? 'กำลังส่ง...' : 'ส่งความเห็น'}
           </Button>
         </div>
       </div>

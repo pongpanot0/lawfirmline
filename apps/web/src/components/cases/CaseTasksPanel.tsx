@@ -3,7 +3,7 @@
 import { CasePlaybook } from './CasePlaybook';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, AlertTriangle } from 'lucide-react';
 import { canDelegateTask, isEligibleReviewer, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseDetail, TaskItem, UserItem, WorkloadSummary } from '@/lib/api';
@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { priorityLabel } from '@/lib/task-detail';
 import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
@@ -191,15 +192,15 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between rounded-xl border bg-card px-4 py-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
         <div>
           <h2 className="font-semibold tracking-tight text-foreground">{d.caseTasks.title}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">งานที่สร้างและมอบหมายในคดีนี้</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <TaskViewToggle layout={layout} onChange={setLayout} />
           <Button size="sm" onClick={() => setShowForm(!showForm)}>
-            <Plus className="h-4 w-4" />
+            <Plus aria-hidden="true" className="h-4 w-4" />
             {d.caseTasks.addTask}
           </Button>
         </div>
@@ -207,7 +208,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
 
       <div className="mb-4"><CasePlaybook caseId={caseId} caseTypeId={caseDetail?.caseType?.id} initialReleaseId={searchParams.get('sop') ?? ''} onApplied={loadTasks} /></div>
 
-      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+      {error && !showForm && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
       {showForm && (
         <div
@@ -230,18 +231,17 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                 type="button"
                 aria-label={d.common.close}
                 onClick={() => { if (!creating) setShowForm(false); }}
-                className="text-muted-foreground hover:text-foreground"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <X className="h-5 w-5" />
+                <X aria-hidden="true" className="h-5 w-5" />
               </button>
             </div>
             <form id="create-case-task" onSubmit={handleCreate} onInvalidCapture={event => { const details = (event.target as HTMLElement).closest('details'); if (details) details.open = true; }} className="min-h-0 flex-1 overflow-y-auto p-5">
               <fieldset disabled={creating} className="flex min-w-0 flex-col gap-4">
                 {caseDetail && <p className="break-words text-sm text-muted-foreground">งานในคดี: {caseDetail.title}</p>}
-                <p className="text-xs text-muted-foreground">เริ่มจากชื่องานได้ ผู้รับผิดชอบเริ่มที่คุณ และกำหนดส่งเติมภายหลังได้</p>
                 {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
                 <div>
-                  <label htmlFor="case-task-title" className="text-sm font-medium">{d.taskDetail.titleField} *</label>
+                  <label htmlFor="case-task-title" className="text-sm font-medium">{d.taskDetail.titleField}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
                   <Input
                     id="case-task-title"
                     value={newTitle}
@@ -261,7 +261,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                     id="case-task-assignee"
                     value={newAssigneeId}
                     onChange={(e) => { setNewAssigneeId(e.target.value); if ((e.target.value || user?.id) === newReviewerId) setNewReviewerId(''); }}
-                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                    className="mt-1 h-10 w-full rounded-lg border border-input bg-card px-3 text-sm"
                   >
                     <option value="">{d.caseTasks.assignToMe}</option>
                     {caseTeam.length > 0 && (
@@ -276,7 +276,8 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                     )}
                   </select>
                   {newAssigneeUser && newTaskLeaveFlags.has(newAssigneeId) && (
-                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                    <p className="flex items-start gap-1 mt-1 text-xs text-warning">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                       {leaveWarning(
                         `${newAssigneeUser.firstName} ${newAssigneeUser.lastName}`,
                         newTaskDate,
@@ -296,7 +297,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                   />
                 </div>
                 <details className="rounded-lg border border-border p-3">
-                  <summary className="cursor-pointer text-sm font-medium">การตรวจงาน / ความสำคัญ / ผู้ติดตาม (ถ้ามี)</summary>
+                  <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium">การตรวจงาน / ความสำคัญ / ผู้ติดตาม (ถ้ามี)</summary>
                   <label className="mt-3 flex min-h-10 items-center gap-2 text-sm">
                     <input type="checkbox" checked={newRequiresReview} onChange={event => { setNewRequiresReview(event.target.checked); if (!event.target.checked) setNewRequiresAttachment(false); setNewReviewerId(reviewers.find(member => member.id === caseDetail?.leadLawyer?.id)?.id ?? ''); }} />
                     ต้องให้ผู้ตรวจยืนยันก่อนปิดงาน
@@ -307,8 +308,8 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                       ต้องแนบไฟล์ผลงานก่อนส่งตรวจ
                     </label>)}
                   {newRequiresReview && <div className="mt-3">
-                    <label htmlFor="case-task-reviewer" className="text-sm font-medium">ผู้ตรวจ *</label>
-                    <select id="case-task-reviewer" required value={newReviewerId} onChange={event => setNewReviewerId(event.target.value)} className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm">
+                    <label htmlFor="case-task-reviewer" className="text-sm font-medium">ผู้ตรวจ<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
+                    <select id="case-task-reviewer" required value={newReviewerId} onChange={event => setNewReviewerId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-input bg-card px-3 text-sm">
                       <option value="">เลือกผู้ตรวจ</option>
                       {reviewers.map(member => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}
                     </select>
@@ -320,7 +321,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                       id="case-task-priority"
                       value={newPriority}
                       onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
-                      className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                      className="mt-1 h-10 w-full rounded-lg border border-input bg-card px-3 text-sm"
                     >
                       {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
                         <option key={p} value={p}>{priorityLabel(d, p)}</option>
@@ -341,11 +342,11 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                 </details>
               </fieldset>
             </form>
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-4">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-4">
               <Button variant="outline" onClick={() => { if (!creating) setShowForm(false); }}>{d.common.cancel}</Button>
               <Button variant="outline" disabled={creating || !newTitle.trim()} onClick={() => void handleCreate(undefined, true)}>บันทึกแล้วสร้างต่อ</Button>
               <Button form="create-case-task" type="submit" disabled={creating || !newTitle.trim()}>
-                {creating ? '…' : d.caseTasks.create}
+                {creating ? 'กำลังสร้าง…' : d.caseTasks.create}
               </Button>
             </div>
           </aside>
@@ -367,12 +368,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
       </Card>
 
       {loadError ? (
-        <div className="rounded-xl border bg-card p-6 shadow-soft">
-          <p role="alert" className="text-sm text-destructive">{loadError}</p>
-          <Button size="sm" variant="outline" className="mt-3" onClick={loadTasks}>
-            {d.common.retry}
-          </Button>
-        </div>
+        <LoadFailed message={loadError} onRetry={loadTasks} />
       ) : (
       <>
       {filtering && visibleTasks.length === 0 && (

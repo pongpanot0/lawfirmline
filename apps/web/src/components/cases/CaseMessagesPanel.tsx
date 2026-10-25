@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/task-detail';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 const TIME = new Intl.DateTimeFormat('th-TH', {
   hour: '2-digit',
@@ -41,12 +42,13 @@ export function CaseMessagesPanel({ caseId }: { caseId: string }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const [loadError, setLoadError] = useState(false);
   const load = () => {
     if (!token || !id) return;
     api
       .getCaseMessages(token, id)
-      .then(setMessages)
-      .catch(console.error)
+      .then((items) => { setMessages(items); setLoadError(false); })
+      .catch((err) => { console.error(err); setLoadError(true); })
       .finally(() => setLoading(false));
   };
 
@@ -108,20 +110,16 @@ export function CaseMessagesPanel({ caseId }: { caseId: string }) {
   let lastDay = '';
 
   return (
-    <div className="rounded-xl border bg-card shadow-soft">
+    <div className="rounded-xl border bg-card">
       <div className="border-b px-5 py-4">
         <h2 className="font-semibold text-foreground">{d.messages.title}</h2>
-        <p className="text-sm text-muted-foreground">
-          คุยกับลูกความผ่าน portal — ข้อความและเอกสารที่ส่งเข้ามาอยู่รวมกันที่นี่
-        </p>
+        <p className="text-sm text-muted-foreground">ข้อความและเอกสารกับลูกความผ่าน portal</p>
       </div>
 
       <div className="max-h-[50vh] space-y-1 overflow-y-auto px-5 py-4">
-        {messages.length === 0 && (
-          <InlineEmptyState
-            title={d.messages.noMessages}
-            description="ข้อความและไฟล์ที่ส่งหากันในคดีนี้จะเรียงไว้ตรงนี้ตามเวลา"
-          />
+        {loadError && <LoadFailed onRetry={load} />}
+        {!loadError && messages.length === 0 && (
+          <InlineEmptyState title={d.messages.noMessages} />
         )}
         {messages.map((m) => {
           const day = DAY.format(new Date(m.createdAt));
@@ -140,7 +138,7 @@ export function CaseMessagesPanel({ caseId }: { caseId: string }) {
               <div className="flex gap-3 rounded-lg px-2 py-2 hover:bg-muted/50">
                 <span
                   className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${
-                    fromStaff ? 'bg-primary' : 'bg-amber-500'
+                    fromStaff ? 'bg-primary' : 'bg-warning'
                   }`}
                   aria-hidden
                 />
@@ -161,14 +159,14 @@ export function CaseMessagesPanel({ caseId }: { caseId: string }) {
                       type="button"
                       onClick={() => download(m)}
                       disabled={downloadingId === m.id}
-                      className="mt-1 inline-flex max-w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs hover:bg-accent disabled:opacity-50"
+                      className="mt-1 inline-flex min-h-11 max-w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs hover:bg-accent disabled:opacity-50 sm:min-h-8"
                     >
-                      <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                      <Paperclip aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                       <span className="min-w-0 truncate">{m.filename}</span>
                       {m.size != null && (
                         <span className="shrink-0 text-muted-foreground">{formatBytes(m.size)}</span>
                       )}
-                      <Download className="h-3.5 w-3.5 shrink-0" />
+                      <Download aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                     </button>
                   )}
                 </div>
@@ -179,22 +177,23 @@ export function CaseMessagesPanel({ caseId }: { caseId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      {error && <p className="px-5 pb-2 text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="px-5 pb-2 text-sm text-destructive">{error}</p>}
 
       <div className="border-t p-4">
         {file && (
           <div className="mb-2 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs">
-            <Paperclip className="h-3.5 w-3.5" />
+            <Paperclip aria-hidden="true" className="h-3.5 w-3.5" />
             <span className="min-w-0 flex-1 truncate">{file.name}</span>
             <button
               type="button"
               aria-label="เอาไฟล์ออก"
+              className="inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:bg-accent sm:h-7 sm:w-7"
               onClick={() => {
                 setFile(null);
                 if (fileInput.current) fileInput.current.value = '';
               }}
             >
-              <X className="h-3.5 w-3.5" />
+              <X aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
@@ -204,7 +203,8 @@ export function CaseMessagesPanel({ caseId }: { caseId: string }) {
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={2}
-            className="flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-soft transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={d.messages.placeholder}
             placeholder={d.messages.placeholder}
           />
           <div className="flex flex-col gap-2">
@@ -215,8 +215,8 @@ export function CaseMessagesPanel({ caseId }: { caseId: string }) {
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="hidden"
             />
-            <Button type="button" variant="outline" size="sm" onClick={() => fileInput.current?.click()}>
-              <Paperclip className="h-4 w-4" />
+            <Button type="button" variant="outline" size="sm" aria-label="แนบไฟล์" onClick={() => fileInput.current?.click()}>
+              <Paperclip aria-hidden="true" className="h-4 w-4" />
             </Button>
             <Button
               type="button"

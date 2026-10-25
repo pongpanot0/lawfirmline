@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 import { api, type CaseDetail } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { caseStageOptions } from '@/lib/stage-labels';
@@ -84,7 +84,7 @@ export function CaseAiChat({
           text: `${item.summaryBullets}${item.precedents.length ? `\n\nอ้างอิงฎีกา ${item.precedents.length} เรื่อง` : ''}`,
           actions: [
             { label: 'ร่าง Notice จากผลนี้', onClick: () => void runDraft(item.id), primary: true },
-            { label: 'ดูฉบับเต็ม / ข้อเท็จจริง →', href: `/intake/${intakeId}` },
+            { label: 'ดูฉบับเต็ม / ข้อเท็จจริง', href: `/intake/${intakeId}` },
           ],
         });
       }
@@ -111,7 +111,7 @@ export function CaseAiChat({
             onClick: () => { void navigator.clipboard.writeText(content).catch(() => undefined); },
             primary: true,
           },
-          { label: 'ไปหน้าออก Notice →', href: caseId ? `/cases/${caseId}` : `/intake/${intakeId}` },
+          { label: 'ไปหน้าออก Notice', href: caseId ? `/cases/${caseId}` : `/intake/${intakeId}` },
         ],
       });
     } catch (err) {
@@ -136,7 +136,7 @@ export function CaseAiChat({
     { label: 'วิเคราะห์แนวฎีกา', onClick: runAnalysis, disabled: !intakeId },
     { label: 'ร่าง Notice', onClick: () => void runDraft(), disabled: !intakeId },
     { label: 'สรุปเอกสาร', onClick: () => onPickLegacy('summarize') },
-    { label: 'เอกสาร →', href: caseId ? `/cases/${caseId}?tab=documents` : `/intake/${intakeId}` },
+    { label: 'เอกสาร', href: caseId ? `/cases/${caseId}?tab=documents` : `/intake/${intakeId}` },
   ];
 
   return (
@@ -158,9 +158,10 @@ export function CaseAiChat({
             <Link
               key={c.label}
               href={c.href}
-              className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+              className="inline-flex min-h-11 items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-primary hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8"
             >
               {c.label}
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
             </Link>
           ) : (
             <button
@@ -168,7 +169,7 @@ export function CaseAiChat({
               type="button"
               disabled={c.disabled || busy}
               onClick={c.onClick}
-              className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+              className="min-h-11 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:min-h-8"
             >
               {c.label}
             </button>
@@ -179,7 +180,7 @@ export function CaseAiChat({
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 scrollbar-thin">
         {messages.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            กดปุ่มลัดด้านบนเพื่อเริ่ม — AI ทำงานเฉพาะเมื่อสั่ง ไม่ทำอะไรเอง และผลทุกอย่างเป็นฉบับร่างจนกว่าคุณจะยืนยัน
+            AI ทำงานเมื่อคุณกดปุ่มด้านบนเท่านั้น ผลทุกอย่างเป็นฉบับร่างจนกว่าคุณจะยืนยัน
           </p>
         )}
         {messages.map((m, i) =>
@@ -188,8 +189,8 @@ export function CaseAiChat({
               {m.text}
             </div>
           ) : (
-            <div key={i} className="mr-auto max-w-[95%] space-y-2 rounded-2xl rounded-bl-sm border border-border bg-violet-50/40 px-3.5 py-2.5">
-              {m.title && <p className="text-xs font-bold text-violet-700">{m.title}</p>}
+            <div key={i} className="mr-auto max-w-[95%] space-y-2 rounded-2xl rounded-bl-sm border border-border bg-muted/40 px-3.5 py-2.5">
+              {m.title && <p className="text-xs font-bold text-primary">{m.title}</p>}
               <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.text}</p>
               {m.actions && (
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -198,9 +199,10 @@ export function CaseAiChat({
                       <Link
                         key={a.label}
                         href={a.href}
-                        className="rounded-lg border border-input px-3 py-1 text-xs font-semibold hover:bg-muted"
+                        className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-input px-3 py-1 text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8"
                       >
                         {a.label}
+                        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                       </Link>
                     ) : (
                       <button
@@ -209,8 +211,8 @@ export function CaseAiChat({
                         onClick={a.onClick}
                         className={
                           a.primary
-                            ? 'rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground'
-                            : 'rounded-lg border border-input px-3 py-1 text-xs font-semibold hover:bg-muted'
+                            ? 'min-h-11 rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8'
+                            : 'min-h-11 rounded-lg border border-input px-3 py-1 text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8'
                         }
                       >
                         {a.label}
@@ -219,13 +221,13 @@ export function CaseAiChat({
                   )}
                 </div>
               )}
-              <p className="text-[10px] text-muted-foreground">AI ทำงานเฉพาะเมื่อสั่ง · ผลเป็นฉบับร่าง ยืนยันก่อนใช้ทุกครั้ง</p>
+              <p className="text-xs text-muted-foreground">ฉบับร่าง ตรวจและยืนยันก่อนใช้ทุกครั้ง</p>
             </div>
           ),
         )}
         {busy && (
-          <div className="mr-auto flex items-center gap-2 rounded-2xl border border-border bg-violet-50/40 px-3.5 py-2 text-sm text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> กำลังทำงาน… (วิเคราะห์อาจใช้เวลาสักครู่)
+          <div role="status" className="mr-auto flex items-center gap-2 rounded-2xl border border-border bg-muted/40 px-3.5 py-2 text-sm text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> กำลังทำงาน… (วิเคราะห์อาจใช้เวลาสักครู่)
           </div>
         )}
         <div ref={bottomRef} />
@@ -241,13 +243,14 @@ export function CaseAiChat({
               sendFree();
             }
           }}
+          aria-label="ถามเกี่ยวกับคดีนี้"
           placeholder="ถามอะไรก็ได้เกี่ยวกับคดีนี้…"
-          className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm"
+          className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <button
           type="button"
           onClick={sendFree}
-          className="h-10 rounded-lg bg-violet-700 px-4 text-sm font-semibold text-white hover:bg-violet-800"
+          className="h-11 rounded-lg border border-input bg-card px-4 text-sm font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           ส่ง
         </button>

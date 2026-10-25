@@ -59,7 +59,7 @@ export function TemplateDrawer({
         <p className="text-sm text-muted-foreground">บันทึกเป็นแม่แบบใช้ซ้ำ แล้วเลือกผู้รับจริงเมื่อเริ่มสายงานในคดี</p>
         <TextField label="ชื่อแม่แบบ" placeholder="เช่น รับเรื่อง → ตรวจหลักฐาน → วางแนวทางคดี" value={name} onChange={(e) => setName(e.target.value)} required />
         <details className="rounded-lg border p-3">
-          <summary className="cursor-pointer text-sm">คำอธิบาย (ไม่บังคับ){description.trim() && ' · มีข้อมูลแล้ว'}</summary>
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm">คำอธิบาย (ไม่บังคับ){description.trim() && ' · มีข้อมูลแล้ว'}</summary>
           <TextareaField className="mt-3" label="อธิบาย (ไม่บังคับ)" value={description} onChange={(e) => setDescription(e.target.value)} />
         </details>
         {!template && !name && steps.length === 1 && !steps[0].title && <Button type="button" variant="outline" size="sm" onClick={() => {
@@ -77,7 +77,7 @@ export function TemplateDrawer({
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="sticky -bottom-4 -mx-4 flex justify-end gap-2 border-t bg-card px-4 py-3">
           <Button type="button" variant="outline" onClick={close}>ยกเลิก</Button>
-          <Button type="submit">{busy ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+          <Button type="submit">{busy ? 'กำลังบันทึก…' : 'บันทึกแม่แบบ'}</Button>
         </div>
       </fieldset>
       </form>

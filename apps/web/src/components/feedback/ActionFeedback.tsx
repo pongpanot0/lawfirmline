@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, X } from 'lucide-react';
 
 type Feedback = { status: 'success' | 'error'; message: string };
 
@@ -31,19 +32,21 @@ export function ActionFeedback() {
       className={`fixed inset-x-4 top-4 z-[100] mx-auto flex max-w-md items-start gap-3 rounded-lg border px-4 py-3 shadow-lg sm:left-auto sm:right-4 sm:mx-0 ${
         isError
           ? 'border-destructive/30 bg-destructive text-destructive-foreground'
-          : 'border-emerald-700/30 bg-emerald-700 text-white'
+          : 'border-success/30 bg-success text-white'
       }`}
       role={isError ? 'alert' : 'status'}
     >
-      <span aria-hidden="true" className="mt-0.5 text-base">{isError ? '!' : '✓'}</span>
+      {isError
+        ? <AlertCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+        : <CheckCircle2 aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />}
       <p className="flex-1 text-sm font-medium">{feedback.message}</p>
       <button
         aria-label="ปิดข้อความแจ้งผล"
-        className="-mr-1 -mt-1 rounded p-1 text-current/80 hover:bg-black/10 hover:text-current focus:outline-none focus:ring-2 focus:ring-current"
+        className="-mr-2 -mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded text-current/80 hover:bg-black/10 hover:text-current focus:outline-none focus-visible:ring-2 focus-visible:ring-current"
         onClick={() => setFeedback(null)}
         type="button"
       >
-        ×
+        <X aria-hidden className="h-4 w-4" />
       </button>
     </div>
   );

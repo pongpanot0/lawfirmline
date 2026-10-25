@@ -10,6 +10,9 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, InsuranceClaimItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { Button } from '@/components/ui/button';
+import { ChevronRight, Pencil } from 'lucide-react';
 import { InsurerSelect } from '@/components/InsurerSelect';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
@@ -22,11 +25,13 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = () => {
     if (!token || !id) return;
     setLoading(true);
     setError(null);
+    setLoadError(null);
     api
       .getInsuranceClaim(token, id)
       .then(setClaim)
@@ -38,7 +43,7 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
         if (isNotFound) {
           setClaim(null);
         } else {
-          setError(err instanceof Error ? err.message : 'โหลดข้อมูลเคลมประกันไม่สำเร็จ');
+          setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลเคลมประกันไม่สำเร็จ');
         }
       })
       .finally(() => setLoading(false));
@@ -118,53 +123,56 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
   };
 
   if (loading) return <PageLoading title="กำลังโหลดเคลมประกัน" lines={2} />;
+  if (loadError) return <LoadFailed message={loadError} onRetry={load} />;
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-soft">
+    <div className="rounded-xl border bg-card p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="font-semibold text-foreground">ประกันภัย</h2>
         {claim && !editing && (
-          <button type="button" onClick={startEdit} className="text-sm text-primary hover:underline">
-            แก้ไข
-          </button>
+          <Button type="button" variant="ghost" size="sm" onClick={startEdit}>
+            <Pencil aria-hidden="true" className="h-4 w-4" />แก้ไขข้อมูลเคลม
+          </Button>
         )}
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
       {!claim || editing ? (
         <form onSubmit={editing ? handleSaveEdit : handleCreate} className="max-w-md space-y-4">
           {!claim && (
-            <p className="text-sm text-muted-foreground">
-              คดีที่มีประกันเกี่ยวข้อง กรอกบริษัทประกันไว้ ระบบจะเริ่มไทม์ไลน์เคลมและกำหนดเวลาที่เกี่ยวข้องให้
-            </p>
+            <p className="text-sm text-muted-foreground">ยังไม่มีการติดตามเคลมประกันในคดีนี้</p>
           )}
           <div>
-            <label className="block text-sm font-medium text-foreground">บริษัทประกัน</label>
+            <label htmlFor="claim-insurer" className="block text-sm font-medium text-foreground">บริษัทประกัน</label>
             <InsurerSelect
+              id="claim-insurer"
               value={form.insurerName}
               onChange={(name) => setForm({ ...form, insurerName: name })}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground">เลขกรมธรรม์</label>
+            <label htmlFor="claim-policy" className="block text-sm font-medium text-foreground">เลขกรมธรรม์</label>
             <input
-              className="mt-1 w-full rounded-md border border-input px-3 py-2"
+              id="claim-policy"
+              className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
               value={form.policyNumber}
               onChange={(e) => setForm({ ...form, policyNumber: e.target.value })}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground">เลขเคลม</label>
+            <label htmlFor="claim-number" className="block text-sm font-medium text-foreground">เลขเคลม</label>
             <input
-              className="mt-1 w-full rounded-md border border-input px-3 py-2"
+              id="claim-number"
+              className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
               value={form.claimNumber}
               onChange={(e) => setForm({ ...form, claimNumber: e.target.value })}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground">วันวินาศภัย</label>
+            <label htmlFor="claim-incident-date" className="block text-sm font-medium text-foreground">วันวินาศภัย<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
             <ThaiDateInput
+              id="claim-incident-date"
               required
               className="mt-1"
               value={form.incidentDate}
@@ -172,24 +180,20 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
             />
           </div>
           <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {editing ? 'บันทึก' : 'เริ่มติดตามเคลมประกัน'}
-            </button>
+            <Button type="submit" disabled={submitting}>
+              {editing ? 'บันทึกข้อมูลเคลม' : 'เริ่มติดตามเคลมประกัน'}
+            </Button>
             {editing && (
-              <button type="button" onClick={() => setEditing(false)} className="text-sm underline">
+              <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
                 ยกเลิก
-              </button>
+              </Button>
             )}
           </div>
         </form>
       ) : (
         <div className="space-y-5">
           <div>
-            <div className="flex items-center justify-between">
+            <ol aria-label="ขั้นตอนเคลม" className="flex items-center justify-between overflow-x-auto pb-1">
               {INSURANCE_CLAIM_STAGE_ORDER.filter(
                 (s) => s !== InsuranceClaimStage.DENIED_OR_PARTIAL || claim.stage === InsuranceClaimStage.DENIED_OR_PARTIAL,
               ).map((stage, i, arr) => {
@@ -197,20 +201,20 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
                 const stageIndex = INSURANCE_CLAIM_STAGE_ORDER.indexOf(stage);
                 const done = stageIndex <= currentIndex;
                 return (
-                  <div key={stage} className="flex flex-1 items-center">
+                  <li key={stage} aria-current={stage === claim.stage ? 'step' : undefined} className="flex flex-1 items-center">
                     <div
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
-                        done ? 'bg-brand-600 text-white' : 'bg-muted text-muted-foreground'
+                        done ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                       }`}
                     >
                       {i + 1}
                     </div>
-                    <span className="ml-2 text-xs text-muted-foreground">{INSURANCE_CLAIM_STAGE_LABELS[stage]}</span>
-                    {i < arr.length - 1 && <div className="mx-2 h-px flex-1 bg-muted" />}
-                  </div>
+                    <span className="ml-2 whitespace-nowrap text-xs text-muted-foreground">{INSURANCE_CLAIM_STAGE_LABELS[stage]}</span>
+                    {i < arr.length - 1 && <div className="mx-2 h-px min-w-4 flex-1 bg-border" />}
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           </div>
 
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -252,15 +256,17 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
               {INSURANCE_CLAIM_STAGE_ORDER.filter(
                 (s) => INSURANCE_CLAIM_STAGE_ORDER.indexOf(s) > INSURANCE_CLAIM_STAGE_ORDER.indexOf(claim.stage),
               ).map((stage) => (
-                <button
+                <Button
                   key={stage}
                   type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={submitting}
                   onClick={() => handleAdvance(stage)}
-                  className="rounded-md border border-brand-600 px-3 py-1.5 text-sm text-brand-600 hover:bg-brand-50 disabled:opacity-50"
                 >
-                  → {INSURANCE_CLAIM_STAGE_LABELS[stage]}
-                </button>
+                  <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                  {INSURANCE_CLAIM_STAGE_LABELS[stage]}
+                </Button>
               ))}
             </div>
           </div>

@@ -24,7 +24,7 @@ export function EventResponsibility({ eventId, startAt, type, onChanged }: { eve
   const date = (value: string) => new Date(value).toLocaleString(th ? 'th-TH' : 'en-GB', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' });
   return <section className="mt-4 space-y-3 rounded-lg border p-3" aria-label={th ? 'การรับผิดชอบนัด' : 'Appointment responsibility'}>
     <h3 className="font-medium">{th ? 'ผู้รับผิดชอบและการรับงาน' : 'Responsibility and acknowledgement'}</h3>
-    {error && <p role="alert" className="text-sm text-destructive">{error}<button type="button" className="ml-2 underline" onClick={() => { setError(''); setReload(r => r + 1); }}>{th ? 'โหลดใหม่' : 'Reload'}</button></p>}
+    {error && <p role="alert" className="text-sm text-destructive">{error}<button type="button" className="ml-2 min-h-11 font-medium underline" onClick={() => { setError(''); setReload(r => r + 1); }}>{th ? 'โหลดใหม่' : 'Reload'}</button></p>}
     {data && <><p className="text-sm">{data.owner} · {data.completedAt ? (th ? 'ทำเสร็จแล้ว' : 'Completed') : data.acceptedAt ? (th ? 'รับงานแล้ว' : 'Acknowledged') : (th ? 'ยังไม่รับงาน' : 'Not acknowledged')}</p>
       {data.needsEscalation && <p className="text-sm text-amber-700 dark:text-amber-400">{th ? 'ใกล้ถึงกำหนดหรือเลยกำหนดแล้ว แต่ยังไม่รับงาน ควรติดตามผู้รับผิดชอบ' : 'Due within 48 hours or overdue, with no acknowledgement. Follow up with the owner.'}</p>}
       {data.source && <p className="text-xs text-muted-foreground">{th ? 'ที่มาของวันที่: ' : 'Date source: '}{data.source.rule ?? data.source.excerpt ?? (th ? 'วันที่ผ่านการตรวจ' : 'Reviewed date')}</p>}

@@ -8,7 +8,10 @@ import { portalApi } from '@/lib/portal-api';
 import { AnnualReportListItem, AnnualReportSnapshot } from '@/lib/annual-report';
 import { AnnualReportView } from '@/components/reports/AnnualReportView';
 import { PortalShell } from '@/components/layout/PortalShell';
+import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 export default function PortalReportDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +20,7 @@ export default function PortalReportDetailPage() {
   const [report, setReport] = useState<AnnualReportListItem & { snapshot: AnnualReportSnapshot }>();
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!loading && !contact) router.replace('/portal/login');
@@ -24,29 +28,28 @@ export default function PortalReportDetailPage() {
 
   useEffect(() => {
     if (!token || !id) return;
+    setBusy(true);
+    setError('');
     portalApi.getAnnualReport(token, id)
       .then(setReport)
       .catch((e) => setError(e instanceof Error ? e.message : 'เปิดรายงานไม่สำเร็จ'))
       .finally(() => setBusy(false));
-  }, [token, id]);
+  }, [token, id, attempt]);
 
   if (loading || !contact) return null;
 
   return (
     <PortalShell>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href="/portal/reports" className="text-sm text-primary hover:underline">← รายงานประจำปี</Link>
-        {report && <Button type="button" variant="outline" onClick={() => window.print()}>พิมพ์ / บันทึกเป็น PDF</Button>}
+        <Link href="/portal/reports" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden />รายงานประจำปี</Link>
+        {report && <Button type="button" variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" aria-hidden />พิมพ์ / บันทึกเป็น PDF</Button>}
       </div>
       {busy ? (
-        <p className="text-sm text-muted-foreground">กำลังโหลดรายงาน...</p>
+        <div role="status" aria-label="กำลังโหลดรายงาน"><Skeleton className="h-96 w-full rounded-lg" /></div>
       ) : error ? (
-        <p role="alert" className="text-sm text-destructive">{error}</p>
+        <LoadFailed message={error} onRetry={() => setAttempt((n) => n + 1)} />
       ) : report ? (
         <>
-          <p className="mb-4 text-xs text-muted-foreground print:hidden">
-            หากต้องการเก็บไฟล์ ให้กด “พิมพ์ / บันทึกเป็น PDF” แล้วเลือกปลายทางเป็น PDF
-          </p>
           <div className="rounded-lg border bg-card p-4 sm:p-8 print:border-0 print:bg-white print:p-0 print:shadow-none">
             <AnnualReportView report={report.snapshot} portal />
             <p className="mt-6 border-t pt-3 text-xs text-muted-foreground">

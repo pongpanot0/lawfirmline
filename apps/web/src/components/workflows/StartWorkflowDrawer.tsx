@@ -115,10 +115,10 @@ export function StartWorkflowDrawer({
             {steps.map((step, i) => (
               <li key={i} className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
                 <span className="font-medium">{i + 1}. {step.title || '(ยังไม่ตั้งชื่อ)'}</span>
-                <span className="text-xs text-muted-foreground">· {step.durationDays} วันทำการ</span>
+                <span className="text-xs tabular-nums text-muted-foreground">· {step.durationDays} วันทำการ</span>
                 <select
                   aria-label={`ผู้รับขั้นที่ ${i + 1}`}
-                  className="ml-auto h-8 min-w-[12rem] rounded-md border border-input bg-card px-2"
+                  className="ml-auto h-10 w-full min-w-0 rounded-md border border-input bg-card px-2 sm:w-auto sm:min-w-[12rem]"
                   value={assignees[i] ?? ''}
                   onChange={(e) => setAssignees((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))}
                 >

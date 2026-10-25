@@ -10,7 +10,9 @@ import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
 import { bangkokDateInputValue } from '@/lib/bangkok';
-import { Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 /**
  * งาน/checklist ของเรื่องรับเข้า — intake คืองานก่อนฟ้องที่ทนายทำจริง
@@ -28,6 +30,7 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
   const [assigneeId, setAssigneeId] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loadState, setLoadState] = useState<'loading' | 'failed' | 'ready'>('loading');
   const [error, setError] = useState('');
   const taskDate = dueDate || bangkokDateInputValue(new Date());
   const leaveFlags = useLeaveFlags(token, taskDate);
@@ -35,7 +38,9 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
 
   const reload = useCallback(() => {
     if (!token) return;
-    api.getIntakeTasks(token, intakeId).then(setTasks).catch(() => setTasks([]));
+    api.getIntakeTasks(token, intakeId)
+      .then((rows) => { setTasks(rows); setLoadState('ready'); })
+      .catch(() => setLoadState('failed'));
   }, [token, intakeId]);
 
   useEffect(reload, [reload]);
@@ -72,8 +77,8 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
     await api.updateIntakeTask(token, intakeId, task.id, { status }).catch(() => reload());
   };
 
-  const remove = async (taskId: string) => {
-    if (!token) return;
+  const remove = async (taskId: string, taskTitle: string) => {
+    if (!token || !window.confirm(`ลบงาน "${taskTitle}"?`)) return;
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     await api.deleteIntakeTask(token, intakeId, taskId).catch(() => reload());
   };
@@ -85,7 +90,14 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
         <p className="text-sm text-muted-foreground">เปิดคดีแล้วงานทั้งหมดจะย้ายไปอยู่ในคดีให้เอง</p>
       </CardHeader>
       <CardContent className="space-y-3">
-        {tasks.length === 0 && <p className="text-sm text-muted-foreground">ยังไม่มีงาน</p>}
+        {loadState === 'loading' && (
+          <div role="status" aria-label="กำลังโหลดงาน" className="space-y-2">
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-5 w-1/2" />
+          </div>
+        )}
+        {loadState === 'failed' && <LoadFailed onRetry={reload} />}
+        {loadState === 'ready' && tasks.length === 0 && <p className="text-sm text-muted-foreground">ยังไม่มีงาน เพิ่มงานแรกด้านล่าง</p>}
         <ul className="space-y-1.5">
           {tasks.map((t) => (
             <li key={t.id} className="flex items-center gap-2 text-sm">
@@ -107,11 +119,11 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
               )}
               <button
                 type="button"
-                onClick={() => remove(t.id)}
-                className="ml-auto text-muted-foreground hover:text-destructive"
-                aria-label="ลบงาน"
+                onClick={() => remove(t.id, t.title)}
+                className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-destructive sm:h-8 sm:w-8"
+                aria-label={`ลบงาน ${t.title}`}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
               </button>
             </li>
           ))}
@@ -126,6 +138,7 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
                 void add();
               }
             }}
+            aria-label="ชื่องานใหม่"
             placeholder="เพิ่มงาน เช่น ขอเวชระเบียน, ร่างหนังสือทวงถาม"
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
           />
@@ -133,7 +146,7 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
             <select
               value={assigneeId}
               onChange={(e) => setAssigneeId(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+              className="h-11 rounded-lg border border-input bg-background px-2 text-sm sm:h-9"
               aria-label="ผู้รับผิดชอบ"
             >
               <option value="">ฉันเอง</option>
@@ -141,16 +154,17 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
             </select>
             <ThaiDateInput value={dueDate} onChange={setDueDate} />
             <Button type="button" size="sm" onClick={add} disabled={busy || !title.trim()} className="ml-auto">
-              <Plus className="mr-1 h-4 w-4" /> เพิ่ม
+              <Plus className="mr-1 h-4 w-4" aria-hidden /> เพิ่มงาน
             </Button>
           </div>
           {assigneeUser && leaveFlags.has(assigneeUser.id) && (
-            <p className="text-xs text-amber-700 dark:text-amber-400">
+            <p className="flex items-start gap-1 text-xs text-warning">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               {leaveWarning(assigneeUser.firstName, taskDate, leaveFlags.get(assigneeUser.id)?.kind)}
             </p>
           )}
         </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       </CardContent>
     </Card>
   );

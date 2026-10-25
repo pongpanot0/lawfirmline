@@ -11,7 +11,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { CreateReviewRoundDialog } from '@/components/documents/CreateReviewRoundDialog';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
-import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { EmptyState, InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 
 const VERSION_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'ฉบับร่าง',
@@ -21,12 +23,12 @@ const VERSION_STATUS_LABELS: Record<string, string> = {
   SUPERSEDED: 'ถูกแทนที่ด้วยฉบับใหม่',
 };
 
-const VERSION_STATUS_VARIANT: Record<string, string> = {
-  DRAFT: 'bg-muted text-foreground',
-  WAITING_REVIEW: 'bg-amber-100 text-amber-700',
-  RETURNED_FOR_CHANGES: 'bg-red-100 text-red-700',
-  APPROVED: 'bg-green-100 text-green-700',
-  SUPERSEDED: 'bg-muted text-muted-foreground',
+const VERSION_STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
+  DRAFT: 'muted',
+  WAITING_REVIEW: 'warning',
+  RETURNED_FOR_CHANGES: 'destructive',
+  APPROVED: 'success',
+  SUPERSEDED: 'muted',
 };
 
 function formatDateTime(date: string) {
@@ -48,16 +50,16 @@ function ReviewerStatusList({ round, memberNames }: { round: ReviewRoundItem; me
           <div key={reviewerId} className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">{memberNames[reviewerId] ?? `${reviewerId.slice(0, 8)}…`}</span>
             {!decision ? (
-              <span className="inline-flex items-center gap-1 text-amber-700">
-                <Clock className="h-3 w-3" /> ยังไม่ตรวจ
+              <span className="inline-flex items-center gap-1 text-warning">
+                <Clock aria-hidden="true" className="h-3.5 w-3.5" /> ยังไม่ตรวจ
               </span>
             ) : decision.decision === 'APPROVED' ? (
-              <span className="inline-flex items-center gap-1 text-green-700">
-                <CheckCircle2 className="h-3 w-3" /> ผ่านแล้ว
+              <span className="inline-flex items-center gap-1 text-success">
+                <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" /> ผ่านแล้ว
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-red-700">
-                <RotateCcw className="h-3 w-3" /> ส่งกลับแก้ไข
+              <span className="inline-flex items-center gap-1 text-destructive">
+                <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> ส่งกลับแก้ไข
               </span>
             )}
           </div>
@@ -175,24 +177,41 @@ export default function DocumentReviewPage() {
   };
 
   if (loadError) return <LoadFailed onRetry={load} />;
-  if (loading || !document) return <PageLoading title="กำลังโหลดหน้าตรวจเอกสาร" lines={3} />;
+  if (loading) return <PageLoading title="กำลังโหลดหน้าตรวจเอกสาร" lines={3} />;
+  if (!document) {
+    return (
+      <div className="space-y-3">
+        <Link href={`/cases/${caseId}?tab=documents`} className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" /> กลับไปที่เอกสาร
+        </Link>
+        <EmptyState title="ไม่พบเอกสารนี้ในคดี" />
+      </div>
+    );
+  }
 
   return (
     <div className="pb-24">
       <Link
         href={`/cases/${caseId}?tab=documents`}
-        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+        className="mb-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="h-4 w-4" /> กลับไปที่เอกสาร
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" /> กลับไปที่เอกสาร
       </Link>
-      <h1 className="mt-2 mb-1 text-2xl font-bold tracking-tight">{document.filename}</h1>
-      <p className="mb-6 text-sm text-muted-foreground">หน้าตรวจเอกสาร</p>
+      <PageHeader
+        title={document.filename}
+        description={latestVersion ? `ตรวจเอกสาร · เวอร์ชัน v${latestVersion.version}` : 'ตรวจเอกสาร'}
+        actions={
+          <Button size="sm" variant="outline" onClick={handleDownload}>
+            <Download aria-hidden="true" className="h-4 w-4" /> ดาวน์โหลดฉบับนี้
+          </Button>
+        }
+      />
 
-      {error && <p className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
       {staleNotice && (
-        <p className="mb-4 rounded-lg bg-amber-100 p-3 text-sm text-amber-800">
+        <p role="alert" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
           เอกสารถูกแก้เป็นฉบับใหม่ระหว่างที่เปิดหน้านี้ กรุณาโหลดหน้าใหม่ก่อนตรวจ
-          <Button size="sm" variant="outline" className="ml-3" onClick={load}>
+          <Button size="sm" variant="outline" onClick={load}>
             โหลดฉบับล่าสุด
           </Button>
         </p>
@@ -201,12 +220,12 @@ export default function DocumentReviewPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardContent className="p-4">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold">ฉบับที่กำลังตรวจ</h2>
               {latestVersion && (
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${VERSION_STATUS_VARIANT[latestVersion.status] ?? ''}`}>
+                <Badge variant={VERSION_STATUS_VARIANT[latestVersion.status] ?? 'muted'}>
                   {VERSION_STATUS_LABELS[latestVersion.status] ?? latestVersion.status}
-                </span>
+                </Badge>
               )}
             </div>
             {latestVersion ? (
@@ -218,9 +237,6 @@ export default function DocumentReviewPage() {
             ) : (
               <p className="text-sm text-muted-foreground">ไม่พบข้อมูลเวอร์ชัน</p>
             )}
-            <Button size="sm" variant="outline" className="mt-3" onClick={handleDownload}>
-              <Download className="mr-1 h-3.5 w-3.5" /> เปิด/ดาวน์โหลดฉบับนี้
-            </Button>
 
             {!activeRound && latestVersion && (
               <div className="mt-4 border-t pt-4">
@@ -234,16 +250,18 @@ export default function DocumentReviewPage() {
             {latestVersion && (
               <div className="mt-4 border-t pt-4">
                 {latestVersion.status === 'RETURNED_FOR_CHANGES' && (
-                  <p className="mb-2 text-sm font-medium text-red-700">ฉบับนี้ถูกส่งกลับแก้ไข</p>
+                  <p className="mb-2 text-sm font-medium text-destructive">ฉบับนี้ถูกส่งกลับแก้ไข</p>
                 )}
                 <p className="mb-2 text-xs text-muted-foreground">
                   {latestVersion.status === 'APPROVED'
                     ? 'อัปโหลดฉบับใหม่ได้ตลอด — ผลตรวจของฉบับที่ผ่านแล้วจะไม่ถูกใช้กับฉบับใหม่โดยอัตโนมัติ'
                     : 'แก้ไขแล้วอัปโหลดฉบับใหม่ก่อนส่งตรวจอีกครั้ง'}
                 </p>
+                <label htmlFor="version-notes" className="mb-1 block text-sm font-medium">หมายเหตุการแก้ไข</label>
                 <input
-                  className="mb-2 w-full rounded-lg border px-3 py-1.5 text-sm"
-                  placeholder="หมายเหตุการแก้ไข (ถ้ามี)"
+                  id="version-notes"
+                  className="mb-2 min-h-10 w-full rounded-lg border border-input bg-card px-3 py-1.5 text-sm"
+                  placeholder="ถ้ามี"
                   value={versionNotes}
                   onChange={(e) => setVersionNotes(e.target.value)}
                 />
@@ -270,10 +288,10 @@ export default function DocumentReviewPage() {
                 <ReviewerStatusList round={activeRound} memberNames={memberNames} />
 
                 {activeRound.status === 'APPROVED' && (
-                  <p className="rounded-lg bg-green-100 p-2 text-sm font-medium text-green-800">ผ่านการตรวจครบแล้ว</p>
+                  <p className="rounded-lg bg-success/10 p-2 text-sm font-medium text-success">ผ่านการตรวจครบแล้ว</p>
                 )}
                 {activeRound.status === 'RETURNED' && (
-                  <div className="rounded-lg bg-red-100 p-2 text-sm text-red-800">
+                  <div className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive">
                     <p className="font-medium">ส่งกลับแก้ไข</p>
                     {activeRound.decisions
                       .filter((d) => d.decision === 'RETURNED')
@@ -287,29 +305,32 @@ export default function DocumentReviewPage() {
                 {iAmReviewer && activeRound.status === 'WAITING_REVIEW' && (
                   <div className="border-t pt-3">
                     {myDecision ? (
-                      <p className="rounded-lg bg-green-50 p-2 text-sm text-green-700">
+                      <p className="rounded-lg bg-success/10 p-2 text-sm text-success">
                         คุณตรวจผ่านแล้ว {activeRound.decisions.filter((d) => d.decision === 'APPROVED').length < activeRound.reviewerIds.length ? '· ยังรอผู้ตรวจอื่น' : ''}
                       </p>
                     ) : showReturnBox ? (
                       <div className="space-y-2">
+                        <label htmlFor="return-reason" className="block text-sm font-medium">สิ่งที่ต้องแก้ไข<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
                         <textarea
-                          className="w-full rounded-lg border px-3 py-2 text-sm"
+                          id="return-reason"
+                          required
+                          className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
                           rows={3}
                           placeholder="ระบุสิ่งที่ต้องแก้ไข"
                           value={returnReason}
                           onChange={(e) => setReturnReason(e.target.value)}
                         />
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="destructive" disabled={deciding} onClick={() => handleDecision('return')}>
-                            ยืนยันส่งกลับแก้ไข
-                          </Button>
+                        <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="outline" onClick={() => setShowReturnBox(false)}>
                             ยกเลิก
+                          </Button>
+                          <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" disabled={deciding} onClick={() => handleDecision('return')}>
+                            ยืนยันส่งกลับแก้ไข
                           </Button>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <Button disabled={deciding} onClick={() => handleDecision('approve')}>
                           ผ่านการตรวจฉบับนี้
                         </Button>
@@ -335,7 +356,7 @@ export default function DocumentReviewPage() {
             <div className="space-y-3">
               {rounds.map((round) => (
                 <div key={round.id} className="rounded-lg border p-3 text-sm">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span>เวอร์ชัน v{round.documentVersion.version}</span>
                     <span className="text-xs text-muted-foreground">{formatDateTime(round.createdAt)}</span>
                   </div>

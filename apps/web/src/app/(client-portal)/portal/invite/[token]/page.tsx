@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Users } from 'lucide-react';
+import Link from 'next/link';
 import { portalApi, PortalApiError, PortalInvitePreview } from '@/lib/portal-api';
 import { portalHomeFor, usePortalAuth } from '@/lib/portal-auth';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { PortalAuthCard } from '@/components/portal/PortalAuthCard';
 import { formatDate } from '@/lib/utils';
 
 export default function PortalInviteAcceptPage() {
@@ -37,54 +37,53 @@ export default function PortalInviteAcceptPage() {
     }
   };
 
+  if (error && !invite) {
+    return (
+      <PortalAuthCard title="คำเชิญนี้ใช้ไม่ได้" description={<p role="alert">{error}</p>}>
+        <Link href="/portal/login" className={buttonVariants({ variant: 'outline', className: 'w-full' })}>
+          ไปหน้าเข้าสู่ระบบ
+        </Link>
+      </PortalAuthCard>
+    );
+  }
+
+  if (!invite) {
+    return (
+      <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกค้า">
+        <p role="status" className="mt-2 text-sm text-muted-foreground">กำลังโหลดคำเชิญ...</p>
+      </PortalAuthCard>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-md border-0 shadow-card">
-        <CardContent className="flex flex-col items-center gap-1 p-9 text-center">
-          <div className="mb-3 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Users className="h-6 w-6" />
-          </div>
+    <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกค้า" description="สำนักงานกฎหมายของคุณเปิดพอร์ทัลให้ติดตามคดี เอกสาร และข้อความได้ที่นี่">
+      <dl className="mb-5 space-y-3 rounded-lg border border-border p-4">
+        <div>
+          <dt className="text-sm text-muted-foreground">บริษัท / ลูกค้า</dt>
+          <dd className="font-semibold">{invite.clientName}</dd>
+        </div>
+        <div>
+          <dt className="text-sm text-muted-foreground">ผู้ติดต่อ</dt>
+          <dd className="break-words font-semibold">
+            {invite.contactName}
+            {invite.contactEmail ? ` · ${invite.contactEmail}` : ''}
+          </dd>
+        </div>
+      </dl>
 
-          {error && !invite ? (
-            <>
-              <h1 className="text-[19px] font-bold">คำเชิญนี้ไม่ถูกต้อง</h1>
-              <p className="text-sm text-muted-foreground">{error}</p>
-            </>
-          ) : invite ? (
-            <>
-              <h1 className="text-[19px] font-bold">คุณได้รับเชิญเข้าใช้พอร์ทัลลูกความ</h1>
-              <p className="mb-4 text-sm text-muted-foreground">สำนักงาน Samnuan เปิดใช้งานพอร์ทัลสำหรับติดตามคดีให้กับ</p>
+      <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
+        ยืนยันแล้วตั้งรหัสผ่านของคุณเอง ครั้งต่อไปเข้าด้วยอีเมลและรหัสผ่านได้เลย
+      </p>
 
-              <div className="mb-5 w-full rounded-lg border border-dashed border-border bg-accent/50 p-4 text-left">
-                <p className="mb-1 text-[12px] font-bold tracking-wide text-muted-foreground">บริษัท / ลูกความ</p>
-                <p className="mb-2.5 text-[14.5px] font-bold">{invite.clientName}</p>
-                <p className="mb-1 text-[12px] font-bold tracking-wide text-muted-foreground">ผู้ติดต่อ</p>
-                <p className="text-[14.5px] font-bold">
-                  {invite.contactName}
-                  {invite.contactEmail ? ` · ${invite.contactEmail}` : ''}
-                </p>
-              </div>
+      {error && <p role="alert" className="mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
-              <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
-                กดยืนยันเพื่อเปิดใช้งานพอร์ทัล จากนั้นตั้งรหัสผ่านของคุณเอง
-                ครั้งถัดไปเข้าด้วยอีเมลและรหัสผ่านได้เลย (หรือขอลิงก์ทางอีเมลเมื่อลืมรหัส)
-              </p>
+      <Button className="h-11 w-full" disabled={accepting} onClick={handleAccept}>
+        {accepting ? 'กำลังยืนยัน...' : 'ยืนยันและเข้าใช้พอร์ทัล'}
+      </Button>
 
-              {error && <p className="mb-4 w-full rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
-
-              <Button className="w-full" disabled={accepting} onClick={handleAccept}>
-                {accepting ? 'กำลังยืนยัน...' : 'ยืนยันและเข้าใช้งานพอร์ทัล'}
-              </Button>
-
-              <p className="mt-4 text-[11.5px] text-muted-foreground">
-                คำเชิญนี้ออกให้เฉพาะ {invite.contactEmail} และหมดอายุ {formatDate(invite.expiresAt)}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">กำลังโหลด...</p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        คำเชิญนี้สำหรับ {invite.contactEmail} เท่านั้น หมดอายุ {formatDate(invite.expiresAt)}
+      </p>
+    </PortalAuthCard>
   );
 }

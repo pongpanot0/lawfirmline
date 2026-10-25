@@ -13,7 +13,8 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDateTime } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
@@ -145,7 +146,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
         title={view === 'day' ? d.myDay.title : view === 'agenda' ? 'ตารางรายวันของสำนักงาน' : d.calendar.title}
         description={
           view === 'day'
-            ? d.myDay.description
+            ? 'นัดและงานของคุณ วันนี้และพรุ่งนี้'
             : view === 'agenda'
               ? 'ใครไปไหนวันไหน เรียงตามวัน พร้อมเตือนเมื่อมีคนถูกจองซ้อน'
               : d.calendar.description
@@ -160,7 +161,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                   type="button"
                   aria-selected={view === v}
                   onClick={() => setView(v)}
-                  className={`min-h-11 rounded-md px-3 py-2 text-xs ${view === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                  className={`min-h-11 rounded-md px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${view === v ? 'bg-muted font-semibold text-foreground' : 'text-muted-foreground hover:bg-muted'}`}
                 >
                   {v === 'day' ? d.myDay.title : v === 'agenda' ? 'ตารางรายวัน' : d.calendar.title}
                 </button>
@@ -171,7 +172,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                 aria-label="กรองตามผู้รับผิดชอบ"
                 value={personFilter}
                 onChange={(e) => setPersonFilter(e.target.value)}
-                className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
+                className="h-11 rounded-lg border border-input bg-card px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">ทุกคน</option>
                 {[...people.entries()].map(([id, name]) => (
@@ -181,7 +182,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
             )}
             {view !== 'day' && (
               <Button size="sm" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4" aria-hidden />
                 {d.calendar.addEvent}
               </Button>
             )}
@@ -200,14 +201,11 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
         <Card>
           <CardContent className="p-4">
             {loading ? (
-              <PageLoading title={d.calendar.loading} lines={2} />
-            ) : loadError ? (
-              <div className="space-y-3">
-                <p role="alert" className="text-sm text-destructive">{loadError}</p>
-                <Button size="sm" variant="outline" onClick={() => setReloadKey((n) => n + 1)}>
-                  {d.common.retry}
-                </Button>
+              <div role="status" aria-label={d.calendar.loading} className="space-y-3">
+                {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
               </div>
+            ) : loadError ? (
+              <LoadFailed message={loadError} onRetry={() => setReloadKey((n) => n + 1)} />
             ) : (
               <FirmDayAgenda
                 events={visibleEvents}
@@ -222,16 +220,13 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
         <div className="grid gap-6 lg:grid-cols-4">
           <div className="lg:col-span-3">
             {loading ? (
-              <PageLoading title={d.calendar.loading} lines={2} />
-            ) : loadError ? (
               <Card>
-                <CardContent className="space-y-3 p-6">
-                  <p role="alert" className="text-sm text-destructive">{loadError}</p>
-                  <Button size="sm" variant="outline" onClick={() => setReloadKey((n) => n + 1)}>
-                    {d.common.retry}
-                  </Button>
+                <CardContent role="status" aria-label={d.calendar.loading} className="p-4">
+                  <Skeleton className="h-[420px] w-full" />
                 </CardContent>
               </Card>
+            ) : loadError ? (
+              <LoadFailed message={loadError} onRetry={() => setReloadKey((n) => n + 1)} />
             ) : (
               <Card>
                 <CardContent className="p-4">
@@ -263,12 +258,14 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm">
-                <Bell className="h-4 w-4" />
+                <Bell className="h-4 w-4 text-muted-foreground" aria-hidden />
                 {d.calendar.upcomingReminders}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {upcoming.map((e) => (
+              {loading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+              {!loading && loadError && <p role="alert" className="text-sm text-destructive">{d.common.loadFailed}</p>}
+              {!loading && !loadError && upcoming.map((e) => (
                 <button
                   key={e.id}
                   type="button"
@@ -290,7 +287,12 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
               {upcoming.length === 0 && !loading && !loadError && (
                 <InlineEmptyState
                   title={d.calendar.noUpcoming}
-                  description="กดเพิ่มนัด หรือคลิกวันที่ในปฏิทินเพื่อวางนัดใหม่"
+                  action={
+                    <Button size="sm" variant="outline" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
+                      <Plus className="h-4 w-4" aria-hidden />
+                      {d.calendar.addEvent}
+                    </Button>
+                  }
                 />
               )}
             </CardContent>
@@ -314,10 +316,11 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
             <h2 className="text-lg font-semibold">{selectedLeave.title}</h2>
             <p className="mt-2 text-sm text-muted-foreground">{selectedLeave.leaveStartDate} ถึง {selectedLeave.leaveEndDate} · ทั้งวัน</p>
             {leaveError && <p role="alert" className="mt-3 text-sm text-destructive">{leaveError}</p>}
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSelectedLeave(null)}>ปิด</Button>
               {user?.id === selectedLeave.leaveOwnerId && selectedLeave.leaveId && token && (
-                <Button variant="destructive" size="sm" onClick={async () => {
-                  if (!window.confirm('ยกเลิกรายการลานี้?')) return;
+                <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={async () => {
+                  if (!window.confirm(`ยกเลิก${selectedLeave.title} ${selectedLeave.leaveStartDate} ถึง ${selectedLeave.leaveEndDate}?`)) return;
                   try { await api.cancelLeave(token, selectedLeave.leaveId!); }
                   catch (error) {
                     setLeaveError(error instanceof Error ? error.message : 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่');
@@ -327,7 +330,6 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                   void loadEvents().catch((error) => setLoadError(error instanceof Error ? error.message : d.common.loadFailed));
                 }}>ยกเลิกทั้งช่วงลา</Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => setSelectedLeave(null)}>ปิด</Button>
             </div>
           </div>
         </div>

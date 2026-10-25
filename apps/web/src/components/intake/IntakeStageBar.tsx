@@ -2,11 +2,10 @@
 
 import { useState } from 'react';
 import { INTAKE_STAGE_ORDER, IntakeStage } from '@lawfirm/shared';
-import { AlertTriangle, Clock } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight, Clock } from 'lucide-react';
 import { IntakeItem, api } from '@/lib/api';
 import { intakeStageLabel, intakeStageOptions } from '@/lib/stage-labels';
 import { useLocale } from '@/components/landing/LocaleProvider';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 /** ค้างในขั้นเดิมนานกว่านี้ถือว่าควรมีคนดู — ตัวเลขนี้เตือน ไม่ได้บังคับอะไร */
@@ -54,7 +53,7 @@ export function IntakeStageBar({
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-soft">
+    <div className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{th ? 'ขั้นตอนงานรับเรื่อง' : 'Intake stage'}</h3>
         {typeof daysInStage === 'number' && (
@@ -63,7 +62,7 @@ export function IntakeStageBar({
               stale ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'
             }`}
           >
-            {stale ? <AlertTriangle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+            {stale ? <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> : <Clock className="h-3.5 w-3.5" aria-hidden />}
             {th ? `ค้างขั้นนี้ ${daysInStage} วัน` : `${daysInStage}d in this stage`}
             {typeof intake.ageDays === 'number' &&
               (th ? ` · อายุเรื่อง ${intake.ageDays} วัน` : ` · ${intake.ageDays}d old`)}
@@ -71,27 +70,28 @@ export function IntakeStageBar({
         )}
       </div>
 
-      {/* แถบขั้นตอนแบบ pipeline: ✓ ขั้นที่ผ่าน, ขั้นปัจจุบันเด่น — กดขั้นไหนก็ย้ายได้ ถอยกลับได้ */}
+      {/* แถบขั้นตอนแบบ pipeline: ขั้นที่ผ่านมีเครื่องหมายถูก ขั้นปัจจุบันเด่น — กดขั้นไหนก็ย้ายได้ ถอยกลับได้ */}
       <div className="mt-3 flex flex-wrap items-center gap-y-1.5">
         {intakeStageOptions(th ? 'th' : 'en').map((option, index) => {
           const isCurrent = option.value === current;
           const passed = index < currentIndex;
           return (
             <span key={option.value} className="flex items-center">
-              {index > 0 && <span className="px-1 text-xs text-muted-foreground/60">›</span>}
+              {index > 0 && <ChevronRight className="mx-0.5 h-3.5 w-3.5 text-muted-foreground/60" aria-hidden />}
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => move(option.value)}
-                className={`min-h-8 rounded-full px-3 py-1 text-xs transition-all duration-150 hover:-translate-y-0.5 ${
+                aria-current={isCurrent ? 'step' : undefined}
+                className={`inline-flex min-h-11 items-center rounded-full px-3 py-1 text-xs transition-colors sm:min-h-8 ${
                   isCurrent
-                    ? 'bg-primary font-semibold text-primary-foreground shadow-md shadow-primary/30'
+                    ? 'bg-primary font-semibold text-primary-foreground'
                     : passed
                       ? 'border border-primary/30 bg-primary/5 font-medium text-primary'
                       : 'border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground'
                 }`}
               >
-                {passed && <span className="mr-1">✓</span>}
+                {passed && <Check className="mr-1 h-3.5 w-3.5" aria-hidden />}
                 {option.label}
               </button>
             </span>
@@ -104,6 +104,7 @@ export function IntakeStageBar({
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder={th ? 'บันทึกเหตุผลที่ย้ายขั้น (ไม่บังคับ)' : 'Note for the move (optional)'}
+          aria-label={th ? 'เหตุผลที่ย้ายขั้น' : 'Note for the move'}
           className="max-w-md"
         />
         <span className="text-xs text-muted-foreground">
@@ -112,7 +113,7 @@ export function IntakeStageBar({
       </div>
 
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-      {busy && <Button variant="outline" size="sm" disabled className="mt-2">…</Button>}
+      {busy && <p role="status" className="mt-2 text-xs text-muted-foreground">{th ? 'กำลังย้ายขั้น...' : 'Moving stage...'}</p>}
     </div>
   );
 }

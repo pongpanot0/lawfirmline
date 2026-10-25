@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Plus, Search, CalendarDays, FileText } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Plus, Search, CalendarDays, FileText } from 'lucide-react';
 import { AgendaItemKind, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, DashboardStats, MyDayResponse, IntakeItem, WorkloadSummary } from '@/lib/api';
 import { bangkokDateInputValue, bangkokDayLabel, bangkokTime } from '@/lib/bangkok';
-import { PageLoading } from '@/components/ui/misc';
+import { PageLoading, Skeleton } from '@/components/ui/misc';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { buttonVariants } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { ActionCenter } from '@/components/agenda/ActionCenter';
 import { ReviewQueueList } from '@/components/tasks/ReviewQueueList';
@@ -16,7 +19,7 @@ import { useLocale } from '@/components/landing/LocaleProvider';
 
 type Inbox = Awaited<ReturnType<typeof api.getTaskInbox>>;
 const panel = 'overflow-hidden rounded-2xl border border-border bg-card';
-const link = 'inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline';
+const link = 'inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary hover:underline';
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -117,22 +120,19 @@ function WorkDashboardPage() {
   const statuses: Record<string, string> = { TODO: d.todos.columnTodo, IN_PROGRESS: d.todos.columnInProgress, PENDING_REVIEW: d.todos.columnPendingReview, NEEDS_REVISION: d.todos.columnNeedsRevision, DONE: d.todos.columnDone };
   const rankedTeamWorkload = [...(teamWorkload ?? [])].sort((a, b) => b.weightedScore - a.weightedScore);
   const highLoadCount = rankedTeamWorkload.filter(person => person.capacity === 'HIGH' || person.capacity === 'OVERLOADED').length;
-  const capacityLabel: Record<WorkloadSummary['capacity'], { text: string; className: string }> = {
-    LOW: { text: t('ภาระเบา', 'Light load'), className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
-    NORMAL: { text: t('ปกติ', 'Normal'), className: 'bg-muted text-muted-foreground' },
-    HIGH: { text: t('งานมาก', 'High load'), className: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
-    OVERLOADED: { text: t('งานล้น', 'Overloaded'), className: 'bg-red-500/10 text-red-700 dark:text-red-400' },
+  const capacityLabel: Record<WorkloadSummary['capacity'], { text: string; variant: 'success' | 'muted' | 'warning' | 'destructive' }> = {
+    LOW: { text: t('ภาระเบา', 'Light load'), variant: 'success' },
+    NORMAL: { text: t('ปกติ', 'Normal'), variant: 'muted' },
+    HIGH: { text: t('งานมาก', 'High load'), variant: 'warning' },
+    OVERLOADED: { text: t('งานล้น', 'Overloaded'), variant: 'destructive' },
   };
 
   return <div className="mx-auto max-w-[1440px] space-y-6">
-    <header className="flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">{data?.firmName ?? 'SAMNUAN'} · {date(new Date().toISOString())}</p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t('ศูนย์ปฏิบัติงาน', 'Legal operations')}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t('คิวรับเรื่อง งานรอตรวจ และกำหนดที่ต้องติดตาม', 'Triage intake, review work, and follow up on deadlines.')}</p>
-      </div>
-      <Link href="/cases/new" data-tour="new-intake" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"><Plus className="size-4" />{t('เปิดคดีใหม่', 'New case')}</Link>
-    </header>
+    <PageHeader
+      title={t('ศูนย์ปฏิบัติงาน', 'Legal operations')}
+      description={`${data?.firmName ? `${data.firmName} · ` : ''}${date(new Date().toISOString())} · ${t('คิวรับเรื่อง งานรอตรวจ และกำหนดที่ต้องติดตาม', 'intake, review work and deadlines to follow up')}`}
+      actions={<Link href="/cases/new" data-tour="new-intake" className={buttonVariants()}><Plus className="h-4 w-4" aria-hidden />{t('เปิดคดีใหม่', 'New case')}</Link>}
+    />
 
     {canRunOps && <section className={`${panel} p-5`} aria-labelledby="team-workload-heading">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -140,32 +140,32 @@ function WorkDashboardPage() {
           <h2 id="team-workload-heading" className="text-base font-semibold">{t('ภาระงานทีม', 'Team workload')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{teamWorkload ? t(`${teamWorkload.length} คน · ภาระงานสูง ${highLoadCount} คน`, `${teamWorkload.length} people · ${highLoadCount} with high load`) : t('เรียงจากผู้ที่มีภาระงานสูง · แสดงกำหนดใน 7 วัน', 'Highest workload first · deadlines within 7 days')}</p>
         </div>
-        <Link href="/operations" className={link}>{t('ดู Operations ทั้งหมด', 'Open operations')}<ArrowRight className="size-3.5" /></Link>
+        <Link href="/operations" className={link}>{t('ดู Operations ทั้งหมด', 'Open operations')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>
       </div>
-      {teamWorkloadLoading ? <p className="mt-4 text-sm text-muted-foreground">{t('กำลังโหลดภาระงานทีม…', 'Loading team workload…')}</p>
+      {teamWorkloadLoading ? <div role="status" aria-label={t('กำลังโหลดภาระงานทีม', 'Loading team workload')} className="mt-4 space-y-3">{[0, 1, 2].map(i => <Skeleton key={i} className="h-9 w-full" />)}</div>
         : teamWorkloadFailed ? <p role="alert" className="mt-4 text-sm text-muted-foreground">{t('โหลดภาระงานทีมไม่สำเร็จ', 'Unable to load team workload')} <button onClick={() => setRetry(value => value + 1)} className={link}>{t('ลองอีกครั้ง', 'Retry')}</button></p>
           : rankedTeamWorkload.length === 0 ? <p className="mt-4 text-sm text-muted-foreground">{t('ยังไม่มีข้อมูลภาระงานทีม', 'No team workload to show yet.')}</p>
             : <div className="mt-4 divide-y divide-border/70">
               {rankedTeamWorkload.slice(0, 5).map(person => <div key={person.userId} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-sm font-medium">{person.firstName} {person.lastName}</span>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${capacityLabel[person.capacity].className}`}>{capacityLabel[person.capacity].text}</span>
+                  <Badge variant={capacityLabel[person.capacity].variant} className="shrink-0">{capacityLabel[person.capacity].text}</Badge>
                 </div>
-                <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">{person.leadCount + person.buddyCount}</span> {t('งานที่รับผิดชอบ', 'assigned matters')} · <span className={person.nearDeadlineCount > 0 ? 'font-medium text-amber-700 dark:text-amber-400' : ''}>{person.nearDeadlineCount} {t('ใกล้กำหนด', 'due soon')}</span></p>
+                <p className="text-xs text-muted-foreground"><span className="font-medium tabular-nums text-foreground">{person.leadCount + person.buddyCount}</span> {t('งานที่รับผิดชอบ', 'assigned matters')} · <span className={`tabular-nums ${person.nearDeadlineCount > 0 ? 'font-medium text-warning' : ''}`}>{person.nearDeadlineCount} {t('ใกล้กำหนด', 'due soon')}</span></p>
               </div>)}
             </div>}
       {rankedTeamWorkload.length > 5 && <p className="mt-3 text-xs text-muted-foreground">{t(`แสดง 5 จาก ${rankedTeamWorkload.length} คน`, `Showing 5 of ${rankedTeamWorkload.length} people`)}</p>}
     </section>}
 
-    <div className="grid grid-cols-2 gap-y-5 border-y border-border py-5 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border lg:grid-cols-4">
       {[
         { label: t('คดีที่ยังไม่ปิด', 'Unclosed cases'), value: data?.stats.openCases, href: '/cases' },
         { label: t('งานที่ยังไม่เสร็จ', 'Open tasks'), value: tasks?.length, href: '/todos' },
         { label: t('งานเกินกำหนด', 'Overdue tasks'), value: tasks?.filter(overdue).length, href: '#work-queue', warn: true },
         { label: t('นัดที่กำลังจะมาถึง', 'Upcoming events'), value: data?.stats.upcomingEvents, href: '/calendar' },
-      ].map((item, i) => <Link key={item.label} href={item.href} data-tour={i === 0 ? 'kpi-cases' : undefined} onClick={() => { if (item.warn) { setSection('tasks'); setFilter('overdue'); } }} className="group border-l-2 border-border pl-4 first:border-primary">
-        <span className={`block text-2xl font-semibold tabular-nums ${item.warn && item.value ? 'text-amber-600 dark:text-amber-400' : ''}`}>{item.value ?? '—'}</span>
-        <span className="mt-1 block text-xs text-muted-foreground group-hover:text-primary">{item.label} ↗</span>
+      ].map((item, i) => <Link key={item.label} href={item.href} data-tour={i === 0 ? 'kpi-cases' : undefined} onClick={() => { if (item.warn) { setSection('tasks'); setFilter('overdue'); } }} className="group min-w-0 bg-card px-4 py-3 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <span className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary sm:text-sm">{item.label}<ArrowUpRight className="h-3.5 w-3.5 shrink-0" aria-hidden /></span>
+        <span className={`mt-1 block text-2xl font-semibold tabular-nums ${item.warn && item.value ? 'text-warning' : ''}`}>{item.value ?? '—'}</span>
       </Link>)}
     </div>
 
@@ -183,9 +183,9 @@ function WorkDashboardPage() {
             }} aria-selected={section === tab} onClick={() => setSection(tab)} className={`min-h-14 border-b-2 px-3 text-sm font-semibold ${section === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{tab === 'tasks' ? t('คิวงาน', 'Work queue') : t('เรื่องและคดีล่าสุด', 'Recent matters')}</button>)}
           </div>
           <div role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}>
-          {section === 'tasks' ? actionToken ? <ActionCenter token={actionToken} tasks={tasks} tasksFailed={!tasks} userId={user?.id} scope={filter} onScopeChange={setFilter} statuses={statuses} onRetryTasks={() => setRetry(value => value + 1)} /> : failed : !intakes || !data ? failed : recentMatters.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">{t('ยังไม่มีเรื่องหรือคดี เริ่มจากปุ่มรับงานใหม่', 'No matters yet. Start with New intake.')}</p> : <div className="divide-y divide-border/70">{recentMatters.map(item => <Link key={item.id} href={item.href} className="group flex items-start gap-3 px-5 py-4 hover:bg-muted/40"><FileText className="mt-1 size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium group-hover:text-primary">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.detail} · {date(item.at)}</p></div>{item.kind === 'case' ? <CaseStatusBadge status={item.status} /> : <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{t('รับเรื่อง', 'Intake')}</span>}<ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" /></Link>)}</div>}
+          {section === 'tasks' ? actionToken ? <ActionCenter token={actionToken} tasks={tasks} tasksFailed={!tasks} userId={user?.id} scope={filter} onScopeChange={setFilter} statuses={statuses} onRetryTasks={() => setRetry(value => value + 1)} /> : failed : !intakes || !data ? failed : recentMatters.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground"><p>{t('ยังไม่มีเรื่องหรือคดี', 'No matters yet.')}</p><Link href="/cases/new" className={`${link} mt-2`}>{t('เปิดคดีใหม่', 'New case')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link></div> : <div className="divide-y divide-border/70">{recentMatters.map(item => <Link key={item.id} href={item.href} className="group flex items-start gap-3 px-5 py-4 hover:bg-muted/40"><FileText className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium group-hover:text-primary">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.detail} · {date(item.at)}</p></div>{item.kind === 'case' ? <CaseStatusBadge status={item.status} /> : <Badge variant="muted">{t('รับเรื่อง', 'Intake')}</Badge>}<ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /></Link>)}</div>}
           </div>
-          <div className="border-t border-border px-5 py-3"><Link href={section === 'tasks' ? '/todos' : '/cases'} className={link}>{section === 'tasks' ? t('เปิดรายการงานทั้งหมด', 'Open all tasks') : t('เปิดเรื่องและคดีทั้งหมด', 'Open all matters')}<ArrowRight className="size-3.5" /></Link></div>
+          <div className="border-t border-border px-5 py-3"><Link href={section === 'tasks' ? '/todos' : '/cases'} className={link}>{section === 'tasks' ? t('เปิดรายการงานทั้งหมด', 'Open all tasks') : t('เปิดเรื่องและคดีทั้งหมด', 'Open all matters')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link></div>
         </section>
 
       </div>
@@ -193,19 +193,18 @@ function WorkDashboardPage() {
       <aside className="order-2 min-w-0 space-y-6 xl:col-start-2">
         {(data?.reviewQueue ?? agenda?.reviewQueue)?.length ? <ReviewQueueList items={(data?.reviewQueue ?? agenda?.reviewQueue)!} title={t('รอฉันตรวจ', 'Awaiting my review')} empty={t('ไม่มีงานรอตรวจ', 'Nothing to review')} /> : null}
         <section className={panel}>
-          <div className="flex items-center justify-between border-b border-border px-5 py-4"><h2 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="size-4 text-muted-foreground" />{t('นัดและกำหนดถัดไป', 'Upcoming dates')}</h2><Link href="/calendar" className={link}>{t('ปฏิทิน', 'Calendar')}</Link></div>
+          <div className="flex items-center justify-between border-b border-border px-5 py-4"><h2 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden />{t('นัดและกำหนดถัดไป', 'Upcoming dates')}</h2><Link href="/calendar" className={link}>{t('ปฏิทิน', 'Calendar')}</Link></div>
           {!agenda ? failed : events.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">{t('ไม่มีนัดหรือกำหนดในช่วงที่แสดง', 'No upcoming dates in this agenda window.')}</p> : <div className="divide-y divide-border/70">{events.map(item => <Link key={item.id} href={item.kind === AgendaItemKind.COURT_DATE ? `/court-day/${item.entityId}` : item.url} className="block px-5 py-4 hover:bg-muted/40"><p className="text-xs font-medium text-primary">{date(item.at)} · {item.allDay ? t('ทั้งวัน', 'All day') : bangkokTime(item.at)}</p><p className="mt-2 break-words text-sm font-semibold">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{[item.caseRef, item.location].filter(Boolean).join(' · ')}</p></Link>)}</div>}
-          <div className="border-t border-border px-5 py-3"><Link href="/my-day" className={link}>{t('เตรียมงานประจำวัน', 'Plan your day')}<ArrowRight className="size-3.5" /></Link></div>
+          <div className="border-t border-border px-5 py-3"><Link href="/my-day" className={link}>{t('เตรียมงานประจำวัน', 'Plan your day')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link></div>
         </section>
-        <section className="rounded-2xl border border-primary/15 bg-primary/5 p-5">
-          <Search className="mb-4 size-5 text-primary" />
-          <h2 className="text-lg font-semibold">{t('ข้อเท็จจริงและฎีกาของเรื่อง', 'Research within a matter')}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t('เปิดเรื่องจากรายการเดียว เพื่อจัดข้อเท็จจริง ค้นฎีกา และสรุปเอกสาร ผลจะเก็บอยู่กับเรื่องนั้น', 'Open any matter from the shared list to organize facts, find precedents, and summarize documents. Results stay with that matter.')}</p>
+        <section className={`${panel} p-5`}>
+          <h2 className="flex items-center gap-2 text-sm font-semibold"><Search className="h-4 w-4 text-muted-foreground" aria-hidden />{t('ข้อเท็จจริงและฎีกาของเรื่อง', 'Research within a matter')}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t('ข้อเท็จจริง ฎีกา และสรุปเอกสาร เก็บอยู่ในแต่ละเรื่อง', 'Facts, precedents and document summaries live inside each matter.')}</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/cases" className={link}>{t('เปิดรายการเรื่องและคดี', 'Open matters')}<ArrowRight className="size-4" /></Link>
+            <Link href="/cases" className={link}>{t('เปิดรายการเรื่องและคดี', 'Open matters')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>
           </div>
         </section>
-        {hasFirmCapability(user?.firmRole, 'viewFirmReports') && <div className="flex flex-wrap gap-x-5 gap-y-3 px-1"><Link href="/reports" className={link}>{t('รายงานสำนักงาน', 'Firm reports')} ↗</Link><Link href="/expenses" className={link}>{t('ค่าใช้จ่าย', 'Expenses')} ↗</Link></div>}
+        {hasFirmCapability(user?.firmRole, 'viewFirmReports') && <div className="flex flex-wrap gap-x-5 gap-y-3 px-1"><Link href="/reports" className={link}>{t('รายงานสำนักงาน', 'Firm reports')}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden /></Link><Link href="/expenses" className={link}>{t('ค่าใช้จ่าย', 'Expenses')}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden /></Link></div>}
       </aside>
     </div>
   </div>;

@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { InlineEmptyState, TableEmptyRow } from '@/components/ui/misc';
 import { formatCurrency } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/misc';
+import { KpiStrip } from './KpiStrip';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 function monthOptions() {
   const options: Array<{ value: string; label: string }> = [];
@@ -31,9 +34,12 @@ export function OwnerKpiSection({ token }: { token: string }) {
   const [data, setData] = useState<OwnerKpis | null>(null);
   const [hidden, setHidden] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     setLoading(true);
+    setFailed(false);
     api
       .getOwnerKpis(token, month)
       .then(setData)
@@ -42,13 +48,18 @@ export function OwnerKpiSection({ token }: { token: string }) {
           setHidden(true);
           return;
         }
+        setFailed(true);
       })
       .finally(() => setLoading(false));
-  }, [token, month]);
+  }, [token, month, reload]);
 
   if (hidden) return null;
-  if (loading && !data) return null;
-  if (!data) return null;
+  if (loading && !data) return <div role="status" aria-label="กำลังโหลดภาพรวมเจ้าของสำนักงาน" className="mb-6"><Skeleton className="h-28 w-full rounded-lg" /></div>;
+  if (!data) {
+    return failed ? (
+      <div className="mb-6"><LoadFailed message="โหลดภาพรวมเจ้าของสำนักงานไม่สำเร็จ" onRetry={() => setReload((n) => n + 1)} /></div>
+    ) : null;
+  }
 
   const revenueChange =
     data.revenue.previousMonth !== 0
@@ -57,12 +68,13 @@ export function OwnerKpiSection({ token }: { token: string }) {
 
   return (
     <div className="mb-6 space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">ภาพรวมเจ้าของสำนักงาน</h2>
         <select
+          aria-label="เดือน"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
-          className="flex h-9 rounded-lg border border-input bg-card px-3 py-1 text-sm shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-10 rounded-lg border border-input bg-card px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {months.map((m) => (
             <option key={m.value} value={m.value}>
@@ -72,52 +84,28 @@ export function OwnerKpiSection({ token }: { token: string }) {
         </select>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">ถึงงวดแต่ยังไม่วางบิล</p>
-            <p className="mt-2 text-2xl font-bold">{formatCurrency(data.unbilled.amount)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{data.unbilled.hours.toLocaleString('th-TH')} ชม. ยังไม่วางบิล</p>
-            <p className="mt-1 text-xs text-muted-foreground">{data.unbilled.caseCount} คดี</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">อัตราเก็บเงินได้</p>
-            <p className="mt-2 text-2xl font-bold">{pct(data.collectionRate.value)}</p>
-            {data.collectionRate.value != null && data.collectionRate.value < data.collectionRate.target && (
-              <p className="mt-1 text-xs font-medium text-destructive">ต่ำกว่าเป้า 95%</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">หนี้ค้างเฉลี่ย</p>
-            <p className="mt-2 text-2xl font-bold">
-              {data.avgDaysOutstanding != null ? `${data.avgDaysOutstanding} วัน` : '—'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">เงินรับเดือนนี้</p>
-            <p className="mt-2 text-2xl font-bold">{formatCurrency(data.revenue.month)}</p>
-            {revenueChange != null && (
-              <p
-                className={`mt-1 text-xs font-medium ${
-                  revenueChange >= 0 ? 'text-emerald-600' : 'text-destructive'
-                }`}
-              >
-                {revenueChange >= 0 ? '+' : ''}
-                {Math.round(revenueChange)}% เทียบเดือนก่อน
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <KpiStrip items={[
+        {
+          label: 'ถึงงวดแต่ยังไม่วางบิล',
+          value: formatCurrency(data.unbilled.amount),
+          note: `${data.unbilled.hours.toLocaleString('th-TH')} ชม. · ${data.unbilled.caseCount} คดี`,
+        },
+        {
+          label: 'อัตราเก็บเงินได้',
+          value: pct(data.collectionRate.value),
+          note: data.collectionRate.value != null && data.collectionRate.value < data.collectionRate.target
+            ? <span className="font-medium text-destructive">ต่ำกว่าเป้า 95%</span>
+            : undefined,
+        },
+        { label: 'หนี้ค้างเฉลี่ย', value: data.avgDaysOutstanding != null ? `${data.avgDaysOutstanding} วัน` : '—' },
+        {
+          label: 'เงินรับเดือนนี้',
+          value: formatCurrency(data.revenue.month),
+          note: revenueChange != null
+            ? <span className={`font-medium ${revenueChange >= 0 ? 'text-success' : 'text-destructive'}`}>{revenueChange >= 0 ? '+' : ''}{Math.round(revenueChange)}% เทียบเดือนก่อน</span>
+            : undefined,
+        },
+      ]} />
 
       <Card>
         <CardHeader>
@@ -132,7 +120,7 @@ export function OwnerKpiSection({ token }: { token: string }) {
                 const max = Math.max(...data.stuckByStage.map((r) => r.count), 1);
                 return (
                   <div key={row.stage} className="flex items-center gap-3">
-                    <span className="w-32 shrink-0 truncate text-sm">{caseStageLabel(row.stage)}</span>
+                    <span className="w-24 shrink-0 truncate text-sm sm:w-32">{caseStageLabel(row.stage)}</span>
                     <div className="h-3 flex-1 overflow-hidden rounded-full bg-muted">
                       <div
                         className="h-full rounded-full bg-primary/70"
@@ -142,7 +130,7 @@ export function OwnerKpiSection({ token }: { token: string }) {
                     <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums">
                       {row.count}
                     </span>
-                    <span className="w-24 shrink-0 text-right text-xs text-muted-foreground">
+                    <span className="hidden w-24 shrink-0 text-right text-xs tabular-nums text-muted-foreground sm:inline">
                       ค้างสุด {row.oldestDays} วัน
                     </span>
                   </div>
@@ -175,11 +163,11 @@ export function OwnerKpiSection({ token }: { token: string }) {
                 data.byLawyer.map((row) => (
                   <TableRow key={row.userId}>
                     <TableCell>{row.name}</TableCell>
-                    <TableCell className="text-right">{row.openCases}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.billed)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.collected)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{row.openCases}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCurrency(row.billed)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCurrency(row.collected)}</TableCell>
                     <TableCell
-                      className={`text-right font-semibold ${
+                      className={`text-right font-semibold tabular-nums ${
                         row.rate != null && row.rate < 0.9 ? 'text-destructive' : ''
                       }`}
                     >

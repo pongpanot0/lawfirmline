@@ -1,14 +1,11 @@
-import Link from 'next/link';
-import { cn } from '@/lib/utils';
-import type { LucideIcon } from 'lucide-react';
 
 export function PageHeader({
   title,
   description,
   actions,
 }: {
-  title: string;
-  description?: string;
+  title: React.ReactNode;
+  description?: React.ReactNode;
   actions?: React.ReactNode;
 }) {
   return (
@@ -19,75 +16,5 @@ export function PageHeader({
       </div>
       {actions && <div className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
-  );
-}
-
-export function KpiCard({
-  label,
-  value,
-  change,
-  icon: Icon,
-  trend,
-  href,
-}: {
-  label: string;
-  value: string | number;
-  change?: string;
-  icon?: LucideIcon;
-  trend?: 'up' | 'down' | 'neutral';
-  /** Drill-down target — a metric should open the records behind it. */
-  href?: string;
-}) {
-  const card = (
-    <div
-      className={cn(
-        'min-w-0 rounded-lg border bg-card p-4 sm:p-5',
-        href && 'transition-colors hover:border-primary/40 hover:bg-primary/5',
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
-        {Icon && (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 sm:h-8 sm:w-8">
-            <Icon className="h-3.5 w-3.5 text-primary sm:h-4 sm:w-4" />
-          </div>
-        )}
-      </div>
-      <p className="mt-2 break-words text-xl font-semibold tabular-nums sm:text-2xl">{value}</p>
-      {change && (
-        <p className={cn(
-          'mt-1 truncate text-xs font-medium',
-          trend === 'up' && 'text-success',
-          trend === 'down' && 'text-destructive',
-          trend === 'neutral' && 'text-muted-foreground',
-        )}>
-          {change}
-        </p>
-      )}
-    </div>
-  );
-  return href ? <Link href={href}>{card}</Link> : card;
-}
-
-export function QuickActionButton({
-  label,
-  icon: Icon,
-  onClick,
-}: {
-  label: string;
-  icon: LucideIcon;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-accent"
-    >
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-        <Icon className="h-4 w-4 text-primary" />
-      </div>
-      {label}
-    </button>
   );
 }

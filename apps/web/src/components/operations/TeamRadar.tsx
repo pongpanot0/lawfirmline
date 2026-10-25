@@ -7,6 +7,8 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { bangkokDateInputValue } from '@/lib/bangkok';
 import { Button } from '@/components/ui/button';
+import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { ROLE_LABELS } from '@/lib/daily-workboard';
 import { PersonWorkloadDrawer } from './PersonWorkloadDrawer';
 
@@ -52,12 +54,12 @@ export function TeamRadar() {
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h2 className="text-xl font-semibold">สัปดาห์นี้ใครยุ่งแค่ไหน</h2>
-        <p className="mt-1 text-sm text-muted-foreground">แต้มงานตามวันที่วางแผนทำ (หรือวันส่ง) · กดช่องวันเพื่อดูงานวันนั้น · กดชื่อเพื่อดูงานทั้งหมด</p>
+        <p className="mt-1 text-sm text-muted-foreground">แต้มงานตามวันที่วางแผนทำ (หรือวันส่ง)</p>
       </div>
       <div className="flex items-center gap-1">
-        <Button variant="outline" size="icon" aria-label="สัปดาห์ก่อน" disabled={loading} onClick={() => setStart((s) => shiftDay(s, -7))}><ChevronLeft className="h-4 w-4" /></Button>
+        <Button variant="outline" size="icon" aria-label="สัปดาห์ก่อน" disabled={loading} onClick={() => setStart((s) => shiftDay(s, -7))}><ChevronLeft className="h-4 w-4" aria-hidden /></Button>
         <Button variant="outline" disabled={loading || start === today} onClick={() => setStart(today)}>วันนี้</Button>
-        <Button variant="outline" size="icon" aria-label="สัปดาห์ถัดไป" disabled={loading} onClick={() => setStart((s) => shiftDay(s, 7))}><ChevronRight className="h-4 w-4" /></Button>
+        <Button variant="outline" size="icon" aria-label="สัปดาห์ถัดไป" disabled={loading} onClick={() => setStart((s) => shiftDay(s, 7))}><ChevronRight className="h-4 w-4" aria-hidden /></Button>
       </div>
     </div>
 
@@ -66,14 +68,15 @@ export function TeamRadar() {
       <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-amber-100" />ปานกลาง</span>
       <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-red-100" />แน่น (เกิน {HEAVY_DAY_POINTS} แต้ม/วัน)</span>
       <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-muted" />ลา</span>
-      <span className="flex items-center gap-1"><Gavel className="h-3 w-3" />นัดหมาย/ศาล</span>
+      <span className="flex items-center gap-1"><Gavel className="h-3.5 w-3.5" aria-hidden />นัดหมาย/ศาล</span>
       <span>แต้ม: เล็ก 1 · กลาง 2 · ใหญ่ 4</span>
     </div>
 
-    {error && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}<Button variant="ghost" className="ml-2" onClick={() => void load()}>ลองใหม่</Button></div>}
-    {loading && !radar && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดภาพรวมทีม…</p>}
+    {error && <LoadFailed message={error} onRetry={() => void load()} />}
+    {loading && !radar && <div role="status" aria-label="กำลังโหลดภาพรวมทีม" className="space-y-2 rounded-xl border p-3">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>}
 
-    {radar && <div className="overflow-x-auto rounded-xl border">
+    {radar && members.length === 0 && <InlineEmptyState title="ยังไม่มีคนในทีม" />}
+    {radar && members.length > 0 && <div className="overflow-x-auto rounded-xl border">
       <table className="w-full min-w-[760px] border-collapse text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
@@ -88,7 +91,7 @@ export function TeamRadar() {
                 <span className="block font-medium">{m.firstName} {m.lastName}</span>
                 <span className="block text-xs text-muted-foreground">{ROLE_LABELS[m.role] ?? m.role}</span>
                 <span className="mt-1 flex flex-wrap gap-x-2 text-xs">
-                  <span className={m.openPoints > HEAVY_QUEUE_POINTS ? 'font-semibold text-destructive' : 'text-muted-foreground'}>{m.openCount} งาน · {m.openPoints} แต้ม</span>
+                  <span className={`tabular-nums ${m.openPoints > HEAVY_QUEUE_POINTS ? 'font-semibold text-destructive' : 'text-muted-foreground'}`}>{m.openCount} งาน · {m.openPoints} แต้ม</span>
                   {m.overdueCount > 0 && <span className="text-destructive">เลยกำหนด {m.overdueCount}</span>}
                   {m.reviewCount > 0 && <span className="text-amber-700">รอตรวจ {m.reviewCount}</span>}
                   {m.unscheduledCount > 0 && <span className="text-muted-foreground">ไม่มีวัน {m.unscheduledCount}</span>}
@@ -100,9 +103,9 @@ export function TeamRadar() {
                 aria-label={`${m.firstName} ${dayLabel(day.date)}: ${day.onLeave ? 'ลา' : `${day.taskCount} งาน ${day.points} แต้ม นัด ${day.eventCount}`}`}
                 className={`flex h-14 w-full flex-col items-center justify-center rounded-md text-xs ring-primary/40 transition hover:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${cellTone(day)} ${isWeekend(day.date) && !day.points && !day.eventCount && !day.onLeave ? 'opacity-50' : ''}`}>
                 {day.onLeave ? <span className="font-medium">ลา</span> : <>
-                  {day.points > 0 && <span className="text-sm font-semibold">{day.points}</span>}
-                  {day.eventCount > 0 && <span className="flex items-center gap-0.5"><Gavel className="h-3 w-3" />{day.eventCount}</span>}
-                  {!day.points && !day.eventCount && <span className="text-muted-foreground/50">–</span>}
+                  {day.points > 0 && <span className="text-sm font-semibold tabular-nums">{day.points}</span>}
+                  {day.eventCount > 0 && <span className="flex items-center gap-0.5 tabular-nums"><Gavel className="h-3 w-3" aria-hidden />{day.eventCount}</span>}
+                  {!day.points && !day.eventCount && <span className="text-muted-foreground">—</span>}
                 </>}
               </button>
             </td>)}

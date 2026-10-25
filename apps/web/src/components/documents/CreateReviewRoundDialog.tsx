@@ -127,10 +127,11 @@ export function CreateReviewRoundDialog({
 
             <div className="mb-4">
               <p className="mb-2 text-xs font-medium text-muted-foreground">กติกาการอนุมัติ</p>
-              <div className="flex gap-4 text-sm">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
                 <label className="flex items-center gap-1.5">
                   <input
                     type="radio"
+                    name="approvalRule"
                     checked={approvalRule === 'ALL'}
                     onChange={() => setApprovalRule('ALL')}
                   />
@@ -139,6 +140,7 @@ export function CreateReviewRoundDialog({
                 <label className="flex items-center gap-1.5">
                   <input
                     type="radio"
+                    name="approvalRule"
                     checked={approvalRule === 'ANY_ONE'}
                     onChange={() => setApprovalRule('ANY_ONE')}
                   />
@@ -148,16 +150,17 @@ export function CreateReviewRoundDialog({
             </div>
 
             <div className="mb-4">
-              <p className="mb-1 text-xs font-medium text-muted-foreground">ขอบเขตการตรวจ (ถ้ามี)</p>
+              <label htmlFor="review-round-scope" className="mb-1 block text-xs font-medium text-muted-foreground">ขอบเขตการตรวจ (ถ้ามี)</label>
               <input
-                className="w-full rounded-lg border px-3 py-1.5 text-sm"
+                id="review-round-scope"
+                className="min-h-11 w-full rounded-lg border px-3 py-1.5 text-sm"
                 placeholder="เช่น ตรวจเฉพาะตัวเลขและวันที่"
                 value={scope}
                 onChange={(e) => setScope(e.target.value)}
               />
             </div>
 
-            {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+            {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={onClose} disabled={submitting}>

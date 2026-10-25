@@ -27,7 +27,7 @@ export function TextField({ label, hint, error, containerClassName, className, i
   const generatedId = React.useId();
   const id = suppliedId ?? generatedId;
   return <Field id={id} label={label} hint={hint} error={error} required={props.required} className={containerClassName}>
-    <Input {...props} id={id} className={cn('h-10', className)} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={describedBy(id, hint, error, props['aria-describedby'])} />
+    <Input {...props} id={id} className={cn('h-11', className)} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={describedBy(id, hint, error, props['aria-describedby'])} />
   </Field>;
 }
 
@@ -46,7 +46,7 @@ export function SelectField({ label, hint, error, containerClassName, id: suppli
   const id = suppliedId ?? generatedId;
   return <Field id={id} label={label} hint={hint} error={error} required={props.required} className={containerClassName}>
     <select {...props} id={id} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={describedBy(id, hint, error, props['aria-describedby'])}
-      className={cn('h-10 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50', className)}>{children}</select>
+      className={cn('h-11 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50', className)}>{children}</select>
   </Field>;
 }
 

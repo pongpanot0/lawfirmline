@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, FileText, X } from 'lucide-react';
+import { TextField, TextareaField } from '@/components/ui/form-fields';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -36,8 +36,9 @@ export default function NewIntakePage() {
   const addFile = (file: File) => setFiles((prev) => [...prev, file]);
   const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
 
-  const handleSubmit = async () => {
-    if (!token) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !title || !detail) return;
     setSubmitting(true);
     setError('');
     try {
@@ -67,10 +68,8 @@ export default function NewIntakePage() {
     return (
       <PortalShell>
         <Card className="mx-auto max-w-md p-9 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success/15 text-success">
-            <CheckCircle2 className="h-7 w-7" />
-          </div>
-          <h1 className="mb-1.5 text-[19px] font-bold">ส่งคำขอแล้ว — เปิดเป็นคดี {result.caseRef}</h1>
+          <CheckCircle2 className="mx-auto mb-4 h-8 w-8 text-success" aria-hidden />
+          <h1 role="status" className="mb-1.5 text-xl font-semibold">ส่งคำขอแล้ว — เปิดเป็นคดี {result.caseRef}</h1>
           <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
             เลขอ้างอิงของท่านคือ <b className="text-foreground">{result.referenceNumber}</b>
             <br />
@@ -79,7 +78,7 @@ export default function NewIntakePage() {
           <Link href={`/portal/cases/${result.caseId}`} className={buttonVariants({ className: 'w-full' })}>
             ไปที่หน้าคดี
           </Link>
-          <Link href="/portal/intake" className="mt-2.5 inline-block text-[12.5px] font-semibold text-primary">
+          <Link href="/portal/intake" className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">
             ดูรายการเรื่องที่ส่ง
           </Link>
         </Card>
@@ -89,114 +88,98 @@ export default function NewIntakePage() {
 
   return (
     <PortalShell>
-      <Link href="/portal/intake" className="mb-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-primary">
-        <ArrowLeft className="h-3.5 w-3.5" />
+      <Link href="/portal/intake" className="mb-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+        <ArrowLeft className="h-4 w-4" aria-hidden />
         เรื่องที่ส่งทั้งหมด
       </Link>
 
-      <h1 className="mb-1 text-2xl font-extrabold tracking-tight">ส่งเรื่องใหม่</h1>
-      <p className="mb-6 text-[13.5px] text-muted-foreground">
-        อธิบายเรื่องที่ต้องการปรึกษาโดยย่อ ทีมกฎหมายจะติดต่อกลับภายใน 1 วันทำการ
-      </p>
+      <PageHeader title="ส่งเรื่องใหม่" description="เล่าเรื่องที่ต้องการปรึกษาโดยย่อ ทีมกฎหมายจะติดต่อกลับภายใน 1 วันทำการ" />
 
-      <Card className="p-6">
-        <div className="mb-4">
-          <label className="mb-1.5 block text-[12.5px] font-semibold">หัวข้อ</label>
-          <Input
+      <Card className="max-w-3xl p-4 sm:p-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <TextField
+            label="หัวข้อ"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="เช่น ข้อพิพาทค่าจ้างก่อสร้างค้างจ่าย"
             required
           />
-        </div>
 
-        <div className="mb-4">
-          <label className="mb-1.5 block text-[12.5px] font-semibold">รายละเอียด</label>
-          <Textarea
+          <TextareaField
+            label="รายละเอียด"
             value={detail}
             onChange={(e) => setDetail(e.target.value)}
             rows={6}
-            placeholder="อธิบายเหตุการณ์ คู่กรณี และสิ่งที่ต้องการให้ช่วยดำเนินการ"
+            hint="เล่าเหตุการณ์ คู่กรณี และสิ่งที่ต้องการให้ช่วย"
             required
           />
-        </div>
 
-        <div className="mb-4">
-          <label className="mb-1.5 block text-[12.5px] font-semibold">วันที่ต้องการดำเนินการ (ถ้ามี)</label>
-          <ThaiDateInput
-            className="max-w-[220px]"
-            value={clientRequestedDate}
-            onChange={setClientRequestedDate}
-          />
-          <p className="mt-1.5 text-[11.5px] text-muted-foreground">
-            ระบุเฉพาะกรณีมีกำหนดเวลาที่ต้องดำเนินการ เช่น วันครบกำหนดฟ้อง
-          </p>
-        </div>
+          <fieldset className="space-y-1.5">
+            <legend className="text-sm font-medium">วันที่ต้องการให้ดำเนินการ (ถ้ามี)</legend>
+            <ThaiDateInput className="max-w-[260px]" value={clientRequestedDate} onChange={setClientRequestedDate} />
+            <p className="text-xs text-muted-foreground">เช่น วันครบกำหนดฟ้อง</p>
+          </fieldset>
 
-        <div className="mb-4">
-          <label className="mb-1.5 block text-[12.5px] font-semibold">วันสำคัญ (ถ้ามี)</label>
-          <div className="flex flex-wrap gap-2.5">
-            <ThaiDateInput className="max-w-[220px]" value={keyDate} onChange={setKeyDate} />
-            <Input
+          <fieldset className="space-y-1.5">
+            <legend className="text-sm font-medium">วันสำคัญ (ถ้ามี)</legend>
+            <ThaiDateInput className="max-w-[260px]" value={keyDate} onChange={setKeyDate} />
+            <TextField
+              label="ชื่อวันสำคัญ"
               value={keyDateLabel}
               onChange={(e) => setKeyDateLabel(e.target.value)}
-              placeholder="ชื่อวันสำคัญ เช่น วันครบกำหนดฟ้อง"
-              className="max-w-[260px]"
+              placeholder="เช่น วันครบกำหนดฟ้อง"
+              containerClassName="max-w-md pt-2"
             />
+            <p className="text-xs text-muted-foreground">ทนายความจะยืนยันวันนี้อีกครั้งก่อนลงปฏิทิน</p>
+          </fieldset>
+
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">ไฟล์แนบ (ถ้ามี)</p>
+            <DocumentDropZone
+              onFile={addFile}
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              label="ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์"
+              hint="PDF, JPG, PNG, DOC ไฟล์ละไม่เกิน 20 MB"
+            />
+            {files.length > 0 && (
+              <ul className="mt-3 flex flex-col gap-2">
+                {files.map((file, i) => (
+                  <li key={i} className="flex items-center gap-3 rounded-lg border border-border bg-card py-1 pl-3 pr-1">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{file.name}</p>
+                      <p className="text-xs tabular-nums text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      aria-label={`เอาไฟล์ ${file.name} ออก`}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <X className="h-4 w-4" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <p className="mt-1.5 text-[11.5px] text-muted-foreground">
-            ทนายจะเป็นผู้ยืนยันวันนี้อีกครั้งก่อนขึ้นปฏิทิน
-          </p>
-        </div>
 
-        <div className="mb-4">
-          <label className="mb-1.5 block text-[12.5px] font-semibold">ไฟล์แนบ (ถ้ามี)</label>
-          <DocumentDropZone
-            onFile={addFile}
-            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-            label="ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์"
-            hint="PDF, JPG, PNG, DOC — ไฟล์ละไม่เกิน 20 MB"
-          />
-          {files.length > 0 && (
-            <div className="mt-3 flex flex-col gap-2">
-              {files.map((file, i) => (
-                <div key={i} className="flex items-center gap-2.5 rounded-lg border border-border bg-card p-2.5">
-                  <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
-                    <FileText className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12.5px] font-semibold">{file.name}</p>
-                    <p className="text-[11px] text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(i)}
-                    aria-label="ลบไฟล์"
-                    className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+            <Checkbox checked={urgencyFlag} onChange={(e) => setUrgencyFlag(e.target.checked)} />
+            เรื่องเร่งด่วน ต้องการให้ติดต่อกลับโดยเร็ว
+          </label>
 
-        <label className="mb-1 flex items-center gap-2.5 text-[13px] font-medium">
-          <Checkbox checked={urgencyFlag} onChange={(e) => setUrgencyFlag(e.target.checked)} />
-          เรื่องเร่งด่วน — ต้องการให้ทีมกฎหมายติดต่อกลับโดยเร็ว
-        </label>
+          {error && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
-        {error && <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
-
-        <div className="mt-5 flex justify-end gap-2.5">
-          <Link href="/portal/intake" className={buttonVariants({ variant: 'outline' })}>
-            ยกเลิก
-          </Link>
-          <Button onClick={handleSubmit} disabled={submitting || !title || !detail}>
-            {submitting ? 'กำลังส่ง...' : 'ส่งเรื่อง'}
-          </Button>
-        </div>
+          <div className="flex flex-wrap justify-end gap-2.5 border-t pt-4">
+            <Link href="/portal/intake" className={buttonVariants({ variant: 'ghost' })}>
+              ยกเลิก
+            </Link>
+            <Button type="submit" disabled={submitting || !title || !detail}>
+              {submitting ? 'กำลังส่ง...' : 'ส่งเรื่องถึงสำนักงาน'}
+            </Button>
+          </div>
+        </form>
       </Card>
     </PortalShell>
   );

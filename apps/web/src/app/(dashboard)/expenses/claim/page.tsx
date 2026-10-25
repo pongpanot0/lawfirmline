@@ -85,8 +85,9 @@ function ExpenseClaimContent() {
   if (ids.length === 0) {
     return (
       <div className="p-6">
-        <p className="text-sm text-destructive">{d.expenses.claimNoSelection}</p>
-        <Link href="/expenses" className="mt-3 inline-block text-sm text-primary hover:underline">
+        <p role="alert" className="text-sm text-destructive">{d.expenses.claimNoSelection}</p>
+        <Link href="/expenses" className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" aria-hidden />
           {d.expenses.back}
         </Link>
       </div>
@@ -96,41 +97,41 @@ function ExpenseClaimContent() {
   return (
     <div id="expense-claim-print" className="mx-auto max-w-3xl p-4 md:p-6"><style>{`@media print { body * { visibility: hidden; } #expense-claim-print, #expense-claim-print * { visibility: visible; } #expense-claim-print { position: absolute; inset: 0; width: 100%; max-width: none; overflow: visible; } main { overflow: visible !important; } }`}</style>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href="/expenses" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
-          <ArrowLeft className="h-4 w-4" />
+        <Link href="/expenses" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" aria-hidden />
           {d.expenses.back}
         </Link>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={exporting || !items.length} onClick={async () => {
+          <Button type="button" variant="outline" disabled={exporting || !items.length} onClick={async () => {
             const authToken = token ?? getStoredToken(); if (!authToken) return;
             setExporting(true); setError('');
             try { await downloadPettyCashCsv({ firmName: user?.firmName ?? '', requesterName: lawyerName, expenses: items, fetchReceipt: id => api.downloadExpenseReceipt(authToken, id) }); }
             catch (e) { setError(e instanceof Error ? e.message : 'ดาวน์โหลดไม่สำเร็จ'); }
             finally { setExporting(false); }
-          }}><Download className="h-4 w-4" />{exporting ? 'กำลังรวมเอกสาร…' : 'ดาวน์โหลดใบเบิกพร้อมไฟล์แนบ'}</Button>
+          }}><Download className="h-4 w-4" aria-hidden />{exporting ? 'กำลังรวมเอกสาร…' : 'ดาวน์โหลดใบเบิกพร้อมไฟล์แนบ'}</Button>
           <Button type="button" variant="outline" disabled={!items.length} onClick={() => window.print()}>
-            <Printer className="h-4 w-4" />
-            พิมพ์ / บันทึก PDF เฉพาะใบเบิก
+            <Printer className="h-4 w-4" aria-hidden />
+            พิมพ์ใบเบิก
           </Button>
           {items.length > 0 && items.every(e => e.status === 'DRAFT') && <Button type="button" disabled={submitting || exporting} onClick={handleSend}>
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4" aria-hidden />
             {submitting ? d.expenses.submitting : d.expenses.reviewedSendToOwner}
           </Button>}
         </div>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive print:hidden">
+        <div role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive print:hidden">
           {error}
         </div>
       )}
 
-      <p className="mb-4 text-sm text-muted-foreground print:hidden">ดาวน์โหลด ZIP ข้างในมีไฟล์ CSV (เปิดใน Excel ได้ คอลัมน์ไฟล์ใบเสร็จชี้ไปที่ไฟล์แนบ) ไฟล์แนบต้นฉบับอยู่ในโฟลเดอร์ใบเสร็จ และใบเบิก.html สำหรับพิมพ์/บันทึก PDF การดาวน์โหลดไม่เปลี่ยนสถานะหรือส่งอนุมัติ</p>
+      <p className="mb-4 text-sm text-muted-foreground print:hidden">ไฟล์ ZIP มี CSV สำหรับ Excel ใบเสร็จต้นฉบับ และใบเบิกสำหรับพิมพ์ การดาวน์โหลดไม่ส่งอนุมัติ</p>
 
       <Card className="print:border-black print:shadow-none">
         <CardContent className="space-y-5 p-6 md:p-8">
           <div className="border-b border-border pb-4 text-center">
-            <p className="text-xs font-semibold tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               {user?.firmName ?? 'สำนักงาน'}
             </p>
             <h1 className="mt-1 text-xl font-extrabold tracking-tight">{d.expenses.claimTitle}</h1>
@@ -146,13 +147,14 @@ function ExpenseClaimContent() {
             </p>
             <p>
               <span className="text-muted-foreground">{d.expenses.claimItemCount}: </span>
-              <span className="font-medium">{items.length}</span>
+              <span className="font-medium tabular-nums">{items.length}</span>
             </p>
           </div>
 
-          <table className="w-full border-collapse text-sm">
+          <div className="-mx-2 overflow-x-auto px-2 print:overflow-visible">
+          <table className="w-full min-w-[32rem] border-collapse text-sm print:min-w-0">
             <thead>
-              <tr className="border-b border-border text-left">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="py-2 pr-2 font-semibold">#</th>
                 <th className="py-2 pr-2 font-semibold">{d.expenses.descriptionField}</th>
                 <th className="py-2 pr-2 font-semibold">{d.expenses.caseField}</th>
@@ -163,7 +165,7 @@ function ExpenseClaimContent() {
             <tbody>
               {items.map((e, index) => (
                 <tr key={e.id} className="border-b border-border/70 align-top">
-                  <td className="py-2.5 pr-2 text-muted-foreground">{index + 1}</td>
+                  <td className="py-2.5 pr-2 tabular-nums text-muted-foreground">{index + 1}</td>
                   <td className="py-2.5 pr-2">
                     <p className="font-medium">{e.description}</p><p className="text-xs text-muted-foreground">{e.user.firstName} {e.user.lastName} · {({ DRAFT: d.expenses.statusDraft, PENDING: d.expenses.statusPending, APPROVED: d.expenses.statusApproved, PAID: d.expenses.statusPaid, REJECTED: d.expenses.statusRejected })[e.status]}</p>
                     {e.expensePurpose && (
@@ -179,7 +181,7 @@ function ExpenseClaimContent() {
                     {e.case?.ownRef ?? d.expenses.general}
                   </td>
                   <td className="py-2.5 pr-2 text-muted-foreground">{e.category ?? '—'}</td>
-                  <td className="py-2.5 text-right font-medium">{formatCurrency(e.amount)}</td>
+                  <td className="py-2.5 text-right font-medium tabular-nums">{formatCurrency(e.amount)}</td>
                 </tr>
               ))}
             </tbody>
@@ -188,10 +190,11 @@ function ExpenseClaimContent() {
                 <td colSpan={4} className="pt-3 text-right font-semibold">
                   {d.expenses.claimTotal}
                 </td>
-                <td className="pt-3 text-right text-base font-extrabold">{formatCurrency(total)}</td>
+                <td className="pt-3 text-right text-base font-extrabold tabular-nums">{formatCurrency(total)}</td>
               </tr>
             </tfoot>
           </table>
+          </div>
 
           <div className="mt-10 grid gap-10 text-sm sm:grid-cols-2">
             <div>
@@ -217,7 +220,7 @@ function ExpenseClaimContent() {
 
 export default function ExpenseClaimPage() {
   return (
-    <Suspense fallback={<PageLoading title="…" lines={3} />}>
+    <Suspense fallback={<PageLoading lines={3} />}>
       <ExpenseClaimContent />
     </Suspense>
   );

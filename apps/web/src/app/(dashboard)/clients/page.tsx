@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Star, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Copy, Check, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, ClientItem, ContactCaseAccessEntry } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { SelectField, TextField, TextareaField } from '@/components/ui/form-fields';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Avatar } from '@/components/ui/avatar';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
@@ -35,6 +37,7 @@ export default function ClientsPage() {
   const [infoForm, setInfoForm] = useState({ taxId: '', branch: '', address: '', billingEmail: '', billingPhone: '' });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [infoError, setInfoError] = useState('');
 
   const emptyContact = { name: '', nickname: '', email: '', phone: '', position: '', isPrimary: false, notes: '' };
   const [showContactForm, setShowContactForm] = useState(false);
@@ -105,7 +108,8 @@ export default function ClientsPage() {
   };
 
   const deleteContact = async (contactId: string) => {
-    if (!token || !selected || !confirm('ลบบุคคลติดต่อนี้?')) return;
+    const name = selected?.contacts.find((c) => c.id === contactId)?.name ?? '';
+    if (!token || !selected || !confirm(`ลบบุคคลติดต่อ "${name}"?`)) return;
     const updatedContacts = selected.contacts.filter((c) => c.id !== contactId);
     setContactError(null);
     try {
@@ -199,8 +203,8 @@ export default function ClientsPage() {
     }
   };
 
-  const revokeCaseAccess = async (caseId: string, accessId: string) => {
-    if (!token) return;
+  const revokeCaseAccess = async (caseId: string, accessId: string, contactName: string) => {
+    if (!token || !confirm(`ถอนสิทธิ์เข้าดูคดีของ "${contactName}"?`)) return;
     setRevokingAccessId(accessId);
     try {
       await api.revokeContactCaseAccess(token, caseId, accessId);
@@ -246,24 +250,14 @@ export default function ClientsPage() {
     const primary = selected.contacts.find((c) => c.isPrimary) ?? selected.contacts[0];
     return (
       <div>
-        <button type="button" onClick={() => setSelected(null)} className="mb-4 text-sm text-primary hover:underline">
+        <button type="button" onClick={() => setSelected(null)} className="mb-2 inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" aria-hidden />
           {d.clients.allClients}
         </button>
-        <div className="mb-6 flex items-center gap-4">
-          <Avatar fallback={selected.name.slice(0, 2).toUpperCase()} className="h-14 w-14 text-base" />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold">{selected.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {selected.type === 'COMPANY' ? d.clients.company : d.clients.individual} · คดีทุกบทบาทอยู่ในภาพรวม 360
-            </p>
-          </div>
-          {user?.firmRole === 'OWNER' && (
-            <Button variant="outline" size="sm" className="min-h-11 text-destructive hover:text-destructive" onClick={() => void deleteClient()}>
-              <Trash2 className="h-4 w-4" />ลบลูกความ
-            </Button>
-          )}
-        </div>
-        {deleteError && <p role="alert" className="mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{deleteError}</p>}
+        <PageHeader
+          title={selected.name}
+          description={selected.type === 'COMPANY' ? d.clients.company : d.clients.individual}
+        />
 
         <Tabs value={tab} onValueChange={setTab}>
           <div className="max-w-full overflow-x-auto pb-1">
@@ -285,18 +279,18 @@ export default function ClientsPage() {
               <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
                 {primary?.email && (
                   <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <Mail className="h-4 w-4 text-muted-foreground" aria-hidden />
                     <div><p className="text-xs text-muted-foreground">{d.clients.email}</p><p className="text-sm">{primary.email}</p></div>
                   </div>
                 )}
                 {primary?.phone && (
                   <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <Phone className="h-4 w-4 text-muted-foreground" aria-hidden />
                     <div><p className="text-xs text-muted-foreground">{d.clients.phone}</p><p className="text-sm">{primary.phone}</p></div>
                   </div>
                 )}
                 <div className="flex items-center gap-3">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden />
                   <div><p className="text-xs text-muted-foreground">{d.clients.type}</p><p className="text-sm">{selected.type === 'COMPANY' ? d.clients.company : d.clients.individual}</p></div>
                 </div>
                 {selected.notes && (
@@ -311,8 +305,8 @@ export default function ClientsPage() {
             {/* ข้อมูลที่ใบแจ้งหนี้/ใบเสร็จ/ใบเสนอราคาต้องใช้ — แก้ไขได้ตลอด */}
             <Card className="mt-4">
               <CardContent className="p-6">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-sm font-semibold">ข้อมูลออกเอกสาร (ใบแจ้งหนี้ / ใบเสร็จ / ใบเสนอราคา)</p>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold">ข้อมูลออกเอกสาร (ใบแจ้งหนี้ / ใบเสร็จ / ใบเสนอราคา)</h2>
                   {!editingInfo && (
                     <Button
                       size="sm"
@@ -325,11 +319,12 @@ export default function ClientsPage() {
                           billingEmail: selected.billingEmail ?? '',
                           billingPhone: selected.billingPhone ?? '',
                         });
+                        setInfoError('');
                         setEditingInfo(true);
                       }}
                     >
-                      <Pencil className="h-3.5 w-3.5" />
-                      แก้ไข
+                      <Pencil className="h-3.5 w-3.5" aria-hidden />
+                      แก้ไขข้อมูลออกเอกสาร
                     </Button>
                   )}
                 </div>
@@ -351,36 +346,23 @@ export default function ClientsPage() {
                         setSelected(updated);
                         setClients((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
                         setEditingInfo(false);
-                      } catch {
+                      } catch (err) {
                         // ค่าที่พิมพ์ยังอยู่ กดบันทึกซ้ำได้
+                        setInfoError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
                       } finally {
                         setSavingInfo(false);
                       }
                     }}
                   >
-                    <label className="block text-sm">
-                      <span className="text-muted-foreground">เลขประจำตัวผู้เสียภาษี</span>
-                      <Input className="mt-1" value={infoForm.taxId} onChange={(e) => setInfoForm((f) => ({ ...f, taxId: e.target.value }))} />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="text-muted-foreground">สาขา</span>
-                      <Input className="mt-1" placeholder="เช่น สำนักงานใหญ่" value={infoForm.branch} onChange={(e) => setInfoForm((f) => ({ ...f, branch: e.target.value }))} />
-                    </label>
-                    <label className="block text-sm sm:col-span-2">
-                      <span className="text-muted-foreground">ที่อยู่สำหรับออกเอกสาร</span>
-                      <textarea rows={2} className="mt-1 w-full resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm" value={infoForm.address} onChange={(e) => setInfoForm((f) => ({ ...f, address: e.target.value }))} />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="text-muted-foreground">อีเมลสำหรับส่งเอกสาร</span>
-                      <Input type="email" className="mt-1" value={infoForm.billingEmail} onChange={(e) => setInfoForm((f) => ({ ...f, billingEmail: e.target.value }))} />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="text-muted-foreground">เบอร์ติดต่อเรื่องเอกสาร</span>
-                      <Input type="tel" inputMode="tel" className="mt-1" value={infoForm.billingPhone} onChange={(e) => setInfoForm((f) => ({ ...f, billingPhone: e.target.value }))} />
-                    </label>
-                    <div className="flex gap-2 sm:col-span-2">
-                      <Button type="submit" size="sm" disabled={savingInfo}>{savingInfo ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+                    <TextField label="เลขประจำตัวผู้เสียภาษี" value={infoForm.taxId} onChange={(e) => setInfoForm((f) => ({ ...f, taxId: e.target.value }))} />
+                    <TextField label="สาขา" placeholder="เช่น สำนักงานใหญ่" value={infoForm.branch} onChange={(e) => setInfoForm((f) => ({ ...f, branch: e.target.value }))} />
+                    <TextareaField label="ที่อยู่สำหรับออกเอกสาร" containerClassName="sm:col-span-2" rows={2} className="resize-none" value={infoForm.address} onChange={(e) => setInfoForm((f) => ({ ...f, address: e.target.value }))} />
+                    <TextField label="อีเมลสำหรับส่งเอกสาร" type="email" value={infoForm.billingEmail} onChange={(e) => setInfoForm((f) => ({ ...f, billingEmail: e.target.value }))} />
+                    <TextField label="เบอร์ติดต่อเรื่องเอกสาร" type="tel" inputMode="tel" value={infoForm.billingPhone} onChange={(e) => setInfoForm((f) => ({ ...f, billingPhone: e.target.value }))} />
+                    {infoError && <p role="alert" className="text-sm text-destructive sm:col-span-2">{infoError}</p>}
+                    <div className="flex flex-wrap justify-end gap-2 sm:col-span-2">
                       <Button type="button" size="sm" variant="outline" onClick={() => setEditingInfo(false)}>ยกเลิก</Button>
+                      <Button type="submit" size="sm" disabled={savingInfo}>{savingInfo ? 'กำลังบันทึก…' : 'บันทึกข้อมูลออกเอกสาร'}</Button>
                     </div>
                   </form>
                 ) : (
@@ -400,7 +382,7 @@ export default function ClientsPage() {
             <div className="space-y-3">
               <div className="flex justify-end">
                 <Button size="sm" onClick={openAddContact}>
-                  <Plus className="h-4 w-4 mr-1" />เพิ่มบุคคลติดต่อ
+                  <Plus className="h-4 w-4" aria-hidden />เพิ่มบุคคลติดต่อ
                 </Button>
               </div>
 
@@ -408,81 +390,64 @@ export default function ClientsPage() {
               {showContactForm && (
                 <Card className="border-primary/40">
                   <CardContent className="p-4 space-y-3">
-                    <p className="font-medium text-sm">{editingContactId ? 'แก้ไขบุคคลติดต่อ' : 'เพิ่มบุคคลติดต่อใหม่'}</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-muted-foreground">ชื่อ-นามสกุล *</label>
-                        <Input value={contactForm.name} onChange={(e) => setContactForm((f) => ({ ...f, name: e.target.value }))} placeholder="ชื่อ-นามสกุล" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">ชื่อเล่น</label>
-                        <Input value={contactForm.nickname} onChange={(e) => setContactForm((f) => ({ ...f, nickname: e.target.value }))} placeholder="ชื่อเล่น" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">เบอร์โทร</label>
-                        <Input value={contactForm.phone} onChange={(e) => setContactForm((f) => ({ ...f, phone: e.target.value }))} placeholder="เบอร์โทร" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">อีเมล</label>
-                        <Input value={contactForm.email} onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))} placeholder="อีเมล" type="email" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">ตำแหน่ง / ความสัมพันธ์</label>
-                        <Input value={contactForm.position} onChange={(e) => setContactForm((f) => ({ ...f, position: e.target.value }))} placeholder="เช่น CEO, ทายาท, ผู้จัดการ" />
-                      </div>
-                      <div className="flex items-center gap-2 pt-5">
+                    <h2 className="text-sm font-medium">{editingContactId ? 'แก้ไขบุคคลติดต่อ' : 'เพิ่มบุคคลติดต่อใหม่'}</h2>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <TextField label="ชื่อ-นามสกุล" required value={contactForm.name} onChange={(e) => setContactForm((f) => ({ ...f, name: e.target.value }))} />
+                      <TextField label="ชื่อเล่น" value={contactForm.nickname} onChange={(e) => setContactForm((f) => ({ ...f, nickname: e.target.value }))} />
+                      <TextField label="เบอร์โทร" type="tel" inputMode="tel" value={contactForm.phone} onChange={(e) => setContactForm((f) => ({ ...f, phone: e.target.value }))} />
+                      <TextField label="อีเมล" type="email" value={contactForm.email} onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))} />
+                      <TextField label="ตำแหน่ง / ความสัมพันธ์" value={contactForm.position} onChange={(e) => setContactForm((f) => ({ ...f, position: e.target.value }))} placeholder="เช่น CEO, ทายาท, ผู้จัดการ" />
+                      <div className="flex min-h-11 items-center gap-2 sm:pt-6">
                         <input type="checkbox" id="isPrimary" checked={contactForm.isPrimary} onChange={(e) => setContactForm((f) => ({ ...f, isPrimary: e.target.checked }))} className="h-4 w-4" />
                         <label htmlFor="isPrimary" className="text-sm">ผู้ติดต่อหลัก</label>
                       </div>
-                      <div className="col-span-2">
-                        <label className="text-xs text-muted-foreground">หมายเหตุ</label>
-                        <Input value={contactForm.notes} onChange={(e) => setContactForm((f) => ({ ...f, notes: e.target.value }))} placeholder="เช่น ติดต่อได้เฉพาะวันทำการ" />
-                      </div>
+                      <TextField label="หมายเหตุ" containerClassName="sm:col-span-2" value={contactForm.notes} onChange={(e) => setContactForm((f) => ({ ...f, notes: e.target.value }))} placeholder="เช่น ติดต่อได้เฉพาะวันทำการ" />
                     </div>
-                    <div className="flex gap-2 justify-end">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <Button size="sm" variant="outline" onClick={cancelContactForm}>ยกเลิก</Button>
                       <Button size="sm" onClick={saveContact} disabled={savingContact || !contactForm.name.trim()}>
-                        {savingContact ? 'กำลังบันทึก...' : 'บันทึก'}
+                        {savingContact ? 'กำลังบันทึก...' : 'บันทึกบุคคลติดต่อ'}
                       </Button>
                     </div>
                   </CardContent>
                 </Card>
               )}
 
-              {contactError && <p className="text-sm text-destructive">{contactError}</p>}
+              {contactError && <p role="alert" className="text-sm text-destructive">{contactError}</p>}
 
               {/* Contact list */}
               {selected.contacts.map((c, i) => (
                 <Card key={c.id ?? i}>
                   <CardContent className="space-y-3 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <User className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium flex items-center gap-2">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <div className="min-w-0">
+                        <p className="flex flex-wrap items-center gap-2 font-medium">
                           {c.name}
-                          {c.nickname && <span className="text-muted-foreground font-normal text-sm">({c.nickname})</span>}
-                          {c.isPrimary && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
+                          {c.nickname && <span className="text-sm font-normal text-muted-foreground">({c.nickname})</span>}
+                          {c.isPrimary && <Badge variant="default">ผู้ติดต่อหลัก</Badge>}
+                          {c.portalEnabled && <Badge variant="success">เปิดพอร์ทัลแล้ว</Badge>}
+                          {c.id && lineStatus[c.id] && (
+                            <Badge variant={lineStatus[c.id].connected ? 'success' : 'muted'}>
+                              {lineStatus[c.id].connected ? 'LINE เชื่อมต่อแล้ว' : 'LINE ยังไม่เชื่อมต่อ'}
+                            </Badge>
+                          )}
                         </p>
                         {c.position && <p className="text-xs text-muted-foreground">{c.position}</p>}
                         <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
-                          {c.phone && <p className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</p>}
-                          {c.email && <p className="flex items-center gap-1"><Mail className="h-3 w-3" />{c.email}</p>}
-                          {c.notes && <p className="text-xs italic">{c.notes}</p>}
+                          {c.phone && <p className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" aria-hidden />{c.phone}</p>}
+                          {c.email && <p className="flex items-center gap-1 break-all"><Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />{c.email}</p>}
+                          {c.notes && <p className="text-xs">{c.notes}</p>}
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {c.id && c.email && (
-                        <Button size="sm" variant={c.portalEnabled ? 'default' : 'outline'} onClick={() => togglePortalAccess(c.id!, !c.portalEnabled)} className="text-xs h-7">
-                          {c.portalEnabled ? 'เปิดพอร์ทัลแล้ว' : 'เปิดพอร์ทัล'}
-                        </Button>
-                      )}
+                    <div className="flex shrink-0 flex-wrap items-center gap-1">
                       {c.id && (
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 text-xs"
+                          className="text-xs"
                           disabled={invitingContactId === c.id}
                           onClick={() => sendPortalInvite(c.id!)}
                         >
@@ -495,23 +460,17 @@ export default function ClientsPage() {
                                 : 'สร้างลิงก์คำเชิญ'}
                         </Button>
                       )}
-                      {c.id && lineStatus[c.id] && (
-                        <span
-                          className={`text-xs h-7 flex items-center rounded px-2 ${
-                            lineStatus[c.id].connected
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-muted text-muted-foreground'
-                          }`}
-                        >
-                          {lineStatus[c.id].connected ? 'LINE เชื่อมต่อแล้ว' : 'LINE ยังไม่เชื่อมต่อ'}
-                        </span>
+                      {c.id && c.email && (
+                        <Button size="sm" variant="outline" onClick={() => togglePortalAccess(c.id!, !c.portalEnabled)} className="text-xs">
+                          {c.portalEnabled ? 'ปิดพอร์ทัล' : 'เปิดพอร์ทัล'}
+                        </Button>
                       )}
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditContact(c)}>
-                        <Pencil className="h-3.5 w-3.5" />
+                      <Button size="icon" variant="ghost" aria-label={`แก้ไข ${c.name}`} onClick={() => openEditContact(c)}>
+                        <Pencil className="h-4 w-4" aria-hidden />
                       </Button>
                       {c.id && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteContact(c.id!)}>
-                          <Trash2 className="h-3.5 w-3.5" />
+                        <Button size="icon" variant="ghost" aria-label={`ลบ ${c.name}`} className="text-destructive hover:text-destructive" onClick={() => deleteContact(c.id!)}>
+                          <Trash2 className="h-4 w-4" aria-hidden />
                         </Button>
                       )}
                     </div>
@@ -526,20 +485,20 @@ export default function ClientsPage() {
                           ].filter(Boolean).join(' · ') ||
                             'คัดลอกลิงก์ด้านล่างส่งให้ลูกค้าทาง LINE เองได้เลย'}
                         </p>
-                        <div className="flex items-center gap-2">
-                          <code className="flex-1 truncate rounded bg-background px-2 py-1 text-xs">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <code className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1 text-xs">
                             {inviteSentFor[c.id!].inviteUrl}
                           </code>
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 shrink-0 text-xs"
+                            className="shrink-0 text-xs"
                             onClick={() => copyInviteLink(c.id!, inviteSentFor[c.id!].inviteUrl)}
                           >
                             {copiedInviteFor === c.id ? (
-                              <><Check className="mr-1 h-3 w-3" />คัดลอกแล้ว</>
+                              <><Check className="h-3.5 w-3.5" aria-hidden />คัดลอกแล้ว</>
                             ) : (
-                              <><Copy className="mr-1 h-3 w-3" />คัดลอกลิงก์</>
+                              <><Copy className="h-3.5 w-3.5" aria-hidden />คัดลอกลิงก์</>
                             )}
                           </Button>
                         </div>
@@ -551,14 +510,14 @@ export default function ClientsPage() {
               ))}
 
               {selected.contacts.length === 0 && !showContactForm && (
-                <p className="text-sm text-muted-foreground text-center py-6">ยังไม่มีบุคคลติดต่อ — กด "เพิ่มบุคคลติดต่อ" เพื่อเริ่ม</p>
+                <InlineEmptyState title="ยังไม่มีบุคคลติดต่อ" action={<Button size="sm" variant="outline" onClick={openAddContact}><Plus className="h-4 w-4" aria-hidden />เพิ่มบุคคลติดต่อ</Button>} />
               )}
             </div>
           </TabsContent>
 
           {hasFirmCapability(user?.firmRole, 'manageFirmContent') && <TabsContent value="cases">
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">จัดการสิทธิ์พอร์ทัลของคดีที่ลูกค้ารายนี้เป็นลูกความหลัก คดีทุกบทบาทดูได้ในภาพรวม 360</p>
+              <p className="text-sm text-muted-foreground">คดีที่ลูกค้ารายนี้เป็นลูกความหลัก และผู้ติดต่อที่เห็นคดีในพอร์ทัล</p>
               {(selected.cases ?? []).map((c) => {
                 const eligibleContacts = selected.contacts.filter((ct) => ct.id && ct.portalEnabled);
                 const entries = caseAccess[c.id] ?? [];
@@ -568,24 +527,27 @@ export default function ClientsPage() {
                 return (
                   <Card key={c.id}>
                     <CardContent className="p-4 space-y-3">
-                      <div
-                        className="flex items-center justify-between cursor-pointer"
-                        onClick={() => router.push(`/cases/${c.id}`)}
+                      <Link
+                        href={`/cases/${c.id}`}
+                        className="flex min-h-11 items-center justify-between gap-3 rounded-md hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-medium">{c.title}</p>
                           <p className="text-xs text-muted-foreground">{c.ownRef}{c.courtName ? ` · ${c.courtName}` : ''}</p>
                         </div>
                         <CaseStatusBadge status={c.status} />
-                      </div>
+                      </Link>
 
                       <div className="border-t pt-3 space-y-2">
                         <p className="text-xs font-medium text-muted-foreground">สิทธิ์เข้าถึงคดี</p>
 
                         {isLoading ? (
-                          <p className="text-xs text-muted-foreground">กำลังโหลด...</p>
+                          <div role="status" aria-label="กำลังโหลดสิทธิ์เข้าถึง" className="h-8 w-full animate-pulse rounded-md bg-muted" />
                         ) : hasError ? (
-                          <p className="text-xs text-destructive">โหลดสิทธิ์เข้าถึงไม่สำเร็จ</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p role="alert" className="text-xs text-destructive">โหลดสิทธิ์เข้าถึงไม่สำเร็จ</p>
+                            <Button size="sm" variant="outline" onClick={() => loadCaseAccess(c.id)}>{d.common.retry}</Button>
+                          </div>
                         ) : (
                           <>
                             {activeEntries.length === 0 ? (
@@ -593,20 +555,17 @@ export default function ClientsPage() {
                             ) : (
                               <ul className="space-y-1">
                                 {activeEntries.map((entry) => (
-                                  <li key={entry.id} className="flex items-center justify-between text-sm">
-                                    <span>
+                                  <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                    <span className="min-w-0 break-words">
                                       {entry.clientContact.name}
                                       {entry.clientContact.email ? ` (${entry.clientContact.email})` : ''}
                                     </span>
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      className="h-7 text-xs text-destructive hover:text-destructive"
+                                      className="text-xs text-destructive hover:text-destructive"
                                       disabled={revokingAccessId === entry.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        revokeCaseAccess(c.id, entry.id);
-                                      }}
+                                      onClick={() => revokeCaseAccess(c.id, entry.id, entry.clientContact.name)}
                                     >
                                       {revokingAccessId === entry.id ? 'กำลังถอน...' : 'ถอนสิทธิ์'}
                                     </Button>
@@ -618,13 +577,14 @@ export default function ClientsPage() {
                         )}
 
                         {eligibleContacts.length > 0 && (
-                          <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-                            <select
-                              className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                          <div className="flex flex-wrap items-end gap-2 pt-1">
+                            <SelectField
+                              label="ให้สิทธิ์ผู้ติดต่อ"
+                              containerClassName="min-w-0 flex-1"
                               value={grantSelection[c.id] ?? ''}
                               onChange={(e) => setGrantSelection((s) => ({ ...s, [c.id]: e.target.value }))}
                             >
-                              <option value="">เลือกผู้ติดต่อ...</option>
+                              <option value="">เลือกผู้ติดต่อ</option>
                               {eligibleContacts
                                 .filter((ct) => !activeEntries.some((e) => e.clientContactId === ct.id))
                                 .map((ct) => (
@@ -632,10 +592,10 @@ export default function ClientsPage() {
                                     {ct.name}
                                   </option>
                                 ))}
-                            </select>
+                            </SelectField>
                             <Button
                               size="sm"
-                              className="h-8 text-xs"
+                              variant="outline"
                               disabled={!grantSelection[c.id] || grantingCaseId === c.id}
                               onClick={() => grantCaseAccess(c.id)}
                             >
@@ -665,6 +625,15 @@ export default function ClientsPage() {
             </TabsContent>
           )}
         </Tabs>
+
+        {user?.firmRole === 'OWNER' && (
+          <div className="mt-8 flex flex-col items-end gap-2 border-t pt-6">
+            {deleteError && <p role="alert" className="text-sm text-destructive">{deleteError}</p>}
+            <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => void deleteClient()}>
+              <Trash2 className="h-4 w-4" aria-hidden />ลบลูกความ {selected.name}
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -676,13 +645,13 @@ export default function ClientsPage() {
         description={d.clients.description}
         actions={
           <Button size="sm" onClick={() => router.push('/clients/new')}>
-            <Plus className="h-4 w-4" />{d.clients.addClient}
+            <Plus className="h-4 w-4" aria-hidden />{d.clients.addClient}
           </Button>
         }
       />
       <div className="mb-4 relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder={d.clients.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input type="search" aria-label={d.clients.searchPlaceholder} placeholder={d.clients.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       {loadError ? (
@@ -694,39 +663,42 @@ export default function ClientsPage() {
           icon={Briefcase}
           title={d.clients.empty}
           description={d.clients.emptyHint}
-          action={
-            <Button size="sm" onClick={() => router.push('/clients/new')}>
-              <Plus className="h-4 w-4" />{d.clients.addClient}
+          action={search ? undefined : (
+            <Button size="sm" variant="outline" onClick={() => router.push('/clients/new')}>
+              <Plus className="h-4 w-4" aria-hidden />{d.clients.addClient}
             </Button>
-          }
+          )}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {clients.map((client) => {
             const primary = client.contacts.find((c) => c.isPrimary) ?? client.contacts[0];
             return (
-              <Card
+              <button
+                type="button"
                 key={client.id}
-                className="cursor-pointer transition-shadow hover:shadow-card"
-                onClick={() => api.getClient(token!, client.id).then(setSelected)}
+                className="group rounded-xl border bg-card text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => api.getClient(token!, client.id).then(setSelected).catch(() => setLoadError(true))}
               >
-                <CardContent className="p-5">
+                <div className="p-5">
                   <div className="flex items-start gap-3">
                     <Avatar fallback={client.name.slice(0, 2).toUpperCase()} />
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold truncate">{client.name}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs tabular-nums text-muted-foreground">
                         {fmt(d.clients.contacts, { count: client.contacts.length })}
                       </p>
                     </div>
+                    <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden />
                   </div>
-                  <div className="mt-4 space-y-1 text-xs text-muted-foreground">
-                    {primary?.email && <p className="flex items-center gap-1"><Mail className="h-3 w-3" />{primary.email}</p>}
-                    {primary?.phone && <p className="flex items-center gap-1"><Phone className="h-3 w-3" />{primary.phone}</p>}
-                    <p className="flex items-center gap-1"><Briefcase className="h-3 w-3" />ดูคดีทุกบทบาทในภาพรวม 360</p>
-                  </div>
-                </CardContent>
-              </Card>
+                  {(primary?.email || primary?.phone) && (
+                    <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+                      {primary?.email && <p className="flex min-w-0 items-center gap-1"><Mail className="h-3.5 w-3.5 shrink-0" aria-hidden /><span className="truncate">{primary.email}</span></p>}
+                      {primary?.phone && <p className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" aria-hidden />{primary.phone}</p>}
+                    </div>
+                  )}
+                </div>
+              </button>
             );
           })}
         </div>

@@ -68,7 +68,7 @@ export function CreateClientContactDialog({
             <p className="mt-1 text-sm text-muted-foreground">คนนี้จะถูกเลือกเป็นผู้ส่งเรื่องทันทีหลังบันทึก</p>
           </div>
           <Button type="button" variant="ghost" size="icon" aria-label="ปิด" onClick={onClose} disabled={submitting}>
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </Button>
         </div>
 

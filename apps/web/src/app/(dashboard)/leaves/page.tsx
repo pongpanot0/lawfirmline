@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { SelectField } from '@/components/ui/form-fields';
+import { AlertTriangle } from 'lucide-react';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { leaveApprovalQueue } from '@/lib/leave-flags';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -89,8 +92,9 @@ export default function LeavesPage() {
     }
   };
 
-  const cancelLeave = async (id: string) => {
+  const cancelLeave = async (id: string, what: string) => {
     if (!token) return;
+    if (!window.confirm(`ยกเลิกคำขอ${what}?`)) return;
     setBusyId(id);
     setActionError('');
     try {
@@ -127,7 +131,6 @@ export default function LeavesPage() {
     <div className="w-full space-y-6">
       <PageHeader title={d.leaves.title} description={d.leaves.description} />
 
-      {loadError && <p className="text-sm text-destructive">{loadError}</p>}
 
       <Card>
         <CardHeader>
@@ -135,37 +138,36 @@ export default function LeavesPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-3">
-            <div>
-              <label className="text-sm font-medium">{d.leaves.type}</label>
-              <select
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value as typeof form.type })}
-                className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
-              >
-                <option value="SICK">{d.leaves.typeSick}</option>
-                <option value="PERSONAL">{d.leaves.typePersonal}</option>
-                <option value="VACATION">{d.leaves.typeVacation}</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium">{d.leaves.startDate}</label>
+            <SelectField
+              label={d.leaves.type}
+              required
+              value={form.type}
+              onChange={(e) => setForm({ ...form, type: e.target.value as typeof form.type })}
+              className="h-11"
+            >
+              <option value="SICK">{d.leaves.typeSick}</option>
+              <option value="PERSONAL">{d.leaves.typePersonal}</option>
+              <option value="VACATION">{d.leaves.typeVacation}</option>
+            </SelectField>
+            <div className="space-y-1.5">
+              <label htmlFor="leave-start" className="block text-sm font-medium">{d.leaves.startDate}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
               <ThaiDateInput
+                id="leave-start"
                 value={form.startDate}
                 onChange={(value) => setForm({ ...form, startDate: value, endDate: form.endDate && form.endDate >= value ? form.endDate : value })}
                 required
-                className="mt-1"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium">{d.leaves.endDate}</label>
+            <div className="space-y-1.5">
+              <label htmlFor="leave-end" className="block text-sm font-medium">{d.leaves.endDate}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
               <ThaiDateInput
+                id="leave-end"
                 value={form.endDate}
                 onChange={(value) => setForm({ ...form, endDate: value })}
                 required
-                className="mt-1"
               />
             </div>
-            {submitError && <p className="text-sm text-destructive md:col-span-3">{submitError}</p>}
+            {submitError && <p role="alert" className="text-sm text-destructive md:col-span-3">{submitError}</p>}
             <div className="md:col-span-3">
               <Button type="submit" disabled={submitting || !form.startDate || !form.endDate}>
                 {submitting ? d.leaves.submitting : d.leaves.submit}
@@ -181,8 +183,10 @@ export default function LeavesPage() {
             <CardTitle>{d.leaves.pendingQueue}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {actionError && <p className="text-sm text-destructive">{actionError}</p>}
-            {pending.length === 0 ? (
+            {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
+            {loadError ? (
+              <LoadFailed message={loadError} onRetry={() => setReloadKey((k) => k + 1)} />
+            ) : pending.length === 0 ? (
               <InlineEmptyState title={d.leaves.noPending} />
             ) : (
               pending.map((leave) => (
@@ -198,7 +202,7 @@ export default function LeavesPage() {
                   </div>
                   {!!leave.courtConflicts?.length && (
                     <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-                      <p className="font-medium">{d.leaves.conflictWarning}</p>
+                      <p className="flex items-start gap-1.5 font-medium"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{d.leaves.conflictWarning}</p>
                       <ul className="mt-1 space-y-1">
                         {leave.courtConflicts.map((c) => (
                           <li key={c.eventId}>
@@ -208,11 +212,11 @@ export default function LeavesPage() {
                       </ul>
                     </div>
                   )}
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <Button size="sm" disabled={busyId === leave.id} onClick={() => decide(leave.id, 'APPROVED')}>
                       {d.leaves.approve}
                     </Button>
-                    <Button size="sm" variant="outline" disabled={busyId === leave.id} onClick={() => decide(leave.id, 'REJECTED')}>
+                    <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busyId === leave.id} onClick={() => decide(leave.id, 'REJECTED')}>
                       {d.leaves.reject}
                     </Button>
                   </div>
@@ -228,7 +232,10 @@ export default function LeavesPage() {
           <CardTitle>{d.leaves.myRequests}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {myLeaves.length === 0 ? (
+          {!canApproveLeave && actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
+          {loadError ? (
+            <LoadFailed message={loadError} onRetry={() => setReloadKey((k) => k + 1)} />
+          ) : myLeaves.length === 0 ? (
             <InlineEmptyState title={d.leaves.noRequests} />
           ) : (
             myLeaves.map((leave) => (
@@ -240,7 +247,7 @@ export default function LeavesPage() {
                 <div className="flex items-center gap-2">
                   <StatusBadge status={leave.status} d={d} />
                   {leave.status !== 'REJECTED' && (leave.status === 'PENDING' || leave.startDate >= today) && (
-                    <Button size="sm" variant="outline" disabled={busyId === leave.id} onClick={() => cancelLeave(leave.id)}>
+                    <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busyId === leave.id} onClick={() => cancelLeave(leave.id, `${typeLabel[leave.type]} ${rangeText(leave)}`)}>
                       {d.leaves.cancel}
                     </Button>
                   )}

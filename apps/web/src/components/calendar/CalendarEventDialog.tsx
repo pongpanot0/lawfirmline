@@ -6,6 +6,7 @@ import { OutlookChangesPanel } from './OutlookChangesPanel';
 import { AvailabilityPanel } from './AvailabilityPanel';
 import { DURATION_OPTIONS, DEFAULT_DURATION, closestDuration } from '@/lib/availability';
 import { useEffect, useState } from 'react';
+import { AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime } from '@/lib/utils';
@@ -201,7 +202,7 @@ export function CalendarEventDialog({
 
   const handleDelete = async () => {
     if (!token || !savedId) return;
-    if (!confirm(d.calendar.deleteConfirm)) return;
+    if (!confirm(form.title ? `${d.common.delete} “${form.title}”?` : d.calendar.deleteConfirm)) return;
     setDeleting(true);
     setError('');
     try {
@@ -313,7 +314,7 @@ export function CalendarEventDialog({
         </dl>
         <EventResponsibility eventId={event.id} startAt={event.startAt} type={event.type} onChanged={onSaved} />
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="button" onClick={() => setMode('edit')}>{d.common.edit}</Button>
+          <Button type="button" variant={event.onlineMeetingUrl?.startsWith('https://') ? 'outline' : 'default'} onClick={() => setMode('edit')}>{d.common.edit}</Button>
           <Button type="button" variant="outline" onClick={onClose}>{d.common.close}</Button>
         </div>
       </Modal>
@@ -441,12 +442,12 @@ export function CalendarEventDialog({
             <div className="text-sm">
               <button
                 type="button"
-                className="mb-1 flex w-full items-center justify-between text-muted-foreground"
+                className="mb-1 flex min-h-11 w-full items-center justify-between text-muted-foreground"
                 aria-expanded={availOpen}
                 onClick={() => setAvailOpen((o) => !o)}
               >
                 <span>เวลาว่างของทีม</span>
-                <span>{availOpen ? '▲' : '▼'}</span>
+                {availOpen ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
               </button>
               {availOpen && (
                 <AvailabilityPanel
@@ -507,7 +508,8 @@ export function CalendarEventDialog({
                 const u = users.find((user) => user.id === id);
                 if (!u) return null;
                 return (
-                  <p key={id} className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                  <p key={id} className="mt-1 flex items-start gap-1 text-xs text-warning">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                     {leaveWarning(`${u.firstName} ${u.lastName}`, eventDate, leaveFlags.get(id)?.kind)}
                   </p>
                 );
@@ -573,11 +575,12 @@ export function CalendarEventDialog({
                         <button
                           type="button"
                           aria-label={`ลบ ${email}`}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:text-destructive"
                           onClick={() =>
                             setForm((f) => ({ ...f, inviteeEmails: f.inviteeEmails.filter((x) => x !== email) }))
                           }
                         >
-                          ×
+                          <X className="h-3.5 w-3.5" aria-hidden />
                         </button>
                       </span>
                     ))}
@@ -609,7 +612,7 @@ export function CalendarEventDialog({
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="submit" disabled={saving}>
-            {saving ? d.calendar.saving : d.common.save}
+            {saving ? d.calendar.saving : event ? d.common.save : d.calendar.addEvent}
           </Button>
           <Button type="button" variant="outline" onClick={() => (event ? setMode('view') : onClose())}>
             {event ? d.common.cancel : d.common.close}
@@ -617,8 +620,8 @@ export function CalendarEventDialog({
           {savedId && (
             <Button
               type="button"
-              variant="destructive"
-              className="ms-auto"
+              variant="outline"
+              className="ms-auto border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
               disabled={deleting}
               onClick={handleDelete}
             >

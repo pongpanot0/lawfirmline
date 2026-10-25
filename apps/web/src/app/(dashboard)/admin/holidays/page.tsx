@@ -9,11 +9,13 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SelectField } from '@/components/ui/form-fields';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { parseHolidayLines } from '@/lib/holidays';
-import { InlineEmptyState } from '@/components/ui/misc';
+import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
 
 /** Buddhist-era label for a Gregorian year. */
 const toBE = (year: number) => year + 543;
@@ -43,11 +45,17 @@ export default function HolidaysPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(
     (targetYear: number) => {
       if (!token) return;
-      api.getPublicHolidays(token, targetYear).then(setHolidays).catch(console.error);
+      setLoadError(false);
+      api.getPublicHolidays(token, targetYear)
+        .then(setHolidays)
+        .catch(() => setLoadError(true))
+        .finally(() => setLoading(false));
     },
     [token],
   );
@@ -100,7 +108,7 @@ export default function HolidaysPage() {
   };
 
   const handleDelete = async (holiday: PublicHolidayItem) => {
-    if (!token || !window.confirm(d.holidays.confirmDelete)) return;
+    if (!token || !window.confirm(`${d.holidays.confirmDelete}\n${holiday.date.slice(0, 10)} ${holiday.name}`)) return;
     setError('');
     try {
       await api.deletePublicHoliday(token, holiday.id);
@@ -114,9 +122,9 @@ export default function HolidaysPage() {
     <div>
       <PageHeader title={d.holidays.title} description={d.holidays.description} />
 
-      <Card className="mb-4 border-amber-500/40 bg-amber-500/5">
+      <Card className="mb-4 border-warning/40 bg-warning/5">
         <CardContent className="flex items-start gap-2 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <span>{d.holidays.reviewNotice}</span>
         </CardContent>
       </Card>
@@ -130,29 +138,27 @@ export default function HolidaysPage() {
         </Card>
       )}
 
-      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
-      {notice && <p className="mb-3 text-sm text-muted-foreground">{notice}</p>}
+      {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
+      {notice && <p role="status" className="mb-3 text-sm text-muted-foreground">{notice}</p>}
 
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">{d.holidays.year}</span>
-            <select
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            >
-              {[thisYear - 1, thisYear, thisYear + 1].map((y) => (
-                <option key={y} value={y}>
-                  {toBE(y)} ({y})
-                </option>
-              ))}
-            </select>
-          </label>
+          <SelectField
+            label={d.holidays.year}
+            containerClassName="w-40"
+            value={year}
+            onChange={(e) => { setLoading(true); setYear(Number(e.target.value)); }}
+          >
+            {[thisYear - 1, thisYear, thisYear + 1].map((y) => (
+              <option key={y} value={y}>
+                {toBE(y)} ({y})
+              </option>
+            ))}
+          </SelectField>
 
           <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3">
             <label className="text-sm">
-              <span className="mb-1 block text-muted-foreground">{d.holidays.date}</span>
+              <span className="mb-1 block font-medium">{d.holidays.date}<span aria-hidden="true" className="ml-1 text-destructive">*</span></span>
               <ThaiDateInput
                 required
                 value={form.date}
@@ -160,7 +166,7 @@ export default function HolidaysPage() {
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-muted-foreground">{d.holidays.name}</span>
+              <span className="mb-1 block font-medium">{d.holidays.name}<span aria-hidden="true" className="ml-1 text-destructive">*</span></span>
               <Input
                 required
                 value={form.name}
@@ -168,28 +174,8 @@ export default function HolidaysPage() {
               />
             </label>
             <Button type="submit" size="sm">
-              <Plus className="size-4" />
+              <Plus className="size-4" aria-hidden />
               {d.holidays.add}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card className="mb-4">
-        <CardContent className="pt-6">
-          <h2 className="font-semibold text-foreground">{d.holidays.bulkTitle}</h2>
-          <p className="mb-3 mt-1 text-sm text-muted-foreground">{d.holidays.bulkHint}</p>
-          <form onSubmit={handleBulk} className="space-y-3">
-            <textarea
-              rows={6}
-              value={bulk}
-              onChange={(e) => setBulk(e.target.value)}
-              aria-label={d.holidays.bulkTitle}
-              placeholder={`${year + 1}-01-01 วันขึ้นปีใหม่`}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 font-mono text-sm"
-            />
-            <Button type="submit" size="sm" variant="outline" disabled={bulkBusy || !bulk.trim()}>
-              {d.holidays.bulkApply}
             </Button>
           </form>
         </CardContent>
@@ -197,8 +183,12 @@ export default function HolidaysPage() {
 
       <Card>
         <CardContent className="pt-6">
-          {holidays.length === 0 ? (
-            <InlineEmptyState title={d.holidays.empty} description="เพิ่มวันหยุดศาลเพื่อให้การคำนวณ deadline ข้ามวันที่ใช้ไม่ได้" />
+          {loadError ? (
+            <LoadFailed onRetry={() => load(year)} />
+          ) : loading ? (
+            <div role="status" aria-label={d.common.loading} className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
+          ) : holidays.length === 0 ? (
+            <InlineEmptyState title={d.holidays.empty} description="วันหยุดที่ใส่ไว้ จะถูกข้ามตอนคำนวณ deadline" />
           ) : (
             <ul className="divide-y divide-border">
               {holidays.map((holiday) => (
@@ -214,15 +204,35 @@ export default function HolidaysPage() {
                     type="button"
                     size="sm"
                     variant="ghost"
-                    aria-label={d.holidays.confirmDelete}
+                    aria-label={`ลบ ${holiday.name}`}
                     onClick={() => handleDelete(holiday)}
                   >
-                    <Trash2 className="size-4" />
+                    <Trash2 className="size-4 text-destructive" aria-hidden />
                   </Button>
                 </li>
               ))}
             </ul>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4">
+        <CardContent className="pt-6">
+          <h2 className="font-semibold text-foreground">{d.holidays.bulkTitle}</h2>
+          <p className="mb-3 mt-1 text-sm text-muted-foreground">{d.holidays.bulkHint}</p>
+          <form onSubmit={handleBulk} className="space-y-3">
+            <textarea
+              rows={6}
+              value={bulk}
+              onChange={(e) => setBulk(e.target.value)}
+              aria-label={d.holidays.bulkTitle}
+              placeholder={`${year + 1}-01-01 วันขึ้นปีใหม่`}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 font-mono text-sm"
+            />
+            <Button type="submit" size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={bulkBusy || !bulk.trim()}>
+              {d.holidays.bulkApply}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

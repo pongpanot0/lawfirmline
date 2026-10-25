@@ -66,8 +66,8 @@ export function CasePrintForms({ legalCase }: { legalCase: CaseDetail }) {
     <dialog ref={dialog} aria-labelledby="case-print-title" onCancel={() => setOpen(false)} onClose={() => setOpen(false)} className="m-auto max-h-[95dvh] w-[min(1200px,96vw)] max-w-none overflow-y-auto rounded-xl border border-border bg-card p-0 text-foreground backdrop:bg-black/50">
       {open && <>
         <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b bg-card p-4">
-          <div><h2 id="case-print-title" className="font-semibold">จัดทำคำฟ้องและปกสำนวน</h2><p className="text-xs text-muted-foreground">ตรวจแก้ → ดูตัวอย่าง A4 → พิมพ์และเลือกบันทึกเป็น PDF</p></div>
-          <div className="flex gap-2"><Button disabled={!ready} onClick={() => { preview.current?.contentWindow?.focus(); preview.current?.contentWindow?.print(); }}>พิมพ์ / บันทึก PDF</Button><Button variant="outline" onClick={() => setOpen(false)}>ปิด</Button></div>
+          <h2 id="case-print-title" className="font-semibold">จัดทำคำฟ้องและปกสำนวน</h2>
+          <div className="flex flex-wrap gap-2"><Button disabled={!ready} onClick={() => { preview.current?.contentWindow?.focus(); preview.current?.contentWindow?.print(); }}>พิมพ์ / บันทึก PDF</Button><Button variant="outline" onClick={() => setOpen(false)}>ปิด</Button></div>
         </header>
         <div className="space-y-3 p-4">
           <div role="group" aria-label="ชนิดเอกสาร" className="flex flex-wrap gap-2">{(['cover', 'complaint'] as const).map(type => <Button key={type} variant={kind === type ? 'default' : 'outline'} aria-pressed={kind === type} onClick={() => { if (kind !== type) { setReady(false); setKind(type); } }}>{CASE_PRINT_LABELS[type]}</Button>)}</div>

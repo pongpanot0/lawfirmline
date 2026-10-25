@@ -9,7 +9,10 @@ import { FirmRoleStr, latestPlaybookReleases, PlaybookRelease, setupRequest } fr
 import { caseStageLabel } from '@/lib/stage-labels';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TextField, TextareaField } from '@/components/ui/form-fields';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
@@ -94,53 +97,48 @@ export default function SopsPage() {
         title="SOP / คู่มือการทำงาน"
         description="จัดวิธีทำงานของสำนักงาน ตั้งแต่คู่มือจนถึงการส่งต่องานในคดี"
         actions={
-          canEditFlows ? (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); }}>
-                <Plus className="mr-1 h-4 w-4" />สร้าง Handoff flow
-              </Button>
-              {canManageContent && <>
-              <Button size="sm" variant="outline" onClick={() => { setEditing({}); setError(null); setSaved(''); }}>
-                <Plus className="mr-1 h-4 w-4" /> เขียนคู่มือ
-              </Button>
-              <Link href="/playbooks/new">
-                <Button size="sm" variant="outline">
-                  <Zap className="mr-1 h-4 w-4" /> สร้าง SOP อัตโนมัติ
+          canEditFlows || canManageContent ? (
+            <>
+              {canManageContent && (
+                <Button size="sm" onClick={() => { setEditing({}); setError(null); setSaved(''); }}>
+                  <Plus className="h-4 w-4" aria-hidden />เขียนคู่มือ
                 </Button>
-              </Link>
-              </>}
-            </div>
+              )}
+              {canEditFlows && (
+                <Button size="sm" variant="outline" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); }}>
+                  <ArrowRightLeft className="h-4 w-4" aria-hidden />สร้าง Handoff flow
+                </Button>
+              )}
+              {canManageContent && (
+                <Link href="/playbooks/new" className={buttonVariants({ size: 'sm', variant: 'outline' })}>
+                  <Zap className="h-4 w-4" aria-hidden />สร้าง SOP อัตโนมัติ
+                </Link>
+              )}
+            </>
           ) : undefined
         }
       />
 
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
         <Input
           aria-label="ค้นหาคู่มือหรือขั้นตอน"
-          placeholder="ค้นหา SOP หรือสายงานส่งต่อ..."
+          placeholder="ค้นหา SOP หรือสายงานส่งต่อ"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="min-w-0 flex-1 sm:max-w-sm"
+          className="min-w-0 sm:max-w-sm"
         />
-        <Button size="sm" variant={view === 'all' ? 'default' : 'outline'} aria-pressed={view === 'all'} onClick={() => setView('all')}>ทั้งหมด</Button>
-        </div>
-        <div role="group" aria-label="ประเภทคู่มือ" className="grid gap-2 sm:grid-cols-3">
-          {([
-            ['handoff', 'Handoff flow', 'ส่งต่อทีละขั้น พร้อมผู้รับและผู้ตรวจ', ArrowRightLeft],
-            ['auto', `สร้างงานอัตโนมัติ (${autoItems.length})`, 'เพิ่มรายการงานลงในคดีพร้อมกัน', Zap],
-            ['manual', `คู่มือให้อ่าน (${manualItems.length})`, 'เก็บวิธีทำงานให้ทีมเปิดอ่าน', BookOpen],
-          ] as const).map(([key, label, description, Icon]) =>
-            <button key={key} type="button" aria-label={label} aria-pressed={view === key} onClick={() => setView(key)}
-              className={`flex min-w-0 items-start gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${view === key ? 'border-primary bg-primary/5' : 'bg-card hover:border-primary/40'}`}>
-              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-              <span className="min-w-0"><span className="block text-sm font-semibold">{label}</span><span className="mt-1 block text-xs text-muted-foreground">{description}</span></span>
-            </button>)}
-        </div>
+        <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
+          <TabsList>
+            <TabsTrigger value="all">ทั้งหมด</TabsTrigger>
+            <TabsTrigger value="handoff"><ArrowRightLeft className="mr-1.5 h-4 w-4" aria-hidden />Handoff flow</TabsTrigger>
+            <TabsTrigger value="auto"><Zap className="mr-1.5 h-4 w-4" aria-hidden />สร้างงานอัตโนมัติ <span className="ml-1 tabular-nums text-muted-foreground">{autoItems.length}</span></TabsTrigger>
+            <TabsTrigger value="manual"><BookOpen className="mr-1.5 h-4 w-4" aria-hidden />คู่มือให้อ่าน <span className="ml-1 tabular-nums text-muted-foreground">{manualItems.length}</span></TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
       {saved && <p role="status" className="text-sm text-primary">{saved}</p>}
       {error && !editing && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {loadError && <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{loadError}<Button variant="outline" size="sm" className="ml-2" onClick={load}>ลองใหม่</Button></div>}
+      {loadError && <LoadFailed message={loadError} onRetry={load} />}
 
       {editing && (
         <Card className="mb-4">
@@ -148,16 +146,14 @@ export default function SopsPage() {
             <form onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-4" aria-label="เขียนคู่มือ">
             <fieldset disabled={saving} className="space-y-4">
             <h2 className="font-semibold">{editing.id ? 'แก้ไขคู่มือ' : 'เขียนคู่มือใหม่'}</h2>
-            <label className="block text-sm font-medium">ชื่อคู่มือ *
-            <Input
-              required autoFocus maxLength={200} className="mt-1"
-              placeholder="ชื่อ SOP เช่น วิธีเปิดคดีใหม่"
+            <TextField
+              label="ชื่อคู่มือ" required autoFocus maxLength={200}
+              placeholder="เช่น วิธีเปิดคดีใหม่"
               value={editing.title ?? ''}
               onChange={(e) => setEditing({ ...editing, title: e.target.value })}
             />
-            </label>
             <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm">หมวดคู่มือ (ไม่บังคับ){editing.category?.trim() && ` · ${editing.category}`}</summary>
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm">หมวดคู่มือ (ไม่บังคับ){editing.category?.trim() && ` · ${editing.category}`}</summary>
             <Input
               aria-label="หมวดคู่มือ" maxLength={100} className="mt-3"
               placeholder="หมวด (ไม่บังคับ) เช่น การรับคดี"
@@ -165,21 +161,19 @@ export default function SopsPage() {
               onChange={(e) => setEditing({ ...editing, category: e.target.value })}
             />
             </details>
-            <label className="block text-sm font-medium">ขั้นตอนการทำงาน *
-            <textarea
-              required maxLength={50000} rows={6} className="mt-1 w-full rounded-md border bg-background p-3 text-sm"
+            <TextareaField
+              label="ขั้นตอนการทำงาน" required maxLength={50000} rows={6}
               placeholder={'1. ต้องเตรียมอะไร\n2. ทำอย่างไร\n3. ส่งให้ใครตรวจ'}
               value={editing.content ?? ''}
               onChange={(e) => setEditing({ ...editing, content: e.target.value })}
             />
-            </label>
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <div className="flex gap-2">
-              <Button type="submit" size="sm">
-                {saving ? 'กำลังบันทึก…' : 'บันทึกคู่มือ'}
-              </Button>
+            <div className="flex flex-wrap justify-end gap-2">
               <Button type="button" size="sm" variant="outline" onClick={() => setEditing(null)}>
                 ยกเลิก
+              </Button>
+              <Button type="submit" size="sm">
+                {saving ? 'กำลังบันทึก…' : 'บันทึกคู่มือ'}
               </Button>
             </div>
             </fieldset>
@@ -198,10 +192,10 @@ export default function SopsPage() {
               <CardContent className="p-0">
                 <details className="group">
                   <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-2 p-4 hover:text-primary [&::-webkit-details-marker]:hidden">
-                    <Zap className="h-4 w-4 shrink-0 text-amber-500" />
+                    <Zap className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0 break-words font-semibold">{p.name}</span>
                     <Badge variant="muted">อัตโนมัติ · {p.steps.length} ขั้นตอน</Badge>
-                    <span className="ml-auto text-xs text-muted-foreground">v{p.version}</span>
+                    <span className="ml-auto text-xs tabular-nums text-muted-foreground">v{p.version}</span>
                     <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
                   </summary>
                   <div className="border-t px-4 py-3">
@@ -227,8 +221,8 @@ export default function SopsPage() {
                       ))}
                     </ol>
                     <div className="mt-4 flex flex-wrap items-center gap-4">
-                      <Link href={`/cases?sop=${encodeURIComponent(p.id)}`} className="inline-flex min-h-10 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground">ใช้กับคดี</Link>
-                      {canManageContent && <Link href={`/playbooks/${p.id}`} className="text-sm font-medium text-primary hover:underline">แก้ไข SOP อัตโนมัติ</Link>}
+                      <Link href={`/cases?sop=${encodeURIComponent(p.id)}`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>ใช้กับคดี</Link>
+                      {canManageContent && <Link href={`/playbooks/${p.id}`} className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">แก้ไข SOP อัตโนมัติ</Link>}
                     </div>
                   </div>
                 </details>
@@ -249,20 +243,20 @@ export default function SopsPage() {
                 <div className="flex items-start justify-between gap-2">
                   <button
                     type="button" aria-expanded={expanded === sop.id} aria-controls={`sop-content-${sop.id}`}
-                    className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-left"
+                    className="flex min-h-11 min-w-0 flex-1 flex-wrap items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => setExpanded(expanded === sop.id ? null : sop.id)}
                   >
-                    <BookOpen className="h-4 w-4 shrink-0 text-primary" />
+                    <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0 break-words font-semibold">{sop.title}</span>
                     {sop.category && <Badge variant="muted" className="max-w-full break-all">{sop.category}</Badge>}
                   </button>
                   {canManageContent && (
                     <div className="flex shrink-0 gap-1">
                       <Button size="sm" variant="ghost" aria-label={`แก้ไข ${sop.title}`} onClick={() => { setEditing(sop); setError(null); setSaved(''); }}>
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-4 w-4" aria-hidden />
                       </Button>
                       <Button size="sm" variant="ghost" aria-label={`ลบ ${sop.title}`} onClick={() => remove(sop)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                       </Button>
                     </div>
                   )}
@@ -283,7 +277,10 @@ export default function SopsPage() {
       )}
       {!loading && !loadError && (view === 'auto' ? !autoItems.length : view === 'manual' ? !manualItems.length : false) && <EmptyState
         title={search ? 'ไม่พบคู่มือที่ค้นหา' : 'ยังไม่มีคู่มือในหมวดนี้'}
-        description={search ? 'ลองค้นด้วยชื่อคู่มือ คำในขั้นตอน หรือเปลี่ยนประเภทคู่มือ' : canManageContent ? 'เริ่มจากเขียนคู่มือ หรือสร้าง SOP อัตโนมัติด้านบน' : 'ยังไม่มีคู่มือในหมวดนี้'} />}
+        description={search ? 'ลองค้นด้วยชื่อคู่มือหรือคำในขั้นตอน' : undefined}
+        action={!search && canManageContent ? (view === 'auto'
+          ? <Link href="/playbooks/new" className={buttonVariants({ size: 'sm', variant: 'outline' })}><Zap className="h-4 w-4" aria-hidden />สร้าง SOP อัตโนมัติ</Link>
+          : <Button size="sm" variant="outline" onClick={() => { setEditing({}); setError(null); setSaved(''); }}><Plus className="h-4 w-4" aria-hidden />เขียนคู่มือ</Button>) : undefined} />}
     </div>
   );
 }

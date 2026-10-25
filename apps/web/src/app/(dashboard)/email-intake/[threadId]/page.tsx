@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, EmailThreadDetail, IntakeFieldProposalItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseEmailComposer, type CaseEmailComposerMode } from '@/components/cases/CaseEmailComposer';
 import { LinkThreadToCaseCard } from '@/components/email/LinkThreadToCaseCard';
 import { LoadFailed } from '@/components/ui/LoadFailed';
@@ -71,6 +73,7 @@ function ProposalRow({
           )}
           {editing ? (
             <textarea
+              aria-label={FIELD_LABELS[proposal.field] ?? proposal.field}
               className="mt-1 w-full rounded border px-2 py-1 text-sm"
               rows={proposal.field === 'description' ? 4 : 1}
               value={draftValue}
@@ -86,19 +89,19 @@ function ProposalRow({
         </div>
         <div className="shrink-0">
           {isConfirmed && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-              <CheckCircle2 className="h-3.5 w-3.5" /> ยืนยันแล้ว
-            </span>
+            <Badge variant="success" className="gap-1">
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> ยืนยันแล้ว
+            </Badge>
           )}
           {isRejected && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-              <XCircle className="h-3.5 w-3.5" /> ไม่ใช้ข้อมูลนี้
-            </span>
+            <Badge variant="muted" className="gap-1">
+              <XCircle className="h-3.5 w-3.5" aria-hidden /> ไม่ใช้ข้อมูลนี้
+            </Badge>
           )}
           {isPending && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-              <AlertTriangle className="h-3.5 w-3.5" /> ต้องยืนยัน
-            </span>
+            <Badge variant="warning" className="gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> ต้องยืนยัน
+            </Badge>
           )}
         </div>
       </div>
@@ -108,6 +111,7 @@ function ProposalRow({
             <>
               <Button
                 size="sm"
+                variant="outline"
                 disabled={resolving}
                 onClick={() => {
                   onResolve(proposal.id, 'confirm', draftValue);
@@ -122,7 +126,7 @@ function ProposalRow({
             </>
           ) : (
             <>
-              <Button size="sm" disabled={resolving} onClick={() => onResolve(proposal.id, 'confirm')}>
+              <Button size="sm" variant="outline" disabled={resolving} onClick={() => onResolve(proposal.id, 'confirm')}>
                 ยืนยันค่านี้
               </Button>
               <Button size="sm" variant="outline" disabled={resolving} onClick={() => setEditing(true)}>
@@ -274,11 +278,16 @@ export default function EmailThreadDetailPage() {
   return (
     <div>
       <Link href="/email-intake" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-        <ArrowLeft className="h-4 w-4" /> กลับไปที่คิวอีเมล
+        <ArrowLeft className="h-4 w-4" aria-hidden /> คิวอีเมล
       </Link>
-      <h1 className="mt-2 mb-6 text-2xl font-bold tracking-tight">{thread.subject}</h1>
+      <div className="mt-2">
+        <PageHeader
+          title={thread.subject || '(ไม่มีหัวเรื่อง)'}
+          description={`${thread.fromName ?? thread.fromAddress ?? '—'} · ${thread.messages.length} ฉบับ`}
+        />
+      </div>
 
-      {error && <p className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
       <LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} />
 
@@ -312,10 +321,10 @@ export default function EmailThreadDetailPage() {
                         <button
                           key={att.id}
                           type="button"
-                          className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:underline"
+                          className="inline-flex min-h-[44px] items-center gap-1 rounded-full border px-3 text-xs hover:underline sm:min-h-8"
                           onClick={() => handleDownload(att.id, att.filename)}
                         >
-                          <Paperclip className="h-3 w-3" /> {att.filename}
+                          <Paperclip className="h-3.5 w-3.5" aria-hidden /> {att.filename}
                         </button>
                       ))}
                     </div>
@@ -354,7 +363,7 @@ export default function EmailThreadDetailPage() {
                 value={replyBody}
                 onChange={(e) => setReplyBody(e.target.value)}
               />
-              <Button size="sm" className="mt-2" disabled={sendingReply || !replyBody.trim()} onClick={handleMockReply}>
+              <Button size="sm" variant="outline" className="mt-2" disabled={sendingReply || !replyBody.trim()} onClick={handleMockReply}>
                 {sendingReply ? 'กำลังส่ง...' : 'จำลองว่ามีอีเมลตอบกลับ'}
               </Button>
             </div>
@@ -381,15 +390,12 @@ export default function EmailThreadDetailPage() {
             <div className="mt-4 border-t pt-4">
               {outstandingCount > 0 && (
                 <p className="mb-2 text-xs text-amber-700">
-                  ยังมี {outstandingCount} รายการที่ระบบเสนอไว้ (ยืนยันได้ภายหลัง — ไม่บังคับก่อนรับเข้าพิจารณา)
+                  รอยืนยัน {outstandingCount} รายการ (ยืนยันภายหลังได้)
                 </p>
               )}
               <Button className="w-full" disabled={accepting || !thread.intake} onClick={handleAccept}>
                 {accepting ? 'กำลังบันทึก...' : 'ยืนยันข้อมูลและรับเข้าพิจารณา'}
               </Button>
-              <p className="mt-2 text-xs text-muted-foreground">
-                การรับเข้าพิจารณายังไม่ใช่การตัดสินใจฟ้องคดี เป็นเพียงการรับเรื่องเข้าสู่ขั้นตอนประเมิน
-              </p>
             </div>
           </CardContent>
         </Card>

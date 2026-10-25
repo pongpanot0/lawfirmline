@@ -5,7 +5,9 @@ import { CaseDriveSection } from '@/components/cases/CaseDriveSection';
 import { CaseEvidenceSection } from '@/components/cases/CaseEvidenceSection';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Eye, Download, Sparkles, CalendarSearch, ClipboardCheck, PenLine, RotateCcw } from 'lucide-react';
+import { Download, Sparkles, CalendarSearch, ClipboardCheck, PenLine, RotateCcw, Check, X, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry, DocumentOfficeLinkView } from '@/lib/api';
 import { isOfficeEditable, officeAppName, officeEditedHint, openInNewTab } from '@/lib/drive-view';
@@ -67,6 +69,7 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
       .catch(() => {});
   };
 
+  const [loadError, setLoadError] = useState(false);
   const load = () => {
     if (!token || !id) return;
     Promise.all([
@@ -80,7 +83,8 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
         setTemplates(tmpls);
         docs.forEach((d) => loadPublications(d.id));
       })
-      .catch(console.error)
+      .then(() => setLoadError(false))
+      .catch((err) => { console.error(err); setLoadError(true); })
       .finally(() => setLoading(false));
   };
 
@@ -246,11 +250,11 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
       <h2 className="mb-4 text-xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h2>
 
       {/* กรองตามหมวด — คดีใหญ่มีเอกสารหลายร้อยชิ้น ชื่อไฟล์ล้วนหาไม่เจอ */}
-      <div className="mb-6 flex flex-wrap gap-1.5">
+      <div className="mb-6 flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
         <button
           type="button"
           onClick={() => setCategoryFilter('')}
-          className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+          className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-1 text-xs sm:min-h-9 ${
             categoryFilter === '' ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground'
           }`}
         >
@@ -261,7 +265,7 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
             key={value}
             type="button"
             onClick={() => setCategoryFilter(value)}
-            className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+            className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-1 text-xs sm:min-h-9 ${
               categoryFilter === value
                 ? 'bg-primary text-primary-foreground'
                 : 'border bg-card text-muted-foreground hover:border-primary/40'
@@ -272,33 +276,36 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
         ))}
       </div>
 
-      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
       {requiredDocs && requiredDocs.required.length > 0 && (
         <div
           className={`mb-6 rounded-xl border p-4 ${
             requiredDocs.missing.length
-              ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
-              : 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30'
+              ? 'border-warning/40 bg-warning/5'
+              : 'border-success/40 bg-success/5'
           }`}
         >
           <p className="mb-2 text-sm font-semibold">
             เอกสารที่ต้องมีตามประเภทคดี{' '}
             {requiredDocs.missing.length
               ? `— ขาดอีก ${requiredDocs.missing.length} รายการ`
-              : '— ครบแล้ว ✓'}
+              : '— ครบแล้ว'}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {requiredDocs.required.map((item) => (
               <span
                 key={item.category}
-                className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${
                   item.present
-                    ? 'border-emerald-300 text-emerald-700 dark:text-emerald-300'
-                    : 'border-amber-400 font-medium text-amber-700 dark:text-amber-300'
+                    ? 'border-success/40 text-success'
+                    : 'border-warning/50 font-medium text-warning'
                 }`}
               >
-                {item.present ? '✓ ' : '✗ '}
+                {item.present
+                  ? <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                  : <X aria-hidden="true" className="h-3.5 w-3.5" />}
+                <span className="sr-only">{item.present ? 'มีแล้ว: ' : 'ยังขาด: '}</span>
                 {documentCategoryLabel(item.category, 'th')}
               </span>
             ))}
@@ -314,23 +321,17 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
         onChanged={onChanged}
       />
 
-      <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
+      <div className="mb-6 rounded-xl border bg-card p-6">
         <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.templates}</h2>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setTemplateDrawerOpen(true)}
-            className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent"
-          >
+          <Button type="button" variant="outline" size="sm" onClick={() => setTemplateDrawerOpen(true)}>
+            <FileText aria-hidden="true" className="h-4 w-4" />
             สร้างเอกสารจากแม่แบบ
-          </button>
-          <button
-            type="button"
-            onClick={() => setPleadingDrawerOpen(true)}
-            className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent"
-          >
-            ✦ AI ร่างคำคู่ความ
-          </button>
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setPleadingDrawerOpen(true)}>
+            <Sparkles aria-hidden="true" className="h-4 w-4" />
+            AI ร่างคำคู่ความ
+          </Button>
         </div>
       </div>
 
@@ -356,9 +357,8 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
       )}
 
       <CaseDriveSection caseId={id} onImported={load} />
-      <div className="rounded-xl border bg-card p-6 shadow-soft">
+      <div className="rounded-xl border bg-card p-6">
         <h2 className="mb-4 font-semibold text-foreground">{fmt(d.caseDocuments.filesCount, { count: documents.length })}</h2>
-        <p className="mb-3 text-sm text-muted-foreground">อัปโหลดก่อน แล้วให้ Jev เสนอหมวดเอกสารพร้อมข้อความอ้างอิงเพื่อให้ทนายตรวจ</p>
         <div className="mb-4">
           <DocumentDropZone
             onFile={handleUpload}
@@ -368,6 +368,9 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
             hint={d.documents.fileTypesHint}
           />
         </div>
+        {loadError ? (
+          <LoadFailed onRetry={load} />
+        ) : (
         <div className="space-y-2">
           {documents.map((doc) => (
             <div
@@ -380,7 +383,10 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                 disabled={viewingId === doc.id}
                 className="min-w-0 text-left"
               >
-                <p className="break-all font-medium text-primary hover:underline">{doc.filename}</p>
+                <p className="break-all font-medium text-primary hover:underline">
+                  {doc.filename}
+                  {viewingId === doc.id && <span className="ml-2 text-xs font-normal text-muted-foreground">{d.caseDocuments.opening}</span>}
+                </p>
                 <p className="text-xs text-muted-foreground">
                   v{doc.version} —{' '}
                   {doc.uploadedBy
@@ -393,7 +399,7 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                   )}
                 </p>
                 {officeEditedHint(doc.filename, officeLinks[doc.id]) && (
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                  <p className="text-xs font-medium text-warning">
                     {officeEditedHint(doc.filename, officeLinks[doc.id])}
                   </p>
                 )}
@@ -409,7 +415,8 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                       .catch(console.error);
                     load();
                   }}
-                  className="rounded-lg border bg-background px-2 py-1 text-xs"
+                  className="min-h-11 rounded-lg border bg-background px-2 py-1 text-xs sm:min-h-8"
+                  aria-label={`ประเภทเอกสาร ${doc.filename}`}
                   title="ประเภทเอกสาร"
                 >
                   {DOCUMENT_CATEGORY_VALUES.map((value) => (
@@ -421,18 +428,18 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                 <span className="hidden text-xs text-muted-foreground sm:inline">{doc.mimeType}</span>
                 <Link
                   href={`/cases/${id}/documents/${doc.id}/review`}
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent"
                 >
-                  <ClipboardCheck className="h-3.5 w-3.5" />
+                  <ClipboardCheck aria-hidden="true" className="h-3.5 w-3.5" />
                   ส่งตรวจ/ผลตรวจ
                 </Link>
                 {isOfficeEditable(doc.filename) && (
                   <button
                     type="button"
                     onClick={() => handleOpenInOffice(doc)}
-                    className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                    className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent"
                   >
-                    <PenLine className="h-3.5 w-3.5" />
+                    <PenLine aria-hidden="true" className="h-3.5 w-3.5" />
                     เปิดแก้ใน {officeAppName(doc.filename)} ออนไลน์
                   </button>
                 )}
@@ -441,11 +448,11 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                     type="button"
                     onClick={() => handlePullFromOffice(doc)}
                     disabled={officeBusyId === doc.id}
-                    className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium disabled:opacity-50 ${
-                      officeLinks[doc.id].hasNewerEdits ? 'border-amber-400 bg-amber-50 text-amber-800' : 'hover:bg-accent'
+                    className={`inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 disabled:opacity-50 ${
+                      officeLinks[doc.id].hasNewerEdits ? 'border-warning/50 bg-warning/10 text-warning' : 'hover:bg-accent'
                     }`}
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
+                    <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
                     {officeBusyId === doc.id ? 'กำลังดึง…' : 'ดึงเวอร์ชันล่าสุดกลับ'}
                   </button>
                 )}
@@ -453,23 +460,23 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                   type="button"
                   onClick={() => handleAnalyzeDocument(doc)}
                   disabled={analyzingId === doc.id}
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent disabled:opacity-50"
                 >
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
                   {analyzingId === doc.id ? d.caseDocuments.analyzing : d.caseDocuments.aiAnalyzer}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleExtractDatesFromDocument(doc)}
                   disabled={extractingId === doc.id}
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent disabled:opacity-50"
                 >
-                  <CalendarSearch className="h-3.5 w-3.5" />
+                  <CalendarSearch aria-hidden="true" className="h-3.5 w-3.5" />
                   {extractingId === doc.id ? d.caseDocuments.extracting : d.caseDocuments.extractDates}
                 </button>
                 {/* Everyone sees whether the client can see it; only content managers change it. */}
                 {!canManageContent && doc.visibleToClient && (
-                  <span className="inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                  <span className="inline-flex items-center rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
                     {d.caseDocuments.visibleToClient}
                   </span>
                 )}
@@ -478,9 +485,9 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                   type="button"
                   onClick={() => handleToggleVisibility(doc)}
                   title="แสดงให้ลูกความเห็น (เผยแพร่)"
-                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium ${
+                  className={`inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 ${
                     doc.visibleToClient
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      ? 'border-success/30 bg-success/10 text-success'
                       : 'hover:bg-accent'
                   }`}
                 >
@@ -493,7 +500,7 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                       type="button"
                       onClick={() => handleUnpublish(doc, activePub.id)}
                       disabled={publishingId === doc.id}
-                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-medium text-success disabled:opacity-50"
                     >
                       {publishingId === doc.id ? 'กำลังยกเลิก...' : 'เผยแพร่แล้ว — ยกเลิก'}
                     </button>
@@ -502,7 +509,7 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                       type="button"
                       onClick={() => setPublishTarget(doc)}
                       disabled={publishingId === doc.id}
-                      className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                      className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent disabled:opacity-50"
                     >
                       เผยแพร่ให้ลูกความ...
                     </button>
@@ -511,19 +518,10 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                 </>}
                 <button
                   type="button"
-                  onClick={() => handleView(doc)}
-                  disabled={viewingId === doc.id}
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                  {viewingId === doc.id ? d.caseDocuments.opening : d.caseDocuments.view}
-                </button>
-                <button
-                  type="button"
                   onClick={() => handleDownload(doc)}
-                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent"
                 >
-                  <Download className="h-3.5 w-3.5" />
+                  <Download aria-hidden="true" className="h-3.5 w-3.5" />
                   {d.caseDocuments.download}
                 </button>
               </div>
@@ -532,10 +530,10 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
           {documents.length === 0 && (
             <InlineEmptyState
               title={d.caseDocuments.noDocuments}
-              description="ลากไฟล์มาวางในช่องด้านบน หรือคลิกช่องอัปโหลดเพื่อเลือกไฟล์ แล้วจึงใช้ AI วิเคราะห์ได้"
             />
           )}
         </div>
+        )}
       </div>
 
       <CaseEvidenceSection caseId={id} refreshKey={analysisRevision} />

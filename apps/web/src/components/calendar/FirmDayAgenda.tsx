@@ -3,6 +3,8 @@
 import { eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
 import { CalendarEventItem, UserItem } from '@/lib/api';
 import { InlineEmptyState } from '@/components/ui/misc';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle } from 'lucide-react';
 
 const DAY = new Intl.DateTimeFormat('th-TH', {
   weekday: 'long',
@@ -82,11 +84,12 @@ export function FirmDayAgenda({
               <h3 className="font-semibold text-foreground">
                 {DAY.format(new Date(`${key}T00:00:00+07:00`))}
               </h3>
-              <span className="text-xs text-muted-foreground">{dayEvents.length} รายการ</span>
+              <span className="text-xs tabular-nums text-muted-foreground">{dayEvents.length} รายการ</span>
               {clashing.size > 0 && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                <Badge variant="warning" className="gap-1 py-0.5">
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                   {clashing.size} คนมีนัดซ้อน
-                </span>
+                </Badge>
               )}
             </div>
             <div className="overflow-hidden rounded-xl border">
@@ -125,17 +128,12 @@ export function FirmDayAgenda({
                         ? `${event.case.leadLawyer.firstName} ${event.case.leadLawyer.lastName} · เจ้าของคดี`
                         : 'ยังไม่ระบุผู้รับผิดชอบ';
                     return (
-                      <span
-                        className={`max-w-36 rounded-full px-2 py-0.5 text-xs ${
-                          anyClash
-                            ? 'bg-amber-100 font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                            : people.length === 0
-                              ? 'bg-red-100 font-medium text-red-800 dark:bg-red-950 dark:text-red-300'
-                              : 'bg-muted text-muted-foreground'
-                        }`}
+                      <Badge
+                        variant={anyClash ? 'warning' : people.length === 0 ? 'destructive' : 'muted'}
+                        className="max-w-36 shrink-0 py-0.5"
                       >
                         {names}
-                      </span>
+                      </Badge>
                     );
                   })()}
                 </button>

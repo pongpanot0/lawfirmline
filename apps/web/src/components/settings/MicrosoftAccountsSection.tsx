@@ -148,7 +148,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
   // Plain render function (not a component) so rows keep their DOM across parent re-renders.
   const renderRow = (c: MailboxConnectionItem, canManage: boolean) => (
     <div key={c.id} className="mt-2 rounded-lg border bg-muted/30 p-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{c.mailboxAddress}</p>
           {!c.isMine && (
@@ -161,19 +161,19 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
             {c.lastSyncedAt && ` · ซิงก์ล่าสุด ${formatDateTime(c.lastSyncedAt)}`}
           </p>
           {c.lastError && (
-            <p className={`mt-0.5 text-xs ${c.status === 'ACTIVE' ? 'text-amber-700 dark:text-amber-300' : 'text-destructive'}`}>
+            <p className={`mt-0.5 text-xs ${c.status === 'ACTIVE' ? 'text-warning' : 'text-destructive'}`}>
               {c.lastError}
             </p>
           )}
         </div>
         {canManage && c.status !== 'REVOKED' && (
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             {c.status === 'ACTIVE' && (
               <Button size="sm" variant="outline" disabled={busyId === c.id} onClick={() => handleSyncNow(c.id)}>
                 ซิงก์ตอนนี้
               </Button>
             )}
-            <Button size="sm" variant="outline" disabled={busyId === c.id} onClick={() => handleDisconnect(c.id)}>
+            <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busyId === c.id} onClick={() => handleDisconnect(c.id)}>
               ยกเลิกการเชื่อมต่อ
             </Button>
           </div>
@@ -181,18 +181,20 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
       </div>
       {canManage && c.status === 'ACTIVE' && (
         <div className="mt-2 space-y-1">
-          <label className="flex items-center gap-2 text-xs">
+          <label className="flex min-h-11 items-center gap-2 text-xs sm:min-h-8">
             <input
               type="checkbox"
+              className="h-4 w-4"
               checked={c.syncCalendar}
               disabled={busyId === c.id}
               onChange={(e) => toggle(c, { syncCalendar: e.target.checked })}
             />
             ซิงก์นัดในระบบไปปฏิทิน Outlook
           </label>
-          <label className="flex items-center gap-2 text-xs">
+          <label className="flex min-h-11 items-center gap-2 text-xs sm:min-h-8">
             <input
               type="checkbox"
+              className="h-4 w-4"
               checked={c.syncInboxToIntake}
               disabled={busyId === c.id}
               onChange={(e) => {
@@ -217,7 +219,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
   return (
     <section>
       <div className="flex items-center gap-3">
-        <Mail className="h-4 w-4 text-muted-foreground" />
+        <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         <div>
           <p className="text-sm font-medium">Microsoft 365 (Outlook, ปฏิทิน, OneDrive)</p>
           <p className="text-xs text-muted-foreground">
@@ -226,19 +228,19 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
         </div>
       </div>
       {hasFirmCapability(user?.firmRole, 'runOperations') && (
-        <Link href="/settings/microsoft-status" className="mt-2 inline-block text-xs text-primary underline">
+        <Link href="/settings/microsoft-status" className="mt-2 inline-flex min-h-11 items-center text-xs text-primary underline sm:min-h-0">
           ดูสถานะ Microsoft 365 ของทั้งสำนักงาน
         </Link>
       )}
 
       {notice && (
-        <p className={`mt-3 rounded-lg p-2 text-xs ${notice.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-destructive/10 text-destructive'}`}>
+        <p role={notice.type === 'success' ? 'status' : 'alert'} className={`mt-3 rounded-lg p-2 text-xs ${notice.type === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
           {notice.text}
         </p>
       )}
 
       {disconnectCheck && (
-        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+        <div className="mt-3 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-foreground">
           {disconnectCheck.summary.caseCount > 0 && (
             <p className="font-semibold">
               บัญชีนี้ผูก folder กับ {disconnectCheck.summary.caseCount} คดี — เมื่อตัดการเชื่อมต่อ รายการไฟล์และการซิงก์อีเมลของคดีเหล่านั้นจะหยุด
@@ -260,7 +262,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
                     type="button"
                     onClick={() => importFolderBeforeDisconnect(folder.caseId)}
                     disabled={importingCaseId === folder.caseId}
-                    className="rounded-lg border border-amber-400 bg-white px-2.5 py-1 text-xs font-medium disabled:opacity-50 dark:bg-transparent"
+                    className="min-h-11 rounded-lg border border-input bg-card px-2.5 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50 sm:min-h-8"
                   >
                     {importingCaseId === folder.caseId ? 'กำลังนำเข้า…' : 'นำเข้าไฟล์ทั้ง folder'}
                   </button>
@@ -268,24 +270,26 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
               ))}
             </ul>
           )}
-          <div className="mt-3 flex gap-2">
-            <button
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => setDisconnectCheck(null)}>
+              ยกเลิก
+            </Button>
+            <Button
               type="button"
+              size="sm"
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={() => disconnectNow(disconnectCheck.id)}
               disabled={busyId === disconnectCheck.id}
-              className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground disabled:opacity-50"
             >
-              ตัดการเชื่อมต่อเลย
-            </button>
-            <button type="button" onClick={() => setDisconnectCheck(null)} className="rounded-lg border px-3 py-1.5 text-xs">
-              ยกเลิก
-            </button>
+              ตัดการเชื่อมต่อ {connections.find((x) => x.id === disconnectCheck.id)?.mailboxAddress ?? ''}
+            </Button>
           </div>
         </div>
       )}
 
       <p className="mt-3 text-xs font-medium text-muted-foreground">บัญชีของฉัน</p>
-      {mine.length === 0 && <p className="text-xs text-muted-foreground">ยังไม่ได้เชื่อม</p>}
+      {mine.length === 0 && <p className="text-xs text-muted-foreground">ยังไม่ได้เชื่อมบัญชี</p>}
       {mine.map((c) => renderRow(c, true))}
 
       {others.length > 0 && (
@@ -295,7 +299,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
         </>
       )}
 
-      <Button size="sm" className="mt-3" onClick={handleConnect} disabled={connecting}>
+      <Button size="sm" variant={mine.some((c) => c.status === 'ACTIVE') ? 'outline' : 'default'} className="mt-3" onClick={handleConnect} disabled={connecting}>
         {connecting ? 'กำลังเปิด Microsoft...' : mine.some((c) => c.status === 'ACTIVE') ? 'เชื่อมบัญชีอื่นเพิ่ม' : 'เชื่อม Microsoft 365'}
       </Button>
       {children}

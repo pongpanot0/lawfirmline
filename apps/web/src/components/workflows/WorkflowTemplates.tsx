@@ -5,6 +5,7 @@ import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, type WorkflowTemplate } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState, Skeleton } from '@/components/ui/misc';
 import { TemplateDrawer } from './TemplateDrawer';
 import { ROLE_LABELS } from './workflow-ui';
 
@@ -50,7 +51,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
     <section aria-label="สายงานส่งต่อ" className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-semibold">สายงานส่งต่อ (Handoff flow)</h2>
-        {canEdit && !onEditorChange && <Button onClick={() => setEditor('new')}><Plus className="mr-1 h-4 w-4" />สร้าง Handoff flow</Button>}
+        {canEdit && !onEditorChange && <Button onClick={() => setEditor('new')}><Plus className="h-4 w-4" aria-hidden />สร้าง Handoff flow</Button>}
       </div>
       <p className="text-sm text-muted-foreground">ส่งงานทีละขั้น เมื่อขั้นก่อนเสร็จจึงส่งต่อให้ผู้รับขั้นถัดไป</p>
       {templates && <div className="grid min-w-0 gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
@@ -68,8 +69,12 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
         </label> : <p className="self-center break-words text-sm font-medium">{defaultTemplate?.name ?? 'ยังไม่มีแม่แบบเริ่มต้น'}</p>}
       </div>}
       {error && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">{error}<Button size="sm" variant="outline" onClick={load}>ลองใหม่</Button></div>}
-      {!templates && !error && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดสายงานส่งต่อ…</p>}
-      {visible && !visible.length && <p className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">{query ? 'ไม่พบสายงานส่งต่อที่ค้นหา' : 'ยังไม่มีแม่แบบ — สร้างครั้งเดียว ใช้ซ้ำกับทุกคดี'}</p>}
+      {!templates && !error && <div role="status" aria-label="กำลังโหลดสายงานส่งต่อ" className="space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-28 w-full rounded-lg" />)}</div>}
+      {visible && !visible.length && <EmptyState
+        title={query ? 'ไม่พบสายงานส่งต่อที่ค้นหา' : 'ยังไม่มีแม่แบบ'}
+        description={query ? undefined : 'แม่แบบที่สร้างครั้งเดียวใช้ซ้ำได้กับทุกคดี'}
+        action={!query && canEdit ? <Button variant="outline" onClick={() => setEditor('new')}><Plus className="h-4 w-4" aria-hidden />สร้าง Handoff flow</Button> : undefined}
+      />}
       {visible?.map((t) => (
         <article key={t.id} className="min-w-0 rounded-lg border bg-card p-4">
           <div className="flex flex-wrap items-start gap-2">
@@ -79,14 +84,14 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
               {t.description && <p className="text-sm text-muted-foreground">{t.description}</p>}
             </div>
             {canEdit && <>
-              <Button size="icon" variant="ghost" aria-label={`แก้ ${t.name}`} onClick={() => setEditor(t)}><Pencil className="h-4 w-4" /></Button>
-              <Button size="icon" variant="ghost" aria-label={`ลบ ${t.name}`} onClick={() => remove(t)}><Trash2 className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" aria-label={`แก้ ${t.name}`} onClick={() => setEditor(t)}><Pencil className="h-4 w-4" aria-hidden /></Button>
+              <Button size="icon" variant="ghost" aria-label={`ลบ ${t.name}`} className="text-destructive hover:text-destructive" onClick={() => remove(t)}><Trash2 className="h-4 w-4" aria-hidden /></Button>
             </>}
           </div>
           <details className="group mt-3 border-t pt-2">
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm [&::-webkit-details-marker]:hidden">
-              <span>{t.steps.length} ขั้น · รวม {t.steps.reduce((days, s) => days + s.durationDays, 0)} วันทำการ</span>
-              <span className="flex shrink-0 items-center gap-1 text-xs text-primary">ดูขั้นตอน<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /></span>
+              <span className="tabular-nums">{t.steps.length} ขั้น · รวม {t.steps.reduce((days, s) => days + s.durationDays, 0)} วันทำการ</span>
+              <span className="flex shrink-0 items-center gap-1 text-xs text-primary">ดูขั้นตอน<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden /></span>
             </summary>
             <ol className="mt-2 space-y-3 border-l border-primary/20 pl-3">
               {t.steps.map((s, i) => <li key={i} className="min-w-0 break-words text-sm">

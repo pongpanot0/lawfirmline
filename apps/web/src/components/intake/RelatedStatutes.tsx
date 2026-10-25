@@ -1,5 +1,6 @@
 'use client';
 
+import { Scale } from 'lucide-react';
 import type { IntakePrecedentItem } from '@/lib/api';
 
 /**
@@ -22,7 +23,10 @@ export function RelatedStatutes({ precedents }: { precedents: IntakePrecedentIte
 
   return (
     <div className="mt-3">
-      <p className="text-sm font-medium">⚖️ ข้อกฎหมายที่แนวฎีกาอ้างถึง</p>
+      <p className="flex items-center gap-1.5 text-sm font-medium">
+        <Scale className="h-4 w-4 text-muted-foreground" aria-hidden />
+        ข้อกฎหมายที่แนวฎีกาอ้างถึง
+      </p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {sorted.map(([statute, count]) => (
           <span
@@ -31,11 +35,11 @@ export function RelatedStatutes({ precedents }: { precedents: IntakePrecedentIte
             title={`มีฎีกา ${count} ฉบับในผลค้นหาที่อ้างมาตรานี้`}
           >
             {statute}
-            {count > 1 && <span className="ml-1 text-muted-foreground">×{count}</span>}
+            {count > 1 && <span className="ml-1 tabular-nums text-muted-foreground">({count} ฎีกา)</span>}
           </span>
         ))}
       </div>
-      <p className="mt-1.5 text-[11px] text-muted-foreground">
+      <p className="mt-1.5 text-xs text-muted-foreground">
         สรุปจากมาตราที่ฎีกาในผลค้นหาอ้างถึง — โปรดตรวจตัวบทจริงก่อนใช้อ้างอิง
       </p>
     </div>

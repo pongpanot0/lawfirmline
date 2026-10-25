@@ -9,6 +9,9 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, CaseListItem } from '@/lib/api';
 import { CaseWorkflowBoard } from '@/components/CaseWorkflowBoard';
 import { PageLoading } from '@/components/ui/misc';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { buttonVariants } from '@/components/ui/button';
+import { List, Plus } from 'lucide-react';
 
 export default function CaseBoardPage() {
   const d = useDashboardT();
@@ -41,24 +44,24 @@ export default function CaseBoardPage() {
 
   return (
     <div>
-      <div className="samnuan-page-header mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl text-foreground sm:text-3xl">{d.admin.boardTitle}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">แยกคดีตามสถานะปัจจุบัน เลือกคดีเพื่อทำงานต่อ</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/cases" className="inline-flex min-h-11 items-center rounded-lg border border-input bg-card px-4 py-2 text-sm hover:bg-accent">
-            {d.admin.listView}
-          </Link>
-          {canEdit && (
-            <Link href="/cases/new" className="inline-flex min-h-11 items-center rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
-              + {d.admin.newCase}
+      <PageHeader
+        title={d.admin.boardTitle}
+        description="คดีแยกตามสถานะปัจจุบัน"
+        actions={
+          <>
+            <Link href="/cases" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              <List aria-hidden="true" className="h-4 w-4" />{d.admin.listView}
             </Link>
-          )}
-        </div>
-      </div>
+            {canEdit && (
+              <Link href="/cases/new" className={buttonVariants({ size: 'sm' })}>
+                <Plus aria-hidden="true" className="h-4 w-4" />{d.admin.newCase}
+              </Link>
+            )}
+          </>
+        }
+      />
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
       {loadError ? (
         <LoadFailed onRetry={load} />

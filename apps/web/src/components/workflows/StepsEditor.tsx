@@ -55,7 +55,7 @@ export function StepsEditor({ steps, onChange }: { steps: WorkflowStepDef[]; onC
             </label>
           </div>
           <details className="mt-2 rounded-md border p-2">
-          <summary className="min-h-9 cursor-pointer text-xs text-muted-foreground" aria-label={`รายละเอียดขั้นที่ ${i + 1}`}>วิธีทำและสิ่งที่ต้องส่งต่อ{step.instructions?.trim() && ' · มีข้อมูลแล้ว'}</summary>
+          <summary className="flex min-h-11 cursor-pointer items-center text-xs text-muted-foreground" aria-label={`รายละเอียดขั้นที่ ${i + 1}`}>วิธีทำและสิ่งที่ต้องส่งต่อ{step.instructions?.trim() && ' · มีข้อมูลแล้ว'}</summary>
           <textarea
             aria-label={`วิธีทำขั้นที่ ${i + 1}`}
             className="mt-2 min-h-[56px] w-full rounded-md border border-input bg-card px-3 py-2 text-sm"

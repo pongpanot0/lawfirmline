@@ -101,13 +101,13 @@ export function DriveFolderMatchingTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => setPickerOpen(true)} className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent">
+        <button type="button" onClick={() => setPickerOpen(true)} className="min-h-11 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {parent ? 'เปลี่ยน folder หลัก' : 'เลือก folder หลักที่เก็บ folder คดี'}
         </button>
         {parent && <span className="text-sm text-muted-foreground">{parent.name}</span>}
       </div>
       {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
-      {loading && <p className="text-sm text-muted-foreground">กำลังจับคู่…</p>}
+      {loading && <div role="status" aria-label="กำลังจับคู่" className="h-40 animate-pulse rounded-xl bg-muted" />}
       {!loading && parent && (
         <FolderMatchTable rows={rows} cases={cases} saving={saving} onConfirm={confirm} onUnlink={unlink} />
       )}

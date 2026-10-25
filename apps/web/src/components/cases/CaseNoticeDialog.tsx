@@ -198,7 +198,7 @@ export function PreLitigationUpdateDialog({
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button onClick={submit} disabled={busy}>{busy ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
+          <Button onClick={submit} disabled={busy}>{busy ? 'กำลังบันทึก...' : 'บันทึกสถานะเจรจา'}</Button>
         </div>
       </div>
     </div>

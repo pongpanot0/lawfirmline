@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { usePortalAuth } from '@/lib/portal-auth';
 import {
   portalApi,
@@ -82,6 +84,7 @@ export default function PortalSettingsPage() {
 
   const handleDisconnect = async () => {
     if (!token) return;
+    if (!window.confirm('ยกเลิกการเชื่อมต่อบัญชี LINE กับพอร์ทัลนี้? คุณจะไม่ได้รับแจ้งเตือนทาง LINE จนกว่าจะเชื่อมต่อใหม่')) return;
     setDisconnecting(true);
     setActionError(null);
     try {
@@ -116,50 +119,48 @@ export default function PortalSettingsPage() {
 
   return (
     <PortalShell>
-      <h1 className="mb-1 text-2xl font-extrabold tracking-tight">ตั้งค่าการแจ้งเตือน</h1>
-      <p className="mb-6 text-[13.5px] text-muted-foreground">จัดการช่องทางที่ใช้รับการแจ้งเตือนความคืบหน้าคดี</p>
+      <PageHeader title="ตั้งค่าการแจ้งเตือน" description="ช่องทางที่ใช้รับแจ้งเตือนนัดศาล เอกสารใหม่ และข้อความจากทนายความ" />
 
       <div className="flex max-w-2xl flex-col gap-5">
-        <Card className="p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[15.5px] font-bold">เชื่อมต่อ LINE</h2>
+        <Card className="p-4 sm:p-5">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold">เชื่อมต่อ LINE</h2>
             {lineStatus?.connected && <Badge variant="success">เชื่อมต่อแล้ว</Badge>}
           </div>
-          <p className="mb-4 text-[12.5px] text-muted-foreground">
-            บัญชี LINE Official ของสำนักงานจะส่งแจ้งเตือนนัดศาล เอกสารใหม่ และข้อความจากทนายความ
+          <p className="mb-4 text-sm text-muted-foreground">
+            รับแจ้งเตือนผ่านบัญชี LINE Official ของสำนักงาน
           </p>
 
           {loadingData ? (
-            <p className="text-sm text-muted-foreground">กำลังโหลด...</p>
+            <Skeleton className="h-11 w-48" />
           ) : loadError ? (
-            <p className="text-sm text-destructive">{loadError}</p>
+            <LoadFailed message={loadError} onRetry={loadData} />
           ) : !lineStatus ? (
             <p className="text-sm text-muted-foreground">ไม่มีข้อมูล</p>
           ) : lineStatus.connected ? (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-accent/50 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success/15 text-success">
-                  <MessageSquare className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[13px] font-bold">
-                    {lineStatus.connectedAt ? `เชื่อมต่อเมื่อ ${formatDateTime(lineStatus.connectedAt)}` : 'เชื่อมต่อแล้ว'}
-                  </p>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={disconnecting}>
-                {disconnecting ? 'กำลังยกเลิกการเชื่อมต่อ...' : 'ยกเลิกการเชื่อมต่อ'}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
+              <p className="text-sm font-medium">
+                {lineStatus.connectedAt ? `เชื่อมต่อเมื่อ ${formatDateTime(lineStatus.connectedAt)}` : 'เชื่อมต่อแล้ว'}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={handleDisconnect}
+                disabled={disconnecting}
+              >
+                {disconnecting ? 'กำลังยกเลิกการเชื่อมต่อ...' : 'ยกเลิกการเชื่อมต่อ LINE'}
               </Button>
             </div>
           ) : lineStatus.pendingLinkCode ? (
-            <div className="rounded-lg border border-dashed border-border bg-accent/50 p-4">
-              <p className="mb-2 text-[12.5px] text-muted-foreground">
-                ส่งรหัสนี้ในแชท LINE Official ของสำนักงานเพื่อเชื่อมต่อบัญชีของท่าน
+            <div className="rounded-lg border border-border p-4">
+              <p className="mb-2 text-sm text-muted-foreground">
+                ส่งรหัสนี้ในแชท LINE Official ของสำนักงานเพื่อเชื่อมต่อบัญชีของคุณ
               </p>
-              <p className="mb-2 text-[26px] font-extrabold tracking-widest">{lineStatus.pendingLinkCode}</p>
+              <p className="mb-2 text-2xl font-semibold tabular-nums tracking-widest">{lineStatus.pendingLinkCode}</p>
               {lineStatus.pendingLinkExpiresAt && (
-                <p className="mb-3.5 text-[12px] text-muted-foreground">
-                  รหัสหมดอายุ: {formatDateTime(lineStatus.pendingLinkExpiresAt)}
+                <p className="mb-3 text-sm text-muted-foreground">
+                  รหัสหมดอายุ {formatDateTime(lineStatus.pendingLinkExpiresAt)}
                 </p>
               )}
               <Button variant="outline" size="sm" onClick={handleCreateLinkCode} disabled={creatingCode}>
@@ -173,32 +174,33 @@ export default function PortalSettingsPage() {
           )}
         </Card>
 
-        <Card className="p-5">
-          <h2 className="mb-3 text-[15.5px] font-bold">ช่องทางการแจ้งเตือน</h2>
+        <Card className="p-4 sm:p-5">
+          <h2 className="mb-2 text-base font-semibold">ช่องทางการแจ้งเตือน</h2>
 
-          <div className="flex items-center justify-between border-b border-border py-3">
-            <div>
-              <p className="text-[13.5px] font-semibold">แจ้งเตือนทางอีเมล</p>
-              <p className="text-[12px] text-muted-foreground">ส่งไปที่ {contact.email}</p>
+          <div className="flex min-h-11 items-center justify-between gap-4 border-b border-border py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">แจ้งเตือนทางอีเมล</p>
+              <p className="break-words text-sm text-muted-foreground">ส่งไปที่ {contact.email} (เปิดไว้เสมอ)</p>
             </div>
-            <Checkbox checked readOnly />
+            <Checkbox checked readOnly disabled aria-label="แจ้งเตือนทางอีเมล เปิดไว้เสมอ" className="h-5 w-5" />
           </div>
 
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <p className="text-[13.5px] font-semibold">แจ้งเตือนทาง LINE</p>
-              <p className="text-[12px] text-muted-foreground">ต้องเชื่อมต่อบัญชี LINE ก่อนจึงจะเปิดใช้งานได้</p>
-            </div>
+          <label htmlFor="portal-line-notify" className="flex min-h-11 cursor-pointer items-center justify-between gap-4 py-3">
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">แจ้งเตือนทาง LINE</span>
+              <span className="block text-sm text-muted-foreground">ต้องเชื่อมต่อบัญชี LINE ก่อน</span>
+            </span>
             <Checkbox
+              id="portal-line-notify"
               checked={lineNotificationsEnabled}
               onChange={handleToggleNotifications}
               disabled={updatingPreference}
-              aria-label="เปิดใช้งานการแจ้งเตือนผ่าน LINE"
+              className="h-5 w-5"
             />
-          </div>
+          </label>
         </Card>
 
-        {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+        {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
       </div>
     </PortalShell>
   );

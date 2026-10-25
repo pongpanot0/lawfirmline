@@ -33,7 +33,7 @@ export function AnnualReportView({
         <p className="text-sm">ปี {report.year + 543} · 1 มกราคม – 31 ธันวาคม</p>
       </header>
 
-      <section aria-label="สรุปรายปี" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section aria-label="สรุปรายปี" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-5">
         {[
           ['คดีในรายงาน', report.totals.cases],
           ['เปิดใหม่ในปี', report.totals.opened],
@@ -41,14 +41,14 @@ export function AnnualReportView({
           ['ปิดแล้วสิ้นปี', report.totals.closedAtYearEnd],
           ['ดำเนินอยู่สิ้นปี', report.totals.ongoing],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-lg border p-3">
+          <div key={label} className="bg-card p-3">
             <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="text-xl font-bold">{value}</p>
+            <p className="text-xl font-bold tabular-nums">{value}</p>
           </div>
         ))}
       </section>
 
-      <section aria-label="ยอดเงิน" className="grid gap-3 sm:grid-cols-3">
+      <section aria-label="ยอดเงิน" className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3">
         <Amount label="ยอดเรียกร้องของคดีในรายงาน" value={report.totals.claimedAmount} />
         <Amount label="ยอดใบแจ้งหนี้ที่ออกในปี" value={report.totals.invoicedAmount} />
         <Amount label="ยอดรับชำระในปี" value={report.totals.receivedAmount} />
@@ -65,7 +65,7 @@ export function AnnualReportView({
             <div className="flex flex-wrap justify-between gap-2">
               <h3 className="font-semibold">{index + 1}. {item.title}</h3>
               {portal && item.canOpenCase && (
-                <Link href={`/portal/cases/${item.id}`} className="text-sm text-primary print:hidden">
+                <Link href={`/portal/cases/${item.id}`} className="inline-flex min-h-11 items-center text-sm text-primary hover:underline print:hidden sm:min-h-0">
                   เปิดหน้าคดี
                 </Link>
               )}
@@ -101,7 +101,7 @@ export function AnnualReportView({
 
 function Amount({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border p-3">
+    <div className="bg-card p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-lg font-semibold tabular-nums">{number(value)}</p>
     </div>

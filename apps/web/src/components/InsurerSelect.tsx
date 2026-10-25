@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ClientItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { Plus } from 'lucide-react';
 
 /**
  * บริษัทประกัน = ลูกค้า (Client) ประเภท 'insurer' — เลือกจากรายชื่อที่มี หรือ
@@ -78,7 +79,7 @@ export function InsurerSelect({
         autoComplete="off"
         role="combobox"
         aria-expanded={open}
-        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+        className="mt-1 min-h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         placeholder="พิมพ์เพื่อค้นหา หรือสร้างใหม่ เช่น วิริยะประกันภัย"
       />
       {open && (matches.length > 0 || (query && !exactMatch)) && (
@@ -87,7 +88,7 @@ export function InsurerSelect({
             <li key={c.id}>
               <button
                 type="button"
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                className="min-h-11 w-full px-3 py-2 text-left text-sm hover:bg-muted sm:min-h-9"
                 onClick={() => {
                   onChange(c.name);
                   setOpen(false);
@@ -102,16 +103,17 @@ export function InsurerSelect({
               <button
                 type="button"
                 disabled={creating}
-                className="w-full px-3 py-2 text-left text-sm font-medium text-primary hover:bg-muted"
+                className="flex min-h-11 w-full items-center gap-1.5 px-3 py-2 text-left text-sm font-medium text-primary hover:bg-muted sm:min-h-9"
                 onClick={() => void createInsurer()}
               >
-                {creating ? 'กำลังสร้าง...' : `+ สร้าง "${value.trim()}" เป็นบริษัทประกันใหม่`}
+                {!creating && <Plus aria-hidden="true" className="h-4 w-4 shrink-0" />}
+                {creating ? 'กำลังสร้าง...' : `สร้าง "${value.trim()}" เป็นบริษัทประกันใหม่`}
               </button>
             </li>
           )}
         </ul>
       )}
-      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-destructive">{error}</p>}
     </div>
   );
 }

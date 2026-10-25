@@ -159,7 +159,7 @@ export function TemplateGenerateDrawer({
                 <button
                   type="button"
                   onClick={() => setShowPreview((v) => !v)}
-                  className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent"
+                  className="min-h-11 rounded-lg border px-3 py-1.5 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   ดูตัวอย่าง
                 </button>
@@ -167,7 +167,7 @@ export function TemplateGenerateDrawer({
                   type="button"
                   onClick={handleGenerate}
                   disabled={generating}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+                  className="min-h-11 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
                   {generating ? 'กำลังสร้าง...' : 'สร้าง .docx'}
                 </button>

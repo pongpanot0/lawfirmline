@@ -6,6 +6,7 @@ import { api, ClientItem } from '@/lib/api';
 import { AnnualReportListItem, AnnualReportSnapshot, reportAudienceLabel } from '@/lib/annual-report';
 import { AnnualReportView } from './AnnualReportView';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/misc';
 
 type Audience = AnnualReportSnapshot['audience'];
@@ -110,7 +111,8 @@ export function ClientAnnualReportsPanel({
   };
 
   const revoke = async (id: string) => {
-    if (!window.confirm('ถอนรายงานฉบับนี้จากพอร์ทัล? ผู้รับจะเปิดรายงานไม่ได้ทันที')) return;
+    const target = reports.find((r) => r.id === id);
+    if (!window.confirm(`ถอนรายงานปี ${target ? target.year + 543 : ''} ของ ${client.name} จากพอร์ทัล? ผู้รับจะเปิดรายงานไม่ได้ทันที`)) return;
     setBusy(true);
     setError('');
     try {
@@ -141,27 +143,23 @@ export function ClientAnnualReportsPanel({
 
   return (
     <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-2xl bg-sidebar p-6 text-white sm:p-8">
-        <div className="absolute inset-y-0 right-0 w-1 bg-brand-700" aria-hidden />
-        <p className="text-xs font-semibold tracking-wide text-primary">แฟ้มรายงานลูกค้า / ANNUAL CASE REPORT</p>
-        <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold">{client.name}</h2>
-            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-              เลือกคดี ตรวจตัวเลขและรายละเอียด แล้วระบุผู้ติดต่อที่เปิดรายงานฉบับนี้ได้
-            </p>
-          </div>
-          <p className="text-4xl font-semibold tabular-nums text-primary">{year + 543}</p>
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-4">
+        <div>
+          <h2 className="text-xl font-bold">รายงานประจำปี {client.name}</h2>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            คดีที่เลือก ตัวเลขที่ตรวจแล้ว และผู้ติดต่อที่เปิดรายงานได้
+          </p>
         </div>
+        <p className="text-2xl font-semibold tabular-nums">{year + 543}</p>
       </header>
 
-      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-      {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
+      {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+      {notice && <p role="status" className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">{notice}</p>}
       {contacts.length === 0 && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
           ยังไม่มีผู้ติดต่อที่เปิดสิทธิ์พอร์ทัล
           {onOpenContacts && (
-            <button type="button" onClick={onOpenContacts} className="ml-2 font-semibold underline">
+            <button type="button" onClick={onOpenContacts} className="ml-2 inline-flex min-h-11 items-center font-semibold underline sm:min-h-0">
               จัดการผู้ติดต่อก่อนทำรายงาน
             </button>
           )}
@@ -198,7 +196,7 @@ export function ClientAnnualReportsPanel({
               <option value="REPRESENTED">ลูกความ</option>
             </select>
           </label>
-          <Button type="button" onClick={() => void loadCases()} disabled={busy || year < 2000 || year > 2100}>
+          <Button type="button" variant="outline" onClick={() => void loadCases()} disabled={busy || year < 2000 || year > 2100}>
             {busy && !loaded ? 'กำลังค้นหา...' : 'ค้นหาคดี'}
           </Button>
         </div>
@@ -210,8 +208,8 @@ export function ClientAnnualReportsPanel({
           <div className="mt-6 border-t pt-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h4 className="font-semibold">คดีที่เกี่ยวข้อง {availableCases.length} เรื่อง</h4>
-                <p className="text-sm text-muted-foreground">เลือกไว้ {caseIds.length} เรื่อง ตรวจรายการก่อนนำเข้ารายงาน</p>
+                <h4 className="font-semibold tabular-nums">คดีที่เกี่ยวข้อง {availableCases.length} เรื่อง</h4>
+                <p className="text-sm tabular-nums text-muted-foreground">เลือกไว้ {caseIds.length} เรื่อง</p>
               </div>
               {availableCases.length > 0 && (
                 <div className="flex gap-2">
@@ -257,7 +255,7 @@ export function ClientAnnualReportsPanel({
                               setCaseIds((ids) => e.target.checked ? [...ids, item.id] : ids.filter((id) => id !== item.id));
                               setPreview(null);
                             }}
-                            className="mt-1 size-4 shrink-0 accent-blue-600"
+                            className="mt-1 size-4 shrink-0 accent-primary"
                           />
                           <span className="min-w-0">
                             <span className="block font-medium">{item.title}</span>
@@ -265,11 +263,11 @@ export function ClientAnnualReportsPanel({
                               {item.ownRef} · {item.clientName || 'ไม่ระบุชื่อลูกความ'}
                             </span>
                             {gaps.length > 0 && (
-                              <span className="mt-1 block text-xs text-amber-700">ควรตรวจ: {gaps.join(', ')}</span>
+                              <span className="mt-1 block text-xs text-warning">ควรตรวจ: {gaps.join(', ')}</span>
                             )}
                           </span>
                         </label>
-                        <Link href={'/cases/' + item.id} className="shrink-0 text-sm font-medium text-primary hover:underline">
+                        <Link href={'/cases/' + item.id} className="inline-flex min-h-11 shrink-0 items-center text-sm font-medium text-primary hover:underline sm:min-h-0">
                           เปิดคดี
                         </Link>
                       </div>
@@ -299,16 +297,16 @@ export function ClientAnnualReportsPanel({
         {preview && (
           <div className="mt-5 space-y-4">
             {missingClose.length > 0 && (
-              <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 มีคดีปิดแล้ว {missingClose.length} เรื่องที่ยังไม่มีรายละเอียดปิดคดี กรุณาเปิดคดีเติมข้อมูลก่อนเผยแพร่
               </p>
             )}
             {!!preview.snapshot.totals.unassignedInvoiceCount && (
-              <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p role="alert" className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
                 ใบแจ้งหนี้ {preview.snapshot.totals.unassignedInvoiceCount} รายการยังไม่ระบุผู้รับ ต้องตรวจในคดีก่อนเผยแพร่
               </p>
             )}
-            <div className="rounded-lg border bg-card p-4 shadow-sm sm:p-6">
+            <div className="rounded-lg border bg-card p-4 sm:p-6">
               <AnnualReportView report={preview.snapshot} />
             </div>
           </div>
@@ -327,7 +325,7 @@ export function ClientAnnualReportsPanel({
           <div className="mt-5 rounded-lg bg-muted p-4 text-sm">
             ยังไม่มีผู้ติดต่อที่เปิดสิทธิ์พอร์ทัล
             {onOpenContacts && (
-              <button type="button" onClick={onOpenContacts} className="ml-2 font-medium text-primary hover:underline">
+              <button type="button" onClick={onOpenContacts} className="ml-2 inline-flex min-h-11 items-center font-medium text-primary hover:underline sm:min-h-0">
                 ไปจัดการผู้ติดต่อ
               </button>
             )}
@@ -341,7 +339,7 @@ export function ClientAnnualReportsPanel({
                   type="checkbox" checked={contactIds.includes(item.id!)}
                   disabled={busy}
                   onChange={(e) => setContactIds((ids) => e.target.checked ? [...ids, item.id!] : ids.filter((id) => id !== item.id))}
-                  className="size-4 accent-blue-600"
+                  className="size-4 accent-primary"
                 />
                 <span className="min-w-0">
                   <span className="block font-medium">{item.name}</span>
@@ -351,7 +349,7 @@ export function ClientAnnualReportsPanel({
             ))}
           </fieldset>
         )}
-        {!yearCompleted && <p className="mt-4 text-sm text-amber-700">เผยแพร่รายงานประจำปีได้หลังสิ้นปีที่เลือก</p>}
+        {!yearCompleted && <p className="mt-4 text-sm text-warning">เผยแพร่รายงานประจำปีได้หลังสิ้นปีที่เลือก</p>}
         <div className="mt-5 flex flex-wrap items-center gap-3 border-t pt-5">
           <Button type="button" disabled={!canPublish} onClick={() => setConfirmOpen(true)}>
             ยืนยันผู้รับและเผยแพร่
@@ -374,18 +372,18 @@ export function ClientAnnualReportsPanel({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span>
                     <strong>ปี {item.year + 543}</strong> · {reportAudienceLabel(item.audience)}
-                    {' · '}{item.revokedAt ? 'ถอนแล้ว' : 'เผยแพร่แล้ว'}
+                    {' '}<Badge variant={item.revokedAt ? 'muted' : 'success'}>{item.revokedAt ? 'ถอนแล้ว' : 'เผยแพร่แล้ว'}</Badge>
                     {' · '}ผู้รับ {item.recipientContactIds?.length ?? 0} คน
                   </span>
                   {!item.revokedAt && (
-                    <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void revoke(item.id)}>
+                    <Button type="button" variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busy} onClick={() => void revoke(item.id)}>
                       ถอนจากพอร์ทัล
                     </Button>
                   )}
                 </div>
                 {item.snapshot && (
                   <details className="mt-2">
-                    <summary className="cursor-pointer text-primary">ดูฉบับที่เผยแพร่</summary>
+                    <summary className="flex min-h-11 cursor-pointer items-center text-primary">ดูฉบับที่เผยแพร่</summary>
                     <div className="mt-3 rounded-lg border bg-card p-4">
                       <AnnualReportView report={item.snapshot} />
                     </div>
@@ -406,7 +404,7 @@ export function ClientAnnualReportsPanel({
         <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
           {selectedContacts.map((item) => <li key={item.id}>{item.name}</li>)}
         </ul>
-        <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+        <p className="mt-4 rounded-lg bg-warning/10 p-3 text-xs text-foreground">
           หากมีฉบับเดิมของปีและบทบาทเดียวกัน ระบบจะถอนฉบับเดิมเมื่อเผยแพร่ฉบับนี้
         </p>
         <div className="mt-6 flex justify-end gap-2">

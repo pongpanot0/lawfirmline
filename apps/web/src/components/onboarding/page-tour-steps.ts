@@ -67,7 +67,7 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
   ],
   '/invoices': [
     { selector: 'main h1', title: 'ใบแจ้งหนี้', body: '20 ใบล่าสุดจากคดี เรื่องรับเข้า และใบที่ออกก่อนรับงาน ตามสิทธิ์ที่คุณดูได้', placement: 'right' },
-    { selector: 'placeholder:บริษัทผู้จ่าย', title: 'ค้นหาใบแจ้งหนี้', body: 'ค้นหาจากบริษัทผู้จ่าย เลขบิล หรือเลขคดีได้', placement: 'bottom' },
+    { selector: 'placeholder:ค้นหาเลขที่ใบแจ้งหนี้', title: 'ค้นหาใบแจ้งหนี้', body: 'ค้นหาจากเลขที่ใบแจ้งหนี้ ผู้ว่าจ้าง หรือเลขคดีได้', placement: 'bottom' },
   ],
 
   '/reports': [
@@ -96,7 +96,7 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'main h1', title: 'ภาระงานทีม', body: 'ดูภาระงานของทุกคนในทีม แล้วมอบหมายงานเพิ่มให้สมดุลได้จากหน้านี้', placement: 'right' },
   ],
   '/settings': [
-    { selector: '[data-tour="settings-link"]', title: 'ตั้งค่าและ LINE', body: 'แก้ไขโปรไฟล์ สลับธีม และเชื่อมต่อ LINE ส่วนตัวเพื่อรับแจ้งเตือนนัดหมายได้ที่นี่', placement: 'left' },
+    { selector: '[data-tour="settings-link"]', title: 'ตั้งค่าและ LINE', body: 'แก้ไขโปรไฟล์ ตั้งการแจ้งเตือน และเชื่อมต่อ LINE ส่วนตัวเพื่อรับแจ้งเตือนนัดหมายได้ที่นี่', placement: 'left' },
   ],
 
   '/intake': [

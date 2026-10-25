@@ -8,6 +8,9 @@ import { api, DocumentItem, KnowledgeItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { InlineEmptyState } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 type AskResult = Awaited<ReturnType<typeof api.askCase>>;
 type Section = 'research' | 'ask' | 'facts';
@@ -98,7 +101,7 @@ function AskSection({ caseId }: { caseId: string }) {
         <CardContent className="space-y-3">
           <div className="rounded-md bg-muted/40 p-3">
             <p className="text-xs font-medium text-muted-foreground">
-              ถามจากเอกสาร ({selectedDocs.size}/{readable.length} ไฟล์) — ติ๊กเลือกไฟล์ที่ต้องการ
+              ถามจากเอกสาร <span className="tabular-nums">{selectedDocs.size}/{readable.length}</span> ไฟล์
             </p>
             {readable.length ? (
               <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -143,8 +146,9 @@ function AskSection({ caseId }: { caseId: string }) {
               type="text"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
+              aria-label="คำถามถึงเอกสารคดี"
               placeholder="เช่น ผลตรวจครั้งแรกพบอะไร และอยู่ในเอกสารหน้าไหน?"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               maxLength={2000}
             />
             <Button type="submit" disabled={loading || question.trim().length < 3 || selectedDocs.size === 0}>
@@ -161,7 +165,7 @@ function AskSection({ caseId }: { caseId: string }) {
                   setQuestion(q);
                   void ask(q);
                 }}
-                className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="min-h-11 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground sm:min-h-8"
               >
                 {q}
               </button>
@@ -173,7 +177,7 @@ function AskSection({ caseId }: { caseId: string }) {
         </CardContent>
       </Card>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       {result && (
         <Card>
@@ -252,8 +256,9 @@ function FactsReviewSection({
     <li key={item.id} className="rounded-md border border-border p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">
-            {verified ? '✓ ตรวจแล้ว' : '🤖 รอทนายตรวจ'} · {item.title}
+          <p className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Badge variant={verified ? 'success' : 'warning'}>{verified ? 'ตรวจแล้ว' : 'รอทนายตรวจ'}</Badge>
+            {item.title}
           </p>
           <p className="mt-1 whitespace-pre-wrap text-sm">{isUnusableAnalysis(item.summary) ? 'อ่านเอกสารไม่สำเร็จ — ผลเดิมไม่ใช่สรุปที่พร้อมใช้งาน กรุณาวิเคราะห์เอกสารใหม่' : item.summary}</p>
           {item.citations && item.citations.length > 0 && (
@@ -283,25 +288,16 @@ function FactsReviewSection({
 
   if (!knowledge.length) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-sm font-medium">ยังไม่มีข้อเท็จจริงให้ตรวจ</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            ขั้นตอน: กดปุ่ม <span className="font-medium text-foreground">"วิเคราะห์ด้วย AI"</span> มุมขวาบน
-            แล้วเลือกเอกสารของคดี → AI จะสรุปข้อเท็จจริงพร้อมอ้างอิงหน้าเอกสารมาไว้ที่นี่
-            → ทนายอ่านเทียบกับต้นฉบับแล้วกดยืนยันทีละรายการ
-          </p>
-        </CardContent>
-      </Card>
+      <InlineEmptyState
+        title="ยังไม่มีข้อเท็จจริงให้ตรวจ"
+        description="ข้อเท็จจริงที่ AI สรุปจากเอกสารของคดีจะมารอทนายตรวจที่นี่"
+      />
     );
   }
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <p className="text-xs text-muted-foreground">
-        AI สรุปข้อเท็จจริงจากเอกสารพร้อมอ้างอิง — อ่านเทียบกับต้นฉบับ แล้วกด "ยืนยันถูกต้อง" เพื่อบันทึกว่าทนายตรวจแล้ว
-      </p>
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">รอตรวจ ({pending.length})</CardTitle>
@@ -332,13 +328,16 @@ export default function CaseAskAiPanel({ caseId }: { caseId: string }) {
   const { token } = useAuth();
   const [section, setSection] = useState<Section>('research');
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
+  const [knowledgeError, setKnowledgeError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [researchDocs, setResearchDocs] = useState<DocumentItem[]>([]);
   useEffect(() => { if (token) api.getDocuments(token, caseId).then(setResearchDocs).catch(console.error); }, [token, caseId, reloadKey]);
 
   useEffect(() => {
     if (!token) return;
-    api.getCaseKnowledge(token, caseId).then(setKnowledge).catch(console.error);
+    api.getCaseKnowledge(token, caseId)
+      .then((items) => { setKnowledge(items); setKnowledgeError(false); })
+      .catch((err) => { console.error(err); setKnowledgeError(true); });
   }, [token, caseId, reloadKey]);
 
   const pendingCount = knowledge.filter((k) => !k.reviewedAt && !isUnusableAnalysis(k.summary)).length;
@@ -354,13 +353,13 @@ export default function CaseAskAiPanel({ caseId }: { caseId: string }) {
             onClick={() => setSection(s)}
             className={
               section === s
-                ? 'rounded px-3 py-1.5 text-sm font-semibold bg-primary text-primary-foreground'
-                : 'rounded px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground'
+                ? 'min-h-11 rounded px-3 py-1.5 text-sm font-semibold bg-primary text-primary-foreground sm:min-h-9'
+                : 'min-h-11 rounded px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground sm:min-h-9'
             }
           >
             {SECTION_LABELS[s]}
             {s === 'facts' && pendingCount > 0 && (
-              <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-xs text-amber-700 dark:text-amber-400">
+              <span className="ml-1.5 rounded-full bg-warning/15 px-1.5 text-xs tabular-nums text-warning">
                 {pendingCount}
               </span>
             )}
@@ -370,7 +369,8 @@ export default function CaseAskAiPanel({ caseId }: { caseId: string }) {
 
       <div hidden={section !== 'research'}><ResearchWorkspace caseId={caseId} documents={researchDocs} onUploaded={() => setReloadKey((n) => n + 1)} /></div>
       {section === 'ask' && <AskSection caseId={caseId} />}
-      {section === 'facts' && (
+      {section === 'facts' && knowledgeError && <LoadFailed onRetry={() => setReloadKey((n) => n + 1)} />}
+      {section === 'facts' && !knowledgeError && (
         <FactsReviewSection
           caseId={caseId}
           knowledge={knowledge}

@@ -14,6 +14,11 @@ import { hasFirmCapability } from '@lawfirm/shared';
 import { api, FirmInvoiceItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency } from '@/lib/utils';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { EmptyState, Skeleton } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 type InvoiceStatus = 'ALL' | 'DRAFT' | 'SENT' | 'PAID';
 
@@ -23,10 +28,10 @@ const STATUS_LABELS: Record<string, string> = {
   PAID: 'ชำระแล้ว',
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  DRAFT: 'bg-muted text-muted-foreground',
-  SENT: 'bg-primary/10 text-primary',
-  PAID: 'bg-foreground/10 text-foreground',
+const STATUS_VARIANTS: Record<string, BadgeProps['variant']> = {
+  DRAFT: 'muted',
+  SENT: 'default',
+  PAID: 'success',
 };
 
 export default function InvoicesPage() {
@@ -100,37 +105,33 @@ export default function InvoicesPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 pb-20 sm:px-6">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">ใบแจ้งหนี้</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            ค้นหา ตรวจสถานะ และออกใบแจ้งหนี้ · แสดง 20 ใบล่าสุดตามสิทธิ์ที่คุณดูได้
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 active:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 lg:w-auto"
-        >
-          <Plus aria-hidden="true" className="h-4 w-4" />
-          ออกใบแจ้งหนี้
-        </button>
-      </header>
+      <PageHeader
+        title="ใบแจ้งหนี้"
+        description="20 ใบล่าสุดที่คุณมีสิทธิ์ดู"
+        actions={
+          <Button onClick={() => setCreating(true)}>
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            ออกใบแจ้งหนี้
+          </Button>
+        }
+      />
 
-      <section aria-label="สรุปสถานะใบแจ้งหนี้" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {canManageBilling && <ReceivablesPanel onChanged={() => setRetry((value) => value + 1)} />}
+
+      <section aria-label="สรุปสถานะใบแจ้งหนี้" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
         {statusFilters.map((filter) => (
           <button
             key={filter.value}
             type="button"
             aria-pressed={status === filter.value}
             onClick={() => setStatus(filter.value)}
-            className={`min-h-20 rounded-xl border px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+            className={`min-h-16 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
               status === filter.value
-                ? 'border-primary bg-primary/5 active:bg-primary/10'
-                : 'border-border bg-card hover:bg-muted/50 active:bg-muted/70'
-            } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50`}
+                ? 'bg-primary/5'
+                : 'bg-card hover:bg-muted'
+            }`}
           >
-            <span className="block text-sm text-muted-foreground">{filter.label}</span>
+            <span className={`block text-sm ${status === filter.value ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>{filter.label}</span>
             <span className="mt-1 block text-xl font-semibold tabular-nums">{counts[filter.value]}</span>
           </button>
         ))}
@@ -166,47 +167,23 @@ export default function InvoicesPage() {
         </div>
       </section>
 
-      {canManageBilling && <ReceivablesPanel onChanged={() => setRetry((value) => value + 1)} />}
-
       {loading ? (
-        <div role="status" className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          กำลังโหลดใบแจ้งหนี้…
+        <div role="status" aria-label="กำลังโหลดใบแจ้งหนี้" className="space-y-px overflow-hidden rounded-xl border bg-border">
+          {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20 w-full rounded-none bg-card" />)}
         </div>
       ) : error ? (
-        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm">{error}</p>
-          <button
-            type="button"
-            onClick={() => setRetry((value) => value + 1)}
-            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-input px-4 text-sm font-medium hover:bg-muted active:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-          >
-            ลองโหลดอีกครั้ง
-          </button>
-        </div>
+        <LoadFailed message={error} onRetry={() => setRetry((value) => value + 1)} />
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center rounded-xl border border-dashed border-border bg-card px-5 py-12 text-center">
-          <FileText aria-hidden="true" className="h-8 w-8 text-muted-foreground" />
-          <h2 className="mt-3 font-semibold">
-            {rows.length === 0 ? 'ยังไม่มีใบแจ้งหนี้' : 'ไม่พบใบแจ้งหนี้ที่ตรงกัน'}
-          </h2>
-          <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            {rows.length === 0
-              ? 'เมื่อออกใบแจ้งหนี้แล้ว รายการและสถานะจะแสดงที่นี่'
-              : 'ลองเปลี่ยนสถานะหรือล้างคำค้นหาเพื่อดูรายการอื่น'}
-          </p>
-          {rows.length > 0 && (search || status !== 'ALL') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearch('');
-                setStatus('ALL');
-              }}
-              className="mt-4 inline-flex min-h-11 items-center rounded-lg border border-input px-4 text-sm font-medium hover:bg-muted active:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-            >
-              ล้างตัวกรอง
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={FileText}
+          title={rows.length === 0 ? 'ยังไม่มีใบแจ้งหนี้' : 'ไม่พบใบแจ้งหนี้ที่ตรงกัน'}
+          description={rows.length === 0 ? 'ใบแจ้งหนี้ที่ออกแล้วจะแสดงที่นี่พร้อมสถานะ' : 'ไม่มีใบที่ตรงกับสถานะหรือคำค้นนี้'}
+          action={rows.length > 0 && (search || status !== 'ALL') ? (
+            <Button variant="outline" onClick={() => { setSearch(''); setStatus('ALL'); }}>ล้างตัวกรอง</Button>
+          ) : rows.length === 0 ? (
+            <Button variant="outline" onClick={() => setCreating(true)}><Plus aria-hidden="true" className="h-4 w-4" />ออกใบแจ้งหนี้</Button>
+          ) : undefined}
+        />
       ) : (
         <section aria-label="รายการใบแจ้งหนี้" className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="hidden grid-cols-[minmax(9rem,1.1fr)_minmax(9rem,1fr)_minmax(12rem,1.5fr)_auto] gap-6 border-b border-border bg-muted/40 px-5 py-3 text-xs font-medium text-muted-foreground lg:grid">
@@ -230,15 +207,15 @@ export default function InvoicesPage() {
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium">{row.invoiceNumber}</p>
-                    <span className={`mt-1 inline-flex min-h-6 items-center rounded-full px-2.5 text-xs font-medium ${STATUS_STYLES[row.status] ?? 'bg-muted text-muted-foreground'}`}>
+                    <Badge variant={STATUS_VARIANTS[row.status] ?? 'muted'} className="mt-1">
                       {STATUS_LABELS[row.status] ?? row.status}
-                    </span>
+                    </Badge>
                     {canManageBilling && row.status === 'DRAFT' && (
                       <button
                         type="button"
                         disabled={sendingId === row.id}
                         onClick={() => void handleMarkSent(row.id)}
-                        className="ml-2 mt-1 inline-flex min-h-6 items-center rounded-full border border-input px-2.5 text-xs font-medium hover:bg-muted active:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                        className="ml-2 mt-1 inline-flex min-h-11 items-center rounded-md border border-input px-2.5 text-xs font-medium hover:bg-muted sm:min-h-8 active:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                       >
                         {sendingId === row.id ? 'กำลังส่ง…' : 'ส่งใบแจ้งหนี้'}
                       </button>

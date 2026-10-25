@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Suspense } from 'react';
 import ExternalWorkPage from './external-work';
+import { PageLoading } from '@/components/ui/misc';
 
 export default function WorkPage() {
   return <Suspense><WorkContent /></Suspense>;
@@ -13,7 +14,7 @@ export default function WorkPage() {
 function WorkContent() {
   const { user, loading } = useAuth();
 
-  if (loading) return null;
+  if (loading) return <PageLoading />;
 
   if (!user) {
     redirect('/login');

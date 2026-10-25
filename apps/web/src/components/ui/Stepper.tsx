@@ -1,5 +1,7 @@
 'use client';
 
+import { Check } from 'lucide-react';
+
 interface Step {
   id: string;
   label: string;
@@ -36,7 +38,7 @@ export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
                       : 'border-2 border-border bg-card text-muted-foreground'
                 }`}
               >
-                {isComplete ? '✓' : index + 1}
+                {isComplete ? <Check className="h-3.5 w-3.5" aria-hidden /> : index + 1}
               </button>
               <div className="mt-2 text-center">
                 <p className={`text-xs font-medium ${isCurrent ? 'text-primary' : 'text-muted-foreground'}`}>
