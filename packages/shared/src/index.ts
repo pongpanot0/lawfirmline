@@ -170,6 +170,17 @@ export function planPriceThb(plan: SubscriptionPlan, period: BillingPeriod): num
   return period === BillingPeriod.YEARLY ? monthly * YEARLY_BILLED_MONTHS : monthly;
 }
 
+/**
+ * Plans a firm can buy. Solo (one person) is no longer sold: Apple 3.1.3(c) lets an app's
+ * service be sold outside In-App Purchase only to organisations and groups. Firms already on
+ * Solo keep it.
+ */
+export const SELLABLE_PLANS: readonly SubscriptionPlan[] = [
+  SubscriptionPlan.TEAM,
+  SubscriptionPlan.FIRM,
+  SubscriptionPlan.PROFESSIONAL,
+];
+
 export interface PlanConfig {
   plan: SubscriptionPlan;
   name: string;
@@ -197,7 +208,7 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
     name: 'Team',
     priceThb: 499,
     maxUsers: 3,
-    features: ['ทุกอย่างใน Solo', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม'],
+    features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม'],
     hasTeamManagement: true,
     hasAdvancedReporting: false,
     hasAuditLogs: false,

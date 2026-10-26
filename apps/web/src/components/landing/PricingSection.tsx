@@ -9,8 +9,9 @@ import { useLocale } from './LocaleProvider';
 import { demoHref } from './contact';
 
 // Prices and seats come from PLAN_CONFIG — the same numbers checkout charges.
+// Solo (one person) is not sold: Apple 3.1.3(c) allows selling outside In-App Purchase to
+// organisations only. Existing Solo firms keep their plan.
 const PAID_PLANS = [
-  ['solo', SubscriptionPlan.SOLO],
   ['team', SubscriptionPlan.TEAM],
   ['firm', SubscriptionPlan.FIRM],
   ['professional', SubscriptionPlan.PROFESSIONAL],

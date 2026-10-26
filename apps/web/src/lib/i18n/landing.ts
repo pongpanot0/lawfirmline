@@ -11,11 +11,11 @@ export const landingCopy = {
       menu: 'เมนู',
     },
     hero: {
-      badge: 'เริ่มต้น 149 บาท/เดือน · ทดลองฟรี 30 วัน',
+      badge: 'ทีม 3 คน 499 บาท/เดือน · ทดลองฟรี 30 วัน',
       title: 'ระบบจัดการสำนักงานกฎหมาย',
       titleHighlight: 'ไม่พลาดนัดศาล จ่ายตามขนาดทีม',
-      subtitle: 'เก็บคดี นัด เอกสาร และงานทีมไว้ด้วยกัน ใช้งานผ่านเว็บและมือถือ สำหรับสำนักงานกฎหมายทุกขนาด ตั้งแต่สำนักงานทนายความ 1 คน',
-      facts: { solo: 'สำนักงาน 1 ที่นั่ง / เดือน', team: 'ทีม 3 คน / เดือน', trial: 'ทดลองฟรี ไม่ใช้บัตร' },
+      subtitle: 'เก็บคดี นัด เอกสาร และงานทีมไว้ด้วยกัน ใช้งานผ่านเว็บและมือถือ สำหรับสำนักงานกฎหมายและทีมกฎหมายในองค์กร',
+      facts: { team: 'ทีม 3 คน / เดือน', firm: 'สำนักงาน 10 คน / เดือน', trial: 'ทดลองฟรี ไม่ใช้บัตร' },
       trialUnit: 'วัน',
       currency: 'บาท',
       ctaPrimary: 'ขอทดลองใช้งานฟรี',
@@ -68,11 +68,11 @@ export const landingCopy = {
     },
     audience: {
       title: 'เหมาะสำหรับ',
-      items: ['สำนักงานทนายความ 1 คน', 'สำนักงานกฎหมายขนาดเล็ก', 'สำนักงานกฎหมายขนาดกลาง', 'ทีมทนายภายในองค์กร'],
+      items: ['สำนักงานกฎหมายขนาดเล็ก', 'สำนักงานกฎหมายขนาดกลาง', 'ทีมทนายภายในองค์กร'],
     },
     pricing: {
       title: 'แพ็กเกจและราคา',
-      subtitle: 'สำนักงาน 1 ที่นั่งเริ่ม 149 บาท ทีม 3 คน 499 บาท — ทดลองใช้ฟรี 30 วัน ไม่ต้องใช้บัตรเครดิต · บริการสำหรับสำนักงานกฎหมายและองค์กรเท่านั้น',
+      subtitle: 'ทีม 3 คน 499 บาท สำนักงาน 10 คน 1,290 บาท — ทดลองใช้ฟรี 30 วัน ไม่ต้องใช้บัตรเครดิต · บริการสำหรับสำนักงานกฎหมายและองค์กรเท่านั้น',
       grandfather: 'ลูกค้าที่สมัครไว้แล้วยังได้สิทธิ์ราคาและข้อเสนอเดิมตามที่ตกลงไว้',
       recommended: 'แนะนำ',
       perMonth: 'บาท/เดือน',
@@ -90,13 +90,9 @@ export const landingCopy = {
       users: '{count} คน',
       upToUsers: 'สูงสุด {count} คน',
       plans: {
-        solo: {
-          tagline: 'สำนักงาน 1 ที่นั่ง',
-          features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'Client Portal ลูกความ', 'แจ้งเตือนลูกความผ่าน LINE'],
-        },
         team: {
           tagline: 'สำนักงานเล็ก',
-          features: ['ทุกอย่างใน Solo', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม'],
+          features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'Client Portal ลูกความ', 'แจ้งเตือนลูกความผ่าน LINE', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม'],
         },
         firm: {
           tagline: 'ทั้งสำนักงาน',
@@ -122,7 +118,7 @@ export const landingCopy = {
     },
     cta: {
       title: 'เริ่มใช้ Samnuan ฟรี 30 วัน',
-      subtitle: 'ไม่ต้องใช้บัตรเครดิต — ถูกใจค่อยเลือกแพ็กเกจ เริ่มต้น 149 บาท/เดือน',
+      subtitle: 'ไม่ต้องใช้บัตรเครดิต — ถูกใจค่อยเลือกแพ็กเกจ เริ่มต้นทีม 3 คน 499 บาท/เดือน',
       demo: 'ขอนัด Demo',
       tryFree: 'ทดลองใช้งานฟรี',
       demoSubject: 'ขอนัด Demo Samnuan',
@@ -140,11 +136,11 @@ export const landingCopy = {
       menu: 'Menu',
     },
     hero: {
-      badge: 'From 149 THB/month · 30-day free trial',
+      badge: 'Team of 3 for 499 THB/month · 30-day free trial',
       title: 'Law firm management',
       titleHighlight: 'Never miss a court date.',
       subtitle: 'Manage cases, appointments, documents, and client notifications in one place — and cut the admin work.',
-      facts: { solo: 'Law firm, 1 seat / month', team: 'Team of 3 / month', trial: 'Free trial, no card' },
+      facts: { team: 'Team of 3 / month', firm: 'Firm of 10 / month', trial: 'Free trial, no card' },
       trialUnit: 'days',
       currency: 'THB',
       ctaPrimary: 'Start free trial',
@@ -197,11 +193,11 @@ export const landingCopy = {
     },
     audience: {
       title: 'Built for',
-      items: ['One-lawyer firms', 'Small law firms', 'Mid-size law firms', 'In-house legal teams'],
+      items: ['Small law firms', 'Mid-size law firms', 'In-house legal teams'],
     },
     pricing: {
       title: 'Plans & pricing',
-      subtitle: 'Law firms from 149 THB (1 seat), a 3-person team for 499 THB — 30-day free trial, no credit card required. For law firms and organizations only.',
+      subtitle: 'A 3-person team for 499 THB, a 10-person firm for 1,290 THB — 30-day free trial, no credit card required. For law firms and organizations only.',
       grandfather: 'Existing customers keep the price and offer they signed up with.',
       recommended: 'Popular',
       perMonth: 'THB/month',
@@ -219,13 +215,9 @@ export const landingCopy = {
       users: '{count} user',
       upToUsers: 'Up to {count} users',
       plans: {
-        solo: {
-          tagline: 'One-lawyer firms',
-          features: ['Case & document management', 'Court calendar', 'Client portal', 'LINE client notifications'],
-        },
         team: {
           tagline: 'Small offices',
-          features: ['Everything in Solo', 'Team task assignment', 'Role-based permissions', 'Team availability calendar'],
+          features: ['Case & document management', 'Court calendar', 'Client portal', 'LINE client notifications', 'Team task assignment', 'Role-based permissions', 'Team availability calendar'],
         },
         firm: {
           tagline: 'The whole firm',
@@ -251,7 +243,7 @@ export const landingCopy = {
     },
     cta: {
       title: 'Try Samnuan free for 30 days',
-      subtitle: 'No credit card required — pick a plan when you are ready, from 149 THB/month.',
+      subtitle: 'No credit card required — pick a plan when you are ready, from 499 THB/month for a team of 3.',
       demo: 'Book a demo',
       tryFree: 'Start free trial',
       demoSubject: 'Samnuan Demo Request',

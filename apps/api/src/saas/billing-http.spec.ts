@@ -121,19 +121,27 @@ describe('billing over HTTP', () => {
   });
 
   it('PromptPay checkout is a one-time payment (no subscription)', async () => {
-    const res = await call('/saas/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: 'SOLO', billingPeriod: 'MONTHLY', paymentMethod: 'promptpay' }) });
+    const res = await call('/saas/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: 'TEAM', billingPeriod: 'MONTHLY', paymentMethod: 'promptpay' }) });
     expect(res.status).toBe(201);
     const params = createSession.mock.calls[0][0] as Stripe.Checkout.SessionCreateParams;
-    expect(params).toMatchObject({ mode: 'payment', payment_method_types: ['promptpay'], client_reference_id: 'firm-1', metadata: { plan: 'SOLO', billingPeriod: 'MONTHLY' } });
-    expect(params.line_items![0].price_data).toMatchObject({ currency: 'thb', unit_amount: planPriceThb(SubscriptionPlan.SOLO, BillingPeriod.MONTHLY) * 100 });
+    expect(params).toMatchObject({ mode: 'payment', payment_method_types: ['promptpay'], client_reference_id: 'firm-1', metadata: { plan: 'TEAM', billingPeriod: 'MONTHLY' } });
+    expect(params.line_items![0].price_data).toMatchObject({ currency: 'thb', unit_amount: planPriceThb(SubscriptionPlan.TEAM, BillingPeriod.MONTHLY) * 100 });
     expect(params.line_items![0].price_data!.recurring).toBeUndefined();
     expect(params.subscription_data).toBeUndefined();
   });
 
   it('rejects an unknown payment method', async () => {
-    const res = await call('/saas/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: 'SOLO', paymentMethod: 'bitcoin' }) });
+    const res = await call('/saas/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: 'TEAM', paymentMethod: 'bitcoin' }) });
     expect(res.status).toBe(400);
     expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it('Solo (one person) is no longer sold: App Store 3.1.3(c)', async () => {
+    const res = await call('/saas/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: 'SOLO' }) });
+    expect(res.status).toBe(400);
+    expect(createSession).not.toHaveBeenCalled();
+    const plans = await (await call('/saas/plans')).json();
+    expect(plans.map((p: { plan: string }) => p.plan)).not.toContain('SOLO');
   });
 
   it('rejects an unknown plan before touching Stripe', async () => {
