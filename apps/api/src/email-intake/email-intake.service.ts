@@ -42,6 +42,8 @@ const threadInclude = {
   },
 };
 
+const THREAD_LIST_LIMIT = 200;
+
 @Injectable()
 export class EmailIntakeService {
   constructor(
@@ -59,6 +61,9 @@ export class EmailIntakeService {
         _count: { select: { messages: true } },
       },
       orderBy: { lastMessageAt: 'desc' },
+      // A synced Outlook mailbox holds tens of thousands of threads (22k on prod, a 12 MB
+      // response). This is a work queue; older mail is found through e-mail search.
+      take: THREAD_LIST_LIMIT,
     });
     if (threads.length === 0) return [];
 
