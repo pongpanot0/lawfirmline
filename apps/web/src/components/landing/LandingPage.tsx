@@ -26,7 +26,7 @@ export function LandingPage() {
     <div className="samnuan-paper lf-landing" ref={scope}>
       <LandingNavbar />
 
-      {/* Hero — centered statement, then the price anchor: price is the first filter for solo/small firms */}
+      {/* Hero — centered statement, then the price anchor: price is the first filter for small firms */}
       <section className="lf-shell lf-section text-center">
         <span className="lf-pill" data-motion="hero-eyebrow">
           <span className="lf-pill-dot" />
@@ -58,8 +58,8 @@ export function LandingPage() {
 
         <dl className="lf-facts mx-auto mt-12 max-w-3xl" data-motion="hero-facts">
           {[
-            { value: PLAN_CONFIG[SubscriptionPlan.SOLO].priceThb, unit: t.hero.currency, label: t.hero.facts.solo },
             { value: PLAN_CONFIG[SubscriptionPlan.TEAM].priceThb, unit: t.hero.currency, label: t.hero.facts.team },
+            { value: PLAN_CONFIG[SubscriptionPlan.FIRM].priceThb, unit: t.hero.currency, label: t.hero.facts.firm },
             { value: TRIAL_DAYS, unit: t.hero.trialUnit, label: t.hero.facts.trial },
           ].map((fact) => (
             <a key={fact.label} href="#pricing" className="lf-fact">

@@ -4,6 +4,7 @@ import {
   AuthUser,
   BillingPeriod,
   PLAN_CONFIG,
+  SELLABLE_PLANS,
   planPriceThb,
   SubscriptionPlan,
   SubscriptionStatus,
@@ -61,7 +62,10 @@ export class SubscriptionService {
   }
 
   getPlans(user: AuthUser): PlanOption[] {
-    return (Object.keys(PLAN_CONFIG) as SubscriptionPlan[]).map((plan) => ({
+    // A firm still on Solo sees it as its current plan, but nobody can buy it.
+    const current = user.subscriptionPlan as SubscriptionPlan | null;
+    const plans = current && !SELLABLE_PLANS.includes(current) ? [current, ...SELLABLE_PLANS] : SELLABLE_PLANS;
+    return plans.map((plan) => ({
       ...PLAN_CONFIG[plan],
       isCurrent:
         user.subscriptionStatus === SubscriptionStatus.ACTIVE &&
@@ -84,6 +88,7 @@ export class SubscriptionService {
     paymentMethod: CheckoutPaymentMethod = 'card',
   ) {
     if (!this.tenant.isOwner(user)) throw new ForbiddenException('Only owners can manage billing');
+    if (!SELLABLE_PLANS.includes(plan)) throw new BadRequestException('แพ็กเกจนี้ไม่เปิดขายแล้ว');
     const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId } });
     if (!firm) throw new BadRequestException('Firm not found');
     if (firm.stripeSubscriptionId && firm.subscriptionStatus !== SubscriptionStatus.CANCELED) {
