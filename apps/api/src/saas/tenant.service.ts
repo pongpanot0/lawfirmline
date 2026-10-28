@@ -9,6 +9,7 @@ import {
   DEFAULT_ROOT_DOMAIN,
   FirmRole,
   hasFirmCapability,
+  PLAN_CONFIG,
   subscriptionAllowsWrites,
   SubscriptionPlan,
   SubscriptionStatus,
@@ -82,7 +83,30 @@ export class TenantService {
     // are moved by the webhook instead; a firm with no period end (thesiambarristers) never lapses.
     const trialOver = status === SubscriptionStatus.TRIAL && firm.trialEndAt < now;
     const prepaidOver = status === SubscriptionStatus.ACTIVE && !firm.stripeSubscriptionId && !!firm.currentPeriodEnd && firm.currentPeriodEnd < now;
-    if (trialOver || prepaidOver) {
+    const lapsed = status === SubscriptionStatus.EXPIRED || status === SubscriptionStatus.CANCELED;
+    if (!trialOver && !prepaidOver && !lapsed) return status;
+
+    // A one-person firm falls to the Free plan instead of going read-only. A larger one stays
+    // EXPIRED until it pays or removes members, and is re-checked on each request so it moves
+    // to Free as soon as it is down to one seat.
+    if ((await this.seatsUsed(firm.id)) <= PLAN_CONFIG[SubscriptionPlan.FREE].maxUsers) {
+      await this.prisma.$transaction([
+        this.prisma.firm.update({
+          where: { id: firm.id },
+          data: {
+            subscriptionStatus: SubscriptionStatus.ACTIVE,
+            subscriptionPlan: SubscriptionPlan.FREE,
+            maxUsers: PLAN_CONFIG[SubscriptionPlan.FREE].maxUsers,
+            currentPeriodEnd: null,
+            // The canceled Stripe subscription stays in Subscription; clearing it here lets checkout start a new one.
+            stripeSubscriptionId: null,
+          },
+        }),
+        this.prisma.auditLog.create({ data: { firmId: firm.id, action: 'SUBSCRIPTION_FREE', metadata: { from: status } } }),
+      ]);
+      return SubscriptionStatus.ACTIVE;
+    }
+    if (!lapsed) {
       await this.prisma.firm.update({
         where: { id: firm.id },
         data: { subscriptionStatus: SubscriptionStatus.EXPIRED },

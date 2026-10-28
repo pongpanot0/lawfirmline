@@ -24,6 +24,7 @@ import { CaseFeedService } from '../common/services/case-feed.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { stagesToApply, stepMatchesSide, stepTaskTitle } from './stage-scope';
+import { assertCanOpenCases } from '../common/plan-limits';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface CheckedRow extends ImportRow { row: number; existingClientId: string | null; errors: string[] }
 export interface Ledger { cases: { id: string; updatedAt: string }[]; clients: { id: string; updatedAt: string }[] }
@@ -116,6 +117,7 @@ export class PracticeSetupService {
       const original = batch.rows as unknown as CheckedRow[];
       const rows = await this.checkRows(user, original, db);
       if (rows.some((r, i) => r.errors.length || r.existingClientId !== original[i].existingClientId)) throw new ConflictException('ข้อมูลเปลี่ยนหรือมีแถวผิด กรุณาตรวจตัวอย่างใหม่ / Data changed; preview again');
+      await assertCanOpenCases(db, user.firmId, rows.filter((r) => r.caseRef).length);
       const ledger: Ledger = { cases: [], clients: [] }; const newClients = new Map<string, string>();
       for (const r of rows) {
         const nameKey = r.clientName.normalize('NFKC').toLowerCase();

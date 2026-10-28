@@ -181,7 +181,8 @@ describe('TenantService office manager permissions', () => {
 });
 
 describe('TenantService.syncTrialExpiry', () => {
-  const prisma = { firm: { update: jest.fn() } };
+  // Two seats: these firms are too big for the Free plan, so a lapse still means read-only (plan-lapse.spec covers Free).
+  const prisma = { firm: { update: jest.fn() }, firmMember: { count: jest.fn().mockResolvedValue(2) }, invitation: { count: jest.fn().mockResolvedValue(0) } };
   const service = new TenantService(prisma as any);
   const day = 24 * 60 * 60 * 1000;
   const firm = (over: Record<string, unknown>) =>
