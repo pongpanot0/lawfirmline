@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import dashboardScreenshot from '../../../public/marketing/dashboard.png';
@@ -43,15 +44,15 @@ export function LandingPage() {
           for small firms). Rendered visible from the server; nothing here waits for script. */}
       <section className="lf-shell lf-section text-center">
         <h1 className="lf-display lf-hero-title mx-auto max-w-5xl">
-          <span className="block">{t.hero.title}</span>
-          <span className="block" style={{ color: 'var(--color-accent)' }}>
+          <span className="lf-rise block" style={{ "--i": 0 } as CSSProperties}>{t.hero.title}</span>
+          <span className="lf-rise block" style={{ color: 'var(--color-accent)', "--i": 1 } as CSSProperties}>
             <Phrases text={t.hero.titleHighlight} />
           </span>
         </h1>
-        <p className="lf-lede mx-auto mt-6 max-w-2xl text-base sm:text-lg">
+        <p className="lf-rise lf-lede mx-auto mt-6 max-w-2xl text-base sm:text-lg" style={{ "--i": 2 } as CSSProperties}>
           {t.hero.subtitle}
         </p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+        <div className="lf-rise mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center" style={{ "--i": 3 } as CSSProperties}>
           <Link href="/register" className="lf-btn lf-btn--primary w-full sm:w-auto">
             {t.hero.ctaPrimary}
             <ArrowRight className="h-4 w-4" />
@@ -60,11 +61,11 @@ export function LandingPage() {
             {t.hero.ctaSecondary}
           </a>
         </div>
-        <p className="mt-4 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
+        <p className="lf-rise mt-4 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)', "--i": 4 } as CSSProperties}>
           {t.hero.note}
         </p>
 
-        <a href="#pricing" className="lf-price-line mx-auto mt-10">
+        <a href="#pricing" className="lf-rise lf-price-line mx-auto mt-10" style={{ "--i": 5 } as CSSProperties}>
           {[
             { value: PLAN_CONFIG[SubscriptionPlan.TEAM].priceThb, unit: t.hero.currency, label: t.hero.facts.team },
             { value: PLAN_CONFIG[SubscriptionPlan.FIRM].priceThb, unit: t.hero.currency, label: t.hero.facts.firm },
@@ -84,10 +85,10 @@ export function LandingPage() {
       {/* Problems — numbered editorial row, the "why" before the product */}
       <section className="lf-section lf-section--tight lf-section--paper2">
         <div className="lf-shell">
-          <h2 className="lf-display-s text-center text-xl sm:text-2xl">{t.problems.title}</h2>
+          <h2 className="lf-display-s text-center text-xl sm:text-2xl" data-motion="head">{t.problems.title}</h2>
           <ul className="lf-problems mt-8">
             {t.problems.items.map((text) => (
-              <li key={text} className="lf-problem">
+              <li key={text} className="lf-problem" data-motion="problem">
                 <p className="text-sm font-medium leading-snug" style={{ color: 'var(--color-ink)' }}>
                   {text}
                 </p>
@@ -102,14 +103,14 @@ export function LandingPage() {
       <section className="lf-section lf-section--dark lf-snap">
         <div className="lf-shell">
         <div className="lf-section-head lf-section-head--center">
-          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{t.tour.title}</h2>
+          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }} data-motion="head">{t.tour.title}</h2>
           <p className="lf-lede mt-3">{t.tour.subtitle}</p>
         </div>
         <div className="lf-tour-stage">
-          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-a">
+          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-a" data-motion="aux-a">
             <Image src={scheduleScreenshot} alt={t.tour.schedule} width={2880} height={1800} sizes="46vw" />
           </figure>
-          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-b">
+          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-b" data-motion="aux-b">
             <Image src={casesScreenshot} alt={t.tour.cases} width={2880} height={1800} sizes="46vw" />
           </figure>
           <figure className="lf-tour-frame lf-tour-frame--main" data-motion="tour-main">
@@ -130,14 +131,14 @@ export function LandingPage() {
       <section id="features" className="lf-section">
         <div className="lf-shell">
           <div className="lf-section-head lf-section-head--center">
-            <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{t.features.title}</h2>
+            <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }} data-motion="head">{t.features.title}</h2>
             <p className="lf-lede mt-3">{t.features.subtitle}</p>
           </div>
 
           <div className="lf-bento mt-10 sm:mt-14">
             {t.features.items.map((feature, i) => {
               return (
-                <article key={feature.title} className={i === 0 ? 'lf-tile lf-tile--lead' : 'lf-tile'}>
+                <article key={feature.title} className={i === 0 ? 'lf-tile lf-tile--lead' : 'lf-tile'} data-motion="tile">
                   <div>
                     <h3
                       className={i === 0 ? 'lf-display-s text-xl sm:text-2xl' : 'text-lg font-semibold'}
@@ -193,7 +194,7 @@ export function LandingPage() {
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >
         <div className="lf-shell text-center">
-          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{t.cta.title}</h2>
+          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }} data-motion="cta">{t.cta.title}</h2>
           <p className="mx-auto mt-3 max-w-xl text-sm sm:text-base" style={{ color: 'oklch(99% 0 0 / 0.85)' }}>
             {t.cta.subtitle}
           </p>
