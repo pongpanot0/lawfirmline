@@ -25,7 +25,7 @@
   --color-band-dark: #142e43;
   --color-band-dark-2: #1c3a50;
   --color-band-ink: oklch(96% 0.01 55);
-  --color-band-ink-2: oklch(78% 0.02 260);
+  --color-band-ink-2: oklch(82% 0.045 250);
   --color-band-rule: oklch(38% 0.04 264);
 
   --font-display: 'Trirong', 'Inter', ui-serif, Georgia, serif;
@@ -99,7 +99,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lf-landing {
-    scroll-snap-type: y proximity;
     scroll-behavior: auto;
   }
 }
@@ -134,60 +133,70 @@
   text-align: center;
 }
 
-.lf-eyebrow {
+/* ---------- hero ---------- */
+
+/* Two to three lines on desktop: a wide measure and a size that lets each half of the
+   statement sit on one line. Thai wraps by dictionary; balance evens the breaks. */
+.lf-hero-title {
+  font-size: clamp(2rem, 3.6vw + 0.75rem, 3.75rem);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+/* One quiet line of prices under the actions: the facts a small firm filters on, not a
+   metric strip. The whole line is the link to the pricing section. */
+.lf-price-line {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2xs);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--color-accent);
+  justify-content: center;
+  gap: var(--space-2xs) var(--space-md);
+  min-height: 2.75rem;
+  padding: var(--space-2xs) var(--space-md);
+  border-block: 1px solid var(--color-rule);
+  font-size: var(--text-sm);
+  color: var(--color-ink-2);
+  transition: color var(--dur-short) var(--ease-out), border-color var(--dur-short) var(--ease-out);
 }
 
-/* Hero pill + price anchor strip */
-.lf-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2xs);
-  border: 1px solid var(--color-accent-line);
-  background: var(--color-paper-3);
-  border-radius: 999px;
-  padding: 0.375rem 0.875rem;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--color-accent);
+.lf-price-line:hover {
+  color: var(--color-ink);
+  border-color: var(--color-accent-line);
 }
 
-.lf-pill-dot {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 999px;
-  background: #8b6d32;
+.lf-price-line:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
-.lf-facts {
+.lf-price-item {
+  white-space: nowrap;
+}
+
+/* ---------- problems ---------- */
+
+.lf-problems {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   border-block: 1px solid var(--color-rule);
 }
 
-.lf-fact {
-  display: block;
-  padding: var(--space-md) var(--space-xs);
-  transition: background-color var(--dur-short) var(--ease-out);
+.lf-problem {
+  padding: var(--space-md) var(--space-sm);
 }
 
-.lf-fact + .lf-fact {
+.lf-problem + .lf-problem {
   border-left: 1px solid var(--color-rule);
 }
 
-.lf-fact:hover {
-  background: var(--color-paper-2);
-}
-
-.lf-fact:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: -2px;
+@media (max-width: 60rem) {
+  .lf-problems {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lf-problem + .lf-problem {
+    border-left: 0;
+    border-top: 1px solid var(--color-rule);
+  }
 }
 
 /* ---------- type ---------- */
@@ -215,39 +224,6 @@
   line-height: 1.6;
 }
 
-/* era-DNA micro-label: tiny, tracked-out, uppercase (Latin) */
-.lf-kicker {
-  display: block;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--color-accent);
-}
-
-/* Masked line reveal — outer clips, inner slides up via GSAP */
-.lf-mask {
-  display: block;
-  overflow: clip;
-}
-
-.lf-mask > span {
-  display: block;
-}
-
-/* Oversized display word strip (era's ARCHITECTURE moment) */
-.lf-giant {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: var(--text-giant);
-  line-height: 1;
-  letter-spacing: -0.02em;
-  color: var(--color-accent-soft);
-  white-space: nowrap;
-  user-select: none;
-  pointer-events: none;
-}
-
 /* ---------- dark act ---------- */
 
 .lf-section--dark {
@@ -256,10 +232,6 @@
 }
 
 .lf-section--dark .lf-lede {
-  color: var(--color-band-ink-2);
-}
-
-.lf-section--dark .lf-kicker {
   color: var(--color-band-ink-2);
 }
 
@@ -383,9 +355,12 @@
 
 /* ---------- bento grid ---------- */
 
+/* Three columns: the lead feature takes the full first row, the other three fill the second
+   (3 + 1 + 1 + 1 = six cells, no gap). One column on narrow screens. */
 .lf-bento {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: dense;
   gap: var(--space-md);
 }
 
@@ -397,82 +372,32 @@
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
+  gap: var(--space-md);
   min-width: 0;
   transition: border-color var(--dur-med) var(--ease-out);
 }
 
-/* Accent stays corner-only: the 2x2 anchor tile carries the accent wash;
-   every other feature tile is plain paper with a hairline. */
-.lf-tile--feature {
-  background: var(--color-paper-3);
-  border-color: var(--color-rule);
+.lf-tile:hover {
+  border-color: var(--color-accent-line);
 }
 
-.lf-tile--feature:hover {
-  border-color: var(--color-accent);
-}
-
-.lf-tile--anchor {
-  grid-column: span 1;
-}
-
-.lf-tile--anchor.lf-tile--feature {
-  background: var(--color-paper-3);
-  border-color: var(--color-rule);
-}
-
-.lf-tile--wide {
-  grid-column: span 1;
-}
-
-.lf-tile--full {
-  grid-column: span 2;
-}
-
-.lf-tile--sm {
-  grid-column: span 1;
-}
-
-.lf-tile-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: var(--radius-input);
-  background: var(--color-paper-2);
-  color: var(--color-ink-2);
-  flex-shrink: 0;
-}
-
-.lf-tile--feature .lf-tile-icon {
-  background: var(--color-accent);
-  color: var(--color-accent-ink);
+.lf-tile--lead {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-xl);
+  padding: var(--space-lg);
 }
 
 @media (max-width: 60rem) {
   .lf-bento {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .lf-tile--anchor,
-  .lf-tile--wide,
-  .lf-tile--full {
-    grid-column: span 2;
-  }
-  .lf-tile--anchor {
-    grid-row: span 1;
-  }
-}
-
-@media (max-width: 40rem) {
-  .lf-bento {
     grid-template-columns: minmax(0, 1fr);
   }
-  .lf-tile--anchor,
-  .lf-tile--wide,
-  .lf-tile--full,
-  .lf-tile--sm {
-    grid-column: span 1;
+  .lf-tile--lead {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-md);
+    padding: var(--space-md);
   }
 }
 
@@ -505,6 +430,11 @@
   display: block;
   width: 100%;
   height: auto;
+  transition: transform 700ms var(--ease-out);
+}
+
+.lf-tour-frame:hover img {
+  transform: scale(1.02);
 }
 
 .lf-tour-frame--main {
@@ -549,26 +479,10 @@
   }
 }
 
-/* ---------- reveal ---------- */
-
-.lf-reveal {
-  opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
-}
-
-.lf-reveal.is-in {
-  opacity: 1;
-  transform: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .lf-reveal {
-    transition: opacity 0.15s linear;
-    transform: none;
-  }
   .lf-tile:hover,
-  .lf-btn:active {
+  .lf-btn:active,
+  .lf-tour-frame:hover img {
     transform: none;
   }
 }

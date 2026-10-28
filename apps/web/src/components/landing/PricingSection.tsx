@@ -99,7 +99,7 @@ export function PricingSection() {
               {p.billingYearly}
               <span
                 className="rounded px-2 py-0.5 text-xs font-medium"
-                style={{ background: 'color-mix(in oklab, var(--color-success) 15%, transparent)', color: 'var(--color-success)' }}
+                style={{ background: 'color-mix(in oklab, var(--color-success) 15%, transparent)', color: 'color-mix(in oklab, var(--color-success) 80%, var(--color-ink))' }}
               >
                 {p.yearlySave}
               </span>
@@ -113,7 +113,6 @@ export function PricingSection() {
             <div
               key={plan.key}
               className="relative flex flex-col rounded-lg border p-5 sm:p-6"
-              data-motion="price-card"
               style={{
                 borderColor: plan.popular ? 'var(--color-accent)' : 'var(--color-rule)',
                 background: 'var(--color-paper-3)',

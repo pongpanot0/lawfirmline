@@ -11,7 +11,6 @@ export const landingCopy = {
       menu: 'เมนู',
     },
     hero: {
-      badge: 'ทีม 3 คน 499 บาท/เดือน · ทดลองฟรี 30 วัน',
       title: 'ระบบจัดการสำนักงานกฎหมาย',
       titleHighlight: 'ไม่พลาดนัดศาล จ่ายตามขนาดทีม',
       subtitle: 'เก็บคดี นัด เอกสาร และงานทีมไว้ด้วยกัน ใช้งานผ่านเว็บและมือถือ สำหรับสำนักงานกฎหมายและทีมกฎหมายในองค์กร',
@@ -136,7 +135,6 @@ export const landingCopy = {
       menu: 'Menu',
     },
     hero: {
-      badge: 'Team of 3 for 499 THB/month · 30-day free trial',
       title: 'Law firm management',
       titleHighlight: 'Never miss a court date.',
       subtitle: 'Manage cases, appointments, documents, and client notifications in one place — and cut the admin work.',
