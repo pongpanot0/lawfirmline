@@ -22,7 +22,7 @@ export class OutlookConnectionsController {
 
   @Get()
   list(@CurrentUser() user: AuthUser) {
-    return this.connections.listForFirm(user);
+    return this.connections.listMine(user);
   }
 
   @Patch(':id')
@@ -43,8 +43,7 @@ export class OutlookConnectionsController {
       this.logger.warn(`Calendar cleanup for ${id} failed: ${error}`);
       await this.connections.recordError(id, `Calendar cleanup failed: ${error}`).catch(() => undefined);
     }
-    const rows = await this.connections.listForFirm(user);
-    return rows.find((r) => r.id === id);
+    return this.connections.getSafe(user.firmId, id);
   }
 
   /** Shown before disconnecting — how many case links depend on this mailbox. */

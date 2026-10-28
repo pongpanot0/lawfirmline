@@ -224,10 +224,9 @@ export class CaseAccessService {
     const or: Prisma.EmailThreadWhereInput[] = [
       { caseId: { not: null }, case: caseFilter },
       { intakeId: { not: null }, intake: intakeFilter },
-      // Unlinked mail is private to the mailbox owner; triage roles see the whole queue.
+      // Unlinked mail is private to the mailbox owner — owners/managers included.
       { caseId: null, intakeId: null, mailboxConnection: { userId: user.id } },
     ];
-    if (hasFirmCapability(user.firmRole, 'viewAllCases')) or.push({ caseId: null, intakeId: null });
     return { firmId: user.firmId, OR: or };
   }
 }

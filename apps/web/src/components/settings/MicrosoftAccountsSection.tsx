@@ -22,7 +22,6 @@ const OUTLOOK_STATUS_LABEL: Record<string, string> = {
 
 export function MicrosoftAccountsSection({ children }: { children?: React.ReactNode }) {
   const { user } = useAuth();
-  const isOwner = user?.firmRole === 'OWNER';
   const searchParams = useSearchParams();
   const [disconnectCheck, setDisconnectCheck] = useState<{ id: string; summary: ConnectionCaseLinkSummary } | null>(null);
   const [importingCaseId, setImportingCaseId] = useState<string | null>(null);
@@ -146,16 +145,11 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
   };
 
   // Plain render function (not a component) so rows keep their DOM across parent re-renders.
-  const renderRow = (c: MailboxConnectionItem, canManage: boolean) => (
+  const renderRow = (c: MailboxConnectionItem) => (
     <div key={c.id} className="mt-2 rounded-lg border bg-muted/30 p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{c.mailboxAddress}</p>
-          {!c.isMine && (
-            <p className="text-xs text-muted-foreground">
-              เจ้าของ: {c.user ? `${c.user.firstName} ${c.user.lastName}` : '—'}
-            </p>
-          )}
           <p className="text-xs text-muted-foreground">
             {OUTLOOK_STATUS_LABEL[c.status] ?? c.status}
             {c.lastSyncedAt && ` · ซิงก์ล่าสุด ${formatDateTime(c.lastSyncedAt)}`}
@@ -166,7 +160,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
             </p>
           )}
         </div>
-        {canManage && c.status !== 'REVOKED' && (
+        {c.status !== 'REVOKED' && (
           <div className="flex shrink-0 flex-wrap gap-2">
             {c.status === 'ACTIVE' && (
               <Button size="sm" variant="outline" disabled={busyId === c.id} onClick={() => handleSyncNow(c.id)}>
@@ -179,7 +173,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
           </div>
         )}
       </div>
-      {canManage && c.status === 'ACTIVE' && (
+      {c.status === 'ACTIVE' && (
         <div className="mt-2 space-y-1">
           <label className="flex min-h-11 items-center gap-2 text-xs sm:min-h-8">
             <input
@@ -200,7 +194,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
               onChange={(e) => {
                 if (
                   e.target.checked &&
-                  !window.confirm('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" และเจ้าของ/ผู้จัดการสำนักงานจะเห็นได้ ยืนยันไหม?')
+                  !window.confirm('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" เห็นเฉพาะคุณ จนกว่าจะผูกกับคดีหรือส่งเป็นเรื่องรับใหม่ ยืนยันไหม?')
                 )
                   return;
                 toggle(c, { syncInboxToIntake: e.target.checked });
@@ -213,8 +207,6 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
     </div>
   );
 
-  const mine = connections.filter((c) => c.isMine);
-  const others = connections.filter((c) => !c.isMine);
 
   return (
     <section>
@@ -289,18 +281,11 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
       )}
 
       <p className="mt-3 text-xs font-medium text-muted-foreground">บัญชีของฉัน</p>
-      {mine.length === 0 && <p className="text-xs text-muted-foreground">ยังไม่ได้เชื่อมบัญชี</p>}
-      {mine.map((c) => renderRow(c, true))}
+      {connections.length === 0 && <p className="text-xs text-muted-foreground">ยังไม่ได้เชื่อมบัญชี</p>}
+      {connections.map(renderRow)}
 
-      {others.length > 0 && (
-        <>
-          <p className="mt-4 text-xs font-medium text-muted-foreground">บัญชีอื่นในสำนักงาน</p>
-          {others.map((c) => renderRow(c, isOwner))}
-        </>
-      )}
-
-      <Button size="sm" variant={mine.some((c) => c.status === 'ACTIVE') ? 'outline' : 'default'} className="mt-3" onClick={handleConnect} disabled={connecting}>
-        {connecting ? 'กำลังเปิด Microsoft...' : mine.some((c) => c.status === 'ACTIVE') ? 'เชื่อมบัญชีอื่นเพิ่ม' : 'เชื่อม Microsoft 365'}
+      <Button size="sm" variant={connections.some((c) => c.status === 'ACTIVE') ? 'outline' : 'default'} className="mt-3" onClick={handleConnect} disabled={connecting}>
+        {connecting ? 'กำลังเปิด Microsoft...' : connections.some((c) => c.status === 'ACTIVE') ? 'เชื่อมบัญชีอื่นเพิ่ม' : 'เชื่อม Microsoft 365'}
       </Button>
       {children}
     </section>
