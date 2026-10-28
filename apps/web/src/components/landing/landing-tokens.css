@@ -486,3 +486,30 @@
     transform: none;
   }
 }
+
+/* ---------- motion ---------- */
+
+/* Hero entrance in CSS, not script: it starts with the first paint, so the heading never waits
+   for hydration and nothing renders hidden then pops in. Each element rises on its own beat
+   (--i). Scroll-driven motion below the fold lives in useLandingMotion (GSAP). */
+@keyframes lf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.lf-rise {
+  animation: lf-rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lf-rise {
+    animation: none;
+  }
+}

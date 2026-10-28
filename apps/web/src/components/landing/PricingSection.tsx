@@ -65,7 +65,7 @@ export function PricingSection() {
     <section id="pricing" className="lf-section">
       <div className="lf-shell">
         <div className="lf-section-head lf-section-head--center">
-          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{p.title}</h2>
+          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }} data-motion="head">{p.title}</h2>
           <p className="lf-lede mt-3">{p.subtitle}</p>
         </div>
 
@@ -108,10 +108,11 @@ export function PricingSection() {
         </div>
 
         {/* Pricing cards */}
-        <div className="mt-8 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="mt-8 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
           {plans.map((plan) => (
             <div
               key={plan.key}
+              data-motion="price-card"
               className="relative flex flex-col rounded-lg border p-5 sm:p-6"
               style={{
                 borderColor: plan.popular ? 'var(--color-accent)' : 'var(--color-rule)',
@@ -131,11 +132,11 @@ export function PricingSection() {
               <h3 className="text-lg font-semibold" style={{ color: 'var(--color-ink)' }}>
                 {plan.name}
               </h3>
-              <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-2)' }}>
+              <p className="mt-1 text-sm lg:min-h-[2.75rem]" style={{ color: 'var(--color-ink-2)' }}>
                 {plan.tagline} · {plan.users}
               </p>
               <div className="mt-4 sm:mt-5">
-                <span className="lf-display-s text-2xl sm:text-3xl">{plan.priceLabel}</span>
+                <span className={`lf-display-s ${plan.price === null ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'}`}>{plan.priceLabel}</span>
                 {plan.price !== null && (
                   <span className="ml-1 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
                     {p.perMonth}
