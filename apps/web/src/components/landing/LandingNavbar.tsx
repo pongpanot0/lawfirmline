@@ -24,7 +24,7 @@ export function LandingNavbar() {
       <header
         className="mx-auto flex min-h-16 max-w-6xl items-center justify-between gap-4 py-2"
       >
-        <Link href="/" aria-label="Samnuan" className="flex shrink-0 items-center gap-2 pl-1.5" onClick={close}>
+        <Link href="/" aria-label="Samnuan" className="flex min-h-11 shrink-0 items-center gap-2 pl-1.5" onClick={close}>
           <SamnuanLogo
             variant="horizontal"
             className="text-[var(--color-brand)]"

@@ -5,7 +5,7 @@ import Image from 'next/image';
 import dashboardScreenshot from '../../../public/marketing/dashboard.png';
 import casesScreenshot from '../../../public/marketing/cases-list.png';
 import scheduleScreenshot from '../../../public/marketing/court-schedule.png';
-import { Briefcase, Calendar, Users, Bell, Check, ArrowRight } from 'lucide-react';
+import { Check, ArrowRight } from 'lucide-react';
 import { PLAN_CONFIG, SubscriptionPlan, TRIAL_DAYS } from '@lawfirm/shared';
 import { fbTrack } from '@/components/FacebookPixel';
 import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
@@ -16,34 +16,42 @@ import { PricingSection } from './PricingSection';
 import { useLandingMotion } from './useLandingMotion';
 import './landing-tokens.css';
 
-const featureIcons = [Briefcase, Calendar, Users, Bell];
+/** Thai has no spaces between words, so the browser may break a heading mid-phrase. Each
+ *  space-separated phrase is kept whole and the line breaks fall between phrases. */
+function Phrases({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(' ').map((phrase, i) => (
+        <span key={i}>
+          {i > 0 && ' '}
+          <span className="inline-block">{phrase}</span>
+        </span>
+      ))}
+    </>
+  );
+}
 
 export function LandingPage() {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const scope = useLandingMotion();
 
   return (
     <div className="samnuan-paper lf-landing" ref={scope}>
       <LandingNavbar />
 
-      {/* Hero — centered statement, then the price anchor: price is the first filter for small firms */}
+      {/* Hero: the statement, two actions, then one plain price line (price is the first filter
+          for small firms). Rendered visible from the server; nothing here waits for script. */}
       <section className="lf-shell lf-section text-center">
-        <span className="lf-pill" data-motion="hero-eyebrow">
-          <span className="lf-pill-dot" />
-          {t.hero.badge}
-        </span>
-        <h1 className="lf-display mx-auto mt-6 max-w-3xl" style={{ fontSize: 'var(--text-display)' }}>
-          <span className="lf-mask">
-            <span data-motion="hero-line">{t.hero.title}</span>
-          </span>
-          <span className="lf-mask" style={{ color: 'var(--color-accent)' }}>
-            <span data-motion="hero-line">{t.hero.titleHighlight}</span>
+        <h1 className="lf-display lf-hero-title mx-auto max-w-5xl">
+          <span className="block">{t.hero.title}</span>
+          <span className="block" style={{ color: 'var(--color-accent)' }}>
+            <Phrases text={t.hero.titleHighlight} />
           </span>
         </h1>
-        <p className="lf-lede mx-auto mt-5 max-w-2xl text-base sm:text-lg" data-motion="hero-subtitle">
+        <p className="lf-lede mx-auto mt-6 max-w-2xl text-base sm:text-lg">
           {t.hero.subtitle}
         </p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center" data-motion="hero-cta">
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link href="/register" className="lf-btn lf-btn--primary w-full sm:w-auto">
             {t.hero.ctaPrimary}
             <ArrowRight className="h-4 w-4" />
@@ -52,43 +60,40 @@ export function LandingPage() {
             {t.hero.ctaSecondary}
           </a>
         </div>
-        <p className="mt-4 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }} data-motion="hero-note">
+        <p className="mt-4 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
           {t.hero.note}
         </p>
 
-        <dl className="lf-facts mx-auto mt-12 max-w-3xl" data-motion="hero-facts">
+        <a href="#pricing" className="lf-price-line mx-auto mt-10">
           {[
             { value: PLAN_CONFIG[SubscriptionPlan.TEAM].priceThb, unit: t.hero.currency, label: t.hero.facts.team },
             { value: PLAN_CONFIG[SubscriptionPlan.FIRM].priceThb, unit: t.hero.currency, label: t.hero.facts.firm },
             { value: TRIAL_DAYS, unit: t.hero.trialUnit, label: t.hero.facts.trial },
           ].map((fact) => (
-            <a key={fact.label} href="#pricing" className="lf-fact">
-              <dt className="lf-display-s whitespace-nowrap text-2xl sm:text-3xl" style={{ color: 'var(--color-ink)' }}>
-                {fact.value}
-                <span className="ml-1 text-sm font-medium sm:text-base">{fact.unit}</span>
-              </dt>
-              <dd className="mt-1 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
-                {fact.label}
-              </dd>
-            </a>
+            <span key={fact.label} className="lf-price-item">
+              <strong style={{ color: 'var(--color-ink)' }}>
+                {fact.value.toLocaleString(locale === 'th' ? 'th-TH' : 'en-US')} {fact.unit}
+              </strong>{' '}
+              {fact.label}
+            </span>
           ))}
-        </dl>
+          <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+        </a>
       </section>
 
       {/* Problems — numbered editorial row, the "why" before the product */}
       <section className="lf-section lf-section--tight lf-section--paper2">
         <div className="lf-shell">
           <h2 className="lf-display-s text-center text-xl sm:text-2xl">{t.problems.title}</h2>
-          <ol className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {t.problems.items.map((text, i) => (
-              <li key={text} className="lf-tile !p-5" data-motion="bento-tile">
-                <span className="lf-kicker">{String(i + 1).padStart(2, '0')}</span>
-                <p className="mt-2 text-sm font-medium leading-snug" style={{ color: 'var(--color-ink)' }}>
+          <ul className="lf-problems mt-8">
+            {t.problems.items.map((text) => (
+              <li key={text} className="lf-problem">
+                <p className="text-sm font-medium leading-snug" style={{ color: 'var(--color-ink)' }}>
                   {text}
                 </p>
               </li>
             ))}
-          </ol>
+          </ul>
         </div>
       </section>
 
@@ -100,11 +105,11 @@ export function LandingPage() {
           <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{t.tour.title}</h2>
           <p className="lf-lede mt-3">{t.tour.subtitle}</p>
         </div>
-        <div className="lf-tour-stage" data-motion="tour-stage">
-          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-a" data-motion="tour-aux-a">
+        <div className="lf-tour-stage">
+          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-a">
             <Image src={scheduleScreenshot} alt={t.tour.schedule} width={2880} height={1800} sizes="46vw" />
           </figure>
-          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-b" data-motion="tour-aux-b">
+          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-b">
             <Image src={casesScreenshot} alt={t.tour.cases} width={2880} height={1800} sizes="46vw" />
           </figure>
           <figure className="lf-tour-frame lf-tour-frame--main" data-motion="tour-main">
@@ -131,26 +136,21 @@ export function LandingPage() {
 
           <div className="lf-bento mt-10 sm:mt-14">
             {t.features.items.map((feature, i) => {
-              const Icon = featureIcons[i];
               return (
-                <article
-                  key={feature.title}
-                  className="lf-tile lf-tile--feature"
-                  data-motion="bento-tile"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="lf-tile-icon">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <h3 className="text-lg font-semibold" style={{ color: 'var(--color-ink)' }}>
+                <article key={feature.title} className={i === 0 ? 'lf-tile lf-tile--lead' : 'lf-tile'}>
+                  <div>
+                    <h3
+                      className={i === 0 ? 'lf-display-s text-xl sm:text-2xl' : 'text-lg font-semibold'}
+                      style={{ color: 'var(--color-ink)' }}
+                    >
                       {feature.title}
                     </h3>
+                    <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-ink-2)' }}>
+                      {feature.description}
+                    </p>
                   </div>
-                  <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-ink-2)' }}>
-                    {feature.description}
-                  </p>
                   {i === 0 ? (
-                    <ul className="mt-5 space-y-2.5">
+                    <ul className="space-y-2.5">
                       {feature.highlights.map((item) => (
                         <li
                           key={item}
@@ -163,7 +163,7 @@ export function LandingPage() {
                       ))}
                     </ul>
                   ) : (
-                    <ul className="mt-4 flex flex-wrap gap-2">
+                    <ul className="flex flex-wrap gap-2">
                       {feature.highlights.map((item) => (
                         <li
                           key={item}
@@ -211,12 +211,7 @@ export function LandingPage() {
             <Link href="/register" className="lf-btn lf-btn--on-accent w-full sm:w-auto">
               {t.cta.tryFree}
             </Link>
-            <a
-              href={demoHref}
-              onClick={() => fbTrack('Lead')}
-              className="text-sm font-medium underline underline-offset-4"
-              style={{ color: 'oklch(99% 0 0 / 0.9)' }}
-            >
+            <a href={demoHref} onClick={() => fbTrack('Lead')} className="lf-btn lf-btn--ghost-on-accent w-full sm:w-auto">
               {t.cta.demo}
             </a>
           </div>
@@ -226,7 +221,7 @@ export function LandingPage() {
       {/* Footer — Ft2 inline single line */}
       <footer className="border-t" style={{ borderColor: 'var(--color-rule)' }}>
         <div className="lf-shell flex flex-col items-center justify-between gap-3 py-8 text-center sm:flex-row sm:text-left">
-          <Link href="/" aria-label="Samnuan" className="flex items-center gap-2">
+          <Link href="/" aria-label="Samnuan" className="flex min-h-11 items-center gap-2">
             <SamnuanLogo
               variant="horizontal"
               className="text-[var(--color-brand)]"
@@ -237,9 +232,9 @@ export function LandingPage() {
           <p className="text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
             {t.footer}
           </p>
-          <nav className="flex flex-wrap justify-center gap-4 text-xs" aria-label={t.legal.label}>
-            <Link href="/privacy" className="lf-link">{t.legal.privacy}</Link>
-            <Link href="/delete-account" className="lf-link">{t.legal.deleteAccount}</Link>
+          <nav className="flex flex-wrap justify-center gap-x-4 text-xs" aria-label={t.legal.label}>
+            <Link href="/privacy" className="lf-link inline-flex min-h-11 items-center">{t.legal.privacy}</Link>
+            <Link href="/delete-account" className="lf-link inline-flex min-h-11 items-center">{t.legal.deleteAccount}</Link>
           </nav>
         </div>
       </footer>
