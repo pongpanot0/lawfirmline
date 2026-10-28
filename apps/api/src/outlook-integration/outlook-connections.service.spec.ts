@@ -153,11 +153,12 @@ describe('OutlookConnectionsService', () => {
       });
     });
 
-    it('listForFirm flags the caller’s own rows', async () => {
-      mockPrisma.mailboxConnection.findMany.mockResolvedValue([{ ...row, user: { id: 'u1', firstName: 'A', lastName: 'B' } }]);
-      const [item] = await service.listForFirm(owner);
-      expect(item.isMine).toBe(true);
-      expect(item).not.toHaveProperty('accessTokenEnc');
+    it('listMine returns only the caller’s own rows, without tokens', async () => {
+      mockPrisma.mailboxConnection.findMany.mockResolvedValue([]);
+      await service.listMine(owner);
+      const args = mockPrisma.mailboxConnection.findMany.mock.calls[0][0];
+      expect(args.where).toEqual({ firmId: 'f1', OR: [{ userId: 'u1' }, { userId: null, connectedByUserId: 'u1' }] });
+      expect(args.select).not.toHaveProperty('accessTokenEnc');
     });
 
     it('updateSettings is allowed for the owner of the connection', async () => {
@@ -169,11 +170,11 @@ describe('OutlookConnectionsService', () => {
       expect(mockPrisma.mailboxConnection.update).toHaveBeenCalledWith({ where: { id: 'c1' }, data: { syncInboxToIntake: true } });
     });
 
-    it('updateSettings refuses a colleague but allows the firm owner', async () => {
+    it('updateSettings refuses colleagues, the firm owner included', async () => {
       mockPrisma.mailboxConnection.findFirst.mockResolvedValue(row);
-      mockPrisma.mailboxConnection.update.mockResolvedValue(row);
-      await expect(service.updateSettings(other, 'c1', { syncCalendar: false })).rejects.toThrow(/เฉพาะผู้เชื่อมต่อ/);
-      await expect(service.updateSettings(firmOwner, 'c1', { syncCalendar: false })).resolves.toBeDefined();
+      await expect(service.updateSettings(other, 'c1', { syncCalendar: false })).rejects.toThrow(/เฉพาะเจ้าของบัญชี/);
+      await expect(service.updateSettings(firmOwner, 'c1', { syncCalendar: false })).rejects.toThrow(/เฉพาะเจ้าของบัญชี/);
+      expect(mockPrisma.mailboxConnection.update).not.toHaveBeenCalled();
     });
 
     it('upsertFromOAuth records the owner', async () => {
@@ -182,6 +183,23 @@ describe('OutlookConnectionsService', () => {
       const call = mockPrisma.mailboxConnection.upsert.mock.calls[0][0];
       expect(call.create.userId).toBe('u1');
       expect(call.update.userId).toBe('u1');
+    });
+
+    it('upsertFromOAuth refuses a mailbox a colleague already owns', async () => {
+      mockPrisma.mailboxConnection.findUnique.mockResolvedValue({ userId: 'u1', user: { firstName: 'วรัชญ์', lastName: 'ธ' } });
+      await expect(
+        service.upsertFromOAuth(other, { accessToken: 'a', refreshToken: 'r', expiresIn: 3600 }, 'a@x.com'),
+      ).rejects.toThrow(/เป็นของ วรัชญ์ ธ/);
+      expect(mockPrisma.mailboxConnection.upsert).not.toHaveBeenCalled();
+    });
+
+    it('upsertFromOAuth lets the owner reconnect, and claims an orphaned mailbox', async () => {
+      mockPrisma.mailboxConnection.upsert.mockResolvedValue(row);
+      mockPrisma.mailboxConnection.findUnique.mockResolvedValueOnce({ userId: 'u1', user: null });
+      await service.upsertFromOAuth(owner, { accessToken: 'a', refreshToken: 'r', expiresIn: 3600 }, 'a@x.com');
+      mockPrisma.mailboxConnection.findUnique.mockResolvedValueOnce({ userId: null, user: null });
+      await service.upsertFromOAuth(other, { accessToken: 'a', refreshToken: 'r', expiresIn: 3600 }, 'a@x.com');
+      expect(mockPrisma.mailboxConnection.upsert).toHaveBeenCalledTimes(2);
     });
   });
 

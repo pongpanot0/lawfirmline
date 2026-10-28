@@ -1,4 +1,3 @@
-import { FirmRole } from '@lawfirm/shared';
 import { ForbiddenException } from '@nestjs/common';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
@@ -45,13 +44,17 @@ export class OutlookConnectionsService {
     private notifier: AssignmentNotifierService,
   ) {}
 
-  async listForFirm(user: AuthUser) {
-    const rows = await this.prisma.mailboxConnection.findMany({
-      where: { firmId: user.firmId },
+  /** Only the caller's own Microsoft accounts — colleagues' mailboxes stay private (firm-wide health lives on the M365 status page). */
+  listMine(user: AuthUser) {
+    return this.prisma.mailboxConnection.findMany({
+      where: { firmId: user.firmId, OR: [{ userId: user.id }, { userId: null, connectedByUserId: user.id }] },
       select: SAFE_SELECT,
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((r) => ({ ...r, isMine: (r.userId ?? r.connectedByUserId) === user.id }));
+  }
+
+  getSafe(firmId: string, id: string) {
+    return this.prisma.mailboxConnection.findFirst({ where: { id, firmId }, select: SAFE_SELECT });
   }
 
   /** The user's own Microsoft account — used for calendar, sending and files. */
@@ -83,11 +86,11 @@ export class OutlookConnectionsService {
     await this.getRaw(firmId, id);
   }
 
-  /** A mailbox is managed by whoever connected it, or the firm owner — not by every colleague. */
+  /** A mailbox is managed only by the lawyer it belongs to — not colleagues, not the firm owner. */
   async assertCanManage(user: AuthUser, id: string): Promise<void> {
     const connection = await this.getRaw(user.firmId, id);
-    if ((connection.userId ?? connection.connectedByUserId) !== user.id && user.firmRole !== FirmRole.OWNER) {
-      throw new ForbiddenException('จัดการกล่องอีเมลนี้ได้เฉพาะผู้เชื่อมต่อหรือเจ้าของสำนักงาน');
+    if ((connection.userId ?? connection.connectedByUserId) !== user.id) {
+      throw new ForbiddenException('จัดการบัญชี Microsoft นี้ได้เฉพาะเจ้าของบัญชี');
     }
   }
 
@@ -95,9 +98,20 @@ export class OutlookConnectionsService {
    * Creates the connection row (or replaces the tokens on an existing one
    * for the same mailbox — reconnecting after a revoked/expired state).
    * Each mailbox is tied to one firm; connecting the same mailbox again
-   * updates rather than duplicates.
+   * updates rather than duplicates. A mailbox already owned by a colleague
+   * is refused — one Microsoft account belongs to one user, never taken over.
    */
   async upsertFromOAuth(user: AuthUser, tokens: GraphTokens, mailboxAddress: string) {
+    const existing = await this.prisma.mailboxConnection.findUnique({
+      where: { firmId_mailboxAddress: { firmId: user.firmId, mailboxAddress } },
+      select: { userId: true, user: { select: { firstName: true, lastName: true } } },
+    });
+    if (existing?.userId && existing.userId !== user.id) {
+      const owner = existing.user ? `${existing.user.firstName} ${existing.user.lastName}` : 'ผู้ใช้อื่น';
+      throw new ForbiddenException(
+        `บัญชี ${mailboxAddress} เป็นของ ${owner} อยู่แล้ว — กรุณาเลือกบัญชี Microsoft ของคุณเอง`,
+      );
+    }
     return this.prisma.mailboxConnection.upsert({
       where: { firmId_mailboxAddress: { firmId: user.firmId, mailboxAddress } },
       create: {

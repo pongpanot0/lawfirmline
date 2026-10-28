@@ -237,9 +237,10 @@ describe('CaseAccessService', () => {
       expect(where.OR).not.toContainEqual({ caseId: null, intakeId: null });
     });
 
-    it('owner / office manager see every unlinked thread', async () => {
+    it('even the firm owner sees only their own unlinked mail', async () => {
       const where: any = await service.getEmailThreadFilterForUser({ id: 'u3', firmId: 'f1', firmRole: 'OWNER' } as any);
-      expect(where.OR).toContainEqual({ caseId: null, intakeId: null });
+      expect(where.OR).not.toContainEqual({ caseId: null, intakeId: null });
+      expect(where.OR).toContainEqual({ caseId: null, intakeId: null, mailboxConnection: { userId: 'u3' } });
     });
 
     it('external users see nothing', async () => {

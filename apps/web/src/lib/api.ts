@@ -1292,7 +1292,6 @@ export interface MailboxConnectionItem {
   connectedByUserId: string;
   userId: string | null;
   user: { id: string; firstName: string; lastName: string } | null;
-  isMine: boolean;
   syncInboxToIntake: boolean;
   syncCalendar: boolean;
   status: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'ERROR';
