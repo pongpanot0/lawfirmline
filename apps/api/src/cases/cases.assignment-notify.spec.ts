@@ -10,6 +10,7 @@ import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 describe('CasesService assignment notifications', () => {
   let service: CasesService;
   const mockPrisma = {
+    firm: { findUnique: jest.fn().mockResolvedValue(null) }, // no plan: no case limit
     case: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn() },
     caseType: { findFirst: jest.fn() },
     client: { findFirst: jest.fn() },

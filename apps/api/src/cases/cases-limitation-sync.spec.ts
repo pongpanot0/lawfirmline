@@ -19,6 +19,7 @@ describe('CasesService — limitation reminder follows case state', () => {
   beforeEach(async () => {
     afterChange = {};
     prisma = {
+      firm: { findUnique: jest.fn().mockResolvedValue(null) }, // no plan: no case limit
       case: {
         findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }),
         findUnique: jest.fn().mockImplementation(async () => ({

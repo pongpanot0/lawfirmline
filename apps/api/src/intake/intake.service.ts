@@ -53,6 +53,7 @@ import { syncLimitationReminder } from '../common/limitation-reminder';
 import { addOpponents, ensureOurClientParticipant } from '../cases/party-sync';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { formatIntakeNotificationReference } from '../notifications/reference-label';
+import { assertCanOpenCases } from '../common/plan-limits';
 
 export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
 const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
@@ -1159,6 +1160,7 @@ export class IntakeService {
         ? `${intake.clientName} - ${intake.matterType}`
         : intake.clientName || 'คดีจาก Intake');
 
+    await assertCanOpenCases(this.prisma, user.firmId);
     const newCase = await this.prisma.case.create({
       data: {
         firmId: user.firmId,

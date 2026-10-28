@@ -32,6 +32,7 @@ describe('cargo claim creation paths', () => {
 
   it('creates the Cargo profile after a direct Case is saved', async () => {
     const prisma = {
+      firm: { findUnique: jest.fn().mockResolvedValue(null) }, // no plan: no case limit
       case: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'case-1', title: 'Cargo' }) },
       caseType: { findFirst: jest.fn() },
       client: { findFirst: jest.fn() },

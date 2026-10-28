@@ -129,6 +129,8 @@ export function needsFirmHostRedirect(
 }
 
 export enum SubscriptionPlan {
+  /** One user, never lapses; where a firm lands when its trial or paid period ends. Not sold. */
+  FREE = 'FREE',
   SOLO = 'SOLO',
   TEAM = 'TEAM',
   FIRM = 'FIRM',
@@ -186,6 +188,8 @@ export interface PlanConfig {
   name: string;
   priceThb: number;
   maxUsers: number;
+  /** Cases not CLOSED/ARCHIVED; null = no limit. */
+  maxActiveCases: number | null;
   features: string[];
   hasTeamManagement: boolean;
   hasAdvancedReporting: boolean;
@@ -193,11 +197,23 @@ export interface PlanConfig {
 }
 
 export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
+  [SubscriptionPlan.FREE]: {
+    plan: SubscriptionPlan.FREE,
+    name: 'Free',
+    priceThb: 0,
+    maxUsers: 1,
+    maxActiveCases: 15,
+    features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ'],
+    hasTeamManagement: false,
+    hasAdvancedReporting: false,
+    hasAuditLogs: false,
+  },
   [SubscriptionPlan.SOLO]: {
     plan: SubscriptionPlan.SOLO,
     name: 'Solo',
     priceThb: 149,
     maxUsers: 1,
+    maxActiveCases: null,
     features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'แจ้งเตือนลูกความผ่าน LINE'],
     hasTeamManagement: false,
     hasAdvancedReporting: false,
@@ -208,6 +224,7 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
     name: 'Team',
     priceThb: 499,
     maxUsers: 3,
+    maxActiveCases: null,
     features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม'],
     hasTeamManagement: true,
     hasAdvancedReporting: false,
@@ -218,6 +235,7 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
     name: 'Firm',
     priceThb: 1290,
     maxUsers: 10,
+    maxActiveCases: null,
     features: ['ทุกอย่างใน Team', 'รายงานภาพรวมสำนักงาน', 'Billing & ใบแจ้งหนี้'],
     hasTeamManagement: true,
     hasAdvancedReporting: true,
@@ -228,6 +246,7 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
     name: 'Professional',
     priceThb: 2990,
     maxUsers: 20,
+    maxActiveCases: null,
     features: ['ทุกอย่างใน Firm', 'บันทึกการตรวจสอบ (Audit Log)', 'Priority support ในเวลาทำการ'],
     hasTeamManagement: true,
     hasAdvancedReporting: true,
@@ -236,6 +255,9 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
 };
 
 export const TRIAL_DAYS = 30;
+
+/** Error `code` on the 403 for opening a case past the plan's maxActiveCases. */
+export const PLAN_LIMIT_CASES = 'PLAN_LIMIT_CASES';
 
 /** Placeholder client name when creating a case before client details are known. */
 export const TMP_CLIENT_PLACEHOLDER = 'tmp';

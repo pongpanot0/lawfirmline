@@ -42,6 +42,7 @@ import {
   saveCaseNumbers,
   snapshotCurrentLevel,
 } from './proceeding-mirror';
+import { assertCanOpenCases } from '../common/plan-limits';
 
 const OWN_REF_TAKEN_MESSAGE = 'เลขคดีนี้ถูกใช้กับคดีอื่นในสำนักงานแล้ว กรุณาใช้เลขอื่น';
 
@@ -322,6 +323,7 @@ export class CasesService {
     data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId' | 'stage'>,
     suggestedOwnRef?: string,
   ) {
+    await assertCanOpenCases(db, firmId);
     const requested = requestedOwnRef?.trim();
     const isManual = !!requested && requested !== suggestedOwnRef?.trim();
     let ownRef = requested || (await this.generateOwnRef(firmId, db));
@@ -904,6 +906,7 @@ export class CasesService {
     if (legalCase.status !== CaseStatus.CLOSED && legalCase.status !== CaseStatus.ARCHIVED) {
       throw new BadRequestException('คดีนี้ยังไม่ได้ปิด');
     }
+    await assertCanOpenCases(this.prisma, user.firmId);
 
     // The stage the case was in before it was closed; cases closed before stage logs existed
     // (or closed from CLOSING itself) have none: keep the stage the case sits at, or PRE_LITIGATION if that is CLOSING.

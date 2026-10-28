@@ -20,6 +20,7 @@ describe('case stages', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prisma = {
+      firm: { findUnique: jest.fn().mockResolvedValue(null) }, // no plan: no case limit
       case: {
         findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }),
         findUnique: jest.fn().mockResolvedValue(base),
