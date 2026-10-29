@@ -1557,6 +1557,13 @@ export interface ExternalStep {
   outputs: Array<{ attachmentId: string; filename: string; size: number }>;
 }
 
+export interface AddinCaseSuggestion {
+  caseId: string;
+  ownRef: string;
+  title: string;
+  reasons: string[];
+}
+
 export const api = {
   login: (email: string, password: string) =>
     request<import('@lawfirm/shared').LoginResult>('/auth/login', {
@@ -2990,6 +2997,11 @@ export const api = {
     request<{ notified: true }>(`/outlook/admin/connections/${id}/remind`, { token, method: 'POST' }),
   getOutlookConnections: (token: string) =>
     request<MailboxConnectionItem[]>('/outlook/connections', { token }),
+
+  addinSuggestCases: (token: string, graphMessageId: string) =>
+    request<AddinCaseSuggestion[]>('/outlook/addin/suggest', { token, method: 'POST', body: JSON.stringify({ graphMessageId }) }),
+  addinFileMessage: (token: string, body: { graphMessageId: string; caseId: string }) =>
+    request<{ threadId: string; caseId: string; alreadyLinked: boolean }>('/outlook/addin/file', { token, method: 'POST', body: JSON.stringify(body) }),
 
   getOutlookConnectUrl: (token: string) =>
     request<{ url: string }>('/outlook/connect', { token, credentials: 'include' }),

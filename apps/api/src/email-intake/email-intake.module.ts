@@ -8,9 +8,9 @@ import { DocumentsModule } from '../documents/documents.module';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
 
 @Module({
-  imports: [DocumentsModule, forwardRef(() => IntelligenceModule)],
+  imports: [forwardRef(() => DocumentsModule), forwardRef(() => IntelligenceModule)],
   controllers: [EmailIntakeController, CaseEmailController],
   providers: [EmailIntakeService, CaseEmailService, EmailDateSuggestionsService],
-  exports: [EmailIntakeService],
+  exports: [EmailIntakeService, CaseEmailService],
 })
 export class EmailIntakeModule {}
