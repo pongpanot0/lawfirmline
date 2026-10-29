@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { emailPreview, senderInitials, splitQuotedHtml, splitQuotedText } from './email-quote.ts';
+import { emailPreview, senderInitials, splitQuotedHtml, splitQuotedText } from '@lawfirm/shared';
 
 test('hides the Outlook "From: … Sent: …" history under the new text', () => {
   const body = 'รับทราบครับ\n\n\n\nChannarong\n\nFrom: Tharadol <t@allianz.co.th>\nSent: Tuesday, October 6, 2026 2:46 PM\nTo: Channarong\nSubject: RE: x\n\nold text';

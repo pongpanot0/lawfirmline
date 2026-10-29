@@ -315,7 +315,7 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
 
       <DateSuggestionsPanel
         caseId={id}
-        source="DOCUMENT"
+        sources={['DOCUMENT', 'EMAIL']}
         title={d.dateSuggestions.documentTitle}
         reloadKey={suggestionsKey}
         onChanged={onChanged}

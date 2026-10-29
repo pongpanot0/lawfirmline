@@ -11,7 +11,7 @@ describe('CaseEmailService', () => {
   let service: CaseEmailService;
   const mockPrisma = {
     emailThread: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-    case: { findMany: jest.fn() },
+    case: { findMany: jest.fn(), findFirst: jest.fn() },
     emailMessage: { findMany: jest.fn() },
     // loadLatestMessages uses DISTINCT ON via $queryRaw; it serves the same latest-message rows.
     $queryRaw: jest.fn(),
@@ -156,6 +156,61 @@ describe('CaseEmailService', () => {
       expect(contactQuery).toContain('client@abc.co.th');
       expect(contactQuery).toContain('boss@abc.co.th');
       expect(contactQuery).not.toContain('lawyer@firm.co.th');
+    });
+  });
+
+  describe('listUnknownAddresses', () => {
+    const thread = {
+      fromAddress: 'Client@Acme.co.th',
+      mailboxConnection: { mailboxAddress: 'office@firm.co' },
+      messages: [
+        {
+          fromName: 'คุณสมชาย',
+          fromAddress: 'client@acme.co.th',
+          toAddresses: ['office@firm.co', 'known@acme.co.th'],
+          ccAddresses: ['Lawyer@Firm.co', 'opp@other.com'],
+        },
+        { fromName: null, fromAddress: 'lawyer@firm.co', toAddresses: ['client@acme.co.th'], ccAddresses: ['Party@X.com'] },
+      ],
+    };
+
+    it('lists thread addresses the case does not know, with the sender name where one was given', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue(thread);
+      mockPrisma.case.findFirst.mockResolvedValue({
+        client: { contacts: [{ email: 'KNOWN@acme.co.th' }] },
+        participants: [{ email: 'party@x.com' }, { email: null }],
+      });
+      mockPrisma.firmMember.findMany.mockResolvedValue([{ user: { email: 'Lawyer@firm.co' } }]);
+
+      await expect(service.listUnknownAddresses(user, 'case-1', 'thread-1')).resolves.toEqual([
+        { address: 'client@acme.co.th', name: 'คุณสมชาย' },
+        { address: 'opp@other.com', name: null },
+      ]);
+      expect(mockPrisma.emailThread.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { AND: [threadFilter, { id: 'thread-1', caseId: 'case-1' }] } }),
+      );
+      expect(mockPrisma.case.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'case-1', firmId: 'firm-1' } }));
+    });
+
+    it('treats a firm mailbox as known, and a case without a client only checks participants', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({
+        ...thread,
+        fromAddress: 'office@firm.co',
+        mailboxConnection: null,
+        messages: [{ fromName: null, fromAddress: 'office@firm.co', toAddresses: ['new@acme.co.th'], ccAddresses: [] }],
+      });
+      mockPrisma.case.findFirst.mockResolvedValue({ client: null, participants: [] });
+      mockPrisma.mailboxConnection.findMany.mockResolvedValue([{ mailboxAddress: 'Office@firm.co' }]);
+
+      await expect(service.listUnknownAddresses(user, 'case-1', 'thread-1')).resolves.toEqual([
+        { address: 'new@acme.co.th', name: null },
+      ]);
+    });
+
+    it('404s a thread that is not on this case or not visible', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue(null);
+      await expect(service.listUnknownAddresses(user, 'case-1', 'thread-9')).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockPrisma.case.findFirst).not.toHaveBeenCalled();
     });
   });
 

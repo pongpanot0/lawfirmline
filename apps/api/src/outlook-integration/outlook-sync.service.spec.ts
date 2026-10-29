@@ -228,6 +228,63 @@ describe('OutlookSyncService', () => {
     expect(out).toEqual({ threadId: 't1', messageId: 'm-old', created: false, caseId: 'case-9' });
   });
 
+  describe('a conversation shared with a colleague’s mailbox', () => {
+    const upsert = (extra: object = {}) =>
+      service.upsertGraphMessage({
+        firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
+        direction: 'INBOUND', createThreadIfMissing: true, ...extra,
+      });
+    beforeEach(() => {
+      mockPrisma.emailMessage.findFirst.mockResolvedValue(null);
+      mockPrisma.emailMessage.create.mockResolvedValue({ id: 'm1' });
+      mockPrisma.emailThread.create.mockResolvedValue({ id: 't-own', caseId: null });
+    });
+
+    it('never writes into the colleague’s private thread — keeps a per-mailbox copy', async () => {
+      mockPrisma.emailThread.findUnique
+        .mockResolvedValueOnce({ id: 't-b', caseId: null, intakeId: null, mailboxConnectionId: 'c-b' })
+        .mockResolvedValueOnce(null);
+      const out = await upsert();
+      expect(mockPrisma.emailThread.findUnique.mock.calls[1][0].where.firmId_provider_threadKey.threadKey).toBe('conv-1:c1');
+      expect(mockPrisma.emailThread.create.mock.calls[0][0].data).toMatchObject({ threadKey: 'conv-1:c1', mailboxConnectionId: 'c1' });
+      expect(out?.threadId).toBe('t-own');
+    });
+
+    it('a colleague’s intake thread, or an owner-less one, is not shared either', async () => {
+      mockPrisma.emailThread.findUnique
+        .mockResolvedValueOnce({ id: 't-b', caseId: null, intakeId: 'intake-1', mailboxConnectionId: 'c-b' })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 't-orphan', caseId: null, intakeId: null, mailboxConnectionId: null })
+        .mockResolvedValueOnce(null);
+      expect((await upsert())?.threadId).toBe('t-own');
+      expect((await upsert())?.threadId).toBe('t-own');
+      expect(mockPrisma.emailThread.create.mock.calls.map((c: any[]) => c[0].data.threadKey)).toEqual(['conv-1:c1', 'conv-1:c1']);
+    });
+
+    it('losing a create race to a colleague’s mailbox re-checks ownership instead of joining their thread', async () => {
+      mockPrisma.emailThread.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 't-b', caseId: null, intakeId: null, mailboxConnectionId: 'c-b' })
+        .mockResolvedValueOnce(null);
+      mockPrisma.emailThread.create
+        .mockRejectedValueOnce({ code: 'P2002' })
+        .mockResolvedValueOnce({ id: 't-own', caseId: null });
+      const out = await upsert();
+      expect(mockPrisma.emailThread.create.mock.calls.map((c: any[]) => c[0].data.threadKey)).toEqual(['conv-1', 'conv-1:c1']);
+      expect(out?.threadId).toBe('t-own');
+      expect(mockPrisma.emailThread.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: 't-b' } }));
+    });
+
+    it('still joins a case thread a colleague filed (folder sync), but not from the add-in', async () => {
+      const filed = { id: 't-b', caseId: 'case-1', intakeId: null, mailboxConnectionId: 'c-b', subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2099-01-01') };
+      mockPrisma.emailThread.findUnique.mockResolvedValueOnce(filed);
+      expect((await upsert())?.threadId).toBe('t-b');
+
+      mockPrisma.emailThread.findUnique.mockResolvedValueOnce(filed).mockResolvedValueOnce(null);
+      expect((await upsert({ ownThreadsOnly: true }))?.threadId).toBe('t-own');
+    });
+  });
+
   it('Sent Items never create a thread', async () => {
     mockPrisma.emailThread.findUnique.mockResolvedValue(null);
     const out = await service.upsertGraphMessage({
@@ -264,7 +321,7 @@ describe('OutlookSyncService', () => {
   });
 
   it('survives a concurrent thread create (P2002) by re-reading the winner', async () => {
-    mockPrisma.emailThread.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 't-win', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
+    mockPrisma.emailThread.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 't-win', caseId: null, mailboxConnectionId: 'c1', subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
     mockPrisma.emailThread.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }),
     );
@@ -278,7 +335,7 @@ describe('OutlookSyncService', () => {
   });
 
   it('after a thread-create race (P2002) the re-read winner still gets the case link', async () => {
-    mockPrisma.emailThread.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 't-win', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
+    mockPrisma.emailThread.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 't-win', caseId: null, mailboxConnectionId: 'c1', subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
     mockPrisma.emailThread.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }),
     );

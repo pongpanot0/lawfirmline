@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { PHONE_HINT, PHONE_HTML } from '@lawfirm/shared';
 import { X } from 'lucide-react';
-import { api, ClientContactItem, ClientItem } from '@/lib/api';
+import { api, ClientItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,25 +34,19 @@ export function CreateClientContactDialog({
       return;
     }
 
-    const newContact: ClientContactItem = {
+    const newContact = {
       name: `${firstName} ${lastName}`,
       position: form.position.trim() || undefined,
       phone: form.phone.trim() || undefined,
       email: form.email.trim() || undefined,
-      isPrimary: client.contacts.length === 0,
-      portalEnabled: false,
     };
-    const previousIds = new Set(client.contacts.flatMap((contact) => (contact.id ? [contact.id] : [])));
 
     setSubmitting(true);
     setError('');
     try {
-      const updated = await api.updateClient(token, client.id, {
-        contacts: [...client.contacts, newContact],
-      });
-      const created = updated.contacts.find((contact) => contact.id && !previousIds.has(contact.id));
-      if (!created?.id) throw new Error('ไม่พบคนติดต่อที่เพิ่งสร้าง');
-      onCreated(updated, created.id);
+      const { client: updated, contact } = await api.addClientContact(token, client.id, newContact);
+      if (!contact.id) throw new Error('ไม่พบคนติดต่อที่เพิ่งสร้าง');
+      onCreated(updated, contact.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'บันทึกคนติดต่อไม่สำเร็จ');
       setSubmitting(false);

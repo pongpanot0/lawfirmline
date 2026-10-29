@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ClientsService } from './clients.service';
-import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
+import { ClientContactDto, CreateClientDto, UpdateClientDto } from './dto/client.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -58,6 +58,12 @@ export class ClientsController {
   @Roles(Role.ADMIN, Role.LAWYER)
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateClientDto) {
     return this.clientsService.create(user, dto);
+  }
+
+  @Post(':id/contacts')
+  @Roles(Role.ADMIN, Role.LAWYER)
+  addContact(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ClientContactDto) {
+    return this.clientsService.addContact(user, id, dto);
   }
 
   @Patch(':id')

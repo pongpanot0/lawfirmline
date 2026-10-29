@@ -20,14 +20,17 @@ import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.ser
 import { CaseEmailSendController } from './case-email-send.controller';
 import { GraphDriveClient } from './graph/graph-drive.client';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { EmailIntakeModule } from '../email-intake/email-intake.module';
+import { OutlookAddinController } from './outlook-addin.controller';
+import { OutlookAddinService } from './outlook-addin.service';
 import { CaseEmailNotifier } from './case-email-notifier.service';
 import { OutlookAdminController } from './outlook-admin.controller';
 import { OutlookAdminStatusService } from './outlook-admin-status.service';
 import { OutlookSendService } from './outlook-send.service';
 
 @Module({
-  imports: [forwardRef(() => NotificationsModule)],
-  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController, CaseFolderLinksController, CaseEmailSendController, OutlookAdminController],
+  imports: [forwardRef(() => NotificationsModule), forwardRef(() => EmailIntakeModule)],
+  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController, CaseFolderLinksController, CaseEmailSendController, OutlookAdminController, OutlookAddinController],
   providers: [
     GraphHttp,
     GraphCalendarClient,
@@ -43,6 +46,7 @@ import { OutlookSendService } from './outlook-send.service';
     CaseFolderLinksService,
     FirmLinkService,
     OutlookSendService,
+    OutlookAddinService,
     GraphDriveClient,
     CaseEmailNotifier,
     EmailReplyReminderService,

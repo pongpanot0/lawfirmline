@@ -106,6 +106,13 @@ export class OutlookGraphClient {
     return this.getFolderDelta(accessToken, 'inbox', deltaLink);
   }
 
+  /** One message by id (add-in "file this email"); same shape as delta items. */
+  getMessage(accessToken: string, messageId: string): Promise<GraphMessage> {
+    return this.http.request<GraphMessage>(accessToken, `/me/messages/${encodeURIComponent(messageId)}?$select=${MESSAGE_SELECT}`, {
+      headers: IMMUTABLE_ID_HEADERS,
+    });
+  }
+
   async getAttachments(accessToken: string, messageId: string): Promise<GraphAttachment[]> {
     const res = await this.http.request<{ value: GraphAttachment[] }>(
       accessToken,

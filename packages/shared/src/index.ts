@@ -1112,3 +1112,4 @@ export * from './cargo-claim';
 export * from './default-playbooks';
 export * from './task-review';
 export * from './office-routines';
+export * from './email-quote';

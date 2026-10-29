@@ -18,6 +18,7 @@ describe('ClientsService.update contact upsert', () => {
       update: jest.fn(),
       create: jest.fn(),
       deleteMany: jest.fn(),
+      count: jest.fn(),
     },
     $transaction: jest.fn((cb: any) => cb(mockPrisma)),
   };
@@ -63,6 +64,31 @@ describe('ClientsService.update contact upsert', () => {
         data: expect.objectContaining({ name: 'แก้ไขแล้ว', portalEnabled: true }),
       }),
     );
+  });
+
+  it('addContact creates one contact and never touches the others', async () => {
+    mockPrisma.clientContact.count.mockResolvedValue(2);
+    mockPrisma.clientContact.create.mockResolvedValue({ id: 'contact-new' });
+
+    const out = await service.addContact(user, 'client-1', { name: 'คุณใหม่', email: 'new@x.com' } as any);
+
+    expect(mockPrisma.clientContact.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ clientId: 'client-1', name: 'คุณใหม่', email: 'new@x.com', isPrimary: false, portalEnabled: false }),
+      select: CLIENT_CONTACT_SELECT,
+    });
+    expect(mockPrisma.clientContact.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.clientContact.update).not.toHaveBeenCalled();
+    expect(out.contact).toEqual({ id: 'contact-new' });
+  });
+
+  it('addContact makes the first contact primary, and refuses a client outside the caller’s reach', async () => {
+    mockPrisma.clientContact.count.mockResolvedValue(0);
+    mockPrisma.clientContact.create.mockResolvedValue({ id: 'c1' });
+    await service.addContact(user, 'client-1', { name: 'A' } as any);
+    expect(mockPrisma.clientContact.create.mock.calls[0][0].data.isPrimary).toBe(true);
+
+    mockPrisma.client.findFirst.mockResolvedValue(null);
+    await expect(service.addContact(user, 'client-x', { name: 'B' } as any)).rejects.toThrow(NotFoundException);
   });
 
   it('counts only cases visible to the caller in the client list', async () => {

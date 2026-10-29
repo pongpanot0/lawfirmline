@@ -96,22 +96,38 @@ export class OutlookSyncService {
     direction: Direction;
     caseId?: string | null;
     createThreadIfMissing: boolean;
+    /** Never write into a thread another mailbox started, even one filed in a case (Outlook add-in). */
+    ownThreadsOnly?: boolean;
   }): Promise<{ threadId: string; messageId: string; created: boolean; caseId: string | null } | null> {
     const { message } = p;
-    const key = { firmId_provider_threadKey: { firmId: p.firmId, provider: 'microsoft', threadKey: message.conversationId } };
+    const keyFor = (threadKey: string) => ({ firmId_provider_threadKey: { firmId: p.firmId, provider: 'microsoft', threadKey } });
     const at = new Date(message.receivedDateTime ?? message.sentDateTime ?? Date.now());
     const subject = message.subject ?? '(ไม่มีหัวข้อ)';
 
-    let thread = await this.prisma.emailThread.findUnique({ where: key });
+    // Threads are keyed per firm by conversation, so two lawyers on one conversation would share a row.
+    // Only a case-filed thread is shared across mailboxes (folder sync joins the team's case thread);
+    // anything else — unfiled, intake, or owner-less — stays with the mailbox that started it, and this
+    // mailbox keeps its own copy under `conversationId:connectionId`. The add-in never joins a foreign thread.
+    const ownKey = `${message.conversationId}:${p.connectionId}`;
+    const resolve = async () => {
+      const base = await this.prisma.emailThread.findUnique({ where: keyFor(message.conversationId) });
+      if (!base || base.mailboxConnectionId === p.connectionId || (!p.ownThreadsOnly && base.caseId)) {
+        return { thread: base, threadKey: message.conversationId };
+      }
+      return { thread: await this.prisma.emailThread.findUnique({ where: keyFor(ownKey) }), threadKey: ownKey };
+    };
+
+    let { thread, threadKey } = await resolve();
     let created = false;
-    if (!thread) {
+    // Second pass only after losing a create race: re-resolve, since the winner may be a colleague's mailbox.
+    for (let attempt = 0; !thread && attempt < 2; attempt++) {
       if (!p.createThreadIfMissing) return null;
       try {
         thread = await this.prisma.emailThread.create({
           data: {
             firmId: p.firmId,
             provider: 'microsoft',
-            threadKey: message.conversationId,
+            threadKey,
             subject,
             fromName: message.from?.emailAddress?.name ?? null,
             fromAddress: message.from?.emailAddress?.address ?? null,
@@ -123,12 +139,11 @@ export class OutlookSyncService {
         });
         created = true;
       } catch (error) {
-        // A concurrent sync (webhook + poll) created it first — carry on with that row, applying the usual link/refresh below.
-        if (!isUniqueViolation(error)) throw error;
-        thread = await this.prisma.emailThread.findUnique({ where: key });
-        if (!thread) throw error;
+        if (!isUniqueViolation(error) || attempt === 1) throw error;
+        ({ thread, threadKey } = await resolve());
       }
     }
+    if (!thread) throw new Error(`Could not store thread ${message.conversationId}`);
     if (!created) {
       const data = {
         ...(thread.subject === subject ? {} : { subject }),

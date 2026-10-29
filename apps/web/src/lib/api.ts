@@ -1261,6 +1261,11 @@ export interface CaseEmailThreadDetail {
   messages: CaseEmailMessageItem[];
 }
 
+export interface CaseUnknownAddressItem {
+  address: string;
+  name: string | null;
+}
+
 export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER';
 
 export interface ThreadCaseSuggestion {
@@ -1550,6 +1555,13 @@ export interface ExternalStep {
   run: { name: string; caseRef: string };
   inputs: Array<{ attachmentId: string; filename: string; size: number; step: number }>;
   outputs: Array<{ attachmentId: string; filename: string; size: number }>;
+}
+
+export interface AddinCaseSuggestion {
+  caseId: string;
+  ownRef: string;
+  title: string;
+  reasons: string[];
 }
 
 export const api = {
@@ -2432,6 +2444,14 @@ export const api = {
   updateClient: (token: string, id: string, data: Record<string, unknown>) =>
     request<ClientItem>(`/clients/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
+  /** Adds one contact; unlike updateClient it never rewrites or deletes the others. */
+  addClientContact: (token: string, clientId: string, contact: Omit<ClientContactItem, 'id'>) =>
+    request<{ client: ClientItem; contact: ClientContactItem }>(`/clients/${clientId}/contacts`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(contact),
+    }),
+
   deleteClient: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/clients/${id}`, { method: 'DELETE', token }),
 
@@ -2986,6 +3006,11 @@ export const api = {
   getOutlookConnections: (token: string) =>
     request<MailboxConnectionItem[]>('/outlook/connections', { token }),
 
+  addinSuggestCases: (token: string, graphMessageId: string) =>
+    request<AddinCaseSuggestion[]>('/outlook/addin/suggest', { token, method: 'POST', body: JSON.stringify({ graphMessageId }) }),
+  addinFileMessage: (token: string, body: { graphMessageId: string; caseId: string }) =>
+    request<{ threadId: string; caseId: string; alreadyLinked: boolean }>('/outlook/addin/file', { token, method: 'POST', body: JSON.stringify(body) }),
+
   getOutlookConnectUrl: (token: string) =>
     request<{ url: string }>('/outlook/connect', { token, credentials: 'include' }),
 
@@ -3283,6 +3308,14 @@ export const api = {
 
   getCaseEmailThread: (token: string, caseId: string, threadId: string) =>
     request<CaseEmailThreadDetail>(`/cases/${caseId}/email/threads/${threadId}`, { token }),
+
+  getCaseUnknownAddresses: (token: string, caseId: string, threadId: string) =>
+    request<CaseUnknownAddressItem[]>(`/cases/${caseId}/email/threads/${threadId}/unknown-addresses`, { token }),
+  suggestDatesFromEmailMessage: (token: string, caseId: string, messageId: string) =>
+    request<{ created: number; suggestions: DateSuggestionItem[] }>(
+      `/cases/${caseId}/email/messages/${messageId}/date-suggestions`,
+      { method: 'POST', token },
+    ),
 
   saveEmailAttachmentToCase: (token: string, caseId: string, attachmentId: string) =>
     request<{ document: { id: string; filename: string }; alreadySaved: boolean }>(
@@ -3719,7 +3752,8 @@ export interface DateSuggestionItem {
   eventType: 'COURT_DATE' | 'CLIENT_MEETING' | 'DEADLINE' | 'OTHER';
   /** Only DOCUMENT suggestions quote a source; a rule-derived date has none. */
   sourceExcerpt: string | null;
-  source: 'DOCUMENT' | 'RULE';
+  source: 'DOCUMENT' | 'RULE' | 'EMAIL';
+  emailMessageId?: string | null;
   deadlineRule?: { label: string; trigger: DeadlineTriggerValue } | null;
   status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
   calendarEventId?: string | null;
