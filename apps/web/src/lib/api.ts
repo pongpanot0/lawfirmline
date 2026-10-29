@@ -2444,6 +2444,14 @@ export const api = {
   updateClient: (token: string, id: string, data: Record<string, unknown>) =>
     request<ClientItem>(`/clients/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
+  /** Adds one contact; unlike updateClient it never rewrites or deletes the others. */
+  addClientContact: (token: string, clientId: string, contact: Omit<ClientContactItem, 'id'>) =>
+    request<{ client: ClientItem; contact: ClientContactItem }>(`/clients/${clientId}/contacts`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(contact),
+    }),
+
   deleteClient: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/clients/${id}`, { method: 'DELETE', token }),
 

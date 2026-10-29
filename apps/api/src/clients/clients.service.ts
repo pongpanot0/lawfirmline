@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { AuthUser, FirmRole, InvoiceStatus } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
-import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
+import { ClientContactDto, CreateClientDto, UpdateClientDto } from './dto/client.dto';
 import { CLIENT_CONTACT_SELECT } from './client-contact.select';
 
 @Injectable()
@@ -93,6 +93,29 @@ export class ClientsService {
       },
       include: this.include,
     });
+  }
+
+  /** Adds one contact without resending the list, so a colleague's concurrent edit can't be overwritten or deleted. */
+  async addContact(user: AuthUser, clientId: string, dto: ClientContactDto) {
+    await this.findOne(user, clientId);
+    const contact = await this.prisma.$transaction(async (tx) => {
+      const isFirst = (await tx.clientContact.count({ where: { clientId } })) === 0;
+      return tx.clientContact.create({
+        data: {
+          clientId,
+          name: dto.name,
+          nickname: dto.nickname,
+          email: dto.email,
+          phone: dto.phone,
+          position: dto.position,
+          notes: dto.notes,
+          isPrimary: isFirst,
+          portalEnabled: dto.portalEnabled ?? false,
+        },
+        select: CLIENT_CONTACT_SELECT,
+      });
+    });
+    return { client: await this.findOne(user, clientId), contact };
   }
 
   async update(user: AuthUser, id: string, dto: UpdateClientDto) {

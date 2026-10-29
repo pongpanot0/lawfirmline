@@ -73,14 +73,7 @@ export function CaseUnknownAddresses({ caseId, threadId }: { caseId: string; thr
     setError('');
     try {
       if (kind === 'CONTACT' && clientId) {
-        // No standalone contact endpoint: the client update replaces the whole list, so send the existing contacts back too.
-        const client = await api.getClient(token, clientId);
-        await api.updateClient(token, client.id, {
-          contacts: [
-            ...client.contacts,
-            { name: name.trim(), email: row.address, isPrimary: client.contacts.length === 0, portalEnabled: false },
-          ],
-        });
+        await api.addClientContact(token, clientId, { name: name.trim(), email: row.address });
       } else {
         await api.createParticipant(token, caseId, { name: name.trim(), email: row.address, role, side });
       }
