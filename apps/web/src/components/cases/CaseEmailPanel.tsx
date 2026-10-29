@@ -24,11 +24,20 @@ import { MATCH_REASON_LABELS } from '@/lib/case-email';
 import { formatDateTime } from '@/lib/utils';
 import { awaitingReplyLabel } from '@/lib/email-awaiting';
 
-type Notice = { type: 'success' | 'error'; text: string } | null;
+type Notice = { type: 'success' | 'error'; text: string; action?: { label: string; onClick: () => void } } | null;
 
 const errorText = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback);
 
-export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; initialThreadId?: string | null }) {
+export function CaseEmailPanel({
+  caseId,
+  initialThreadId,
+  onOpenSuggestions,
+}: {
+  caseId: string;
+  initialThreadId?: string | null;
+  /** Switches the case to the tab that lists date suggestions. */
+  onOpenSuggestions?: () => void;
+}) {
   const { token } = useAuth();
   const [threads, setThreads] = useState<CaseEmailThreadItem[] | null>(null);
   const [links, setLinks] = useState<CaseFolderLinkItem[]>([]);
@@ -156,6 +165,19 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
       return { type: 'success', text: 'ยกเลิกแล้ว — อีเมลนี้กลับมาอยู่ในรายการรอตอบ' };
     });
 
+  const suggestDates = (message: CaseEmailThreadDetail['messages'][number]) => {
+    if (!window.confirm('ให้ AI อ่านอีเมลนี้เพื่อหาวันนัด / กำหนดยื่น? การทำงานนี้ใช้เครดิต AI ของคุณ')) return;
+    run(`ai-dates-${message.id}`, async (t) => {
+      const result = await api.suggestDatesFromEmailMessage(t, caseId, message.id);
+      if (result.created === 0) return { type: 'success', text: 'AI ไม่พบวันนัดหรือกำหนดยื่นในอีเมลนี้' };
+      return {
+        type: 'success',
+        text: `พบ ${result.created} วัน — `,
+        action: onOpenSuggestions ? { label: 'ไปยืนยันที่ รายการวันที่แนะนำ', onClick: onOpenSuggestions } : undefined,
+      };
+    });
+  };
+
   const unlinkThread = (threadId: string) => {
     if (!window.confirm('นำอีเมลนี้ออกจากคดี? อีเมลจะกลับไปอยู่ในคิวอีเมล')) return;
     run(`thread-${threadId}`, async (t) => {
@@ -228,6 +250,11 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
           {undoId && notice.type === 'success' && notice.text.startsWith('ทำเครื่องหมาย') && (
             <button type="button" className="ml-2 underline" disabled={busy !== null} onClick={() => undoDismiss(undoId)}>
               เลิกทำ
+            </button>
+          )}
+          {notice.action && (
+            <button type="button" className="ml-2 underline" onClick={notice.action.onClick}>
+              {notice.action.label}
             </button>
           )}
         </p>
@@ -459,6 +486,9 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
                           onClick={() => setComposer({ kind: 'reply', replyAll: true, threadSubject: detail.subject, message })}
                         >
                           ตอบทั้งหมด
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => suggestDates(message)}>
+                          {busy === `ai-dates-${message.id}` ? 'AI กำลังอ่าน…' : 'ให้ AI หาวันนัด / กำหนดยื่น'}
                         </Button>
                       </div>
                     </EmailMessageCard>

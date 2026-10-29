@@ -112,6 +112,8 @@ export enum DateSuggestionSource {
   DOCUMENT = 'DOCUMENT',
   /** Derived deterministically from a procedural deadline rule. */
   RULE = 'RULE',
+  /** Read from a case email when the lawyer pressed the AI button on that message. */
+  EMAIL = 'EMAIL',
 }
 
 /** The event that starts a procedural clock running. */

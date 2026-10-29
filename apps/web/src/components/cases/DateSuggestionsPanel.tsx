@@ -23,14 +23,14 @@ type Draft = { label: string; date: string; time: string; eventType: DateSuggest
  */
 export function DateSuggestionsPanel({
   caseId,
-  source,
+  sources,
   title,
   reloadKey = 0,
   hideWhenEmpty = true,
   onChanged,
 }: {
   caseId: string;
-  source: DateSuggestionItem['source'];
+  sources: DateSuggestionItem['source'][];
   title: string;
   /** Bump to reload after something upstream created new suggestions. */
   reloadKey?: number;
@@ -47,24 +47,29 @@ export function DateSuggestionsPanel({
   const [error, setError] = useState('');
   const [loadFailed, setLoadFailed] = useState(false);
 
+  // Joined so an inline `sources={[...]}` literal does not refetch on every render.
+  const sourceKey = sources.join(',');
+
   const load = useCallback(() => {
     if (!token || !caseId) return;
+    const wanted = sourceKey.split(',');
     api
       .getDateSuggestions(token, caseId, 'PENDING')
-      .then((all) => { setSuggestions(all.filter((s) => s.source === source)); setLoadFailed(false); })
+      .then((all) => { setSuggestions(all.filter((s) => wanted.includes(s.source))); setLoadFailed(false); })
       .catch((err) => { console.error(err); setLoadFailed(true); });
-  }, [token, caseId, source]);
+  }, [token, caseId, sourceKey]);
 
   useEffect(() => {
     load();
   }, [load, reloadKey]);
 
   useEffect(() => {
-    if (!token || source !== 'DOCUMENT') return;
+    // Document and email dates are assigned to a lawyer before confirming; rule dates are not.
+    if (!token || sourceKey === 'RULE') return;
     api.getLawyers(token)
       .then((users) => setLawyers(users.filter((lawyer) => lawyer.firmRole !== 'ASSISTANT')))
       .catch(() => setError('โหลดรายชื่อทนายไม่สำเร็จ กรุณาโหลดหน้าใหม่'));
-  }, [token, source]);
+  }, [token, sourceKey]);
 
   const draftFor = (s: DateSuggestionItem): Draft =>
     drafts[s.id] ?? {
@@ -82,7 +87,7 @@ export function DateSuggestionsPanel({
       setError('กรุณาตรวจวันและเวลานัด');
       return;
     }
-    if (source === 'DOCUMENT' && !lawyers.some((lawyer) => lawyer.id === draft.assigneeId)) {
+    if (s.source !== 'RULE' && !lawyers.some((lawyer) => lawyer.id === draft.assigneeId)) {
       setError('กรุณาเลือกทนายผู้รับผิดชอบวันนัด');
       return;
     }
@@ -94,7 +99,7 @@ export function DateSuggestionsPanel({
         label: draft.label,
         date: bangkokInputToIso(`${draft.date}T${draft.time}`),
         eventType: draft.eventType,
-        assigneeId: source === 'DOCUMENT' ? draft.assigneeId : undefined,
+        assigneeId: s.source !== 'RULE' ? draft.assigneeId : undefined,
       });
       setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
       onChanged?.();
@@ -188,7 +193,7 @@ export function DateSuggestionsPanel({
                   </label>
                 </div>
 
-                {source === 'DOCUMENT' && (
+                {s.source !== 'RULE' && (
                   <label className="mt-3 block text-sm font-medium">
                     ทนายผู้รับผิดชอบวันนัด <span className="text-destructive">*</span>
                     <select
@@ -214,7 +219,8 @@ export function DateSuggestionsPanel({
                     )
                   : s.sourceExcerpt && (
                       <p className="mt-2 text-xs text-muted-foreground">
-                        {d.caseDocuments.sourceExcerpt}: &ldquo;{s.sourceExcerpt}&rdquo;
+                        {s.source === 'EMAIL' ? `${d.dateSuggestions.fromEmail}: ` : `${d.caseDocuments.sourceExcerpt}: `}
+                        &ldquo;{s.sourceExcerpt}&rdquo;
                       </p>
                     )}
 

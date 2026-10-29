@@ -1227,7 +1227,7 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-email"
           className="min-w-0"
         >
-          <CaseEmailPanel key={id} caseId={id} initialThreadId={searchParams.get('thread')} />
+          <CaseEmailPanel key={id} caseId={id} initialThreadId={searchParams.get('thread')} onOpenSuggestions={() => selectTab('documents')} />
         </div>
       )}
 

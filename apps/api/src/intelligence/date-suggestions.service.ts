@@ -64,7 +64,7 @@ export class DateSuggestionsService {
           (overrides.expectedUpdatedAt && suggestion.updatedAt.toISOString() !== overrides.expectedUpdatedAt)) {
         throw new ConflictException('Date suggestion changed; review it again');
       }
-      if (suggestion.source === 'DOCUMENT' && !overrides.assigneeId) {
+      if (suggestion.source !== 'RULE' && !overrides.assigneeId) {
         throw new BadRequestException('Select a responsible lawyer for this date');
       }
       if (overrides.assigneeId) {

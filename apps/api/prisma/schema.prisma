@@ -277,6 +277,7 @@ enum DateSuggestionStatus {
 enum DateSuggestionSource {
   DOCUMENT
   RULE
+  EMAIL
 }
 
 enum DeadlineTrigger {
@@ -416,26 +417,26 @@ enum ClosingEmailRecipientKind {
 }
 
 model Firm {
-  id                 String             @id @default(uuid())
-  name               String
-  slug               String             @unique
-  subscriptionStatus SubscriptionStatus @default(TRIAL)
-  subscriptionPlan   SubscriptionPlan?
-  trialStartAt       DateTime           @default(now())
-  trialEndAt         DateTime
-  currentPeriodEnd   DateTime?
+  id                    String             @id @default(uuid())
+  name                  String
+  slug                  String             @unique
+  subscriptionStatus    SubscriptionStatus @default(TRIAL)
+  subscriptionPlan      SubscriptionPlan?
+  trialStartAt          DateTime           @default(now())
+  trialEndAt            DateTime
+  currentPeriodEnd      DateTime?
   /// Smallest "days before trial end" reminder already emailed (7, 1, 0); null = none yet.
   trialReminderSentDays Int?
-  stripeSubscriptionId String?          @unique
-  stripeCustomerId   String?            @unique
-  maxUsers           Int                @default(2)
-  officeAddress      String             @default("Bangkok, Thailand")
+  stripeSubscriptionId  String?            @unique
+  stripeCustomerId      String?            @unique
+  maxUsers              Int                @default(2)
+  officeAddress         String             @default("Bangkok, Thailand")
   /// Prefix for auto Own Ref, e.g. TSBREF → TSBREF20260001
-  ownRefPrefix       String             @default("TSBREF")
+  ownRefPrefix          String             @default("TSBREF")
   /// SLA targets, e.g. { "caseUpdateDays": 14, "reviewDays": 3 }
-  slaConfig          Json?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  slaConfig             Json?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
   members            FirmMember[]
   invitations        Invitation[]
@@ -501,17 +502,17 @@ model Invitation {
 }
 
 model Subscription {
-  id                  String             @id @default(uuid())
-  firmId              String
-  plan                SubscriptionPlan
-  billingPeriod       BillingPeriod      @default(MONTHLY)
-  status              SubscriptionStatus
-  stripeSubscriptionId String?       @unique
-  currentPeriodStart  DateTime
-  currentPeriodEnd    DateTime
-  canceledAt          DateTime?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  id                   String             @id @default(uuid())
+  firmId               String
+  plan                 SubscriptionPlan
+  billingPeriod        BillingPeriod      @default(MONTHLY)
+  status               SubscriptionStatus
+  stripeSubscriptionId String?            @unique
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  canceledAt           DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
 
@@ -519,20 +520,20 @@ model Subscription {
 }
 
 model BillingInvoice {
-  id            String               @id @default(uuid())
-  firmId        String
-  invoiceNumber String               @unique
-  plan          SubscriptionPlan
-  billingPeriod BillingPeriod        @default(MONTHLY)
-  amount        Int
-  currency      String               @default("THB")
-  status        BillingPaymentStatus @default(PENDING)
+  id               String               @id @default(uuid())
+  firmId           String
+  invoiceNumber    String               @unique
+  plan             SubscriptionPlan
+  billingPeriod    BillingPeriod        @default(MONTHLY)
+  amount           Int
+  currency         String               @default("THB")
+  status           BillingPaymentStatus @default(PENDING)
   stripeInvoiceId  String?              @unique
   hostedInvoiceUrl String?
-  paidAt        DateTime?
-  periodStart   DateTime?
-  periodEnd     DateTime?
-  createdAt     DateTime             @default(now())
+  paidAt           DateTime?
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  createdAt        DateTime             @default(now())
 
   firm     Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
   payments Payment[]
@@ -996,7 +997,7 @@ model Case {
   workflowRuns           WorkflowRun[]
   proceedings            CaseProceeding[]
   conflictChecks         ConflictCheck[]
-  emailThreads           EmailThread[]    @relation("CaseEmailThreads")
+  emailThreads           EmailThread[]             @relation("CaseEmailThreads")
   externalLinks          CaseExternalLink[]
 
   @@unique([firmId, ownRef])
@@ -1035,7 +1036,7 @@ model WorkflowTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  firm Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
   runs WorkflowRun[]
 
   @@index([firmId, isActive])
@@ -1046,9 +1047,9 @@ model WorkflowRun {
   firmId      String
   caseId      String
   templateId  String?
-  name        String            /// e.g. "แปลคำให้การพยาน — นาย ก."
+  name        String /// e.g. "แปลคำให้การพยาน — นาย ก."
   status      WorkflowRunStatus @default(ACTIVE)
-  promisedAt  DateTime?         /// date promised to the client, for "late by N days"
+  promisedAt  DateTime? /// date promised to the client, for "late by N days"
   createdById String
   createdAt   DateTime          @default(now())
   completedAt DateTime?
@@ -1283,32 +1284,32 @@ model IntakePrecedentAnalysis {
 }
 
 model CaseParticipant {
-  id               String          @id @default(uuid())
-  caseId           String
-  name             String
-  nickname         String?
-  role             ParticipantRole @default(OTHER)
-  side             ParticipantSide @default(OPPONENT)
-  personType       String?
-  idNumber         String?
-  address          String?
-  phone            String?
-  email            String?
-  opposingLawyer   String?
-  opposingInsurer  String?
-  medicalLicenseNo String?
-  notes            String?
+  id                         String          @id @default(uuid())
+  caseId                     String
+  name                       String
+  nickname                   String?
+  role                       ParticipantRole @default(OTHER)
+  side                       ParticipantSide @default(OPPONENT)
+  personType                 String?
+  idNumber                   String?
+  address                    String?
+  phone                      String?
+  email                      String?
+  opposingLawyer             String?
+  opposingInsurer            String?
+  medicalLicenseNo           String?
+  notes                      String?
   /// ลูกความในทะเบียน (ฝ่ายเรา) ที่คู่ความรายนี้คือคนเดียวกัน
   clientId                   String?
   /// ทนาย/ผู้แทนฝ่ายตรงข้าม → คู่ความที่เขาเป็นตัวแทน
   representedByParticipantId String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
 
-  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  client         Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  representedBy  CaseParticipant?  @relation("ParticipantRepresentation", fields: [representedByParticipantId], references: [id], onDelete: SetNull)
-  represents     CaseParticipant[] @relation("ParticipantRepresentation")
+  case          Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  client        Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  representedBy CaseParticipant?  @relation("ParticipantRepresentation", fields: [representedByParticipantId], references: [id], onDelete: SetNull)
+  represents    CaseParticipant[] @relation("ParticipantRepresentation")
 
   @@index([caseId])
   @@index([clientId])
@@ -1484,14 +1485,14 @@ model TaskAttachment {
 }
 
 model TaskComment {
-  id        String   @id @default(uuid())
-  taskId    String
-  authorId  String
-  body      String   @db.Text
-  kind      String   @default("COMMENT")
+  id               String   @id @default(uuid())
+  taskId           String
+  authorId         String
+  body             String   @db.Text
+  kind             String   @default("COMMENT")
   /// Firm members tagged with @ in this comment (same contract as CaseComment.mentionedUserIds).
   mentionedUserIds String[] @default([])
-  createdAt DateTime @default(now())
+  createdAt        DateTime @default(now())
 
   task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   author User @relation("TaskCommentAuthor", fields: [authorId], references: [id])
@@ -1717,36 +1718,36 @@ model DocumentPublication {
 }
 
 model CalendarEvent {
-  id              String    @id @default(uuid())
-  caseId          String
+  id                 String          @id @default(uuid())
+  caseId             String
   /// Who is attending. Reminders go to this person; without one they fall back
   /// to the case's lead lawyer rather than everyone staffed on the case.
-  assigneeId      String?
-  title           String
-  description     String?
-  courtName       String?
-  startAt         DateTime
-  endAt           DateTime?
-  type            EventType @default(OTHER)
+  assigneeId         String?
+  title              String
+  description        String?
+  courtName          String?
+  startAt            DateTime
+  endAt              DateTime?
+  type               EventType       @default(OTHER)
   /// ใช้เฉพาะ type = COURT_DATE — กฎวันครบกำหนดบางข้อเลือกนัดตามชนิด
-  courtEventKind  CourtEventKind?
-  reminderMinutes Int[]     @default([4320, 1440, 60])
-  travelLogId     String?
+  courtEventKind     CourtEventKind?
+  reminderMinutes    Int[]           @default([4320, 1440, 60])
+  travelLogId        String?
   /// Client meetings only: a Teams link is created through the organizer's Outlook.
-  onlineMeeting      Boolean  @default(false)
+  onlineMeeting      Boolean         @default(false)
   onlineMeetingUrl   String?
   meetingOrganizerId String?
-  inviteeEmails      String[] @default([])
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  inviteeEmails      String[]        @default([])
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
-  meetingOrganizer   User?                    @relation("EventMeetingOrganizer", fields: [meetingOrganizerId], references: [id], onDelete: SetNull)
-  case               Case                     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  assignee           User?                    @relation("EventAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  travelLog          TravelLog?               @relation(fields: [travelLogId], references: [id])
+  meetingOrganizer   User?                        @relation("EventMeetingOrganizer", fields: [meetingOrganizerId], references: [id], onDelete: SetNull)
+  case               Case                         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  assignee           User?                        @relation("EventAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  travelLog          TravelLog?                   @relation(fields: [travelLogId], references: [id])
   reminderLogs       ReminderLog[]
   dateSuggestion     DocumentDateSuggestion?
-  triggeredDeadlines DocumentDateSuggestion[] @relation("DateSuggestionTrigger")
+  triggeredDeadlines DocumentDateSuggestion[]     @relation("DateSuggestionTrigger")
   expenses           Expense[]
   responsibility     EventResponsibility?
   courtDay           CourtDay?
@@ -1773,13 +1774,13 @@ model CalendarEventAssignee {
 /// purpose: after the event (or its case) is deleted we still need graphEventId
 /// to remove the Outlook copy.
 model CalendarEventOutlookCopy {
-  id           String   @id @default(uuid())
-  eventId      String
-  userId       String
-  connectionId String
-  graphEventId String
-  syncedAt     DateTime
-  lastError    String?  @db.Text
+  id                 String    @id @default(uuid())
+  eventId            String
+  userId             String
+  connectionId       String
+  graphEventId       String
+  syncedAt           DateTime
+  lastError          String?   @db.Text
   /// Deleted/cancelled by the owner in Outlook — sync must never recreate it.
   removedInOutlookAt DateTime?
 
@@ -2066,6 +2067,8 @@ model DocumentDateSuggestion {
   /// For RULE suggestions: the rule and the event that started the clock.
   deadlineRuleId  String?
   triggerEventId  String?
+  /// For EMAIL suggestions: the case email the date was read from.
+  emailMessageId  String?
   status          DateSuggestionStatus @default(PENDING)
   calendarEventId String?              @unique
   createdById     String
@@ -2076,6 +2079,7 @@ model DocumentDateSuggestion {
 
   case          Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
   document      Document?      @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  emailMessage  EmailMessage?  @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
   calendarEvent CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
   createdBy     User           @relation("DateSuggestionCreator", fields: [createdById], references: [id])
   reviewedBy    User?          @relation("DateSuggestionReviewer", fields: [reviewedById], references: [id])
@@ -2084,6 +2088,7 @@ model DocumentDateSuggestion {
 
   @@unique([triggerEventId, deadlineRuleId])
   @@index([caseId, status])
+  @@index([emailMessageId])
 }
 
 /// Platform-wide procedural clock: "<offsetDays> days from <trigger>".
@@ -2549,12 +2554,12 @@ model EmailThread {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  mailboxConnectionId String?
-  caseId              String?
+  mailboxConnectionId    String?
+  caseId                 String?
   /// Set when a person manually unlinks the thread from a case; sync must not re-link it.
-  caseUnlinkedAt      DateTime?
+  caseUnlinkedAt         DateTime?
   /// Someone marked "no reply needed"; only counts if after the latest inbound message.
-  replyDismissedAt    DateTime?
+  replyDismissedAt       DateTime?
   /// Inbound EmailMessage.id we last sent a reply reminder for (one reminder per inbound message).
   replyReminderMessageId String?
 
@@ -2589,9 +2594,10 @@ model EmailMessage {
   ccAddresses    String[] @default([])
   bodyHtml       String?  @db.Text
 
-  thread         EmailThread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  attachments    EmailAttachment[]
-  fieldProposals IntakeFieldProposal[]
+  thread          EmailThread              @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  attachments     EmailAttachment[]
+  fieldProposals  IntakeFieldProposal[]
+  dateSuggestions DocumentDateSuggestion[]
 
   @@unique([threadId, messageKey])
   @@index([threadId])
@@ -2697,34 +2703,34 @@ enum MailboxConnectionStatus {
 }
 
 model MailboxConnection {
-  id                    String                  @id @default(uuid())
-  firmId                String
-  mailboxAddress        String
-  connectedByUserId     String
-  provider              String                  @default("microsoft")
-  accessTokenEnc        String                  @db.Text
-  refreshTokenEnc       String                  @db.Text
-  tokenExpiresAt        DateTime
-  webhookSecret         String
-  graphSubscriptionId   String?
-  subscriptionExpiresAt DateTime?
-  deltaLink             String?                 @db.Text
-  status                MailboxConnectionStatus @default(ACTIVE)
-  lastError             String?                 @db.Text
-  lastSyncedAt          DateTime?
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  userId                String?
-  syncInboxToIntake     Boolean                 @default(false)
-  syncCalendar          Boolean                 @default(true)
-  sentDeltaLink         String?                 @db.Text
+  id                     String                  @id @default(uuid())
+  firmId                 String
+  mailboxAddress         String
+  connectedByUserId      String
+  provider               String                  @default("microsoft")
+  accessTokenEnc         String                  @db.Text
+  refreshTokenEnc        String                  @db.Text
+  tokenExpiresAt         DateTime
+  webhookSecret          String
+  graphSubscriptionId    String?
+  subscriptionExpiresAt  DateTime?
+  deltaLink              String?                 @db.Text
+  status                 MailboxConnectionStatus @default(ACTIVE)
+  lastError              String?                 @db.Text
+  lastSyncedAt           DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  userId                 String?
+  syncInboxToIntake      Boolean                 @default(false)
+  syncCalendar           Boolean                 @default(true)
+  sentDeltaLink          String?                 @db.Text
   calendarDeltaLink      String?                 @db.Text
   calendarDeltaStartedAt DateTime?
 
   caseExternalLinks CaseExternalLink[]
-  firm    Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  user    User?         @relation("MailboxConnectionOwner", fields: [userId], references: [id], onDelete: SetNull)
-  threads EmailThread[]
+  firm              Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user              User?              @relation("MailboxConnectionOwner", fields: [userId], references: [id], onDelete: SetNull)
+  threads           EmailThread[]
 
   @@unique([firmId, mailboxAddress])
   @@index([firmId])
