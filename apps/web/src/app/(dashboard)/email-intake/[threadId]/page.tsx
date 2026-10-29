@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseEmailComposer, type CaseEmailComposerMode } from '@/components/cases/CaseEmailComposer';
 import { LinkThreadToCaseCard } from '@/components/email/LinkThreadToCaseCard';
+import { EmailMessageCard } from '@/components/email/EmailMessageCard';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageLoading } from '@/components/ui/misc';
 
@@ -308,13 +309,8 @@ export default function EmailThreadDetailPage() {
               จาก: {thread.fromName ?? '—'} {thread.fromAddress ? `<${thread.fromAddress}>` : ''}
             </p>
             <div className="mt-3 space-y-3">
-              {thread.messages.map((message) => (
-                <div key={message.id} className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">
-                    {message.direction === 'INBOUND' ? 'ได้รับ' : 'ส่งออก'} ·{' '}
-                    {new Date(message.receivedAt).toLocaleString('th-TH')}
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm">{message.bodyText}</p>
+              {thread.messages.map((message, index) => (
+                <EmailMessageCard key={message.id} message={message} subject={thread.subject} defaultExpanded={index === 0}>
                   {message.attachments.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {message.attachments.map((att) => (
@@ -347,7 +343,7 @@ export default function EmailThreadDetailPage() {
                       </Button>
                     </div>
                   )}
-                </div>
+                </EmailMessageCard>
               ))}
             </div>
 

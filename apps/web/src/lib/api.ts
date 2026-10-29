@@ -1189,6 +1189,7 @@ export interface EmailMessageItem {
   toAddresses?: string[];
   ccAddresses?: string[];
   bodyText: string | null;
+  bodyHtml?: string | null;
   receivedAt: string;
   attachments: EmailAttachmentItem[];
 }
