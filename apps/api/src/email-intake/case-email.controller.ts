@@ -43,6 +43,12 @@ export class CaseEmailController {
     return this.service.getCaseThread(user, caseId, threadId);
   }
 
+  @Get('cases/:caseId/email/threads/:threadId/unknown-addresses')
+  @UseGuards(CaseAccessGuard)
+  unknownAddresses(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('threadId') threadId: string) {
+    return this.service.listUnknownAddresses(user, caseId, threadId);
+  }
+
   @Post('cases/:caseId/email/threads/:threadId/reply-dismiss')
   @UseGuards(CaseAccessGuard)
   dismissReply(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('threadId') threadId: string) {

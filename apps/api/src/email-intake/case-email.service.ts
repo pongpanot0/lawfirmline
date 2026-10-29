@@ -17,6 +17,22 @@ export interface ThreadCaseSuggestion {
   reasons: ThreadMatchReason[];
 }
 
+/** Every address a thread touches (sender, to, cc), lower-cased and de-duplicated, minus the mailbox it arrived in. */
+export function threadAddresses(thread: {
+  fromAddress: string | null;
+  mailboxConnection: { mailboxAddress: string } | null;
+  messages: { fromAddress: string | null; toAddresses: string[]; ccAddresses: string[] }[];
+}): string[] {
+  const ownMailbox = thread.mailboxConnection?.mailboxAddress.toLowerCase();
+  return [
+    ...new Set(
+      [thread.fromAddress, ...thread.messages.flatMap((m) => [m.fromAddress, ...m.toAddresses, ...m.ccAddresses])]
+        .map((address) => address?.trim().toLowerCase() ?? '')
+        .filter((address) => address && address !== ownMailbox),
+    ),
+  ];
+}
+
 const THREAD_REASON_RANK: Record<ThreadMatchReason, number> = { OWN_REF: 0, CASE_NUMBER: 1, CONTACT_EMAIL: 2 };
 const MAX_SUGGESTIONS = 10;
 const MAX_ADDRESSES = 20;
@@ -70,14 +86,7 @@ export class CaseEmailService {
     });
     if (!thread) throw new NotFoundException('ไม่พบอีเมลนี้');
 
-    const ownMailbox = thread.mailboxConnection?.mailboxAddress.toLowerCase();
-    const addresses = [
-      ...new Set(
-        [thread.fromAddress, ...thread.messages.flatMap((m) => [m.fromAddress, ...m.toAddresses, ...m.ccAddresses])]
-          .map((address) => address?.trim().toLowerCase() ?? '')
-          .filter((address) => address && address !== ownMailbox),
-      ),
-    ].slice(0, MAX_ADDRESSES);
+    const addresses = threadAddresses(thread).slice(0, MAX_ADDRESSES);
 
     const caseFilter = this.caseAccess.getCaseFilterForUser(user);
     const emailIs = addresses.map((address) => ({ email: { equals: address, mode: 'insensitive' as const } }));
@@ -119,6 +128,47 @@ export class CaseEmailService {
     return [...byCase.values()]
       .sort((a, b) => b.reasons.length - a.reasons.length || best(a) - best(b) || a.ownRef.localeCompare(b.ownRef))
       .slice(0, MAX_SUGGESTIONS);
+  }
+
+  /**
+   * Addresses in a case's thread that the case does not know yet: not a client contact, not a participant,
+   * not a firm member, not a firm mailbox. Read-only; nothing is added here.
+   */
+  async listUnknownAddresses(user: AuthUser, caseId: string, threadId: string): Promise<{ address: string; name: string | null }[]> {
+    const thread = await this.prisma.emailThread.findFirst({
+      where: await this.threadWhere(user, { id: threadId, caseId }),
+      select: {
+        fromAddress: true,
+        mailboxConnection: { select: { mailboxAddress: true } },
+        messages: { select: { fromName: true, fromAddress: true, toAddresses: true, ccAddresses: true } },
+      },
+    });
+    if (!thread) throw new NotFoundException('ไม่พบอีเมลนี้ในคดี');
+
+    const [legalCase, internal] = await Promise.all([
+      this.prisma.case.findFirst({
+        where: { id: caseId, firmId: user.firmId },
+        select: {
+          client: { select: { contacts: { select: { email: true } } } },
+          participants: { select: { email: true } },
+        },
+      }),
+      loadInternalAddresses(this.prisma, user.firmId),
+    ]);
+    const known = new Set(
+      [...(legalCase?.client?.contacts ?? []), ...(legalCase?.participants ?? [])]
+        .flatMap((row) => (row.email ? [row.email.trim().toLowerCase()] : [])),
+    );
+
+    const senderNames = new Map<string, string>();
+    for (const m of thread.messages) {
+      const address = m.fromAddress?.trim().toLowerCase();
+      if (address && m.fromName && !senderNames.has(address)) senderNames.set(address, m.fromName);
+    }
+
+    return threadAddresses(thread)
+      .filter((address) => !known.has(address) && !internal.has(address))
+      .map((address) => ({ address, name: senderNames.get(address) ?? null }));
   }
 
   async linkThread(user: AuthUser, threadId: string, caseId: string): Promise<{ threadId: string; caseId: string }> {

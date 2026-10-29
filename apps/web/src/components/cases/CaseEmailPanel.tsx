@@ -19,6 +19,7 @@ import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Badge } from '@/components/ui/badge';
 import { EmailMessageCard } from '@/components/email/EmailMessageCard';
 import { CaseEmailComposer, type CaseEmailComposerMode } from './CaseEmailComposer';
+import { CaseUnknownAddresses } from './CaseUnknownAddresses';
 import { MATCH_REASON_LABELS } from '@/lib/case-email';
 import { formatDateTime } from '@/lib/utils';
 import { awaitingReplyLabel } from '@/lib/email-awaiting';
@@ -405,6 +406,7 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
                       </span>
                     </div>
                   )}
+                  <CaseUnknownAddresses key={detail.id} caseId={caseId} threadId={detail.id} />
                   {detail.messages.map((message, index) => (
                     <EmailMessageCard
                       key={message.id}

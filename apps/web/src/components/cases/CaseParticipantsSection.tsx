@@ -4,29 +4,9 @@ import { useEffect, useState } from 'react';
 import { Pencil, Trash2, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, CaseParticipantItem, ClientItem } from '@/lib/api';
-import { COUNSEL_ROLES, participantPayload } from '@/lib/participants';
+import { COUNSEL_ROLES, participantPayload, ROLE_LABELS, SIDE_LABELS } from '@/lib/participants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
-const ROLE_LABELS: Record<string, string> = {
-  PLAINTIFF: 'โจทก์',
-  JOINT_PLAINTIFF: 'โจทก์ร่วม',
-  DEFENDANT: 'จำเลย',
-  JOINT_DEFENDANT: 'จำเลยร่วม',
-  PETITIONER: 'ผู้ร้อง',
-  RESPONDENT: 'ผู้คัดค้าน',
-  WITNESS: 'พยาน',
-  EXPERT: 'ผู้เชี่ยวชาญ',
-  OPPOSING_LAWYER: 'ทนายฝ่ายตรงข้าม',
-  OPPOSING_INSURER: 'บริษัทประกันฝ่ายตรงข้าม',
-  OTHER: 'อื่นๆ',
-};
-
-const SIDE_LABELS: Record<string, string> = {
-  OURS: 'ฝ่ายเรา',
-  OPPONENT: 'ฝ่ายตรงข้าม',
-  NEUTRAL: 'กลาง',
-};
 
 // Role is not a status: the label carries it, so every role reads in one quiet tint.
 const ROLE_BADGE_COLORS: Record<string, string> = {
