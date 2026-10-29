@@ -383,7 +383,7 @@ function SettingsContent() {
             {lineStatusRow}
             <Separator />
             <MicrosoftAccountsSection>
-              <Link href="/settings/outlook-folders" className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
+              <Link href="/settings/outlook-folders" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-primary hover:underline">
                 <FolderSync className="h-4 w-4" aria-hidden />
                 จับคู่ folder Outlook / OneDrive กับคดี
               </Link>
