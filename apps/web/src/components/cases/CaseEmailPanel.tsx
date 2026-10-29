@@ -17,7 +17,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Badge } from '@/components/ui/badge';
-import { EmailHtmlFrame } from '@/components/email/EmailHtmlFrame';
+import { EmailMessageCard } from '@/components/email/EmailMessageCard';
 import { CaseEmailComposer, type CaseEmailComposerMode } from './CaseEmailComposer';
 import { MATCH_REASON_LABELS } from '@/lib/case-email';
 import { formatDateTime } from '@/lib/utils';
@@ -405,22 +405,13 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
                       </span>
                     </div>
                   )}
-                  {detail.messages.map((message) => (
-                    <article key={message.id} className="space-y-2 rounded-lg border p-3">
-                      <div className="text-xs text-muted-foreground">
-                        <p>
-                          <span className="font-medium text-foreground">{message.fromName ?? message.fromAddress ?? '—'}</span>
-                          {message.fromName && message.fromAddress ? ` <${message.fromAddress}>` : ''} ·{' '}
-                          {message.direction === 'OUTBOUND' ? 'ส่งออก' : 'ได้รับ'} · {formatDateTime(message.receivedAt)}
-                        </p>
-                        {message.toAddresses.length > 0 && <p>ถึง: {message.toAddresses.join(', ')}</p>}
-                        {message.ccAddresses.length > 0 && <p>สำเนา: {message.ccAddresses.join(', ')}</p>}
-                      </div>
-                      {message.bodyHtml ? (
-                        <EmailHtmlFrame html={message.bodyHtml} title={`เนื้อหาอีเมล: ${detail.subject} — ${message.fromName ?? message.fromAddress ?? 'ไม่ทราบผู้ส่ง'} ${formatDateTime(message.receivedAt)}`} />
-                      ) : (
-                        <p className="whitespace-pre-wrap text-sm">{message.bodyText ?? ''}</p>
-                      )}
+                  {detail.messages.map((message, index) => (
+                    <EmailMessageCard
+                      key={message.id}
+                      message={message}
+                      subject={detail.subject}
+                      defaultExpanded={index === detail.messages.length - 1}
+                    >
                       {message.attachments.length > 0 && (
                         <ul className="space-y-1" aria-label="ไฟล์แนบ">
                           {message.attachments.map((attachment) => (
@@ -468,7 +459,7 @@ export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; in
                           ตอบทั้งหมด
                         </Button>
                       </div>
-                    </article>
+                    </EmailMessageCard>
                   ))}
                   <p className="text-xs text-muted-foreground">รูปภาพจากภายนอกในอีเมลถูกบล็อกเพื่อความปลอดภัย</p>
                 </CardContent>
