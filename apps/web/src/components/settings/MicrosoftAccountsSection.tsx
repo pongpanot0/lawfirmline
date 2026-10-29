@@ -284,10 +284,12 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
       {connections.length === 0 && <p className="text-xs text-muted-foreground">ยังไม่ได้เชื่อมบัญชี</p>}
       {connections.map(renderRow)}
 
-      <Button size="sm" variant={connections.some((c) => c.status === 'ACTIVE') ? 'outline' : 'default'} className="mt-3" onClick={handleConnect} disabled={connecting}>
-        {connecting ? 'กำลังเปิด Microsoft...' : connections.some((c) => c.status === 'ACTIVE') ? 'เชื่อมบัญชีอื่นเพิ่ม' : 'เชื่อม Microsoft 365'}
-      </Button>
-      {children}
+      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+        <Button size="sm" variant={connections.some((c) => c.status === 'ACTIVE') ? 'outline' : 'default'} onClick={handleConnect} disabled={connecting}>
+          {connecting ? 'กำลังเปิด Microsoft...' : connections.some((c) => c.status === 'ACTIVE') ? 'เชื่อมบัญชีอื่นเพิ่ม' : 'เชื่อม Microsoft 365'}
+        </Button>
+        {children}
+      </div>
     </section>
   );
 }
