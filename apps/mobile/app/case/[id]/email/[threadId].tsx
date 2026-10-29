@@ -10,6 +10,7 @@ import type { EmailThreadDetail, EmailThreadItem } from '@/api/types';
 import { Button, Card, ErrorState, LoadingState, Tag } from '@/components/ui';
 import { Disclosure } from '@/components/Disclosure';
 import { emailThreadsKey } from '@/components/CaseEmailTab';
+import { splitQuotedText } from '@lawfirm/shared';
 import { thDate, thTime } from '@/format';
 import { colors, radius, spacing, pageContent, TOUCH, typeScale } from '@/theme';
 
@@ -25,6 +26,7 @@ const styles = StyleSheet.create({
   sender: { fontWeight: '700', fontSize: 15, lineHeight: 22, color: colors.text },
   when: { ...typeScale.meta, color: colors.muted },
   body: { color: colors.text, fontSize: 15, lineHeight: 24 },
+  quoted: { color: colors.muted, fontSize: 14, lineHeight: 22, borderLeftWidth: 2, borderLeftColor: colors.divider, paddingLeft: spacing.sm },
   attachment: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
   fileTile: { width: 32, height: 32, borderRadius: radius.md, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
 });
@@ -36,6 +38,7 @@ export default function EmailThreadScreen() {
   const [opening, setOpening] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [showRecipients, setShowRecipients] = useState<Record<string, boolean>>({});
+  const [showQuoted, setShowQuoted] = useState<Record<string, boolean>>({});
   const [dismissedHere, setDismissedHere] = useState(false);
   const key = ['case-email-thread', id, threadId];
   const thread = useQuery({ queryKey: key, queryFn: () => api<EmailThreadDetail>(`/cases/${id}/email/threads/${threadId}`), enabled: !!id && !!threadId });
@@ -78,6 +81,7 @@ export default function EmailThreadScreen() {
     const hasMore = m.toAddresses.length + m.ccAddresses.length > 0;
     const unsaved = m.attachments.filter((a) => !a.savedDocumentId);
     const sender = m.fromName || m.fromAddress || '—';
+    const body = splitQuotedText(m.bodyText ?? '');
     return <Card key={m.id} style={{ gap: spacing.sm }}>
       <View style={styles.head}>
         <View style={[styles.avatar, m.direction === 'OUTBOUND' && styles.avatarOut]} accessible={false} importantForAccessibility="no-hide-descendants">
@@ -97,7 +101,12 @@ export default function EmailThreadScreen() {
         <Text style={{ color: colors.muted, fontSize: 13 }}>ถึง: {m.toAddresses.join(', ') || '—'}</Text>
         {m.ccAddresses.length > 0 && <Text style={{ color: colors.muted, fontSize: 13 }}>สำเนา: {m.ccAddresses.join(', ')}</Text>}
       </View>}
-      <Text style={styles.body} selectable>{m.bodyText?.trim() || '(ไม่มีข้อความ)'}</Text>
+      <Text style={styles.body} selectable>{body.main || '(ไม่มีข้อความ)'}</Text>
+      {body.quoted && <Pressable accessibilityRole="button" accessibilityState={{ expanded: !!showQuoted[m.id] }}
+        onPress={() => setShowQuoted((s) => ({ ...s, [m.id]: !s[m.id] }))} style={{ minHeight: TOUCH, justifyContent: 'center', alignSelf: 'flex-start' }}>
+        <Text style={{ color: colors.info, fontSize: 13 }}>{showQuoted[m.id] ? 'ซ่อนข้อความก่อนหน้า' : 'แสดงข้อความก่อนหน้า'}</Text>
+      </Pressable>}
+      {body.quoted && showQuoted[m.id] && <Text style={styles.quoted} selectable>{body.quoted}</Text>}
       {m.attachments.map((a) => <View key={a.id} style={styles.attachment}>
         <Pressable accessibilityRole="button" accessibilityLabel={`เปิดไฟล์แนบ ${a.filename}`} accessibilityState={{ busy: opening === a.id }} disabled={opening === a.id}
           onPress={async () => {
