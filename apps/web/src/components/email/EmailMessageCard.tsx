@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { EmailHtmlFrame } from './EmailHtmlFrame';
-import { emailPreview, senderInitials, splitQuotedHtml, splitQuotedText } from '@/lib/email-quote';
+import { emailPreview, senderInitials, splitQuotedHtml, splitQuotedText } from '@lawfirm/shared';
 import { formatDateTime } from '@/lib/utils';
 
 export interface EmailMessageView {
