@@ -1261,6 +1261,11 @@ export interface CaseEmailThreadDetail {
   messages: CaseEmailMessageItem[];
 }
 
+export interface CaseUnknownAddressItem {
+  address: string;
+  name: string | null;
+}
+
 export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER';
 
 export interface ThreadCaseSuggestion {
@@ -3283,6 +3288,9 @@ export const api = {
 
   getCaseEmailThread: (token: string, caseId: string, threadId: string) =>
     request<CaseEmailThreadDetail>(`/cases/${caseId}/email/threads/${threadId}`, { token }),
+
+  getCaseUnknownAddresses: (token: string, caseId: string, threadId: string) =>
+    request<CaseUnknownAddressItem[]>(`/cases/${caseId}/email/threads/${threadId}/unknown-addresses`, { token }),
 
   saveEmailAttachmentToCase: (token: string, caseId: string, attachmentId: string) =>
     request<{ document: { id: string; filename: string }; alreadySaved: boolean }>(
