@@ -1,9 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser, DateSuggestionSource, DateSuggestionStatus } from '@lawfirm/shared';
+import { AuthUser, DateSuggestionSource, DateSuggestionStatus, splitQuotedText } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
-import { splitQuotedText } from './email-quote';
 
 const dedupeKey = (label: string, date: Date | string) =>
   `${label.trim()}|${new Date(date).toISOString()}`;

@@ -228,6 +228,38 @@ describe('OutlookSyncService', () => {
     expect(out).toEqual({ threadId: 't1', messageId: 'm-old', created: false, caseId: 'case-9' });
   });
 
+  describe('a conversation shared with a colleague’s mailbox', () => {
+    const upsert = (extra: object = {}) =>
+      service.upsertGraphMessage({
+        firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
+        direction: 'INBOUND', createThreadIfMissing: true, ...extra,
+      });
+    beforeEach(() => {
+      mockPrisma.emailMessage.findFirst.mockResolvedValue(null);
+      mockPrisma.emailMessage.create.mockResolvedValue({ id: 'm1' });
+      mockPrisma.emailThread.create.mockResolvedValue({ id: 't-own', caseId: null });
+    });
+
+    it('never writes into the colleague’s private thread — keeps a per-mailbox copy', async () => {
+      mockPrisma.emailThread.findUnique
+        .mockResolvedValueOnce({ id: 't-b', caseId: null, intakeId: null, mailboxConnectionId: 'c-b' })
+        .mockResolvedValueOnce(null);
+      const out = await upsert();
+      expect(mockPrisma.emailThread.findUnique.mock.calls[1][0].where.firmId_provider_threadKey.threadKey).toBe('conv-1:c1');
+      expect(mockPrisma.emailThread.create.mock.calls[0][0].data).toMatchObject({ threadKey: 'conv-1:c1', mailboxConnectionId: 'c1' });
+      expect(out?.threadId).toBe('t-own');
+    });
+
+    it('still joins a case thread a colleague filed (folder sync), but not from the add-in', async () => {
+      const filed = { id: 't-b', caseId: 'case-1', intakeId: null, mailboxConnectionId: 'c-b', subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2099-01-01') };
+      mockPrisma.emailThread.findUnique.mockResolvedValueOnce(filed);
+      expect((await upsert())?.threadId).toBe('t-b');
+
+      mockPrisma.emailThread.findUnique.mockResolvedValueOnce(filed).mockResolvedValueOnce(null);
+      expect((await upsert({ ownThreadsOnly: true }))?.threadId).toBe('t-own');
+    });
+  });
+
   it('Sent Items never create a thread', async () => {
     mockPrisma.emailThread.findUnique.mockResolvedValue(null);
     const out = await service.upsertGraphMessage({

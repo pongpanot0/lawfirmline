@@ -96,13 +96,25 @@ export class OutlookSyncService {
     direction: Direction;
     caseId?: string | null;
     createThreadIfMissing: boolean;
+    /** Never write into a thread another mailbox started, even one filed in a case (Outlook add-in). */
+    ownThreadsOnly?: boolean;
   }): Promise<{ threadId: string; messageId: string; created: boolean; caseId: string | null } | null> {
     const { message } = p;
-    const key = { firmId_provider_threadKey: { firmId: p.firmId, provider: 'microsoft', threadKey: message.conversationId } };
+    const keyFor = (threadKey: string) => ({ firmId_provider_threadKey: { firmId: p.firmId, provider: 'microsoft', threadKey } });
+    let threadKey = message.conversationId;
+    let key = keyFor(threadKey);
     const at = new Date(message.receivedDateTime ?? message.sentDateTime ?? Date.now());
     const subject = message.subject ?? '(ไม่มีหัวข้อ)';
 
     let thread = await this.prisma.emailThread.findUnique({ where: key });
+    // Threads are keyed per firm by conversation, so two lawyers on one conversation would share a row.
+    // A colleague's private (unfiled) thread must never receive this mailbox's mail: keep a per-mailbox copy instead.
+    const foreign = thread?.mailboxConnectionId && thread.mailboxConnectionId !== p.connectionId;
+    if (thread && foreign && (p.ownThreadsOnly || (!thread.caseId && !thread.intakeId))) {
+      threadKey = `${message.conversationId}:${p.connectionId}`;
+      key = keyFor(threadKey);
+      thread = await this.prisma.emailThread.findUnique({ where: key });
+    }
     let created = false;
     if (!thread) {
       if (!p.createThreadIfMissing) return null;
@@ -111,7 +123,7 @@ export class OutlookSyncService {
           data: {
             firmId: p.firmId,
             provider: 'microsoft',
-            threadKey: message.conversationId,
+            threadKey,
             subject,
             fromName: message.from?.emailAddress?.name ?? null,
             fromAddress: message.from?.emailAddress?.address ?? null,

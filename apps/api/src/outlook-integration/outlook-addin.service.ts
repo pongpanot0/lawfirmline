@@ -33,6 +33,7 @@ export class OutlookAddinService {
       message,
       direction: isOwnSent ? 'OUTBOUND' : 'INBOUND',
       createThreadIfMissing: true,
+      ownThreadsOnly: true,
     });
     if (!stored) throw new NotFoundException('ไม่พบอีเมลนี้');
     return stored;
