@@ -190,7 +190,7 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
 
       <DateSuggestionsPanel
         caseId={caseId}
-        source="RULE"
+        sources={['RULE']}
         title={d.dateSuggestions.ruleTitle}
         reloadKey={suggestionsKey}
         onChanged={() => { setReloadKey((n) => n + 1); onChanged?.(); }}

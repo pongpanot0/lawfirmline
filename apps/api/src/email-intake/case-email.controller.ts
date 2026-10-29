@@ -1,15 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { AuthUser } from '@lawfirm/shared';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards, UseInterceptors } from '@nestjs/common';
+import { AI_CREDIT_COST, AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequireCredits } from '../common/decorators/require-credits.decorator';
+import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { CaseEmailService } from './case-email.service';
+import { EmailDateSuggestionsService } from './email-date-suggestions.service';
 import { LinkThreadToCaseDto } from './dto/email-intake.dto';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class CaseEmailController {
-  constructor(private service: CaseEmailService) {}
+  constructor(
+    private service: CaseEmailService,
+    private dateSuggestions: EmailDateSuggestionsService,
+  ) {}
 
   @Get('email-intake/threads/:threadId/case-suggestions')
   suggestions(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string) {
@@ -53,6 +59,14 @@ export class CaseEmailController {
   @UseGuards(CaseAccessGuard)
   undismissReply(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('threadId') threadId: string) {
     return this.service.setReplyDismissed(user, caseId, threadId, false);
+  }
+
+  @Post('cases/:caseId/email/messages/:messageId/date-suggestions')
+  @UseGuards(CaseAccessGuard)
+  @RequireCredits(AI_CREDIT_COST.DOCUMENT_ANALYSIS)
+  @UseInterceptors(AiCreditsInterceptor)
+  suggestDatesFromMessage(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('messageId') messageId: string) {
+    return this.dateSuggestions.suggestFromMessage(user, caseId, messageId);
   }
 
   @Post('cases/:caseId/email/attachments/:attachmentId/save-to-documents')

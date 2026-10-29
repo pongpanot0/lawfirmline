@@ -3284,6 +3284,12 @@ export const api = {
   getCaseEmailThread: (token: string, caseId: string, threadId: string) =>
     request<CaseEmailThreadDetail>(`/cases/${caseId}/email/threads/${threadId}`, { token }),
 
+  suggestDatesFromEmailMessage: (token: string, caseId: string, messageId: string) =>
+    request<{ created: number; suggestions: DateSuggestionItem[] }>(
+      `/cases/${caseId}/email/messages/${messageId}/date-suggestions`,
+      { method: 'POST', token },
+    ),
+
   saveEmailAttachmentToCase: (token: string, caseId: string, attachmentId: string) =>
     request<{ document: { id: string; filename: string }; alreadySaved: boolean }>(
       `/cases/${caseId}/email/attachments/${attachmentId}/save-to-documents`,
@@ -3719,7 +3725,8 @@ export interface DateSuggestionItem {
   eventType: 'COURT_DATE' | 'CLIENT_MEETING' | 'DEADLINE' | 'OTHER';
   /** Only DOCUMENT suggestions quote a source; a rule-derived date has none. */
   sourceExcerpt: string | null;
-  source: 'DOCUMENT' | 'RULE';
+  source: 'DOCUMENT' | 'RULE' | 'EMAIL';
+  emailMessageId?: string | null;
   deadlineRule?: { label: string; trigger: DeadlineTriggerValue } | null;
   status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
   calendarEventId?: string | null;
