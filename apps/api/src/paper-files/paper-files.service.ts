@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, hasFirmCapability, PaperFileAction } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
@@ -44,7 +44,7 @@ export class PaperFilesService {
 
     return this.prisma.$transaction(async (tx) => {
       const legalCase = await tx.case.findFirst({
-        where: { id: caseId, firmId: user.firmId, AND: this.caseAccess.getCaseFilterForUser(user) },
+        where: { id: caseId, firmId: user.firmId, deletedAt: null, AND: this.caseAccess.getCaseFilterForUser(user) },
         select: { id: true, paperFileHolderId: true },
       });
       if (!legalCase) throw new NotFoundException('ไม่พบคดี');
@@ -61,6 +61,11 @@ export class PaperFilesService {
         },
         data: { paperFileHolderId: holderUserId, paperFileLocation: location ?? null },
         select: stateSelect,
+      }).catch((err) => {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          throw new ConflictException('สำนวนถูกเบิกไปพร้อมกัน กรุณาโหลดใหม่');
+        }
+        throw err;
       });
       const metadata = { caseId, holderUserId, location: location ?? null, note: dto.note ?? null };
       await tx.paperFileMovement.create({

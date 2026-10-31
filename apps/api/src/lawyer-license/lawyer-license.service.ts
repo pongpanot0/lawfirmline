@@ -120,7 +120,13 @@ export class LawyerLicenseService {
         const milestone = dueMilestone(expiresAt, now, sent);
         if (!milestone || !user.firmMembers.length) continue;
         if (!(await this.claim(user.id, expiresAt, milestone))) continue;
-        await this.notify(user, expiresAt, milestone, now);
+        try {
+          await this.notify(user, expiresAt, milestone, now);
+        } catch (err) {
+          // Release the claim so tomorrow's run retries this milestone.
+          await this.prisma.lawyerLicenseReminderLog.deleteMany({ where: { userId: user.id, expiresAt, milestone } });
+          throw err;
+        }
       } catch (err) {
         this.logger.error(`Licence reminder failed for user ${user.id}`, err);
       }

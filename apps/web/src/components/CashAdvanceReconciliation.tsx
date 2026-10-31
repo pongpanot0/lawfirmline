@@ -217,13 +217,13 @@ function AdvanceDetails({ token, advance, busy, onBusyChange, onRefresh }: {
             <div className="space-y-1.5">
               <label htmlFor={`return-${advance.id}`} className="block text-sm font-medium">ยอดเงินคืน (บาท)</label>
               <MoneyInput id={`return-${advance.id}`} required min={0.01} max={advance.remaining}
-                disabled={busy || advance.remaining === 0} value={amount} onValueChange={setAmount} />
+                disabled={busy || canSettleCashAdvance(advance)} value={amount} onValueChange={setAmount} />
             </div>
             <Button type="submit" variant="outline" disabled={busy || !canReturnCashAdvance(advance, Number(amount))}>บันทึกเงินคืน</Button>
           </form>
           <Button type="button" disabled={busy || !canSettleCashAdvance(advance)}
             onClick={() => { if (canSettleCashAdvance(advance)) void perform(() => api.settleCashAdvance(token, advance.id)); }}>ปิดยอด</Button>
-          {advance.remaining > 0 && <p className="text-sm text-muted-foreground">ใช้หรือคืนเงินให้ครบก่อนปิดยอด</p>}
+          {!canSettleCashAdvance(advance) && <p className="text-sm text-muted-foreground">ใช้หรือคืนเงินให้ครบก่อนปิดยอด</p>}
         </div>
       )}
     </div>

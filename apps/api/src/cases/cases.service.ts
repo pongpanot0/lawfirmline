@@ -853,7 +853,8 @@ export class CasesService {
       unpaidInvoices: { count: unpaidAmounts.length, outstandingAmount: round(unpaidAmounts.reduce((sum, amount) => sum + amount, 0)) },
       draftInvoices: { count: draftCount },
       total: openTasks.length + upcomingEvents.length + unapprovedDocuments.length
-        + timeEntries.length + expenses.length + unpaidAmounts.length + draftCount,
+        // Billing counts as one item per non-empty group, matching the grouped checklist.
+        + [timeEntries.length, expenses.length, unpaidAmounts.length, draftCount].filter(Boolean).length,
     };
   }
 

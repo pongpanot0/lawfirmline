@@ -5,5 +5,5 @@ export function canReturnCashAdvance(advance: AdvanceBalance, amount: number) {
 }
 
 export function canSettleCashAdvance(advance: AdvanceBalance) {
-  return !advance.settledAt && advance.remaining === 0;
+  return !advance.settledAt && Math.round(advance.remaining * 100) === 0;
 }

@@ -110,11 +110,12 @@ export class CashAdvanceService {
       const advance = await tx.cashAdvance.findFirst({ where });
       if (!advance) throw new NotFoundException('ไม่พบเงินสำรองจ่ายนี้');
       if (advance.settledAt) throw new ConflictException('เงินสำรองจ่ายนี้ปิดยอดแล้ว');
-      if (advance.remaining > 0) throw new ConflictException('ต้องใช้หรือคืนเงินสำรองจ่ายให้ครบก่อนปิดยอด');
+      // Pre-branch consume used float decrement, so old rows can hold sub-satang dust (e.g. 1e-13).
+      if (Math.round(advance.remaining * 100) > 0) throw new ConflictException('ต้องใช้หรือคืนเงินสำรองจ่ายให้ครบก่อนปิดยอด');
 
       const updated = await tx.cashAdvance.updateMany({
-        where: { ...where, settledAt: null, remaining: 0 },
-        data: { settledAt: new Date(), settledById: user.id, settlementNote: note ?? null },
+        where: { ...where, settledAt: null, remaining: { lt: 0.005 } },
+        data: { remaining: 0, settledAt: new Date(), settledById: user.id, settlementNote: note ?? null },
       });
       if (updated.count !== 1) throw new ConflictException('ยอดเงินสำรองจ่ายเปลี่ยนแปลง กรุณาลองใหม่');
       await tx.auditLog.create({ data: {

@@ -142,14 +142,24 @@ describe('CashAdvanceService', () => {
       expect(tx.cashAdvance.updateMany).not.toHaveBeenCalled();
     });
 
+    it('settles a legacy advance left with sub-satang float dust', async () => {
+      tx.cashAdvance.findFirst.mockResolvedValue({ ...advance, remaining: 1000 - 333.33 - 333.33 - 333.34 });
+      tx.cashAdvance.findFirstOrThrow.mockResolvedValue({ ...advance, remaining: 0, settledAt: new Date() });
+      await service.settle(owner, 'adv-1');
+      expect(tx.cashAdvance.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ remaining: { lt: 0.005 } }),
+        data: expect.objectContaining({ remaining: 0 }),
+      }));
+    });
+
     it('sets the settler, time and note and audits within the transaction', async () => {
       tx.cashAdvance.findFirst.mockResolvedValue({ ...advance, remaining: 0 });
       tx.cashAdvance.findFirstOrThrow.mockResolvedValue({ ...advance, remaining: 0, settledAt: new Date(), settledById: owner.id });
       await service.settle(owner, 'adv-1', 'ครบแล้ว');
       expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
       expect(tx.cashAdvance.updateMany).toHaveBeenCalledWith({
-        where: { id: 'adv-1', firmId: 'firm-1', settledAt: null, remaining: 0 },
-        data: { settledAt: expect.any(Date), settledById: 'owner-1', settlementNote: 'ครบแล้ว' },
+        where: { id: 'adv-1', firmId: 'firm-1', settledAt: null, remaining: { lt: 0.005 } },
+        data: { remaining: 0, settledAt: expect.any(Date), settledById: 'owner-1', settlementNote: 'ครบแล้ว' },
       });
       expect(tx.auditLog.create).toHaveBeenCalledWith({ data: {
         firmId: 'firm-1', userId: 'owner-1', action: 'CASH_ADVANCE_SETTLED',

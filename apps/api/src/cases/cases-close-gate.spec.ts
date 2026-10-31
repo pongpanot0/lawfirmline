@@ -91,7 +91,7 @@ describe('CasesService.close — ด่านของค้าง', () => {
     expect(outstanding.total).toBe(2);
   });
 
-  it('รวมเวลา ค่าใช้จ่าย ใบค้างชำระหลังหักทุกยอดรับ และใบร่าง โดย total นับทุกรายการ', async () => {
+  it('รวมเวลา ค่าใช้จ่าย ใบค้างชำระหลังหักทุกยอดรับ และใบร่าง โดย total นับกลุ่มการเงินละ 1', async () => {
     prisma.task.findMany.mockResolvedValue([{ id: 't1' }]);
     prisma.calendarEvent.findMany.mockResolvedValue([{ id: 'e1' }]);
     prisma.document.findMany.mockResolvedValue([{ id: 'd1' }]);
@@ -111,7 +111,7 @@ describe('CasesService.close — ด่านของค้าง', () => {
       unbilledExpenses: { count: 2, amount: 300.3 },
       unpaidInvoices: { count: 2, outstandingAmount: 750 },
       draftInvoices: { count: 1 },
-      total: 10,
+      total: 7,
     });
   });
 
