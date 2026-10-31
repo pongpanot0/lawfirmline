@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -29,6 +30,8 @@ import {
   IssueCashAdvanceDto,
   RecordPaymentDto,
   CollectionFollowUpDto,
+  WriteOffDto,
+  SetInvoiceDiscountDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -166,6 +169,24 @@ export class BillingController {
     return this.billingService.setExpenseBillable(user, expenseId, dto.billable);
   }
 
+  @Patch('expenses/:expenseId/write-off')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  writeOffExpense(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId', ParseUUIDPipe) expenseId: string,
+    @Body() dto: WriteOffDto,
+  ) {
+    return this.billingService.writeOffExpense(user, expenseId, dto.reason);
+  }
+
+  @Delete('expenses/:expenseId/write-off')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  undoExpenseWriteOff(@CurrentUser() user: AuthUser, @Param('expenseId', ParseUUIDPipe) expenseId: string) {
+    return this.billingService.undoExpenseWriteOff(user, expenseId);
+  }
+
   @Patch('expenses/:expenseId/status')
   @UseGuards(FirmRoleGuard)
   @RequireCapability('approveExpenses')
@@ -197,6 +218,29 @@ export class BillingController {
     @Body() dto: CreateTimeEntryDto,
   ) {
     return this.billingService.createTimeEntry(user, caseId, dto);
+  }
+
+  @Patch('cases/:caseId/billing/time-entries/:entryId/write-off')
+  @UseGuards(CaseAccessGuard, FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  writeOffTimeEntry(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+    @Body() dto: WriteOffDto,
+  ) {
+    return this.billingService.writeOffTimeEntry(user, caseId, entryId, dto.reason);
+  }
+
+  @Delete('cases/:caseId/billing/time-entries/:entryId/write-off')
+  @UseGuards(CaseAccessGuard, FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  undoTimeEntryWriteOff(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+  ) {
+    return this.billingService.undoTimeEntryWriteOff(user, caseId, entryId);
   }
 
   @Get('cases/:caseId/billing/expenses')
@@ -312,6 +356,17 @@ export class BillingController {
   @RequireCapability('manageInvoices')
   sendInvoiceReminder(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     return this.collectionsService.sendReminder(user, invoiceId);
+  }
+
+  @Patch('invoices/:invoiceId/discount')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  setInvoiceDiscount(
+    @CurrentUser() user: AuthUser,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @Body() dto: SetInvoiceDiscountDto,
+  ) {
+    return this.billingService.setInvoiceDiscount(user, invoiceId, dto);
   }
 
   @Get('invoices/owner-worklist')

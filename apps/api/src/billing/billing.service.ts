@@ -5,13 +5,15 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthUser, ExpenseClaimStatus, ExpenseStatus, hasFirmCapability } from '@lawfirm/shared';
-import { NotificationCategory, Prisma } from '../generated/prisma';
+import { InvoiceStatus, NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CashAdvanceService } from './cash-advance.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { randomUUID } from 'crypto';
+import { unbilledExpenseWhere, unbilledTimeWhere } from './unbilled';
 import {
   CreateTimeEntryDto,
   CreateExpenseDto,
@@ -80,6 +82,7 @@ export class BillingService {
     paidBy: { select: { id: true, firstName: true, lastName: true } },
     case: { select: { id: true, ownRef: true, title: true, courtName: true } },
     paidFromAdvance: { select: { id: true, issuedById: true } },
+    writtenOffBy: { select: { id: true, firstName: true, lastName: true } },
   };
 
   private claimInclude = {
@@ -293,6 +296,7 @@ export class BillingService {
       where: { caseId },
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
+        writtenOffBy: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: { date: 'desc' },
     });
@@ -978,17 +982,12 @@ export class BillingService {
   async getInvoiceDraft(caseId: string) {
     const [timeEntries, expenses, legalCase] = await Promise.all([
       this.prisma.timeEntry.findMany({
-        where: { caseId, invoiceId: null, billable: true },
+        where: { caseId, ...unbilledTimeWhere() },
         include: { user: { select: { firstName: true, lastName: true } } },
         orderBy: { date: 'asc' },
       }),
       this.prisma.expense.findMany({
-        where: {
-          caseId,
-          invoiceId: null,
-          billable: true,
-          status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] },
-        },
+        where: { caseId, ...unbilledExpenseWhere() },
         orderBy: { date: 'asc' },
       }),
       this.prisma.case.findUnique({
@@ -1017,6 +1016,133 @@ export class BillingService {
       // ค่าจ้างที่ตกลงไว้กับคดี ใช้เป็นตัวตั้งเมื่อยังไม่มีบันทึกเวลา
       agreedFee: legalCase?.actualFee ?? legalCase?.estimatedFee ?? null,
     };
+  }
+
+  private round2(n: number) {
+    return Math.round(n * 100) / 100;
+  }
+
+  private assertValidDiscount(subtotal: number, discountAmount: number, reason?: string | null) {
+    if (discountAmount < 0) throw new BadRequestException('ส่วนลดต้องไม่ติดลบ');
+    if (discountAmount > subtotal) throw new BadRequestException('ส่วนลดต้องไม่เกินยอดก่อนหัก');
+    if (discountAmount > 0 && !reason?.trim()) throw new BadRequestException('ส่วนลดต้องระบุเหตุผล');
+  }
+
+  private assertWriteOffReason(reason: string | undefined) {
+    const trimmed = reason?.trim() ?? '';
+    if (trimmed.length < 5) throw new BadRequestException('เหตุผลต้องมีอย่างน้อย 5 ตัวอักษร');
+    return trimmed;
+  }
+
+  private audit(user: AuthUser, action: string, metadata: Prisma.InputJsonObject) {
+    return this.prisma.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action, metadata } });
+  }
+
+  /** ตัดเวลาที่ยังไม่เรียกเก็บทิ้ง — ยังนับเป็นชั่วโมงทำงานของคนเดิม แค่ไม่เข้าใบแจ้งหนี้ */
+  async writeOffTimeEntry(user: AuthUser, caseId: string, entryId: string, reason: string) {
+    const trimmed = this.assertWriteOffReason(reason);
+    const entry = await this.prisma.timeEntry.findFirst({
+      where: { id: entryId, caseId, case: { firmId: user.firmId } },
+      select: { id: true, invoiceId: true, writtenOffAt: true, hours: true, rate: true },
+    });
+    if (!entry) throw new NotFoundException('Time entry not found');
+    if (entry.invoiceId) throw new ConflictException('รายการนี้ออกใบแจ้งหนี้ไปแล้ว ตัดทิ้งไม่ได้');
+    if (entry.writtenOffAt) throw new ConflictException('รายการนี้ถูกตัดทิ้งไปแล้ว');
+    const result = await this.prisma.timeEntry.updateMany({
+      where: { id: entryId, invoiceId: null, writtenOffAt: null },
+      data: { writtenOffAt: new Date(), writtenOffById: user.id, writeOffReason: trimmed },
+    });
+    if (result.count !== 1) throw new ConflictException('รายการเปลี่ยนไปแล้ว กรุณาโหลดล่าสุด');
+    await this.audit(user, 'TIME_ENTRY_WRITTEN_OFF', {
+      timeEntryId: entryId, caseId, hours: entry.hours, rate: entry.rate, reason: trimmed,
+    });
+    return { id: entryId };
+  }
+
+  async undoTimeEntryWriteOff(user: AuthUser, caseId: string, entryId: string) {
+    const entry = await this.prisma.timeEntry.findFirst({
+      where: { id: entryId, caseId, case: { firmId: user.firmId } },
+      select: { id: true },
+    });
+    if (!entry) throw new NotFoundException('Time entry not found');
+    const result = await this.prisma.timeEntry.updateMany({
+      where: { id: entryId, invoiceId: null, writtenOffAt: { not: null } },
+      data: { writtenOffAt: null, writtenOffById: null, writeOffReason: null },
+    });
+    if (result.count !== 1) throw new ConflictException('รายการนี้ไม่ได้ถูกตัดทิ้ง หรือออกใบแจ้งหนี้ไปแล้ว');
+    await this.audit(user, 'TIME_ENTRY_WRITE_OFF_UNDONE', { timeEntryId: entryId, caseId });
+    return { id: entryId };
+  }
+
+  async writeOffExpense(user: AuthUser, expenseId: string, reason: string) {
+    const trimmed = this.assertWriteOffReason(reason);
+    const expense = await this.prisma.expense.findFirst({
+      where: { id: expenseId, ...this.getFirmExpenseFilter(user.firmId) },
+      select: { id: true, caseId: true, invoiceId: true, writtenOffAt: true, amount: true },
+    });
+    if (!expense) throw new NotFoundException('Expense not found');
+    if (expense.invoiceId) throw new ConflictException('รายการนี้ออกใบแจ้งหนี้ไปแล้ว ตัดทิ้งไม่ได้');
+    if (expense.writtenOffAt) throw new ConflictException('รายการนี้ถูกตัดทิ้งไปแล้ว');
+    const result = await this.prisma.expense.updateMany({
+      where: { id: expenseId, invoiceId: null, writtenOffAt: null },
+      data: { writtenOffAt: new Date(), writtenOffById: user.id, writeOffReason: trimmed },
+    });
+    if (result.count !== 1) throw new ConflictException('รายการเปลี่ยนไปแล้ว กรุณาโหลดล่าสุด');
+    await this.audit(user, 'EXPENSE_WRITTEN_OFF', {
+      expenseId, caseId: expense.caseId, amount: expense.amount, reason: trimmed,
+    });
+    return { id: expenseId };
+  }
+
+  async undoExpenseWriteOff(user: AuthUser, expenseId: string) {
+    const expense = await this.prisma.expense.findFirst({
+      where: { id: expenseId, ...this.getFirmExpenseFilter(user.firmId) },
+      select: { id: true, caseId: true },
+    });
+    if (!expense) throw new NotFoundException('Expense not found');
+    const result = await this.prisma.expense.updateMany({
+      where: { id: expenseId, invoiceId: null, writtenOffAt: { not: null } },
+      data: { writtenOffAt: null, writtenOffById: null, writeOffReason: null },
+    });
+    if (result.count !== 1) throw new ConflictException('รายการนี้ไม่ได้ถูกตัดทิ้ง หรือออกใบแจ้งหนี้ไปแล้ว');
+    await this.audit(user, 'EXPENSE_WRITE_OFF_UNDONE', { expenseId, caseId: expense.caseId });
+    return { id: expenseId };
+  }
+
+  /** ส่วนลดทั้งใบ แก้ได้เฉพาะใบร่าง — totalAmount คำนวณใหม่จากรายการเสมอ */
+  async setInvoiceDiscount(
+    user: AuthUser,
+    invoiceId: string,
+    dto: { discountAmount: number; discountReason?: string },
+  ) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, firmId: user.firmId },
+      include: { lineItems: { select: { amount: true } } },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status !== InvoiceStatus.DRAFT) {
+      throw new BadRequestException('ใส่ส่วนลดได้เฉพาะใบแจ้งหนี้ฉบับร่าง');
+    }
+    const subtotal = invoice.lineItems.reduce((sum, item) => sum + item.amount, 0);
+    const reason = dto.discountReason?.trim() || null;
+    this.assertValidDiscount(subtotal, dto.discountAmount, reason);
+    const result = await this.prisma.invoice.updateMany({
+      where: { id: invoiceId, firmId: user.firmId, status: InvoiceStatus.DRAFT },
+      data: {
+        discountAmount: dto.discountAmount,
+        discountReason: dto.discountAmount > 0 ? reason : null,
+        totalAmount: this.round2(subtotal - dto.discountAmount),
+      },
+    });
+    if (result.count !== 1) throw new ConflictException('ใบแจ้งหนี้เปลี่ยนสถานะแล้ว กรุณาโหลดล่าสุด');
+    await this.audit(user, 'INVOICE_DISCOUNT_SET', {
+      invoiceId, subtotal, discountAmount: dto.discountAmount, reason,
+      previousDiscountAmount: invoice.discountAmount,
+    });
+    return this.prisma.invoice.findFirst({
+      where: { id: invoiceId, firmId: user.firmId },
+      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+    });
   }
 
   /**
@@ -1074,19 +1200,13 @@ export class BillingService {
     const [billedTime, billedExpenses] = await Promise.all([
       caseId && dto.timeEntryIds?.length
         ? this.prisma.timeEntry.findMany({
-            where: { id: { in: dto.timeEntryIds }, caseId, invoiceId: null, billable: true },
+            where: { id: { in: dto.timeEntryIds }, caseId, ...unbilledTimeWhere() },
             orderBy: { date: 'asc' },
           })
         : [],
       caseId && dto.expenseIds?.length
         ? this.prisma.expense.findMany({
-            where: {
-              id: { in: dto.expenseIds },
-              caseId,
-              invoiceId: null,
-              billable: true,
-              status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] },
-            },
+            where: { id: { in: dto.expenseIds }, caseId, ...unbilledExpenseWhere() },
             orderBy: { date: 'asc' },
           })
         : [],
@@ -1126,7 +1246,11 @@ export class BillingService {
     if (!lineItems.length && (caseId || intakeId)) {
       throw new BadRequestException('ใบแจ้งหนี้ต้องมีรายการอย่างน้อยหนึ่งบรรทัด');
     }
-    const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
+    const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0);
+    const discountAmount = dto.discountAmount ?? 0;
+    const discountReason = dto.discountReason?.trim() || null;
+    this.assertValidDiscount(subtotal, discountAmount, discountReason);
+    const totalAmount = subtotal;
 
     // ลูกค้าของงาน: จากคดีก่อน ไม่มีคดีก็จากเรื่องที่รับเข้ามา
     const caseCustomers = caseId
@@ -1164,9 +1288,16 @@ export class BillingService {
       }
     }
 
+    if (discountAmount > 0 && recipients.length > 1) {
+      // ส่วนลดใส่รายใบ ไม่กระจายข้ามกลุ่ม — ออกใบก่อนแล้วใส่ทีละใบที่ PATCH invoices/:id/discount
+      throw new BadRequestException('ใบที่แบ่งผู้จ่ายใส่ส่วนลดตอนสร้างไม่ได้ ใส่ทีละใบหลังออกใบ');
+    }
+    // ใบที่แบ่งจากชุดเดียวกันใช้ splitGroupId ร่วมกัน; ใบเดียวไม่มี
+    const splitGroupId = recipients.length > 1 ? randomUUID() : null;
+
     const amounts =
       recipients.length === 1
-        ? [totalAmount]
+        ? [this.round2(totalAmount - discountAmount)]
         : this.allocate(totalAmount, recipients.map((recipient) => recipient.sharePercent));
 
     return this.prisma.$transaction(async (tx) => {
@@ -1184,6 +1315,9 @@ export class BillingService {
               intakeId,
               invoiceNumber: numbers[index],
               totalAmount: amounts[index],
+              discountAmount: recipients.length === 1 ? discountAmount : 0,
+              discountReason: recipients.length === 1 && discountAmount > 0 ? discountReason : null,
+              splitGroupId,
               dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
               createdById: user.id,
               billToCustomerId: recipient.customerId,
@@ -1212,14 +1346,14 @@ export class BillingService {
       const primaryInvoiceId = invoices[0].id;
       if (billedTime.length) {
         const claimed = await tx.timeEntry.updateMany({
-          where: { id: { in: billedTime.map((entry) => entry.id) }, invoiceId: null, caseId, billable: true },
+          where: { id: { in: billedTime.map((entry) => entry.id) }, caseId, ...unbilledTimeWhere() },
           data: { invoiceId: primaryInvoiceId },
         });
         if (claimed.count !== billedTime.length) throw new ConflictException('รายการเวลาถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
       }
       if (billedExpenses.length) {
         const claimed = await tx.expense.updateMany({
-          where: { id: { in: billedExpenses.map((expense) => expense.id) }, invoiceId: null, caseId, billable: true, status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] } },
+          where: { id: { in: billedExpenses.map((expense) => expense.id) }, caseId, ...unbilledExpenseWhere() },
           data: { invoiceId: primaryInvoiceId },
         });
         if (claimed.count !== billedExpenses.length) throw new ConflictException('ค่าใช้จ่ายถูกออกบิลแล้ว กรุณาโหลดล่าสุด');

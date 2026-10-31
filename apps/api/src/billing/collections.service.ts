@@ -7,6 +7,7 @@ import { agingBucket, daysOverdue, summarizeBuckets } from './receivables';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { ContactNotificationPreferenceService } from '../notifications/contact-notification-preference.service';
 import { bangkokMonthOf, monthRange } from '../operations/owner-kpis';
+import { unbilledExpenseWhere, unbilledTimeWhere } from './unbilled';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -73,9 +74,9 @@ export class CollectionsService {
       this.prisma.invoice.findMany({ where: { firmId: user.firmId }, include: INVOICE_INCLUDE, orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }] }),
       this.prisma.invoicePayment.findMany({ where: { firmId: user.firmId, receivedAt: { gte: start, lt: end } },
         include: { invoice: { select: { invoiceNumber: true } } }, orderBy: [{ receivedAt: 'desc' }, { id: 'asc' }] }),
-      this.prisma.timeEntry.findMany({ where: { billable: true, invoiceId: null, case: { firmId: user.firmId, deletedAt: null } },
+      this.prisma.timeEntry.findMany({ where: { ...unbilledTimeWhere(), case: { firmId: user.firmId, deletedAt: null } },
         include: { case: { select: caseSelect } }, orderBy: { date: 'asc' } }),
-      this.prisma.expense.findMany({ where: { billable: true, invoiceId: null, status: { in: ['APPROVED', 'PAID'] }, case: { firmId: user.firmId, deletedAt: null } },
+      this.prisma.expense.findMany({ where: { ...unbilledExpenseWhere(), case: { firmId: user.firmId, deletedAt: null } },
         include: { case: { select: caseSelect } }, orderBy: { date: 'asc' } }),
       this.prisma.expense.findMany({ where: { status: 'APPROVED', OR: [
         { case: { firmId: user.firmId } },

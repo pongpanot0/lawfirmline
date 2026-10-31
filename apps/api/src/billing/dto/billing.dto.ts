@@ -228,6 +228,19 @@ export class CreateInvoiceDto {
   @Type(() => InvoiceLineItemDto)
   lineItems?: InvoiceLineItemDto[];
 
+  /** ส่วนลดทั้งใบ — ยอดสุดท้ายคำนวณที่ server เสมอ */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber(money)
+  @Min(0)
+  @Max(MONEY_MAX)
+  discountAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  discountReason?: string;
+
   /** บันทึกเวลาในคดีที่จะเก็บเงินรอบนี้ — ราคาอ่านจาก DB ไม่เชื่อค่าที่ส่งมา */
   @IsOptional()
   @IsArray()
@@ -287,4 +300,23 @@ export class CollectionFollowUpDto {
   @IsString()
   @MaxLength(2000)
   note?: string | null;
+}
+
+export class WriteOffDto {
+  @IsString()
+  @MaxLength(500)
+  reason!: string;
+}
+
+export class SetInvoiceDiscountDto {
+  @Type(() => Number)
+  @IsNumber(money)
+  @Min(0)
+  @Max(MONEY_MAX)
+  discountAmount!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  discountReason?: string;
 }
