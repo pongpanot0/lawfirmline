@@ -202,9 +202,10 @@ describe('TimeSuggestionsService', () => {
   });
 
   describe('suggest — email source', () => {
-    /** Sent by u1 on 2026-10-31 10:00 Bangkok, filed to case-1. */
+    let seq = 0;
+    /** Sent by u1 on 2026-10-31 10:00 Bangkok, filed to case-1; each call is a distinct message. */
     const sent = (over: Record<string, unknown> = {}) => ({
-      direction: 'OUTBOUND',
+      messageKey: `msg-${++seq}`,
       fromAddress: 'u1@firm.co.th',
       receivedAt: new Date('2026-10-31T03:00:00.000Z'),
       thread: { caseId: 'case-1', case: { ownRef: 'CASE-001' } },
@@ -260,16 +261,34 @@ describe('TimeSuggestionsService', () => {
       expect(mockPrisma.emailMessage.findMany).not.toHaveBeenCalled();
     });
 
-    it('email source: ignores INBOUND, threads with caseId null, and cases outside CaseAccessService filter', async () => {
+    it('email source: counts the same messageKey once per case even when two case-linked threads hold it', async () => {
+      mockPrisma.emailMessage.findMany.mockResolvedValue([
+        sent({ messageKey: 'dup' }),
+        sent({ messageKey: 'dup' }),
+        sent({ messageKey: 'dup', thread: { caseId: 'case-2', case: { ownRef: 'CASE-002' } } }),
+      ]);
+      const result = emailOnly(await service.suggest(lawyer, '2026-10-31'));
+      const byCase = Object.fromEntries(result.map((r: any) => [r.caseId, r]));
+      expect(byCase['case-1']).toMatchObject({ description: 'ส่งอีเมลคดี 1 ฉบับ', hours: 0.25 });
+      expect(byCase['case-2']).toMatchObject({ description: 'ส่งอีเมลคดี 1 ฉบับ' });
+    });
+
+    it('email source: attributes by sender regardless of stored direction (shared row stored INBOUND)', async () => {
       mockPrisma.emailMessage.findMany.mockResolvedValue([
         sent({ direction: 'INBOUND' }),
-        sent({ thread: { caseId: null, case: null } }),
+        sent({ direction: 'INBOUND', fromAddress: 'colleague@firm.co.th' }),
       ]);
+      const result = emailOnly(await service.suggest(lawyer, '2026-10-31'));
+      expect(result).toEqual([expect.objectContaining({ caseId: 'case-1', description: 'ส่งอีเมลคดี 1 ฉบับ' })]);
+      expect(mockPrisma.emailMessage.findMany.mock.calls[0][0].where.direction).toBeUndefined();
+    });
+
+    it('email source: ignores threads with caseId null and cases outside CaseAccessService filter', async () => {
+      mockPrisma.emailMessage.findMany.mockResolvedValue([sent({ thread: { caseId: null, case: null } })]);
       expect(emailOnly(await service.suggest(lawyer, '2026-10-31'))).toEqual([]);
 
       expect(mockCaseAccess.getEmailThreadFilterForUser).toHaveBeenCalledWith(lawyer);
       const where = mockPrisma.emailMessage.findMany.mock.calls[0][0].where;
-      expect(where.direction).toBe('OUTBOUND');
       expect(where.thread).toEqual({
         AND: [{ firmId: 'firm-1', visible: true }, { caseId: { not: null } }],
       });

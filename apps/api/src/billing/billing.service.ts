@@ -16,6 +16,7 @@ import { randomUUID } from 'crypto';
 import { unbilledExpenseWhere, unbilledTimeWhere } from './unbilled';
 import {
   CreateTimeEntryDto,
+  UpdateTimeEntryDto,
   CreateExpenseDto,
   CreateStandaloneExpenseDto,
   CreateInvoiceDto,
@@ -317,7 +318,7 @@ export class BillingService {
         caseId,
         userId: user.id,
         hours: dto.hours,
-        rate: dto.rate ?? 0,
+        rate: dto.rate ?? (await this.resolveDefaultRate(user.firmId, user.id)),
         description: dto.description,
         date: dto.date ? new Date(dto.date) : new Date(),
         billable: dto.billable ?? true,
@@ -326,6 +327,48 @@ export class BillingService {
         user: { select: { id: true, firstName: true, lastName: true } },
       },
     });
+  }
+
+  /** เจ้าของรายการหรือผู้มี manageInvoices แก้/ลบได้ เฉพาะที่ยังไม่เข้าใบแจ้งหนี้และไม่ถูกตัดทิ้ง */
+  private async loadEditableTimeEntry(user: AuthUser, caseId: string, entryId: string) {
+    const entry = await this.prisma.timeEntry.findFirst({
+      where: { id: entryId, caseId, case: { firmId: user.firmId } },
+      select: { id: true, userId: true, invoiceId: true, writtenOffAt: true, hours: true, rate: true },
+    });
+    if (!entry) throw new NotFoundException('Time entry not found');
+    if (entry.userId !== user.id && !hasFirmCapability(user.firmRole, 'manageInvoices')) {
+      throw new ForbiddenException('แก้ไขได้เฉพาะเวลาของตัวเอง');
+    }
+    if (entry.invoiceId) throw new ConflictException('รายการนี้ออกใบแจ้งหนี้ไปแล้ว แก้ไขไม่ได้');
+    if (entry.writtenOffAt) throw new ConflictException('รายการนี้ถูกตัดทิ้งไปแล้ว แก้ไขไม่ได้');
+    return entry;
+  }
+
+  async updateTimeEntry(user: AuthUser, caseId: string, entryId: string, dto: UpdateTimeEntryDto) {
+    await this.loadEditableTimeEntry(user, caseId, entryId);
+    const result = await this.prisma.timeEntry.updateMany({
+      where: { id: entryId, invoiceId: null, writtenOffAt: null },
+      data: {
+        hours: dto.hours,
+        rate: dto.rate,
+        description: dto.description,
+        date: dto.date ? new Date(dto.date) : undefined,
+      },
+    });
+    if (result.count !== 1) throw new ConflictException('รายการเปลี่ยนไปแล้ว กรุณาโหลดล่าสุด');
+    return { id: entryId };
+  }
+
+  async deleteTimeEntry(user: AuthUser, caseId: string, entryId: string) {
+    const entry = await this.loadEditableTimeEntry(user, caseId, entryId);
+    const result = await this.prisma.timeEntry.deleteMany({
+      where: { id: entryId, invoiceId: null, writtenOffAt: null },
+    });
+    if (result.count !== 1) throw new ConflictException('รายการเปลี่ยนไปแล้ว กรุณาโหลดล่าสุด');
+    await this.audit(user, 'TIME_ENTRY_DELETED', {
+      timeEntryId: entryId, caseId, ownerId: entry.userId, hours: entry.hours, rate: entry.rate,
+    });
+    return { id: entryId };
   }
 
   async getExpenses(user: AuthUser, caseId: string) {

@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, TimeEntryItem, ExpenseItem, CustomerShareItem } from '@/lib/api';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
+import { TimeEntryForm } from '@/components/billing/TimeEntryForm';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { MoneyInput } from '@/components/ui/MoneyInput';
@@ -26,6 +27,9 @@ import { Plus } from 'lucide-react';
 const WRITE_OFF_MIN_REASON = 5;
 
 // ตรงกับ unbilledTimeWhere / unbilledExpenseWhere ฝั่ง API — ตัดทิ้งได้เฉพาะงานที่ยังเรียกเก็บได้จริง
+// ตรงกับกติกา API: แก้/ลบได้เมื่อยังไม่เข้าใบแจ้งหนี้และไม่ถูกตัดทิ้ง (เจ้าของรายการหรือผู้มี manageInvoices)
+const canEditTime = (e: TimeEntryItem, userId: string | undefined, manager: boolean) =>
+  !e.invoiceId && !e.writtenOffAt && (manager || e.user.id === userId);
 const canWriteOffTime = (e: TimeEntryItem) => e.billable !== false && !e.invoiceId && !e.writtenOffAt;
 const canWriteOffExpense = (e: ExpenseItem) =>
   e.billable !== false &&
@@ -135,6 +139,9 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
   const canWriteOff = hasFirmCapability(user?.firmRole, 'manageInvoices');
   const [writeOffError, setWriteOffError] = useState('');
+  const [showTimeForm, setShowTimeForm] = useState(false);
+  const [editingTimeId, setEditingTimeId] = useState<string | null>(null);
+  const [timeError, setTimeError] = useState('');
 
   // ลูกค้า (ผู้ว่าจ้าง) ของคดี — คนที่ใบแจ้งหนี้จะไปถึง ไม่ใช่ลูกความ
   const [customers, setCustomers] = useState<CustomerShareItem[]>([]);
@@ -199,6 +206,17 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       setExpenses((rows) =>
         rows.map((row) => (row.id === expenseId ? { ...row, billable: !billable } : row)),
       );
+    }
+  };
+
+  const handleDeleteTime = async (entryId: string) => {
+    if (!token || !window.confirm('ลบบันทึกเวลานี้?')) return;
+    setTimeError('');
+    try {
+      await api.deleteTimeEntry(token, id, entryId);
+      load();
+    } catch (err) {
+      setTimeError(err instanceof Error ? err.message : 'ลบไม่สำเร็จ กรุณาลองใหม่');
     }
   };
 
@@ -376,9 +394,30 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       </div>
 
       <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <h2 className="mb-4 font-semibold">{d.caseBilling.timeEntries}</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-semibold">{d.caseBilling.timeEntries}</h2>
+          <Button type="button" size="sm" variant="outline" onClick={() => { setShowTimeForm(true); setEditingTimeId(null); }}>
+            <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
+            เพิ่มเวลา
+          </Button>
+        </div>
+        {showTimeForm && (
+          <TimeEntryForm
+            caseId={id}
+            onCancel={() => setShowTimeForm(false)}
+            onDone={() => { setShowTimeForm(false); load(); }}
+          />
+        )}
+        {timeError && <p role="alert" className="mb-2 text-sm text-destructive">{timeError}</p>}
         <div className="space-y-2">
-          {timeEntries.map((e) => (
+          {timeEntries.map((e) => editingTimeId === e.id ? (
+            <TimeEntryForm
+              key={e.id}
+              entry={{ id: e.id, caseId: id, date: e.date, hours: e.hours, rate: e.rate, description: e.description ?? null }}
+              onCancel={() => setEditingTimeId(null)}
+              onDone={() => { setEditingTimeId(null); load(); }}
+            />
+          ) : (
             <div key={e.id} className="rounded-lg border border-border px-3 py-2 text-sm">
              <div className="flex items-center justify-between">
               <div className={e.writtenOffAt ? 'line-through opacity-60' : undefined}>
@@ -392,6 +431,26 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                 <p className="text-xs text-muted-foreground">{formatCurrency(e.hours * e.rate)}</p>
               </div>
              </div>
+             {canEditTime(e, user?.id, canWriteOff) && (
+               <div className="mt-2 flex gap-2">
+                 <button
+                   type="button"
+                   aria-label={`แก้ไข: ${e.description || d.caseBilling.timeEntry}`}
+                   onClick={() => { setEditingTimeId(e.id); setShowTimeForm(false); }}
+                   className="min-h-11 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent sm:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                 >
+                   แก้ไข
+                 </button>
+                 <button
+                   type="button"
+                   aria-label={`ลบ: ${e.description || d.caseBilling.timeEntry}`}
+                   onClick={() => void handleDeleteTime(e.id)}
+                   className="min-h-11 rounded-lg border px-2.5 py-1 text-xs font-medium text-destructive hover:bg-accent sm:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                 >
+                   ลบ
+                 </button>
+               </div>
+             )}
              {e.writtenOffAt ? (
                <WrittenOffNote
                  by={e.writtenOffBy}

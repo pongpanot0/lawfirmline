@@ -7,6 +7,7 @@ import { useConfirmTime, useTimeSuggestions } from '@/api/hooks';
 import type { TimeSuggestion } from '@/api/types';
 import { Button, EmptyNote, ErrorNote, Loading } from '@/components/ui';
 import { DatePicker } from '@/components/DatePicker';
+import { AddTimeSheet } from '@/components/AddTimeSheet';
 import { isoDay } from '@/format';
 import { colors, radius, spacing } from '@/theme';
 
@@ -32,6 +33,7 @@ export default function TimesheetScreen() {
   const suggestions = useTimeSuggestions(date);
   const confirmTime = useConfirmTime();
   const [rows, setRows] = useState<Record<string, RowState>>({});
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     const data = suggestions.data ?? [];
@@ -75,8 +77,10 @@ export default function TimesheetScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.dateRow}>
-        <DatePicker value={date} onChange={setDate} />
+        <View style={{ flex: 1 }}><DatePicker value={date} onChange={setDate} /></View>
+        <Button title="เพิ่มเวลา" variant="secondary" onPress={() => setAdding(true)} />
       </View>
+      <AddTimeSheet visible={adding} onClose={() => setAdding(false)} />
 
       {suggestions.isError ? (
         <View style={{ padding: spacing.lg }}>
@@ -140,7 +144,7 @@ export default function TimesheetScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  dateRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

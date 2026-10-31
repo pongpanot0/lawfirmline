@@ -362,6 +362,29 @@ export function useTimeSuggestions(date: string) {
   });
 }
 
+export function useDefaultTimeRate(enabled = true) {
+  return useQuery({
+    queryKey: ['time-default-rate'],
+    queryFn: () => api<{ rate: number }>('/time-entries/default-rate'),
+    enabled,
+  });
+}
+
+export function useCreateTimeEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ caseId, ...body }: {
+      caseId: string;
+      hours: number;
+      rate?: number;
+      description?: string;
+      date: string;
+      billable: boolean;
+    }) => api<{ id: string }>(`/cases/${caseId}/billing/time-entries`, { method: 'POST', body }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['time-suggestions'] }),
+  });
+}
+
 export function useConfirmTime() {
   const queryClient = useQueryClient();
   return useMutation({

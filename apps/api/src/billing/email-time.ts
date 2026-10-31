@@ -1,4 +1,3 @@
-import { EmailDirection } from '../generated/prisma';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 import type { TimeSuggestion } from './time-suggestions.service';
 
@@ -11,7 +10,7 @@ export function emailSuggestionHours(count: number): number {
 }
 
 export type SentEmailRow = {
-  direction: EmailDirection;
+  messageKey: string;
   fromAddress: string | null;
   receivedAt: Date;
   thread: { caseId: string | null; case: { ownRef: string | null } | null };
@@ -19,8 +18,10 @@ export type SentEmailRow = {
 
 /**
  * One suggestion per case for the Bangkok day `date`, counting only mail the user
- * sent: `fromAddress` must be one of the user's own mailbox addresses. The thread's
- * mailbox owner is irrelevant — folder sync can file our mail into a colleague's thread.
+ * sent: `fromAddress` must be one of the user's own mailbox addresses. Attribution is
+ * by sender alone — stored direction and the thread's mailbox owner are irrelevant
+ * (a shared row first synced by a CC'd colleague is stored INBOUND). Each message
+ * counts once per case: the same messageKey can sit in two case-linked threads.
  */
 export function emailTimeSuggestions(
   rows: SentEmailRow[],
@@ -28,23 +29,23 @@ export function emailTimeSuggestions(
   date: string,
 ): TimeSuggestion[] {
   const own = new Set(ownAddresses.map((a) => a.trim().toLowerCase()));
-  const byCase = new Map<string, { caseRef: string | null; count: number }>();
+  const byCase = new Map<string, { caseRef: string | null; keys: Set<string> }>();
   for (const row of rows) {
     const caseId = row.thread.caseId;
-    if (row.direction !== EmailDirection.OUTBOUND || !caseId) continue;
+    if (!caseId) continue;
     if (!row.fromAddress || !own.has(row.fromAddress.trim().toLowerCase())) continue;
     if (bangkokDayKey(row.receivedAt) !== date) continue;
     const entry = byCase.get(caseId);
-    if (entry) entry.count += 1;
-    else byCase.set(caseId, { caseRef: row.thread.case?.ownRef ?? null, count: 1 });
+    if (entry) entry.keys.add(row.messageKey);
+    else byCase.set(caseId, { caseRef: row.thread.case?.ownRef ?? null, keys: new Set([row.messageKey]) });
   }
-  return [...byCase.entries()].map(([caseId, { caseRef, count }]) => ({
+  return [...byCase.entries()].map(([caseId, { caseRef, keys }]) => ({
     sourceKey: `email:${caseId}:${date}`,
     source: 'email',
     caseId,
     caseRef,
-    description: `ส่งอีเมลคดี ${count} ฉบับ`,
-    hours: emailSuggestionHours(count),
+    description: `ส่งอีเมลคดี ${keys.size} ฉบับ`,
+    hours: emailSuggestionHours(keys.size),
     date,
   }));
 }

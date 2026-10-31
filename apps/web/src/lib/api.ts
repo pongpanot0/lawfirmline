@@ -2631,6 +2631,25 @@ export const api = {
   getTimeEntries: (token: string, caseId: string) =>
     request<TimeEntryItem[]>(`/cases/${caseId}/billing/time-entries`, { token }),
 
+  createTimeEntry: (token: string, caseId: string, body: TimeEntryInput) =>
+    request<TimeEntryItem>(`/cases/${caseId}/billing/time-entries`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  updateTimeEntry: (token: string, caseId: string, entryId: string, body: Partial<Omit<TimeEntryInput, 'billable'>>) =>
+    request<{ id: string }>(`/cases/${caseId}/billing/time-entries/${entryId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  deleteTimeEntry: (token: string, caseId: string, entryId: string) =>
+    request<{ id: string }>(`/cases/${caseId}/billing/time-entries/${entryId}`, { method: 'DELETE', token }),
+
+  getDefaultTimeRate: (token: string) => request<{ rate: number }>('/time-entries/default-rate', { token }),
+
   getTimeSuggestions: (token: string, date: string) =>
     request<TimeSuggestion[]>(`/time-entries/suggestions?date=${date}`, { token }),
 
@@ -3978,12 +3997,20 @@ export interface TimeEntryItem {
   rate: number;
   description?: string;
   date: string;
-  user: { firstName: string; lastName: string };
+  user: { id: string; firstName: string; lastName: string };
   invoiceId?: string | null;
   billable?: boolean;
   writtenOffAt?: string | null;
   writtenOffBy?: { id: string; firstName: string; lastName: string } | null;
   writeOffReason?: string | null;
+}
+
+export interface TimeEntryInput {
+  hours: number;
+  rate?: number;
+  description?: string;
+  date?: string;
+  billable?: boolean;
 }
 
 export interface TimeSuggestion {
@@ -4009,6 +4036,7 @@ export interface FirmTimesheetEntry {
   id: string;
   date: string;
   hours: number;
+  rate: number;
   description: string | null;
   billable: boolean;
   caseId: string;
@@ -4016,6 +4044,7 @@ export interface FirmTimesheetEntry {
   userId: string;
   userName: string;
   invoiced: boolean;
+  writtenOff: boolean;
 }
 
 export interface FirmTimesheetTotal {

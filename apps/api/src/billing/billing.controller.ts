@@ -21,6 +21,7 @@ import { CollectionsService } from './collections.service';
 import { TimeSuggestionsService } from './time-suggestions.service';
 import {
   CreateTimeEntryDto,
+  UpdateTimeEntryDto,
   CreateExpenseDto,
   CreateStandaloneExpenseDto,
   CreateInvoiceDto,
@@ -57,6 +58,11 @@ export class BillingController {
     private collectionsService: CollectionsService,
     private timeSuggestionsService: TimeSuggestionsService,
   ) {}
+
+  @Get('time-entries/default-rate')
+  async getDefaultTimeRate(@CurrentUser() user: AuthUser) {
+    return { rate: await this.billingService.resolveDefaultRate(user.firmId, user.id) };
+  }
 
   @Get('time-entries/suggestions')
   getTimeSuggestions(@CurrentUser() user: AuthUser, @Query('date') date: string) {
@@ -241,6 +247,27 @@ export class BillingController {
     @Body() dto: CreateTimeEntryDto,
   ) {
     return this.billingService.createTimeEntry(user, caseId, dto);
+  }
+
+  @Patch('cases/:caseId/billing/time-entries/:entryId')
+  @UseGuards(CaseAccessGuard)
+  updateTimeEntry(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+    @Body() dto: UpdateTimeEntryDto,
+  ) {
+    return this.billingService.updateTimeEntry(user, caseId, entryId, dto);
+  }
+
+  @Delete('cases/:caseId/billing/time-entries/:entryId')
+  @UseGuards(CaseAccessGuard)
+  deleteTimeEntry(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+  ) {
+    return this.billingService.deleteTimeEntry(user, caseId, entryId);
   }
 
   @Patch('cases/:caseId/billing/time-entries/:entryId/write-off')

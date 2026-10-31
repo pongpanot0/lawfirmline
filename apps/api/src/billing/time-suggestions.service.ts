@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuthUser, FirmRole, hasFirmCapability } from '@lawfirm/shared';
-import { EmailDirection, EventType, TaskStatus } from '../generated/prisma';
+import { EventType, TaskStatus } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
@@ -186,7 +186,7 @@ export class TimeSuggestionsService {
   /**
    * Mail the user sent from Outlook, filed to a case thread they can see. "Sent by
    * the user" = fromAddress is one of their own mailbox addresses (matched in
-   * emailTimeSuggestions), not the thread's mailbox owner.
+   * emailTimeSuggestions) whatever the stored direction, not the thread's mailbox owner.
    */
   private async sentEmailSuggestions(user: AuthUser, date: string, from: Date, to: Date): Promise<TimeSuggestion[]> {
     const mailboxes = await this.prisma.mailboxConnection.findMany({
@@ -194,17 +194,16 @@ export class TimeSuggestionsService {
       select: { mailboxAddress: true },
     });
     if (mailboxes.length === 0) return [];
-    // ponytail: fromAddress is matched in JS (case-insensitive) over the day's visible outbound mail;
+    // ponytail: fromAddress is matched in JS (case-insensitive) over the day's visible case-filed mail;
     // push it into SQL if a firm sends thousands of filed emails a day.
     const rows = await this.prisma.emailMessage.findMany({
       where: {
-        direction: EmailDirection.OUTBOUND,
         receivedAt: { gte: from, lt: to },
         fromAddress: { not: null },
         thread: { AND: [await this.caseAccess.getEmailThreadFilterForUser(user), { caseId: { not: null } }] },
       },
       select: {
-        direction: true,
+        messageKey: true,
         fromAddress: true,
         receivedAt: true,
         thread: { select: { caseId: true, case: { select: { ownRef: true } } } },
@@ -246,6 +245,7 @@ export class TimeSuggestionsService {
       id: string;
       date: string;
       hours: number;
+      rate: number;
       description: string | null;
       billable: boolean;
       caseId: string;
@@ -253,6 +253,7 @@ export class TimeSuggestionsService {
       userId: string;
       userName: string;
       invoiced: boolean;
+      writtenOff: boolean;
     }[];
     totals: { userId: string; userName: string; hours: number; billableHours: number }[];
   }> {
@@ -286,6 +287,7 @@ export class TimeSuggestionsService {
       id: row.id,
       date: bangkokDayKey(row.date),
       hours: row.hours,
+      rate: row.rate,
       description: row.description,
       billable: row.billable,
       caseId: row.caseId,
@@ -293,6 +295,7 @@ export class TimeSuggestionsService {
       userId: row.userId,
       userName: `${row.user.firstName} ${row.user.lastName}`.trim(),
       invoiced: !!row.invoiceId,
+      writtenOff: !!row.writtenOffAt,
     }));
 
     const totalsByUser = new Map<string, { userName: string; hours: number; billableHours: number }>();

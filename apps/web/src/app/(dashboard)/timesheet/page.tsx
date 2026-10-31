@@ -5,6 +5,7 @@ import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, TimeSuggestion, FirmTimesheetEntry, FirmTimesheetTotal } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
+import { TimeEntryForm } from '@/components/billing/TimeEntryForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,6 +35,12 @@ export default function TimesheetPage() {
   const d = useDashboardT();
   const { token, user } = useAuth();
   const canViewTeam = hasFirmCapability(user?.firmRole, 'viewFirmReports');
+  const canManageTime = hasFirmCapability(user?.firmRole, 'manageInvoices');
+  const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState<FirmTimesheetEntry | null>(null);
+  const [rowError, setRowError] = useState('');
+  const canEdit = (entry: FirmTimesheetEntry) =>
+    !entry.invoiced && !entry.writtenOff && (canManageTime || entry.userId === user?.id);
 
   // --- confirm today's suggestions ---
   const [date, setDate] = useState(() => dateKey(new Date()));
@@ -145,9 +152,35 @@ export default function TimesheetPage() {
     loadTimesheet();
   }, [loadTimesheet]);
 
+  const afterTimeChange = () => {
+    setShowAdd(false);
+    setEditing(null);
+    void loadTimesheet();
+  };
+
+  const deleteEntry = async (entry: FirmTimesheetEntry) => {
+    if (!token || !window.confirm('ลบบันทึกเวลานี้?')) return;
+    setRowError('');
+    try {
+      await api.deleteTimeEntry(token, entry.caseId, entry.id);
+      void loadTimesheet();
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : 'ลบไม่สำเร็จ กรุณาลองใหม่');
+    }
+  };
+
   return (
     <div className="w-full space-y-6">
-      <PageHeader title={d.timesheet.title} description={d.timesheet.description} />
+      <PageHeader
+        title={d.timesheet.title}
+        description={d.timesheet.description}
+        actions={
+          <Button type="button" onClick={() => { setShowAdd(true); setEditing(null); }}>
+            เพิ่มเวลา
+          </Button>
+        }
+      />
+      {showAdd && <TimeEntryForm onCancel={() => setShowAdd(false)} onDone={afterTimeChange} />}
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
@@ -264,6 +297,21 @@ export default function TimesheetPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {timesheetError && <p className="text-sm text-destructive">{timesheetError}</p>}
+          {rowError && <p role="alert" className="text-sm text-destructive">{rowError}</p>}
+          {editing && (
+            <TimeEntryForm
+              entry={{
+                id: editing.id,
+                caseId: editing.caseId,
+                date: editing.date,
+                hours: editing.hours,
+                rate: editing.rate,
+                description: editing.description,
+              }}
+              onCancel={() => setEditing(null)}
+              onDone={afterTimeChange}
+            />
+          )}
 
           {loadingTimesheet ? (
             <PageLoading title={d.common.loading} lines={2} />
@@ -311,6 +359,7 @@ export default function TimesheetPage() {
                         <TableHead className="text-right">{d.timesheet.colHours}</TableHead>
                         <TableHead>{d.timesheet.colBillable}</TableHead>
                         <TableHead>{d.timesheet.colInvoiced}</TableHead>
+                        <TableHead className="w-32" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -330,6 +379,18 @@ export default function TimesheetPage() {
                             <Badge variant={entry.invoiced ? 'secondary' : 'muted'}>
                               {entry.invoiced ? d.timesheet.invoicedYes : d.timesheet.invoicedNo}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {canEdit(entry) && (
+                              <div className="flex gap-2">
+                                <Button type="button" size="sm" variant="outline" onClick={() => { setEditing(entry); setShowAdd(false); }}>
+                                  แก้ไข
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" className="text-destructive" onClick={() => void deleteEntry(entry)}>
+                                  ลบ
+                                </Button>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

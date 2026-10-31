@@ -61,6 +61,30 @@ export class CreateTimeEntryDto {
   billable?: boolean;
 }
 
+export class UpdateTimeEntryDto {
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(HOURS_MIN)
+  @Max(HOURS_MAX)
+  hours?: number;
+
+  @IsOptional()
+  @IsNumber(money)
+  @Min(0)
+  @Max(MONEY_MAX)
+  rate?: number;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+}
+
 export class CreateExpenseDto {
   @Type(() => Number)
   @IsNumber(money)
@@ -282,6 +306,7 @@ export class ConfirmTimeEntryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   sourceKey?: string;
 
   @IsOptional()
