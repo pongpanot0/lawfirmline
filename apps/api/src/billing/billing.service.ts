@@ -239,7 +239,7 @@ export class BillingService {
         _sum: { amount: true },
       }),
       this.prisma.timeEntry.findMany({
-        where: { caseId: { in: caseIds }, billable: true },
+        where: { caseId: { in: caseIds }, billable: true, writtenOffAt: null },
         select: { caseId: true, hours: true, rate: true },
       }),
       this.prisma.invoice.groupBy({
@@ -490,7 +490,7 @@ export class BillingService {
         select: { amount: true, status: true, userId: true },
       }),
       this.prisma.timeEntry.findMany({
-        where: { case: caseFilter, billable: true },
+        where: { case: caseFilter, billable: true, writtenOffAt: null },
         select: { hours: true, rate: true },
       }),
       canSeePettyCash ? this.pettyCash.getBalance(firmId) : Promise.resolve({ balance: 0 }),

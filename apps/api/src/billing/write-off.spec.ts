@@ -168,6 +168,27 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
     expect(mockPrisma.timeEntry.findMany.mock.calls[0][0].where).toEqual({ caseId: 'case-1', billable: true, writtenOffAt: null });
   });
 
+  it('getCaseProfits and getFinanceSummary revenue ignore written-off time', async () => {
+    const caseAccess = { getCaseFilterForFinancials: jest.fn().mockReturnValue({ firmId: 'firm-1' }) };
+    const svc = new BillingService(
+      mockPrisma, { getBalance: jest.fn().mockResolvedValue({ balance: 0 }) } as any, {} as any, caseAccess as any, {} as any, {} as any, {} as any,
+    );
+    mockPrisma.case.findMany = jest.fn().mockResolvedValue([{ id: 'case-1', estimatedFee: null, client: null }]);
+    mockPrisma.expense.groupBy = jest.fn().mockResolvedValue([]);
+    mockPrisma.invoice.groupBy = jest.fn().mockResolvedValue([]);
+    await svc.getCaseProfits(user);
+    expect(mockPrisma.timeEntry.findMany.mock.calls[0][0].where).toEqual({
+      caseId: { in: ['case-1'] }, billable: true, writtenOffAt: null,
+    });
+
+    mockPrisma.timeEntry.findMany.mockClear();
+    await svc.getFinanceSummary(user);
+    expect(mockPrisma.timeEntry.findMany).toHaveBeenCalledWith({
+      where: { case: { firmId: 'firm-1' }, billable: true, writtenOffAt: null },
+      select: { hours: true, rate: true },
+    });
+  });
+
   it('getInvoiceDraft excludes written-off time and expenses', async () => {
     mockPrisma.case.findUnique.mockResolvedValue({ estimatedFee: null, actualFee: null });
     await billing.getInvoiceDraft('case-1');
