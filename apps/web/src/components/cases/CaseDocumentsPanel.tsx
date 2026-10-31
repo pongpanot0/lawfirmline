@@ -25,7 +25,7 @@ import { DocumentCategory, hasFirmCapability } from '@lawfirm/shared';
 
 const DOCUMENT_CATEGORY_VALUES = Object.values(DocumentCategory);
 
-export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onChanged?: () => void }) {
+export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseId: string; onChanged?: () => void; newFolderName?: string }) {
   const d = useDashboardT();
   const id = caseId;
   const { token, user } = useAuth();
@@ -356,7 +356,7 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
         />
       )}
 
-      <CaseDriveSection caseId={id} onImported={load} />
+      <CaseDriveSection caseId={id} onImported={load} newFolderName={newFolderName} />
       <div className="rounded-xl border bg-card p-6">
         <h2 className="mb-4 font-semibold text-foreground">{fmt(d.caseDocuments.filesCount, { count: documents.length })}</h2>
         <div className="mb-4">

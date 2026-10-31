@@ -3073,6 +3073,13 @@ export const api = {
       body: JSON.stringify({ driveId, itemId }),
     }),
 
+  createCaseDriveFolder: (token: string, caseId: string, driveId: string, parentId: string, name: string) =>
+    request<{ id: string }>(`/cases/${caseId}/drive-folder`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ driveId, parentId, name }),
+    }),
+
   unlinkCaseDriveFolder: (token: string, caseId: string) =>
     request<{ unlinked: boolean }>(`/cases/${caseId}/drive-link`, { method: 'DELETE', token }),
 

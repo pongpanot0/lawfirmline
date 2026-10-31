@@ -22,6 +22,7 @@ describe('CaseDriveService', () => {
   const mockConnections = { findActiveForUser: jest.fn(), getValidAccessToken: jest.fn() };
   const mockDrive = {
     getItem: jest.fn(),
+    createFolder: jest.fn(),
     listChildren: jest.fn(),
     downloadContent: jest.fn(),
     sharedWithMe: jest.fn(),
@@ -61,6 +62,40 @@ describe('CaseDriveService', () => {
     mockPrisma.mailboxConnection.findUnique.mockResolvedValue({ status: 'ACTIVE' });
     mockConnections.getValidAccessToken.mockResolvedValue('tok-a');
   };
+
+  describe('createAndLinkFolder', () => {
+    beforeEach(() => {
+      mockConnections.findActiveForUser.mockResolvedValue({ id: 'conn-me' });
+      mockConnections.getValidAccessToken.mockResolvedValue('tok-me');
+      mockPrisma.caseExternalLink.findFirst.mockResolvedValue(null);
+      mockPrisma.caseExternalLink.findUnique.mockResolvedValue(null);
+      mockPrisma.caseExternalLink.create.mockImplementation(({ data }: any) => ({ id: 'link-new', ...data }));
+    });
+
+    it('creates the folder in the chosen parent, then links it to the case', async () => {
+      const created = { id: 'NEWF', name: 'TSB-1 - คดี', folder: {}, parentReference: { driveId: 'b!me', path: '/drive/root:/Cases' } };
+      mockDrive.createFolder.mockResolvedValue(created);
+      mockDrive.getItem.mockResolvedValue(created);
+
+      const linkResult = await service.createAndLinkFolder(user, 'c1', { driveId: 'b!me', parentId: 'PARENT', name: 'TSB-1 - คดี' });
+
+      expect(mockDrive.createFolder).toHaveBeenCalledWith('tok-me', 'b!me', 'PARENT', 'TSB-1 - คดี');
+      expect(mockDrive.getItem).toHaveBeenCalledWith('tok-me', 'b!me', 'NEWF');
+      expect(linkResult).toMatchObject({ caseId: 'c1', externalId: 'NEWF', driveId: 'b!me', displayPath: 'Cases/TSB-1 - คดี' });
+    });
+
+    it('creates nothing without a Microsoft connection', async () => {
+      mockConnections.findActiveForUser.mockResolvedValue(null);
+      await expect(service.createAndLinkFolder(user, 'c1', { driveId: 'me', parentId: 'root', name: 'x' })).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockDrive.createFolder).not.toHaveBeenCalled();
+    });
+
+    it('creates nothing when the case already has a folder', async () => {
+      mockPrisma.caseExternalLink.findFirst.mockResolvedValue({ id: 'link-1', linkedById: 'u1', connection: { userId: 'u1' } });
+      await expect(service.createAndLinkFolder(user, 'c1', { driveId: 'me', parentId: 'root', name: 'x' })).rejects.toBeInstanceOf(ConflictException);
+      expect(mockDrive.createFolder).not.toHaveBeenCalled();
+    });
+  });
 
   describe('linkFolder', () => {
     beforeEach(() => {

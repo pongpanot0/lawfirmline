@@ -160,6 +160,17 @@ export class CaseDriveService {
     return link;
   }
 
+  /**
+   * "สร้าง folder ใหม่": the lawyer picked where; make the folder there with their own account and link it.
+   * Only for a case without a folder, so a failed or doubled click never leaves an orphan behind a link.
+   */
+  async createAndLinkFolder(user: AuthUser, caseId: string, dto: { driveId: string; parentId: string; name: string }) {
+    const { token } = await this.ownToken(user);
+    if (await this.findLinkOwnership(caseId)) throw new ConflictException('คดีนี้ผูก folder แล้ว — ยกเลิกการผูกก่อนถ้าจะสร้างใหม่');
+    const created = await this.drive.createFolder(token, dto.driveId, dto.parentId, dto.name).catch(rethrowDriveError);
+    return this.linkFolder(user, caseId, { driveId: created.parentReference?.driveId ?? dto.driveId, itemId: created.id });
+  }
+
   private findLinkOwnership(caseId: string) {
     return this.prisma.caseExternalLink.findFirst({
       where: { caseId, kind: DRIVE_FOLDER },

@@ -7,7 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CaseDriveService } from './case-drive.service';
 import { DocumentOfficeService } from './document-office.service';
-import { LinkDriveFolderDto } from './drive.dto';
+import { CreateDriveFolderDto, LinkDriveFolderDto } from './drive.dto';
 
 /** OneDrive/SharePoint folder of a case. CaseAccessGuard (params.caseId) decides who may see it. */
 @Controller('cases/:caseId')
@@ -25,6 +25,13 @@ export class CaseDriveController {
   @Roles(Role.ADMIN, Role.LAWYER)
   link(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: LinkDriveFolderDto) {
     return this.caseDrive.linkFolder(user, caseId, dto);
+  }
+
+  @Post('drive-folder')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  createFolder(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: CreateDriveFolderDto) {
+    return this.caseDrive.createAndLinkFolder(user, caseId, dto);
   }
 
   @Delete('drive-link')
