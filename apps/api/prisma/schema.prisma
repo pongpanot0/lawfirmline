@@ -467,6 +467,7 @@ model Firm {
   workflowTemplates  WorkflowTemplate[]
   workflowRuns       WorkflowRun[]
   deadlineRules      DeadlineRule[]
+  dailyBriefs        DailyBrief[]
 }
 
 model FirmMember {
@@ -726,6 +727,7 @@ enum NotificationCategory {
   BILLING
   LEAVE
   EMAIL
+  DAILY_BRIEF
 }
 
 /// One staff notification, kept as the in-app inbox. Written for every
@@ -2997,6 +2999,23 @@ model PleadingDraft {
   createdBy User @relation("PleadingDraftCreator", fields: [createdById], references: [id])
 
   @@index([caseId, createdAt])
+}
+
+/// 07:30 Asia/Bangkok stuck-work brief for the firm owner (AI secretary). One per firm per Bangkok day.
+model DailyBrief {
+  id        String   @id @default(cuid())
+  firmId    String
+  firm      Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  /// 'YYYY-MM-DD' in Asia/Bangkok
+  date      String
+  /// AI headline; null when the AI call failed
+  summary   String?
+  /// DailyBriefData
+  data      Json
+  model     String?
+  createdAt DateTime @default(now())
+
+  @@unique([firmId, date])
 }
 
 /// Errors from every firm, read only by the operator's /superadmin console.

@@ -18,6 +18,10 @@ export const AI_CREDIT_COST = {
   DRAFT_PLEADING: 10,
   /** วิเคราะห์ข้อความอัปเดตของงานเพื่อเสนอสิ่งที่ติดขัดและงานติดตาม */
   TASK_UPDATE_ANALYSIS: 1,
+  /** เลขาส่วนตัว AI — หนึ่งข้อความแชท (ผู้ใช้กดเอง) */
+  SECRETARY_CHAT: 1,
+  /** เลขาส่วนตัว AI — ถอดเสียงพูดเป็นข้อความ */
+  SECRETARY_TRANSCRIBE: 1,
 } as const;
 
 /** MIME types document analysis can read. */

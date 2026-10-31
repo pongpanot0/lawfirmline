@@ -58,6 +58,7 @@ export class OperationsService {
       caseUpdateDays: 14,
       stuckStatusDays: 30,
       reviewDays: 3,
+      stuckTaskDays: 3,
       emailReplyHours: 24,
       ...((firm.slaConfig as Record<string, number> | null) ?? {}),
     };

@@ -2,6 +2,7 @@ import { withFirmSlugHeaders } from './firm-slug';
 import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { taskUpdatePath } from './task-detail';
 import type { CaseProceedingItem } from './proceedings';
+import type { DailyBriefData, MatterBrief, SecretaryCard } from '@lawfirm/shared';
 
 export type { CaseProceedingItem } from './proceedings';
 
@@ -2869,7 +2870,24 @@ export const api = {
       body: JSON.stringify({ question, ...(documentIds?.length ? { documentIds } : {}) }),
     }),
 
-  getAiUsageSummary: (token: string, days = 30) =>
+  secretaryChat: (token: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>
+    request<{ reply: string; cards: SecretaryCard[] }>('/ai/secretary', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ messages }),
+    }),
+
+  getCaseBrief: (token: string, caseId: string) => request<MatterBrief>(`/cases/${caseId}/brief`, { token }),
+
+  getDailyBrief: (token: string, date?: string) =>
+    request<{ date: string; summary: string | null; data: DailyBriefData; createdAt: string }>(
+      `/ai/daily-brief${date ? `?date=${date}` : ''}`,
+      { token },
+    ),
+
+  getDailyBriefDates: (token: string) => request<string[]>('/ai/daily-brief/dates', { token }),
+
+  getAiUsageSummary:(token: string, days = 30) =>
     request<AiUsageSummary>(`/ai-usage/summary?days=${days}`, { token }),
 
   analyzeDocument: (token: string, caseId: string, file: File, title?: string) => {

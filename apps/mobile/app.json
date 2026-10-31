@@ -31,11 +31,18 @@
       "expo-sharing",
       "expo-notifications",
       [
+        "expo-audio",
+        {
+          "microphonePermission": "ใช้ไมโครโฟนเพื่อสั่งงานเลขาด้วยเสียง",
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "cameraPermission": "Samnuan ใช้กล้องเพื่อถ่ายใบเสร็จและเอกสารคดีที่คุณเลือกแนบ",
           "photosPermission": "Samnuan ใช้รูปภาพเพื่อแนบใบเสร็จและเอกสารคดีที่คุณเลือก",
-          "microphonePermission": false
+          "microphonePermission": "ใช้ไมโครโฟนเพื่อสั่งงานเลขาด้วยเสียง"
         }
       ],
       [

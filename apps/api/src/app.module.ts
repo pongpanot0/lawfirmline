@@ -29,6 +29,7 @@ import { CourtsModule } from './courts/courts.module';
 import { TravelModule } from './travel/travel.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { AiTrayModule } from './ai-tray/ai-tray.module';
+import { SecretaryModule } from './secretary/secretary.module';
 import { RagModule } from './rag/rag.module';
 import { LegalModule } from './legal/legal.module';
 import { TemplatesModule } from './templates/templates.module';
@@ -82,6 +83,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     TravelModule,
     IntelligenceModule,
     AiTrayModule,
+    SecretaryModule,
     RagModule,
     LegalModule,
     TemplatesModule,

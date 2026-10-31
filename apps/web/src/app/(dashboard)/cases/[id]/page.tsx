@@ -4,6 +4,7 @@ import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CasePrintForms } from '@/components/cases/CasePrintForms';
 import { CaseOverviewForm, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
 import { CaseProceedingsCard } from '@/components/cases/CaseProceedingsCard';
+import { CaseBriefCard } from '@/components/cases/CaseBriefCard';
 import { LitigationCalculatorsCard } from '@/components/cases/LitigationCalculatorsCard';
 import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
@@ -1298,6 +1299,7 @@ export default function CaseDetailPage() {
         aria-labelledby="case-tab-overview"
         className="min-w-0"
       >
+      <CaseBriefCard caseId={id} />
       <div className={styles.workspace}>
         <section className={styles.mainPane} aria-label="ข้อมูลและประวัติคดี">
           <CaseSummaryPanel caseId={id} onChanged={loadCase} />

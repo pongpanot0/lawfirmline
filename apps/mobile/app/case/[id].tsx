@@ -17,6 +17,7 @@ import {
 } from '@/api/hooks';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { CaseEmailTab } from '@/components/CaseEmailTab';
+import { CaseBriefCard } from '@/components/CaseBriefCard';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
   Card,
@@ -148,7 +149,7 @@ export default function CaseDetailScreen() {
         refreshControl={
           <RefreshControl
             refreshing={caseQuery.isRefetching}
-            onRefresh={() => { caseQuery.refetch(); if (tab === 'อีเมล') queryClient.invalidateQueries({ queryKey: ['case-email-threads', id] }); }}
+            onRefresh={() => { caseQuery.refetch(); queryClient.invalidateQueries({ queryKey: ['case-brief', id] }); if (tab === 'อีเมล') queryClient.invalidateQueries({ queryKey: ['case-email-threads', id] }); }}
           />
         }
       >
@@ -179,6 +180,7 @@ export default function CaseDetailScreen() {
 
         {tab === 'ภาพรวม' ? (
           <>
+          <CaseBriefCard caseId={id} />
           <Card>
             <InfoRow
               first
