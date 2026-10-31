@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '../generated/prisma';
+import { Prisma } from '../generated/prisma';
 import type { AuthUser, MatterBrief, MatterTaskItem } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -103,7 +103,8 @@ export class MatterBriefService {
         id: true, title: true, status: true, caseId: true, intakeId: true, dueDate: true,
         createdAt: true, assignedAt: true, acknowledgedAt: true, planConfirmedAt: true, submittedAt: true,
         assignee: { select: { id: true, firstName: true, lastName: true } },
-        case: { select: { title: true } }, intake: { select: { title: true, clientName: true } },
+        firmId: true,
+        case: { select: { title: true, firmId: true } }, intake: { select: { title: true, clientName: true, firmId: true } },
         assignmentLogs: { select: { createdAt: true } },
         onHold: { select: { reason: true, endedAt: true, nextFollowUpAt: true } },
       },
@@ -111,12 +112,15 @@ export class MatterBriefService {
     if (!tasks.length) return [];
     const ids = tasks.map((t) => t.id);
     const caseIds = [...new Set(tasks.map((t) => t.caseId).filter((x): x is string => !!x))];
-    // ponytail: JSON-path OR per task id; swap for a raw query / indexed taskId column if firm-wide scans get slow
+    const firmIds = [...new Set(tasks.map((t) => t.case?.firmId ?? t.intake?.firmId ?? t.firmId).filter((x): x is string => !!x))];
     const [audits, hearings] = await Promise.all([
-      this.prisma.auditLog.findMany({
-        where: { action: 'TASK_CHANGED', OR: ids.map((id) => ({ metadata: { path: ['taskId'], equals: id } })) },
-        select: { metadata: true, createdAt: true },
-      }),
+      // latest TASK_CHANGED per task, firm-scoped so the [firmId, createdAt] index applies
+      this.prisma.$queryRaw<{ taskId: string; at: Date }[]>(Prisma.sql`
+        SELECT metadata->>'taskId' AS "taskId", max("createdAt") AS at
+        FROM "AuditLog"
+        WHERE "firmId" = ANY(${firmIds}::text[]) AND action = 'TASK_CHANGED'
+          AND metadata->>'taskId' = ANY(${ids}::text[])
+        GROUP BY 1`),
       caseIds.length
         ? this.prisma.calendarEvent.findMany({
             where: { caseId: { in: caseIds }, type: { in: ['COURT_DATE', 'DEADLINE'] }, startAt: { gte: now, lte: new Date(now.getTime() + 7 * DAY_MS) } },
@@ -124,11 +128,7 @@ export class MatterBriefService {
           })
         : Promise.resolve([]),
     ]);
-    const auditByTask = new Map<string, Date[]>();
-    for (const a of audits) {
-      const id = (a.metadata as { taskId?: string } | null)?.taskId;
-      if (id) auditByTask.set(id, [...(auditByTask.get(id) ?? []), a.createdAt]);
-    }
+    const auditByTask = new Map<string, Date[]>(audits.map((a) => [a.taskId, [new Date(a.at)]]));
     const hearingCases = new Set(hearings.map((h) => h.caseId));
 
     return tasks.map((t) => {

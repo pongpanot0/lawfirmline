@@ -21,7 +21,7 @@ describe('MatterBriefService', () => {
       caseStatusLog: { findMany: jest.fn().mockResolvedValue([]) },
       calendarEvent: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       task: { findMany: jest.fn().mockResolvedValue([]) },
-      auditLog: { findMany: jest.fn().mockResolvedValue([]) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
     };
     const access = {
       getCaseFilterForUser: jest.fn().mockResolvedValue(caseFilter),
@@ -103,5 +103,19 @@ describe('MatterBriefService', () => {
       where: { caseId: 'c1', startAt: { gte: now } }, orderBy: { startAt: 'asc' },
     }));
     expect(b!.nextEvent).toEqual({ id: 'e1', at: '2026-11-05T02:00:00.000Z', title: 'นัดสืบพยาน', type: 'COURT_DATE', courtName: 'ศาลแพ่ง' });
+  });
+
+  it('loadOpenTaskRows combines open hold, latest audit change and imminent hearing', async () => {
+    const { service, prisma } = build();
+    prisma.task.findMany.mockResolvedValue([{
+      id: 't1', title: 'งาน', status: 'IN_PROGRESS', caseId: 'c1', intakeId: null, firmId: null,
+      createdAt: new Date('2026-10-01T05:00:00Z'), assignedAt: null, acknowledgedAt: null, planConfirmedAt: null, submittedAt: null,
+      dueDate: null, assignee: null, case: { title: 'คดี A', firmId: 'f1' }, intake: null, assignmentLogs: [],
+      onHold: { reason: 'รอเอกสาร', endedAt: null, nextFollowUpAt: new Date('2026-10-30T05:00:00Z') },
+    }]);
+    prisma.$queryRaw.mockResolvedValue([{ taskId: 't1', at: new Date('2026-10-28T05:00:00Z') }]);
+    prisma.calendarEvent.findMany.mockResolvedValue([{ caseId: 'c1' }]);
+    const [row] = await service.loadOpenTaskRows({ caseId: 'c1', status: { not: 'DONE' } }, now);
+    expect(row).toMatchObject({ holdReason: 'รอเอกสาร', holdFollowUpOverdue: true, daysStuck: 3, hearingWithin7Days: true });
   });
 });
