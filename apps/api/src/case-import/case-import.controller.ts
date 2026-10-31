@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { AuthUser, Role } from '@lawfirm/shared';
@@ -7,6 +7,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CASE_IMPORT_MAX_BYTES, CaseImportService } from './case-import.service';
+import { CreateExcelCasesDto } from './case-import.dto';
 
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -31,5 +32,11 @@ export class CaseImportController {
   preview(@CurrentUser() user: AuthUser, @UploadedFile() file: Express.Multer.File | undefined) {
     if (!file) throw new BadRequestException('ยังไม่ได้เลือกไฟล์');
     return this.caseImport.preview(user, file);
+  }
+
+  /** Creates the reviewed rows; every rule is checked again server-side. */
+  @Post()
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateExcelCasesDto) {
+    return this.caseImport.createCases(user, dto);
   }
 }

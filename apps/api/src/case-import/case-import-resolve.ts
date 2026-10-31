@@ -70,6 +70,19 @@ export function resolveCaseRows(rows: RawCaseRow[], lookups: ImportLookups, toda
   });
 }
 
+/** Already in the firm: same own ref, or same black number + court (a missing court on either side matches any). */
+export function existingDuplicate(
+  d: { ownRef?: string; blackCaseNumber?: string; courtName?: string },
+  lookups: Pick<ImportLookups, 'existingOwnRefs' | 'existingNumbers'>,
+): string | null {
+  if (d.ownRef && lookups.existingOwnRefs.has(d.ownRef)) return `มีคดีนี้ในระบบแล้ว (${d.ownRef})`;
+  const court = norm(d.courtName);
+  const hit = d.blackCaseNumber
+    ? lookups.existingNumbers.find((n) => n.number === d.blackCaseNumber && (!court || !n.court || norm(n.court) === court))
+    : undefined;
+  return hit ? `มีคดีนี้ในระบบแล้ว (${hit.ownRef})` : null;
+}
+
 /** Same black number + court (a missing court matches any), or the same own ref — in the firm or earlier in the file. */
 function findDuplicate(
   d: ExcelCaseDraft,
@@ -77,13 +90,10 @@ function findDuplicate(
   seenRefs: Map<string, number>,
   seenNumbers: { number: string; court: string | null; rowNumber: number }[],
 ): string | null {
-  if (d.ownRef && lookups.existingOwnRefs.has(d.ownRef)) return `มีคดีนี้ในระบบแล้ว (${d.ownRef})`;
+  const existing = existingDuplicate(d, lookups);
+  if (existing) return existing;
   const court = norm(d.courtName);
   const sameCourt = (other: string | null) => !court || !other || other === court;
-  if (d.blackCaseNumber) {
-    const hit = lookups.existingNumbers.find((n) => n.number === d.blackCaseNumber && sameCourt(norm(n.court)));
-    if (hit) return `มีคดีนี้ในระบบแล้ว (${hit.ownRef})`;
-  }
   const earlier =
     (d.ownRef && seenRefs.get(d.ownRef)) ||
     (d.blackCaseNumber && seenNumbers.find((n) => n.number === d.blackCaseNumber && sameCourt(n.court))?.rowNumber);

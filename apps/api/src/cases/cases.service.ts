@@ -20,6 +20,10 @@ import {
   FirmRole,
   hasFirmCapability,
   isBackwardStage,
+  ourParticipantRole,
+  ParticipantRole,
+  ParticipantSide,
+  PartyRole,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -67,7 +71,23 @@ export interface CaseImportParams {
   courtLevel: CourtLevel;
   leadLawyerId: string;
   buddyIds: string[];
-  closed: { outcome: CaseOutcome; closingSummary: string } | null;
+  closed: { outcome: CaseOutcome; closingSummary: string; closedAt?: Date } | null;
+  // Excel rows carry the rest of the case; the OneDrive import leaves these out.
+  ownRef?: string;
+  customerRef?: string;
+  clientId?: string;
+  clientName?: string;
+  partyRole?: PartyRole;
+  opponents?: string[];
+  caseTypeId?: string;
+  redCaseNumber?: string;
+  claimedAmount?: number;
+  estimatedFee?: number;
+  limitationDeadline?: Date;
+  description?: string;
+  /** Where an open case stands; a closed one is always CLOSING. */
+  stage?: CaseStage;
+  openedAt?: Date;
 }
 
 @Injectable()
@@ -389,13 +409,26 @@ export class CasesService {
    */
   async createForImport(tx: Prisma.TransactionClient, user: AuthUser, params: CaseImportParams) {
     const now = new Date();
+    const openedAt = params.openedAt ?? now;
+    const closedAt = params.closed?.closedAt ?? now;
     const buddyIds = [...new Set(params.buddyIds.filter((id) => id !== params.leadLawyerId))];
-    const created = await this.insertCase(tx, user.firmId, undefined, {
+    const created = await this.insertCase(tx, user.firmId, params.ownRef, {
       title: params.title,
+      description: params.description,
+      customerRef: params.customerRef,
+      clientId: params.clientId,
+      clientName: params.clientName,
+      partyRole: params.partyRole,
+      caseTypeId: params.caseTypeId,
       courtName: params.courtName,
       courtLevel: params.courtLevel,
       blackCaseNumber: params.blackCaseNumber,
+      redCaseNumber: params.redCaseNumber,
+      claimedAmount: params.claimedAmount,
+      estimatedFee: params.estimatedFee,
+      limitationDeadline: params.limitationDeadline,
       leadLawyerId: params.leadLawyerId,
+      ...(params.openedAt && { openedAt }),
       assignments: buddyIds.length
         ? { create: buddyIds.map((userId) => ({ user: { connect: { id: userId } }, assignmentType: AssignmentType.BUDDY })) }
         : undefined,
@@ -403,12 +436,12 @@ export class CasesService {
         status: CaseStatus.CLOSED,
         outcome: params.closed.outcome,
         closingSummary: params.closed.closingSummary.trim(),
-        closedAt: now,
+        closedAt,
       }),
     });
     await this.caseFeed.log({ caseId: created.id, userId: user.id, type: ActivityType.NOTE, title: 'เปิดคดี', at: created.openedAt }, tx);
     if (params.closed) {
-      await tx.case.update({ where: { id: created.id }, data: { stage: CaseStage.CLOSING, stageChangedAt: now } });
+      await tx.case.update({ where: { id: created.id }, data: { stage: CaseStage.CLOSING, stageChangedAt: closedAt } });
       await this.caseFeed.log(
         {
           caseId: created.id,
@@ -416,14 +449,32 @@ export class CasesService {
           type: ActivityType.STATUS_CHANGE,
           title: 'ปิดคดี / Case Closed',
           description: `${params.closed.closingSummary.trim()}\nผลคดี: ${params.closed.outcome}`,
-          at: now,
+          at: closedAt,
           statusTransition: { from: CaseStatus.OPEN, to: CaseStatus.CLOSED },
           stageTransition: { from: CaseStage.PRE_LITIGATION, to: CaseStage.CLOSING },
         },
         tx,
       );
+    } else if (params.stage && params.stage !== CaseStage.PRE_LITIGATION) {
+      await tx.case.update({ where: { id: created.id }, data: { stage: params.stage, stageChangedAt: openedAt } });
     }
-    if (params.courtName || params.blackCaseNumber) await snapshotCurrentLevel(tx, created);
+
+    // Parties stay searchable for the next conflict check even though the import skips the gate.
+    if (params.clientId) {
+      await ensureOurClientParticipant(tx, created.id);
+    } else if (params.clientName) {
+      await tx.caseParticipant.create({
+        data: {
+          caseId: created.id,
+          name: params.clientName,
+          role: params.partyRole ? ourParticipantRole(params.partyRole) : ParticipantRole.OTHER,
+          side: ParticipantSide.OURS,
+        },
+      });
+    }
+    if (params.opponents?.length) await addOpponents(tx, created.id, params.partyRole, params.opponents.map((name) => ({ name })));
+    if (params.courtName || params.blackCaseNumber || params.redCaseNumber) await snapshotCurrentLevel(tx, created);
+    if (params.limitationDeadline) await syncLimitationReminder(tx, created.id);
     return { id: created.id, ownRef: created.ownRef };
   }
 
