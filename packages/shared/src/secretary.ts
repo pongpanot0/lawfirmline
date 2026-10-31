@@ -22,3 +22,15 @@ export type SecretaryCard =
   | { type: 'intake'; id: string; title: string }
   | { type: 'document'; id: string; caseId: string | null; filename: string }
   | { type: 'event'; id: string; caseId: string; title: string; startAt: string };
+
+export type StuckItem = MatterTaskItem & {
+  caseId: string | null; intakeId: string | null; matterTitle: string; hearingWithin7Days: boolean;
+};
+
+export interface DailyBriefData {
+  generatedAt: string;
+  stuckTaskDays: number;
+  totals: { stuckTasks: number; overdueTasks: number; people: number };
+  groups: { assigneeId: string | null; assigneeName: string; items: StuckItem[] }[];
+  stuckCases: { caseId: string; title: string; stage: string | null; daysSinceStageChange: number }[];
+}
