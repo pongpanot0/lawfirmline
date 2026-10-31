@@ -264,7 +264,7 @@ export interface OwnerFinance {
     case: { id: string; ownRef: string } | null; user: { firstName: string; lastName: string } }>;
 }
 
-export type NotificationCategory = 'TASK' | 'CASE' | 'COMMENT' | 'CALENDAR' | 'CLIENT' | 'BILLING' | 'LEAVE' | 'EMAIL';
+export type NotificationCategory = 'TASK' | 'CASE' | 'COMMENT' | 'CALENDAR' | 'CLIENT' | 'BILLING' | 'LEAVE' | 'EMAIL' | 'LICENSE';
 
 export interface AppNotification {
   id: string;

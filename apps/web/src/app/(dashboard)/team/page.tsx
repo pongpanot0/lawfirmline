@@ -17,6 +17,7 @@ import { dateLocale, fmt } from '@/lib/i18n/dashboard';
 import { InlineEmptyState, Skeleton, TableEmptyRow } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { SelectField, TextField } from '@/components/ui/form-fields';
+import { LicenseBadge, MemberLicenses } from '@/components/team/MemberLicenses';
 
 type TeamMember = Awaited<ReturnType<typeof api.getTeamMembers>>[number];
 type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
@@ -333,7 +334,7 @@ export default function TeamPage() {
                     <div key={m.id} className="grid grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-3 rounded-lg border p-3">
                       <Avatar fallback={`${m.firstName[0]}${m.lastName[0]}`} />
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium">{m.firstName} {m.lastName}</p>
+                        <p className="flex flex-wrap items-center gap-2 font-medium">{m.firstName} {m.lastName} <LicenseBadge expiresAt={m.lawyerLicenseExpiresAt} /></p>
                         <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
                           <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
                           {m.email}
@@ -394,6 +395,7 @@ export default function TeamPage() {
                         <div className="flex items-center gap-3">
                           <Avatar fallback={`${m.firstName[0]}${m.lastName[0]}`} />
                           <span className="font-medium">{m.firstName} {m.lastName}</span>
+                          <LicenseBadge expiresAt={m.lawyerLicenseExpiresAt} />
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{m.email}</TableCell>
@@ -442,6 +444,10 @@ export default function TeamPage() {
           )}
         </CardContent>
       </Card>
+
+      {token && members.length > 0 && (
+        <MemberLicenses members={members} token={token} canEdit={canRunOperations} onSaved={() => void loadTeam()} />
+      )}
 
       {canRunOperations && token && members.length > 0 && (
         <Card>

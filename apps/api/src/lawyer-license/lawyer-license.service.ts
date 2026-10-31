@@ -36,7 +36,7 @@ export class LawyerLicenseService {
   async getMine(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: LICENSE_SELECT });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return { ...user, lawyerLicenseExpiresAt: user.lawyerLicenseExpiresAt?.toISOString().slice(0, 10) ?? null };
   }
 
   updateMine(user: AuthUser, dto: UpdateLicenseDto) {

@@ -5,6 +5,13 @@ import type { CaseProceedingItem } from './proceedings';
 
 export type { CaseProceedingItem } from './proceedings';
 
+/** A lawyer's licence (พ.ร.บ.ทนายความ); expiry is YYYY-MM-DD, null for LIFETIME or unset. */
+export interface LawyerLicense {
+  lawyerLicenseNo: string | null;
+  lawyerLicenseType: 'TWO_YEAR' | 'LIFETIME' | null;
+  lawyerLicenseExpiresAt: string | null;
+}
+
 export interface ProceedingActionResult {
   proceeding: CaseProceedingItem | null;
   suggestions: number;
@@ -1719,7 +1726,7 @@ export const api = {
 
   getTeamMembers: (token: string) =>
     request<
-      {
+      ({
         id: string;
         email: string;
         firstName: string;
@@ -1729,8 +1736,16 @@ export const api = {
         joinedAt: string;
         monthlyBillableTargetHours: number | null;
         defaultHourlyRate: number | null;
-      }[]
+      } & LawyerLicense)[]
     >('/saas/members', { token }),
+
+  getMyLicense: (token: string) => request<LawyerLicense>('/users/me/license', { token }),
+
+  updateMyLicense: (token: string, data: Partial<LawyerLicense>) =>
+    request<{ success: boolean }>('/users/me/license', { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  updateMemberLicense: (token: string, userId: string, data: Partial<LawyerLicense>) =>
+    request<{ success: boolean }>(`/firm-members/${userId}/license`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
   updateMemberWorkSettings: (
     token: string,
