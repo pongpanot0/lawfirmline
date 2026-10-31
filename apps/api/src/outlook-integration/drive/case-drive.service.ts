@@ -8,6 +8,7 @@ import { MATCHABLE_CASE_SELECT, suggestCaseMatches, toMatchableCase } from '../c
 import { OutlookConnectionsService } from '../outlook-connections.service';
 import { DriveItem, GraphDrive, GraphDriveClient, GraphSite } from '../graph/graph-drive.client';
 import { DRIVE_DISCONNECTED_MESSAGE, driveErrorMessage, rethrowDriveError } from './drive-errors';
+import { parseCaseFolderName } from './case-folder-name';
 
 export const NO_MICROSOFT_CONNECTION_MESSAGE = 'ยังไม่ได้เชื่อมต่อบัญชี Microsoft — ไปที่ ตั้งค่า → Microsoft 365 เพื่อเชื่อมต่อก่อน';
 /** Import reads the whole file into memory; bigger files stay in OneDrive ("เปิดใน Office ออนไลน์"). */
@@ -288,14 +289,17 @@ export class CaseDriveService {
     return items.map(toPickerItem).filter((item): item is DrivePickerItem => item !== null);
   }
 
-  /** Child folders of a parent, each with case suggestions (same matcher as Outlook) or its existing link. Creates nothing. */
+  /**
+   * Child folders of a parent, each with case suggestions (same matcher as Outlook) or its existing link,
+   * plus a name-parsed pre-fill for "สร้างคดีจาก folder". Creates nothing. Links are looked up firm-wide:
+   * a folder a colleague already linked must not be offered as a new case.
+   */
   async folderSuggestions(user: AuthUser, driveId: string, itemId: string) {
     const folders = await this.pickerChildren(user, driveId, itemId);
-    const { connectionId } = await this.ownToken(user);
     const [caseRows, links] = await Promise.all([
       this.prisma.case.findMany({ where: this.caseAccess.getCaseFilterForUser(user), select: MATCHABLE_CASE_SELECT }),
       this.prisma.caseExternalLink.findMany({
-        where: { connectionId, kind: DRIVE_FOLDER, externalId: { in: folders.map((f) => f.id) } },
+        where: { firmId: user.firmId, kind: DRIVE_FOLDER, externalId: { in: folders.map((f) => f.id) } },
         select: { id: true, externalId: true, caseId: true, case: { select: { ownRef: true, title: true } } },
       }),
     ]);
@@ -307,6 +311,7 @@ export class CaseDriveService {
         folder,
         link: l ? { id: l.id, caseId: l.caseId, ownRef: l.case.ownRef, title: l.case.title } : null,
         suggestions: l ? [] : suggestCaseMatches(folder.name, cases).slice(0, 5),
+        parsed: l ? null : parseCaseFolderName(folder.name),
       };
     });
   }

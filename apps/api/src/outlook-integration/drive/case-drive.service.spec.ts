@@ -298,6 +298,29 @@ describe('CaseDriveService', () => {
       expect(rows[1].link).toEqual({ id: 'l2', caseId: 'c2', ownRef: 'ACME 2569/0099', title: 'B' });
       expect(rows[1].suggestions).toEqual([]);
     });
+
+    it('returns parsed for unlinked rows and finds links firm-wide', async () => {
+      mockConnections.findActiveForUser.mockResolvedValue({ id: 'conn-me' });
+      mockConnections.getValidAccessToken.mockResolvedValue('tok-me');
+      mockDrive.listChildren.mockResolvedValue([
+        { id: 'F1', name: '86. คำฟ้อง - พE291.69 - ศจ.สมุทรปราการ (โบ)', webUrl: 'w1', folder: {}, parentReference: { driveId: 'b!d' } },
+        { id: 'F2', name: '89. คำให้การ - พ264.69', webUrl: 'w2', folder: {}, parentReference: { driveId: 'b!d' } },
+      ]);
+      mockPrisma.case.findMany.mockResolvedValue([]);
+      mockPrisma.caseExternalLink.findMany.mockResolvedValue([
+        { id: 'l2', externalId: 'F2', caseId: 'c2', case: { ownRef: 'TSB-2', title: 'B' } },
+      ]);
+
+      const rows = await service.folderSuggestions(user, 'b!d', 'ROOT');
+
+      expect(mockPrisma.caseExternalLink.findMany.mock.calls[0][0].where).toEqual({
+        firmId: 'f1',
+        kind: 'DRIVE_FOLDER',
+        externalId: { in: ['F1', 'F2'] },
+      });
+      expect(rows[0].parsed).toMatchObject({ blackCaseNumber: 'พE291/2569', courtName: 'ศจ.สมุทรปราการ', teamHint: 'โบ' });
+      expect(rows[1].parsed).toBeNull();
+    });
   });
 });
 
