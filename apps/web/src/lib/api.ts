@@ -1556,6 +1556,10 @@ export interface CaseOutstandingResult {
   openTasks: Array<{ id: string; title: string; status: string; dueDate: string | null }>;
   upcomingEvents: Array<{ id: string; title: string; startAt: string; type: string }>;
   unapprovedDocuments: Array<{ id: string; filename: string; category: string }>;
+  unbilledTime: { hours: number; amount: number };
+  unbilledExpenses: { count: number; amount: number };
+  unpaidInvoices: { count: number; outstandingAmount: number };
+  draftInvoices: { count: number };
   total: number;
 }
 
@@ -1963,7 +1967,7 @@ export const api = {
     token: string,
     id: string,
     closingSummary: string,
-    options: { outcome?: string; acknowledgeOutstanding?: boolean } = {},
+    options: { outcome?: string; acknowledgeOutstanding?: boolean; removeFutureEvents?: boolean } = {},
   ) =>
     request<CaseItem>(`/cases/${id}/close`, {
       method: 'POST',

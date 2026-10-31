@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { CasesService } from './cases.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
@@ -35,6 +36,9 @@ describe('case stages', () => {
       task: { findMany: jest.fn().mockResolvedValue([]) },
       calendarEvent: { findMany: jest.fn().mockResolvedValue([]) },
       document: { findMany: jest.fn().mockResolvedValue([]) },
+      timeEntry: { findMany: jest.fn().mockResolvedValue([]) },
+      expense: { findMany: jest.fn().mockResolvedValue([]) },
+      invoice: { findMany: jest.fn().mockResolvedValue([]) },
       client: { count: jest.fn().mockResolvedValue(0) },
       caseType: { count: jest.fn().mockResolvedValue(0) },
       clientContact: { count: jest.fn().mockResolvedValue(0) },
@@ -43,6 +47,7 @@ describe('case stages', () => {
     const module = await Test.createTestingModule({
       providers: [
         CasesService,
+        { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: CaseFeedService, useValue: feed },
         {

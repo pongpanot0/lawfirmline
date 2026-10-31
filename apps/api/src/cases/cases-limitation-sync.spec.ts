@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { CasesService } from './cases.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
@@ -45,12 +46,16 @@ describe('CasesService — limitation reminder follows case state', () => {
       caseStatusLog: { findFirst: jest.fn().mockResolvedValue(null) },
       task: { findMany: jest.fn().mockResolvedValue([]) },
       document: { findMany: jest.fn().mockResolvedValue([]) },
+      timeEntry: { findMany: jest.fn().mockResolvedValue([]) },
+      expense: { findMany: jest.fn().mockResolvedValue([]) },
+      invoice: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn() },
       $transaction: jest.fn(async (ops: unknown[]) => ops),
     };
     const module = await Test.createTestingModule({
       providers: [
         CasesService,
+        { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
         {

@@ -39,8 +39,8 @@ describe('ReminderScheduler', () => {
     expect(where.startAt.gt).toEqual(NOW);
     // 90 days ahead — without an upper bound this query read the whole future.
     expect(where.startAt.lte).toEqual(new Date('2026-12-06T03:00:00Z'));
-    // A deleted case's hearings must stop reminding people.
-    expect(where.case).toEqual({ deletedAt: null });
+    // Deleted, closed and archived cases must stop reminding people.
+    expect(where.case).toEqual({ deletedAt: null, status: { notIn: ['CLOSED', 'ARCHIVED'] } });
   });
 
   it('skips a reminder whose lead time exceeds the window instead of never firing it silently', async () => {

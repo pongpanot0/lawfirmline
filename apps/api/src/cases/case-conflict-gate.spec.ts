@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
 import { CasesService } from './cases.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
@@ -32,6 +33,7 @@ describe('POST /cases conflict gate', () => {
     const module = await Test.createTestingModule({
       providers: [
         CasesService,
+        { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
         { provide: CaseAccessService, useValue: { canAccessCase: jest.fn().mockResolvedValue(true) } },

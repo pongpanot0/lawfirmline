@@ -46,6 +46,7 @@ describe('cargo claim creation paths', () => {
       {} as never,
       { notifyAssigned: jest.fn() } as never,
       { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } as never,
+      { remove: jest.fn() } as never,
       cargo as never,
     );
 

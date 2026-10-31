@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CasesService } from './cases.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseActivitiesService } from './case-activities.service';
@@ -31,6 +32,7 @@ describe('CasesService assignment notifications', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CasesService,
+        { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: mockCaseFeed },
         {

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FirmRole } from '@lawfirm/shared';
 import { CasesService } from './cases.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -23,6 +24,7 @@ describe('CasesService.findOne', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CasesService,
+        { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
@@ -98,6 +100,7 @@ describe('CasesService.createForPortal', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CasesService,
+        { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
         { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: PrismaService, useValue: {} },
@@ -160,6 +163,7 @@ describe('CasesService.create Own Ref allocation', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CasesService,
+        { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
         { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },

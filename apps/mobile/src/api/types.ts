@@ -75,6 +75,17 @@ export interface CaseParticipant {
   representedByParticipantId: string | null;
 }
 
+export interface CaseOutstandingResult {
+  total: number;
+  openTasks: Array<{ id: string; title: string }>;
+  upcomingEvents: Array<{ id: string; title: string; startAt: string }>;
+  unapprovedDocuments: Array<{ id: string; filename: string }>;
+  unbilledTime: { hours: number; amount: number };
+  unbilledExpenses: { count: number; amount: number };
+  unpaidInvoices: { count: number; outstandingAmount: number };
+  draftInvoices: { count: number };
+}
+
 export interface CaseDetail extends CaseListItem {
   clientName: string | null;
   courtLevel: string | null;

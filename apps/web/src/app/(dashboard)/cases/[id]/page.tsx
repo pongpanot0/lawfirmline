@@ -252,6 +252,7 @@ export default function CaseDetailPage() {
   /** ของค้างตอนกดปิดคดี — โหลดตอนเปิดฟอร์ม ไม่ใช่ทุกครั้งที่หน้า render */
   const [outstanding, setOutstanding] = useState<CaseOutstandingResult | null>(null);
   const [ackOutstanding, setAckOutstanding] = useState(false);
+  const [removeFutureEvents, setRemoveFutureEvents] = useState(false);
   const [savingStage, setSavingStage] = useState(false);
   const [pendingStage, setPendingStage] = useState<string | null>(null);
   const [stageTaskProposals, setStageTaskProposals] = useState<StageTaskProposal[]>([]);
@@ -462,10 +463,12 @@ export default function CaseDetailPage() {
       await api.closeCase(token, id, closingSummary.trim(), {
         outcome: closingOutcome,
         acknowledgeOutstanding: ackOutstanding || undefined,
+        removeFutureEvents,
       });
       setShowCloseForm(false);
       setClosingSummary('');
       setAckOutstanding(false);
+      setRemoveFutureEvents(false);
       loadCase();
     } catch (err) {
       setCloseError(err instanceof ApiError ? err.message : 'ปิดคดีไม่สำเร็จ');
@@ -1022,11 +1025,14 @@ export default function CaseDetailPage() {
                 setCloseError('');
                 setShowCloseForm(true);
                 setAckOutstanding(false);
+                setRemoveFutureEvents(false);
+                setOutstanding(null);
                 if (token && id) {
                   try {
                     setOutstanding(await api.getCaseOutstanding(token, id));
                   } catch {
                     setOutstanding(null);
+                    setCloseError('ตรวจรายการค้างไม่สำเร็จ กรุณาเปิดฟอร์มอีกครั้ง');
                   }
                 }
               }}
@@ -1086,6 +1092,10 @@ export default function CaseDetailPage() {
                     {outstanding.unapprovedDocuments.map((docItem) => (
                       <li key={docItem.id}>• เอกสารยังไม่อนุมัติ: {docItem.filename}</li>
                     ))}
+                    <li>• เวลายังไม่เรียกเก็บ: {outstanding.unbilledTime.hours} ชั่วโมง · {formatCurrency(outstanding.unbilledTime.amount)}</li>
+                    <li>• ค่าใช้จ่ายยังไม่เรียกเก็บ: {outstanding.unbilledExpenses.count} รายการ · {formatCurrency(outstanding.unbilledExpenses.amount)}</li>
+                    <li>• ใบแจ้งหนี้ค้างชำระ: {outstanding.unpaidInvoices.count} ใบ · {formatCurrency(outstanding.unpaidInvoices.outstandingAmount)}</li>
+                    <li>• ใบแจ้งหนี้ร่าง: {outstanding.draftInvoices.count} ใบ</li>
                   </ul>
                   <label className="mt-2 flex min-h-11 items-center gap-2">
                     <input
@@ -1095,6 +1105,22 @@ export default function CaseDetailPage() {
                     />
                     ตรวจแล้ว และยืนยันจะปิดคดี
                   </label>
+                </div>
+              )}
+
+              {outstanding && outstanding.upcomingEvents.length > 0 && (
+                <div className="text-sm">
+                  <label className="flex min-h-11 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={removeFutureEvents}
+                      onChange={(e) => setRemoveFutureEvents(e.target.checked)}
+                      disabled={closingCase}
+                      aria-describedby="remove-future-events-note"
+                    />
+                    ลบนัดในอนาคต {outstanding.upcomingEvents.length} รายการ
+                  </label>
+                  <p id="remove-future-events-note" className="text-xs text-muted-foreground">เปิดคดีใหม่จะไม่กู้นัดที่ลบ</p>
                 </div>
               )}
 
@@ -1128,7 +1154,7 @@ export default function CaseDetailPage() {
               <div className="flex gap-2">
                 <Button
                   type="submit"
-                  disabled={!closingOutcome || closingCase || (!!outstanding && outstanding.total > 0 && !ackOutstanding)}
+                  disabled={!outstanding || !closingOutcome || closingCase || (outstanding.total > 0 && !ackOutstanding)}
                 >
                   {closingCase ? 'กำลังปิดคดี...' : 'ยืนยันปิดคดี'}
                 </Button>
