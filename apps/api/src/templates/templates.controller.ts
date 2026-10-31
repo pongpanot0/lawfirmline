@@ -6,7 +6,8 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { RequireCapability } from '../saas/decorators/saas.decorators';
+import { RequireCapability, SkipSubscription } from '../saas/decorators/saas.decorators';
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 
 class TemplateDto {
   @IsString() @IsNotEmpty() @MaxLength(200) name!: string;
@@ -76,5 +77,46 @@ export class TemplatesController {
     @Body() dto: GenerateTemplateDto,
   ) {
     return this.templatesService.generate(user, caseId, templateId, dto.content);
+  }
+}
+
+/** Firm case types don't exist across firms, so a built-in carries no caseTypeId. */
+class BuiltInTemplateDto {
+  @IsString() @IsNotEmpty() @MaxLength(200) name!: string;
+  @IsOptional() @IsString() @MaxLength(500) description?: string;
+  @IsString() @IsNotEmpty() @MaxLength(100000) templateBody!: string;
+}
+
+class UpdateBuiltInTemplateDto {
+  @IsOptional() @IsString() @MaxLength(200) name?: string;
+  @IsOptional() @IsString() @MaxLength(500) description?: string;
+  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(100000) templateBody?: string;
+}
+
+/** Built-in templates every firm sees — the superadmin console's master data. */
+@Controller('platform/document-templates')
+@UseGuards(JwtAuthGuard, PlatformAdminGuard)
+@SkipSubscription()
+export class PlatformTemplatesController {
+  constructor(private templatesService: TemplatesService) {}
+
+  @Get()
+  list() {
+    return this.templatesService.findBuiltIns();
+  }
+
+  @Post()
+  create(@Body() dto: BuiltInTemplateDto) {
+    return this.templatesService.create(null, dto);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateBuiltInTemplateDto) {
+    return this.templatesService.update(null, id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.templatesService.remove(null, id);
   }
 }

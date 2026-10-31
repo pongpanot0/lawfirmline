@@ -5,6 +5,7 @@ import { CasePrintForms } from '@/components/cases/CasePrintForms';
 import { CaseOverviewForm, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
 import { CaseProceedingsCard } from '@/components/cases/CaseProceedingsCard';
 import { PaperFileCard } from '@/components/cases/PaperFileCard';
+import { CaseBriefCard } from '@/components/cases/CaseBriefCard';
 import { LitigationCalculatorsCard } from '@/components/cases/LitigationCalculatorsCard';
 import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
@@ -1243,7 +1244,7 @@ export default function CaseDetailPage() {
               <Sparkles aria-hidden="true" className="h-4 w-4" />สรุปเอกสารรวม
             </Button>
           </div>
-          <CaseDocumentsPanel caseId={id} onChanged={loadCase} />
+          <CaseDocumentsPanel caseId={id} onChanged={loadCase} newFolderName={`${legalCase.ownRef} - ${legalCase.title}`} />
         </div>
       )}
 
@@ -1325,6 +1326,7 @@ export default function CaseDetailPage() {
         aria-labelledby="case-tab-overview"
         className="min-w-0"
       >
+      <CaseBriefCard caseId={id} />
       <div className={styles.workspace}>
         <section className={styles.mainPane} aria-label="ข้อมูลและประวัติคดี">
           <CaseSummaryPanel caseId={id} onChanged={loadCase} />

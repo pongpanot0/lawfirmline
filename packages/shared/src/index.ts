@@ -1059,6 +1059,8 @@ export interface AuthUser {
   maxUsers: number;
   aiCredits?: number;
   mfaEnabled: boolean;
+  /** The operator's own account (PLATFORM_ADMIN_EMAILS) — sees /superadmin. */
+  isPlatformAdmin?: boolean;
   /** @deprecated use firmRole */
   role?: Role;
 }
@@ -1114,3 +1116,4 @@ export * from './task-review';
 export * from './office-routines';
 export * from './email-quote';
 export * from './office-operations';
+export * from './secretary';

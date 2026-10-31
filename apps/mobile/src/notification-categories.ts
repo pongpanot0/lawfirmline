@@ -10,6 +10,7 @@ export const CATEGORY_META: Record<NotificationCategory, { label: string; Icon: 
   CALENDAR: { label: 'นัดหมาย / นัดศาล', Icon: CalendarClock },
   CLIENT: { label: 'ลูกความ', Icon: UserRound },
   BILLING: { label: 'เบิกจ่าย / การเงิน', Icon: Wallet },
+  DAILY_BRIEF: { label: 'สรุปประจำวัน', Icon: ClipboardList },
   LEAVE: { label: 'การลา', Icon: Plane },
   EMAIL: { label: 'อีเมลเข้าคดี', Icon: Mail },
   LICENSE: { label: 'ใบอนุญาตทนาย', Icon: BadgeCheck },

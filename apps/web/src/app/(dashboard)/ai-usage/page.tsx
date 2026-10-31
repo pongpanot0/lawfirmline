@@ -15,6 +15,9 @@ const OPERATION_LABELS: Record<string, string> = {
   embed_document: 'ทำดัชนีเอกสาร',
   embed_query: 'ค้นหา (embedding)',
   ocr: 'OCR เอกสารสแกน',
+  secretary_chat: 'เลขา AI (ถาม-ตอบ)',
+  secretary_transcribe: 'เลขา AI (ถอดเสียง)',
+  daily_brief: 'สรุปประจำวัน',
 };
 
 const WINDOWS = [7, 30, 90] as const;

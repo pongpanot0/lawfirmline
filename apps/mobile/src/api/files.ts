@@ -74,6 +74,20 @@ export function uploadTaskAttachment(taskId: string, file: { uri: string; name: 
   return postMultipart(`/tasks/${taskId}/attachments`, form);
 }
 
+export async function transcribeSecretaryAudio(uri: string): Promise<{ text: string }> {
+  const file = new File(uri);
+  try {
+    if (!file.exists || file.size === 0) throw new Error('ไม่พบเสียงที่บันทึก กรุณาลองพูดใหม่');
+    if (file.size > 10 * 1024 * 1024) throw new Error('เสียงต้องมีขนาดไม่เกิน 10 MB กรุณาพูดให้สั้นลง');
+    const form = new FormData();
+    form.append('audio', filePart(uri, 'secretary.m4a', 'audio/mp4'));
+    return await postMultipart('/ai/secretary/transcribe', form);
+  } finally {
+    // Voice is temporary: remove the local recording after either outcome.
+    try { if (file.exists) file.delete(); } catch { /* OS cache cleanup can finish this. */ }
+  }
+}
+
 export async function openTaskAttachment(taskId: string, attachmentId: string, filename: string) {
   const safeName = filename.replace(/[^\w.\-ก-๙ ]+/g, '_') || 'attachment';
   const result = await downloadFile(`/tasks/${taskId}/attachments/${attachmentId}/download`, `${FileSystem.cacheDirectory}${attachmentId}-${safeName}`);

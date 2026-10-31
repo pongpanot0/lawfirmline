@@ -8,6 +8,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { chatModel } from '../common/openai-model';
 import * as path from 'path';
 import { AuthUser, FirmRole, TaskPriority, TaskStatus, TaskRoutineSnapshot, dailyTaskUpdateText, dailyUpdateParts, redactForAi } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
@@ -176,7 +177,7 @@ export class TaskDetailService {
         method: 'POST', signal: AbortSignal.timeout(20000),
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: this.config.get<string>('OPENAI_MODEL_MAIN') ?? 'gpt-4o',
+          model: chatModel(this.config),
           temperature: 0,
           response_format: TASK_AI_RESPONSE_FORMAT,
           messages: [

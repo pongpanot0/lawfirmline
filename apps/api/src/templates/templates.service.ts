@@ -34,23 +34,28 @@ export class TemplatesService {
     });
   }
 
-  create(firmId: string, dto: TemplateInput) {
+  /** firmId null = a built-in every firm sees; only /platform (superadmin) passes null. */
+  create(firmId: string | null, dto: TemplateInput) {
     return this.prisma.documentTemplate.create({ data: { ...dto, firmId } });
   }
 
-  /** Only the firm's own templates are editable — built-ins (firmId null) are not. */
-  private async ownTemplate(firmId: string, id: string) {
+  findBuiltIns() {
+    return this.prisma.documentTemplate.findMany({ where: { firmId: null }, orderBy: { name: 'asc' } });
+  }
+
+  /** A firm edits only its own templates; built-ins (firmId null) only through /platform. */
+  private async ownTemplate(firmId: string | null, id: string) {
     const template = await this.prisma.documentTemplate.findFirst({ where: { id, firmId } });
     if (!template) throw new NotFoundException('ไม่พบ template ของสำนักงานนี้');
     return template;
   }
 
-  async update(firmId: string, id: string, dto: Partial<TemplateInput>) {
+  async update(firmId: string | null, id: string, dto: Partial<TemplateInput>) {
     await this.ownTemplate(firmId, id);
     return this.prisma.documentTemplate.update({ where: { id }, data: dto });
   }
 
-  async remove(firmId: string, id: string) {
+  async remove(firmId: string | null, id: string) {
     await this.ownTemplate(firmId, id);
     await this.prisma.documentTemplate.delete({ where: { id } });
     return { deleted: true };

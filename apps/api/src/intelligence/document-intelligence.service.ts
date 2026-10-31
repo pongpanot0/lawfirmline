@@ -1,5 +1,6 @@
 import { BadRequestException, ServiceUnavailableException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { chatModel } from '../common/openai-model';
 import { AI_CREDIT_COST, KnowledgeCategory, EventType, redactForAi, isUnusableAnalysis } from '@lawfirm/shared';
 import { PDFParse } from 'pdf-parse';
 import { Prisma } from '../generated/prisma';
@@ -260,7 +261,7 @@ export class DocumentIntelligenceService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: chatModel(this.config),
         messages: [
           {
             role: 'system',
@@ -301,7 +302,7 @@ export class DocumentIntelligenceService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: chatModel(this.config),
           response_format: { type: 'json_object' },
           messages: [
             {
@@ -411,7 +412,7 @@ export class DocumentIntelligenceService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: chatModel(this.config),
           response_format: { type: 'json_object' },
           messages: [
             {
@@ -525,7 +526,7 @@ export class DocumentIntelligenceService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: chatModel(this.config),
           response_format: { type: 'json_object' },
           messages: [
             {
@@ -878,7 +879,7 @@ export class DocumentIntelligenceService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: chatModel(this.config),
           response_format: { type: 'json_object' },
           messages: [
             {

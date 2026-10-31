@@ -2,6 +2,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PracticeSetupModule } from './practice-setup/practice-setup.module';
 import { LawyerLicenseModule } from './lawyer-license/lawyer-license.module';
 import { PaperFilesModule } from './paper-files/paper-files.module';
+import { ErrorLogModule } from './error-log/error-log.module';
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -30,6 +31,7 @@ import { CourtsModule } from './courts/courts.module';
 import { TravelModule } from './travel/travel.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { AiTrayModule } from './ai-tray/ai-tray.module';
+import { SecretaryModule } from './secretary/secretary.module';
 import { RagModule } from './rag/rag.module';
 import { LegalModule } from './legal/legal.module';
 import { TemplatesModule } from './templates/templates.module';
@@ -46,6 +48,7 @@ import { ConflictCheckModule } from './conflict-check/conflict-check.module';
 import { DocumentReviewModule } from './document-review/document-review.module';
 import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
 import { CaseDriveModule } from './outlook-integration/drive/case-drive.module';
+import { CaseImportModule } from './case-import/case-import.module';
 import { CargoClaimsModule } from './cargo-claims/cargo-claims.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 
@@ -59,6 +62,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    ErrorLogModule,
     CommonModule,
     HealthModule,
     AuthModule,
@@ -81,6 +85,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     TravelModule,
     IntelligenceModule,
     AiTrayModule,
+    SecretaryModule,
     RagModule,
     LegalModule,
     TemplatesModule,
@@ -98,6 +103,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     DocumentReviewModule,
     OutlookIntegrationModule,
     CaseDriveModule,
+    CaseImportModule,
     ConflictCheckModule,
     CargoClaimsModule,
     WorkflowsModule,

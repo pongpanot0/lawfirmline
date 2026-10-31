@@ -68,7 +68,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           <div className="samnuan-page">{children}</div>
         </main>
       </div>
-      {pathname !== '/dashboard' && pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (
+      {pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (
         <AIAssistantPanel caseId={activeCaseId} intakeId={activeIntakeId} />
       )}
       <JevDocumentReviewQueue />
