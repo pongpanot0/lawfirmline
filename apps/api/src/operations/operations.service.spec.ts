@@ -191,7 +191,7 @@ describe('OperationsService.updateSlaConfig', () => {
     await service.updateSlaConfig(user, { emailReplyHours: 8, junk: 1 } as any);
     expect(mockPrisma.firm.update).toHaveBeenCalledWith({
       where: { id: 'f1' },
-      data: { slaConfig: { caseUpdateDays: 7, stuckStatusDays: 30, reviewDays: 5, emailReplyHours: 8 } },
+      data: { slaConfig: { caseUpdateDays: 7, stuckStatusDays: 30, reviewDays: 5, stuckTaskDays: 3, emailReplyHours: 8 } },
     });
   });
 
