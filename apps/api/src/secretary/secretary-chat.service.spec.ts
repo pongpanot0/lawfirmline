@@ -59,6 +59,34 @@ describe('SecretaryChatService', () => {
     expect(body(1).messages.some((m: any) => m.role === 'tool' && m.tool_call_id === 'a')).toBe(true);
   });
 
+  it('redacts history before sending', async () => {
+    const { svc } = build();
+    fetchSpy.mockResolvedValue(final('ok'));
+    await svc.chat(user, [{ role: 'user', content: 'บัตร 1101700203451 โทร 0812345678' }]);
+    const sent = body(0).messages[1].content;
+    expect(sent).not.toContain('1101700203451');
+    expect(sent).not.toContain('0812345678');
+  });
+
+  it('runs tool calls in a round in parallel', async () => {
+    const { svc, tools } = build();
+    const two = json({ choices: [{ message: { content: null, tool_calls: [1, 2].map((i) => ({ id: `p${i}`, type: 'function', function: { name: 'find_matters', arguments: '{}' } })) } }] });
+    fetchSpy.mockResolvedValueOnce(two).mockResolvedValueOnce(final('ok'));
+    let started = 0;
+    tools.run.mockImplementation(async () => { started++; await new Promise((r) => setTimeout(r, 0)); expect(started).toBe(2); return { content: {}, cards: [] }; });
+    await svc.chat(user, msgs);
+    expect(body(1).messages.filter((m: any) => m.role === 'tool').map((m: any) => m.tool_call_id)).toEqual(['p1', 'p2']);
+  });
+
+  it('prompt has language and staff-only rules', async () => {
+    const { svc } = build();
+    fetchSpy.mockResolvedValue(final('ok'));
+    await svc.chat(user, msgs);
+    const sys = body(0).messages[0].content;
+    expect(sys).toContain('ตอบเป็นภาษาไทย เว้นแต่ผู้ใช้เขียนเป็นภาษาอังกฤษ');
+    expect(sys).toContain('คุณคุยกับเจ้าหน้าที่สำนักงานเท่านั้น ห้ามร่างข้อความถึงลูกความ');
+  });
+
   it('keeps only the last 10 messages', async () => {
     const { svc } = build();
     fetchSpy.mockResolvedValue(final('ok'));
