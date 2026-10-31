@@ -104,6 +104,7 @@ export default function NewExpenseScreen() {
       if (complete && !uploaded) {
         const expense = await createExpense({ amount: Number(draft.amount.replace(/,/g, '')), category: draft.category,
           description: draft.description.trim() || draft.category, date: draft.date, sourceEventId: draft.sourceEventId,
+          officialReceiptNo: draft.category === 'ค่าธรรมเนียมศาล' ? draft.officialReceiptNo?.trim() || undefined : undefined,
           caseId: draft.caseRef?.id, receiptUri: draft.receiptUri ?? undefined, receiptMimeType: draft.receiptMimeType });
         setUploaded(true);
         savedInSystem = true;
@@ -136,6 +137,9 @@ export default function NewExpenseScreen() {
         <FormSection title="รายการ" icon={Receipt}>
         <Dropdown label="เลือกประเภทค่าใช้จ่าย" fieldLabel="เบิกค่าอะไร" required value={draft.category} options={EXPENSE_CATEGORIES.map((value) => ({ value, label: value }))}
           error={triedSave ? categoryError : undefined} onChange={(category) => change({ category })} disabled={busy} />
+        {draft.category === 'ค่าธรรมเนียมศาล' && <TextField label="เลขที่ใบเสร็จศาล · ถ้ามี"
+          maxLength={100} value={draft.officialReceiptNo ?? ''} onChange={(officialReceiptNo) => change({ officialReceiptNo })}
+          inputAccessoryViewID="expense-keyboard" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} disabled={busy} />}
         {/* "อื่นๆ" makes the description required, so it moves up next to the category. */}
         {otherCategory && descriptionField}
         {/* Money keeps the shared frame but reads larger, in tabular figures. */}

@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
+import { CashAdvanceReconciliation } from '@/components/CashAdvanceReconciliation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState, InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
@@ -32,6 +33,9 @@ type TeamMember = {
 export default function ReimbursementsPage() {
   const d = useDashboardT();
   const { token, user } = useAuth();
+  const [tab, setTab] = useState('claims');
+  const [advanceBusy, setAdvanceBusy] = useState(false);
+  const canIssueAdvances = hasFirmCapability(user?.firmRole, 'issueCashAdvance');
   const [claims, setClaims] = useState<ExpenseClaimSummary[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [advances, setAdvances] = useState<CashAdvanceItem[]>([]);
@@ -265,6 +269,20 @@ export default function ReimbursementsPage() {
         }
       />
 
+      {canIssueAdvances && (
+        <fieldset disabled={advanceBusy} className="min-w-0">
+          <legend className="sr-only">ประเภทการเบิกจ่าย</legend>
+          <Tabs value={tab} onValueChange={setTab} className="mb-4">
+            <TabsList>
+              <TabsTrigger value="claims">ชุดเบิกจ่าย</TabsTrigger>
+              <TabsTrigger value="advances">เงินทดรอง</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </fieldset>
+      )}
+      {tab === 'advances' && canIssueAdvances ? (
+        <CashAdvanceReconciliation token={token ?? getStoredToken() ?? ''} onBusyChange={setAdvanceBusy} />
+      ) : <>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <Tabs value={filter} onValueChange={setFilter} className="min-w-0 flex-1">
           <TabsList>
@@ -348,7 +366,7 @@ export default function ReimbursementsPage() {
         </div>
       )}
 
-      <Card className="mt-6">
+      {canIssueAdvances && <Card className="mt-6">
         <CardHeader>
           <CardTitle>{d.reimbursements.advancesTitle}</CardTitle>
         </CardHeader>
@@ -418,7 +436,8 @@ export default function ReimbursementsPage() {
             </Table>
           )}
         </CardContent>
-      </Card>
+      </Card>}
+      </>}
     </div>
   );
 }

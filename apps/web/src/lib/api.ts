@@ -719,6 +719,7 @@ export interface ExpenseItem {
   paidBy?: { firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string; courtName?: string | null } | null;
   receiptFilename?: string | null;
+  officialReceiptNo?: string | null;
   /** false = สำนักงานออกเอง ไม่ผลักไปเก็บกับลูกค้า */
   billable?: boolean;
   /** ตั้งแล้วแปลว่าออกใบแจ้งหนี้ไปแล้ว แก้ไม่ได้ */
@@ -731,6 +732,20 @@ export interface ExpenseItem {
   writeOffReason?: string | null;
 }
 
+export interface CreateExpenseInput {
+  amount: number;
+  description: string;
+  category?: string;
+  expensePurpose?: string;
+  date?: string;
+  status?: import('@lawfirm/shared').ExpenseStatus;
+  caseId?: string;
+  paidFromAdvanceId?: string;
+  sourceEventId?: string;
+  billable?: boolean;
+  officialReceiptNo?: string;
+}
+
 export interface CashAdvanceItem {
   id: string;
   amount: number;
@@ -740,6 +755,30 @@ export interface CashAdvanceItem {
   issuedById: string;
   userId: string;
   user?: { id: string; firstName: string; lastName: string };
+}
+
+export interface CashAdvanceReconciliationItem {
+  id: string;
+  user: { id: string; firstName: string; lastName: string };
+  issuedAt: string;
+  amount: number;
+  spent: number;
+  returnedAmount: number;
+  remaining: number;
+  missingReceiptFiles: number;
+  courtFeesMissingReceiptNo: number;
+  settledAt: string | null;
+}
+
+export interface CashAdvanceExpenseItem {
+  id: string;
+  date: string;
+  description: string;
+  category: string | null;
+  amount: number;
+  receiptFilename: string | null;
+  officialReceiptNo: string | null;
+  caseId: string | null;
 }
 
 export interface ExpenseClaimSummary {
@@ -2691,7 +2730,7 @@ export const api = {
     return request<ExpenseItem[]>(`/expenses${query ? `?${query}` : ''}`, { token });
   },
 
-  createExpense: (token: string, caseId: string, data: Record<string, unknown>) =>
+  createExpense: (token: string, caseId: string, data: CreateExpenseInput) =>
     request(`/cases/${caseId}/billing/expenses`, {
       method: 'POST',
       token,
@@ -2872,7 +2911,7 @@ export const api = {
       { token },
     ),
 
-  createStandaloneExpense: (token: string, data: Record<string, unknown>, receipt?: File) => {
+  createStandaloneExpense: (token: string, data: CreateExpenseInput, receipt?: File) => {
     if (receipt) {
       const form = new FormData();
       for (const [key, value] of Object.entries(data)) {
@@ -2904,6 +2943,27 @@ export const api = {
 
   listMyCashAdvances: (token: string) =>
     request<CashAdvanceItem[]>('/cash-advances/mine', { token }),
+
+  getCashAdvanceReconciliation: (token: string, status: 'open' | 'settled' = 'open') =>
+    request<CashAdvanceReconciliationItem[]>(`/cash-advances/reconciliation?status=${status}`, { token }),
+
+  returnCashAdvance: (token: string, id: string, amount: number, note?: string) =>
+    request<CashAdvanceItem>(`/cash-advances/${id}/return`, {
+      method: 'POST', token, body: JSON.stringify({ amount, note }),
+    }),
+
+  settleCashAdvance: (token: string, id: string, note?: string) =>
+    request<CashAdvanceItem>(`/cash-advances/${id}/settle`, {
+      method: 'POST', token, body: JSON.stringify({ note }),
+    }),
+
+  listCashAdvanceExpenses: (token: string, id: string) =>
+    request<CashAdvanceExpenseItem[]>(`/cash-advances/${id}/expenses`, { token }),
+
+  updateExpenseReceiptNo: (token: string, expenseId: string, officialReceiptNo: string | null) =>
+    request<Pick<ExpenseItem, 'id' | 'officialReceiptNo'>>(`/expenses/${expenseId}/receipt-no`, {
+      method: 'PATCH', token, body: JSON.stringify({ officialReceiptNo }),
+    }),
 
   getCaseKnowledge: (token: string, caseId: string) =>
     request<KnowledgeItem[]>(`/cases/${caseId}/knowledge`, { token }),

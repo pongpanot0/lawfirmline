@@ -19,6 +19,7 @@ export interface ExpenseDraft {
   sourceEventId?: string;
   receiptUri: string | null;
   receiptMimeType?: string;
+  officialReceiptNo?: string;
 }
 
 export async function listExpenseDrafts(scope: string): Promise<ExpenseDraft[]> {
