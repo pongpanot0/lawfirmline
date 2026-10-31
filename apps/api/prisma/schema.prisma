@@ -448,6 +448,7 @@ model Firm {
   clients            Client[]
   pettyCashFund      PettyCashFund?
   cashAdvances       CashAdvance[]
+  paperFileMovements PaperFileMovement[]
   intakes            Intake[]
   emailThreads       EmailThread[]
   mailboxConnections MailboxConnection[]
@@ -470,12 +471,16 @@ model Firm {
 }
 
 model FirmMember {
-  id            String   @id @default(uuid())
-  firmId        String
-  userId        String
-  role          FirmRole
-  createdAt     DateTime @default(now())
-  taskWorkTypes String[] @default([])
+  id                         String   @id @default(uuid())
+  firmId                     String
+  userId                     String
+  role                       FirmRole
+  createdAt                  DateTime @default(now())
+  taskWorkTypes              String[] @default([])
+  /// เป้าชั่วโมงเรียกเก็บได้ต่อเดือน — ใช้ในแดชบอร์ดสำนักงาน
+  monthlyBillableTargetHours Float?
+  /// ค่าเริ่มต้นต่อชั่วโมงเมื่อบันทึกเวลา
+  defaultHourlyRate          Float?
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -622,26 +627,30 @@ model Session {
 }
 
 model User {
-  id                    String    @id @default(uuid())
-  email                 String    @unique
-  passwordHash          String
-  firstName             String
-  lastName              String
-  role                  Role
-  aiCredits             Int       @default(100)
-  lineUserId            String?   @unique
-  lineLinkCode          String?   @unique
-  lineLinkCodeExpiresAt DateTime?
-  lineConnectedAt       DateTime?
+  id                     String             @id @default(uuid())
+  email                  String             @unique
+  passwordHash           String
+  firstName              String
+  lastName               String
+  role                   Role
+  aiCredits              Int                @default(100)
+  lineUserId             String?            @unique
+  lineLinkCode           String?            @unique
+  lineLinkCodeExpiresAt  DateTime?
+  lineConnectedAt        DateTime?
   /// Opt out of the evening "what do I have tomorrow" digest.
-  dailyDigestEnabled    Boolean   @default(true)
+  dailyDigestEnabled     Boolean            @default(true)
   /// Email one-time-code MFA. Off by default — never flip without the owner
   /// of this account confirming a code first (see MfaService.confirmEnable).
-  mfaEnabled            Boolean   @default(false)
+  mfaEnabled             Boolean            @default(false)
   /// Personal email signature appended to case emails sent from the system.
-  emailSignature        String?   @db.Text
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  emailSignature         String?            @db.Text
+  /// ใบอนุญาตทนายความ — เลขที่ ประเภท และวันหมดอายุ (ใช้เตือนต่ออายุ)
+  lawyerLicenseNo        String?
+  lawyerLicenseType      LawyerLicenseType?
+  lawyerLicenseExpiresAt DateTime?          @db.Date
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   mfaCodes                   MfaCode[]
   sessions                   Session[]
@@ -714,6 +723,57 @@ model User {
   notificationPreferences    UserNotificationPreference[]
   mailboxConnections         MailboxConnection[]          @relation("MailboxConnectionOwner")
   emailTemplates             EmailTemplate[]              @relation("EmailTemplateCreator")
+  writtenOffTimeEntries      TimeEntry[]                  @relation("TimeEntryWriteOff")
+  writtenOffExpenses         Expense[]                    @relation("ExpenseWriteOff")
+  licenseReminderLogs        LawyerLicenseReminderLog[]
+  settledCashAdvances        CashAdvance[]                @relation("CashAdvanceSettler")
+  heldPaperFiles             Case[]                       @relation("PaperFileHolder")
+  paperFileMovementsHeld     PaperFileMovement[]          @relation("PaperFileMovementHolder")
+  paperFileMovementsCreated  PaperFileMovement[]          @relation("PaperFileMovementCreator")
+}
+
+enum LawyerLicenseType {
+  TWO_YEAR
+  LIFETIME
+}
+
+/// หนึ่งแถวต่อ (ผู้ใช้, วันหมดอายุ, ช่วงเตือน) — กัน cron เตือนซ้ำ
+model LawyerLicenseReminderLog {
+  id        String   @id @default(uuid())
+  userId    String
+  expiresAt DateTime @db.Date
+  milestone String
+  sentAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, expiresAt, milestone])
+}
+
+enum PaperFileAction {
+  CHECK_OUT
+  CHECK_IN
+  MOVE
+}
+
+/// ประวัติการเบิก/คืน/ย้ายแฟ้มคดีกระดาษ
+model PaperFileMovement {
+  id           String          @id @default(uuid())
+  firmId       String
+  caseId       String
+  action       PaperFileAction
+  holderUserId String?
+  location     String?
+  note         String?
+  createdById  String
+  createdAt    DateTime        @default(now())
+
+  firm      Firm  @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  case      Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  holder    User? @relation("PaperFileMovementHolder", fields: [holderUserId], references: [id], onDelete: SetNull)
+  createdBy User  @relation("PaperFileMovementCreator", fields: [createdById], references: [id])
+
+  @@index([firmId, caseId, createdAt])
 }
 
 /// What a staff notification is about — the unit a user mutes per channel.
@@ -726,6 +786,7 @@ enum NotificationCategory {
   BILLING
   LEAVE
   EMAIL
+  LICENSE
 }
 
 /// One staff notification, kept as the in-app inbox. Written for every
@@ -958,9 +1019,14 @@ model Case {
   leadLawyerId         String
   openedAt             DateTime    @default(now())
   closedAt             DateTime?
+  /// แฟ้มกระดาษ — ใครถืออยู่ และเก็บที่ไหน
+  paperFileHolderId    String?
+  paperFileLocation    String?
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
 
+  paperFileHolder        User?                     @relation("PaperFileHolder", fields: [paperFileHolderId], references: [id], onDelete: SetNull)
+  paperFileMovements     PaperFileMovement[]
   firm                   Firm                      @relation(fields: [firmId], references: [id], onDelete: Cascade)
   client                 Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   leadLawyer             User                      @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
@@ -1005,6 +1071,7 @@ model Case {
   @@index([firmId])
   @@index([clientId])
   @@index([firmId, stage])
+  @@index([paperFileHolderId])
 }
 
 model CaseComment {
@@ -1864,24 +1931,29 @@ model ReminderLog {
 }
 
 model TimeEntry {
-  id          String   @id @default(uuid())
-  caseId      String
-  userId      String
-  hours       Float
-  rate        Float    @default(0)
-  description String?
-  date        DateTime @default(now())
-  billable    Boolean  @default(true)
+  id             String    @id @default(uuid())
+  caseId         String
+  userId         String
+  hours          Float
+  rate           Float     @default(0)
+  description    String?
+  date           DateTime  @default(now())
+  billable       Boolean   @default(true)
   /// ใบแจ้งหนี้ที่เก็บเงินรายการนี้ไปแล้ว — กันออกบิลซ้ำ
-  invoiceId   String?
+  invoiceId      String?
   /// คีย์กันซ้ำสำหรับรายการที่สร้างจากแหล่งอัตโนมัติ (เช่น ร่างเวลาจากปฏิทิน)
-  sourceKey   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  sourceKey      String?
+  /// ตัดเป็นค่าเสียหายของสำนักงาน (write-off) — ไม่เรียกเก็บลูกค้า
+  writtenOffAt   DateTime?
+  writtenOffById String?
+  writeOffReason String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  case    Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  user    User     @relation(fields: [userId], references: [id])
-  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  case         Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id])
+  invoice      Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  writtenOffBy User?    @relation("TimeEntryWriteOff", fields: [writtenOffById], references: [id], onDelete: SetNull)
 
   @@unique([userId, sourceKey])
   @@index([invoiceId])
@@ -1916,9 +1988,15 @@ model Expense {
   invoiceId          String?
   receiptStoragePath String?
   receiptMimeType    String?
+  /// เลขที่ใบเสร็จรับเงินทางการ (เช่น ค่าธรรมเนียมศาล)
+  officialReceiptNo  String?
+  writtenOffAt       DateTime?
+  writtenOffById     String?
+  writeOffReason     String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
+  writtenOffBy    User?          @relation("ExpenseWriteOff", fields: [writtenOffById], references: [id], onDelete: SetNull)
   case            Case?          @relation(fields: [caseId], references: [id], onDelete: SetNull)
   user            User           @relation(fields: [userId], references: [id])
   paidBy          User?          @relation("ExpensePaidBy", fields: [paidById], references: [id])
@@ -1973,20 +2051,26 @@ model PettyCashFund {
 /// those expenses skip the normal claim → approve → reimburse cycle since the
 /// cash already changed hands.
 model CashAdvance {
-  id         String   @id @default(uuid())
-  firmId     String
-  userId     String
-  amount     Float
-  remaining  Float
-  note       String?
-  issuedById String
-  issuedAt   DateTime @default(now())
-  createdAt  DateTime @default(now())
+  id             String    @id @default(uuid())
+  firmId         String
+  userId         String
+  amount         Float
+  remaining      Float
+  note           String?
+  issuedById     String
+  issuedAt       DateTime  @default(now())
+  /// ปิดเงินสดทดรองจ่าย — เมื่อรับเงินที่เหลือคืนแล้ว
+  settledAt      DateTime?
+  settledById    String?
+  returnedAmount Float     @default(0)
+  settlementNote String?
+  createdAt      DateTime  @default(now())
 
-  firm     Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  user     User      @relation("CashAdvanceRecipient", fields: [userId], references: [id])
-  issuedBy User      @relation("CashAdvanceIssuer", fields: [issuedById], references: [id])
-  expenses Expense[]
+  firm      Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user      User      @relation("CashAdvanceRecipient", fields: [userId], references: [id])
+  issuedBy  User      @relation("CashAdvanceIssuer", fields: [issuedById], references: [id])
+  settledBy User?     @relation("CashAdvanceSettler", fields: [settledById], references: [id], onDelete: SetNull)
+  expenses  Expense[]
 
   @@index([firmId, userId])
 }
@@ -2171,6 +2255,11 @@ model Invoice {
   invoiceNumber     String        @unique
   status            InvoiceStatus @default(DRAFT)
   totalAmount       Float         @default(0)
+  /// ส่วนลดทั้งใบ — totalAmount คือยอดหลังหักส่วนลดแล้ว
+  discountAmount    Float         @default(0)
+  discountReason    String?
+  /// ใบที่แยกจากการออกบิลชุดเดียวกัน (เช่น แบ่งตามลูกค้า)
+  splitGroupId      String?
   issuedAt          DateTime?
   dueAt             DateTime?
   /// เวลาที่ส่งการแจ้งเตือนทวงเงินครั้งล่าสุด — กันแจ้งซ้ำถี่เกินไป
@@ -2199,6 +2288,7 @@ model Invoice {
   @@index([intakeId])
   @@index([billToCustomerId])
   @@index([firmId, collectionNextAt])
+  @@index([firmId, splitGroupId])
 }
 
 model InvoicePayment {
