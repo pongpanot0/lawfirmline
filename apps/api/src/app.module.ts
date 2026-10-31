@@ -1,5 +1,6 @@
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PracticeSetupModule } from './practice-setup/practice-setup.module';
+import { ErrorLogModule } from './error-log/error-log.module';
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -57,6 +58,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    ErrorLogModule,
     CommonModule,
     HealthModule,
     AuthModule,
