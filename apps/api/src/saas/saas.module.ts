@@ -1,6 +1,8 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { SaasController, PublicInviteController, PublicFirmController } from './saas.controller';
 import { TenantService } from './tenant.service';
+import { PlatformAdminController } from './platform-admin.controller';
+import { PlatformAdminService } from './platform-admin.service';
 import { SaasAuthService } from './saas-auth.service';
 import { InvitationService } from './invitation.service';
 import { SubscriptionService } from './subscription.service';
@@ -15,9 +17,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [forwardRef(() => AuthModule), CaseTypesModule, forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule)],
-  controllers: [SaasController, PublicInviteController, PublicFirmController],
+  controllers: [SaasController, PublicInviteController, PublicFirmController, PlatformAdminController],
   providers: [
     TenantService,
+    PlatformAdminService,
     SaasAuthService,
     InvitationService,
     SubscriptionService,

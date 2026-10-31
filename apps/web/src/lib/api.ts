@@ -872,6 +872,43 @@ export interface NotificationPreferences {
 }
 export type DeadlineRuleItem = import('@lawfirm/shared').DeadlineRuleItem;
 
+export interface PlatformOverview {
+  firmsByStatus: Partial<Record<'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED', number>>;
+  newFirms30d: number;
+  users: number;
+  /** Paid BillingInvoice amounts in the last 30 days (THB). */
+  revenue30d: number;
+}
+
+export interface PlatformFirm {
+  id: string;
+  name: string;
+  slug: string;
+  subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED';
+  subscriptionPlan: 'FREE' | 'SOLO' | 'TEAM' | 'FIRM' | 'PROFESSIONAL' | null;
+  trialEndAt: string;
+  currentPeriodEnd: string | null;
+  maxUsers: number;
+  createdAt: string;
+  memberCount: number;
+  caseCount: number;
+  ownerEmail: string | null;
+  stripeManaged: boolean;
+}
+
+export interface PlatformFirmMember {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  createdAt: string;
+}
+
+export type PlatformFirmUpdate = Partial<Pick<PlatformFirm, 'subscriptionStatus' | 'maxUsers' | 'trialEndAt' | 'currentPeriodEnd'>> & {
+  subscriptionPlan?: Exclude<PlatformFirm['subscriptionPlan'], null>;
+};
+
 export interface PublicHolidayItem {
   id: string;
   date: string;
@@ -2183,6 +2220,17 @@ export const api = {
 
   deleteDeadlineRule: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/deadline-rules/${id}`, { method: 'DELETE', token }),
+
+  getPlatformOverview: (token: string) => request<PlatformOverview>('/platform/overview', { token }),
+
+  getPlatformFirms: (token: string, q?: string) =>
+    request<PlatformFirm[]>(`/platform/firms${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),
+
+  getPlatformFirmMembers: (token: string, firmId: string) =>
+    request<PlatformFirmMember[]>(`/platform/firms/${firmId}/members`, { token }),
+
+  updatePlatformFirm: (token: string, firmId: string, data: PlatformFirmUpdate) =>
+    request<unknown>(`/platform/firms/${firmId}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
   getPublicHolidays: (token: string, year?: number) =>
     request<PublicHolidayItem[]>(`/public-holidays${year ? `?year=${year}` : ''}`, { token }),

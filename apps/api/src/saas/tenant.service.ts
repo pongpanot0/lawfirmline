@@ -18,6 +18,7 @@ import {
   isReservedFirmSlug,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { platformAdminEmails } from '../common/guards/platform-admin.guard';
 
 type FirmRecord = {
   id: string;
@@ -64,6 +65,7 @@ export class TenantService {
       maxUsers: firm.maxUsers,
       aiCredits: user.aiCredits,
       mfaEnabled: user.mfaEnabled,
+      isPlatformAdmin: platformAdminEmails().has(user.email.toLowerCase()),
       role: user.role as AuthUser['role'],
     };
   }
