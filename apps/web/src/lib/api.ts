@@ -645,6 +645,10 @@ export interface ExpenseItem {
   invoiceId?: string | null;
   paidFromAdvanceId?: string | null;
   paidFromAdvance?: { id: string; issuedById: string } | null;
+  /** ตัดทิ้ง (write-off) แล้ว — ไม่เข้าใบแจ้งหนี้ แต่ยกเลิกได้ถ้ายังไม่ออกบิล */
+  writtenOffAt?: string | null;
+  writtenOffBy?: { id: string; firstName: string; lastName: string } | null;
+  writeOffReason?: string | null;
 }
 
 export interface CashAdvanceItem {
@@ -2630,6 +2634,40 @@ export const api = {
   getInvoices: (token: string, caseId: string) =>
     request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, { token }),
 
+  writeOffTimeEntry: (caseId: string, entryId: string, reason: string, token: string) =>
+    request<{ id: string }>(`/cases/${caseId}/billing/time-entries/${entryId}/write-off`, {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    }),
+
+  undoTimeEntryWriteOff: (caseId: string, entryId: string, token: string) =>
+    request<{ id: string }>(`/cases/${caseId}/billing/time-entries/${entryId}/write-off`, {
+      token,
+      method: 'DELETE',
+    }),
+
+  writeOffExpense: (expenseId: string, reason: string, token: string) =>
+    request<{ id: string }>(`/expenses/${expenseId}/write-off`, {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    }),
+
+  undoExpenseWriteOff: (expenseId: string, token: string) =>
+    request<{ id: string }>(`/expenses/${expenseId}/write-off`, { token, method: 'DELETE' }),
+
+  setInvoiceDiscount: (
+    invoiceId: string,
+    body: { discountAmount: number; discountReason?: string },
+    token: string,
+  ) =>
+    request<unknown>(`/invoices/${invoiceId}/discount`, {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
   setExpenseBillable: (token: string, expenseId: string, billable: boolean) =>
     request<{ id: string; billable: boolean }>(`/expenses/${expenseId}/billable`, {
       token,
@@ -3925,13 +3963,20 @@ export interface TimeEntryItem {
   description?: string;
   date: string;
   user: { firstName: string; lastName: string };
+  invoiceId?: string | null;
+  writtenOffAt?: string | null;
+  writtenOffBy?: { id: string; firstName: string; lastName: string } | null;
+  writeOffReason?: string | null;
 }
 
 export interface InvoiceItem {
   id: string;
   invoiceNumber: string;
   status: string;
+  /** ยอดสุทธิหลังหักส่วนลดแล้ว */
   totalAmount: number;
+  discountAmount?: number;
+  discountReason?: string | null;
   /** ลูกค้าที่ถูกวางบิล — ว่างได้ในใบเก่าที่ออกก่อนแยกลูกค้าออกจากลูกความ */
   billToCustomer?: { id: string; name: string } | null;
 }
@@ -3941,6 +3986,8 @@ export interface InvoicePrintData {
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+  discountAmount?: number;
+  discountReason?: string | null;
   issuedAt: string | null;
   dueAt: string | null;
   lineItems: { description: string; quantity: number; unitPrice: number; amount: number }[];
@@ -3983,6 +4030,9 @@ export interface CreateInvoiceInput {
   dueAt?: string;
   /** แบ่งบิลหลายราย — ไม่ส่งมาจะใช้ลูกค้าของคดีตามสัดส่วนที่บันทึกไว้ */
   splits?: { customerId: string; sharePercent: number }[];
+  /** ส่วนลดทั้งใบ — ใบที่แบ่งผู้จ่ายหลายรายตั้งตอนออกไม่ได้ ต้องตั้งรายใบทีหลัง */
+  discountAmount?: number;
+  discountReason?: string;
 }
 
 export interface PortalSubmissionStaffEntry {

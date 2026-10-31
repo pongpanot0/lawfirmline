@@ -22,7 +22,10 @@ export interface BillingDocData {
     billingPhone?: string | null;
   } | null;
   lines: BillingDocLine[];
+  /** ยอดสุทธิหลังหักส่วนลด */
   totalAmount: number;
+  discountAmount?: number;
+  discountReason?: string | null;
 }
 
 const escapeHtml = (text: string) =>
@@ -57,6 +60,13 @@ export function buildBillingDocHtml(data: BillingDocData): string {
       </tr>`,
     )
     .join('');
+  const discount = data.discountAmount ?? 0;
+  const footer =
+    discount > 0
+      ? `<tr><td colspan="4">รวมก่อนหักส่วนลด</td><td class="num">${baht(data.totalAmount + discount)}</td></tr>
+    <tr><td colspan="4">ส่วนลด${data.discountReason ? ` (${escapeHtml(data.discountReason)})` : ''}</td><td class="num">-${baht(discount)}</td></tr>
+    <tr><td colspan="4">รวมทั้งสิ้น</td><td class="num">${baht(data.totalAmount)}</td></tr>`
+      : `<tr><td colspan="4">รวมทั้งสิ้น</td><td class="num">${baht(data.totalAmount)}</td></tr>`;
   const billToLines = data.billTo
     ? [
         `<p class="strong">${escapeHtml(data.billTo.name)}</p>`,
@@ -118,7 +128,7 @@ ${billToLines}
   </thead>
   <tbody>${rows}</tbody>
   <tfoot>
-    <tr><td colspan="4">รวมทั้งสิ้น</td><td class="num">${baht(data.totalAmount)}</td></tr>
+    ${footer}
   </tfoot>
 </table>
 ${data.kind === 'RECEIPT' ? '<p class="note">ออกให้เพื่อเป็นหลักฐานการรับเงินตามรายการข้างต้น</p>' : ''}

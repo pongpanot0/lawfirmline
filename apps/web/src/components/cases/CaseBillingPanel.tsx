@@ -5,6 +5,7 @@ import {
   EXPENSE_CATEGORIES,
   ExpenseStatus,
   FirmRole,
+  hasFirmCapability,
   MONEY_HINT,
   MONEY_MAX,
   MONEY_MIN,
@@ -21,6 +22,87 @@ import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Button } from '@/components/ui/button';
 import { SelectField, TextField } from '@/components/ui/form-fields';
 import { Plus } from 'lucide-react';
+
+const WRITE_OFF_MIN_REASON = 5;
+
+/** ปุ่มตัดทิ้ง → กรอกเหตุผล (อย่างน้อย 5 ตัวอักษร) → ยืนยัน */
+function WriteOffAction({ label, onConfirm }: { label: string; onConfirm: (reason: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const trimmed = reason.trim();
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        aria-label={`ตัดทิ้ง: ${label}`}
+        onClick={() => setOpen(true)}
+        className="min-h-11 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent sm:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        ตัดทิ้ง (write-off)
+      </button>
+    );
+  }
+  const submit = async () => {
+    if (trimmed.length < WRITE_OFF_MIN_REASON || saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      await onConfirm(trimmed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ตัดทิ้งไม่สำเร็จ กรุณาลองใหม่');
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="mt-2 w-full space-y-2 rounded-lg bg-muted/40 p-2">
+      <input
+        aria-label={`เหตุผลที่ตัดทิ้ง: ${label}`}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder={`เหตุผล (อย่างน้อย ${WRITE_OFF_MIN_REASON} ตัวอักษร)`}
+        maxLength={500}
+        className="h-10 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+      <div className="flex gap-2">
+        <Button type="button" size="sm" disabled={trimmed.length < WRITE_OFF_MIN_REASON || saving} onClick={() => void submit()}>
+          {saving ? 'กำลังตัดทิ้ง…' : 'ยืนยันตัดทิ้ง'}
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => { setOpen(false); setReason(''); setError(''); }}>
+          ยกเลิก
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function WrittenOffNote({
+  by,
+  reason,
+  onUndo,
+}: {
+  by?: { firstName: string; lastName: string } | null;
+  reason?: string | null;
+  onUndo?: () => void;
+}) {
+  return (
+    <div className="mt-1 flex w-full flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+      <span>ตัดโดย {by ? `${by.firstName} ${by.lastName}` : '-'}: {reason}</span>
+      {onUndo && (
+        <button
+          type="button"
+          onClick={onUndo}
+          className="min-h-11 rounded-lg border px-2.5 py-1 font-medium hover:bg-accent sm:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          ยกเลิก
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const d = useDashboardT();
@@ -42,6 +124,9 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
     category: EXPENSE_CATEGORIES[0] as string,
     expensePurpose: '',
   });
+
+  const canWriteOff = hasFirmCapability(user?.firmRole, 'manageInvoices');
+  const [writeOffError, setWriteOffError] = useState('');
 
   // ลูกค้า (ผู้ว่าจ้าง) ของคดี — คนที่ใบแจ้งหนี้จะไปถึง ไม่ใช่ลูกความ
   const [customers, setCustomers] = useState<CustomerShareItem[]>([]);
@@ -109,11 +194,21 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
     }
   };
 
+  const handleUndoWriteOff = async (undo: () => Promise<unknown>) => {
+    setWriteOffError('');
+    try {
+      await undo();
+      load();
+    } catch (err) {
+      setWriteOffError(err instanceof Error ? err.message : 'ยกเลิกการตัดทิ้งไม่สำเร็จ กรุณาลองใหม่');
+    }
+  };
+
   if (loading) return <PageLoading title={d.caseBilling.loading} lines={3} />;
   if (loadError) return <LoadFailed onRetry={load} />;
 
   const totalHours = timeEntries.reduce((sum, e) => sum + e.hours, 0);
-  const totalBilled = timeEntries.reduce((sum, e) => sum + e.hours * e.rate, 0);
+  const totalBilled = timeEntries.reduce((sum, e) => (e.writtenOffAt ? sum : sum + e.hours * e.rate), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   return (
@@ -148,6 +243,8 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
           <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalExpenses)}</dd>
         </div>
       </dl>
+
+      {writeOffError && <p role="alert" className="mb-4 text-sm text-destructive">{writeOffError}</p>}
 
       <div className="mb-6 rounded-xl border border-border bg-card p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -208,8 +305,9 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
         <div className="space-y-2">
           {expenses.map((e) => (
-            <div key={e.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
-              <div>
+            <div key={e.id} className="rounded-lg border border-border px-3 py-2 text-sm">
+             <div className="flex items-center justify-between">
+              <div className={e.writtenOffAt ? 'line-through opacity-60' : undefined}>
                 <p className="font-medium">{e.description}</p>
                 <p className="text-xs text-muted-foreground">
                   {e.user.firstName} {e.user.lastName}
@@ -220,7 +318,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
               </div>
               <div className="flex items-center gap-3 text-right">
                 {/* ออกบิลไปแล้วเปลี่ยนไม่ได้ ต้องไปแก้ที่ใบแจ้งหนี้ */}
-                {!e.invoiceId && (
+                {!e.invoiceId && !e.writtenOffAt && (
                   <label className="flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground sm:min-h-0">
                     <input
                       type="checkbox"
@@ -232,11 +330,26 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                     สำนักงานออกเอง
                   </label>
                 )}
-                <div>
+                <div className={e.writtenOffAt ? 'line-through opacity-60' : undefined}>
                   <p className="font-medium tabular-nums">{formatCurrency(e.amount)}</p>
                   <ExpenseStatusBadge status={e.status} />
                 </div>
               </div>
+             </div>
+             {e.writtenOffAt ? (
+               <WrittenOffNote
+                 by={e.writtenOffBy}
+                 reason={e.writeOffReason}
+                 onUndo={canWriteOff && !e.invoiceId && token ? () => void handleUndoWriteOff(() => api.undoExpenseWriteOff(e.id, token)) : undefined}
+               />
+             ) : (
+               canWriteOff && !e.invoiceId && token && (
+                 <WriteOffAction
+                   label={e.description}
+                   onConfirm={async (reason) => { await api.writeOffExpense(e.id, reason, token); load(); }}
+                 />
+               )
+             )}
             </div>
           ))}
           {expenses.length === 0 && (
@@ -258,17 +371,33 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         <h2 className="mb-4 font-semibold">{d.caseBilling.timeEntries}</h2>
         <div className="space-y-2">
           {timeEntries.map((e) => (
-            <div key={e.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
-              <div>
+            <div key={e.id} className="rounded-lg border border-border px-3 py-2 text-sm">
+             <div className="flex items-center justify-between">
+              <div className={e.writtenOffAt ? 'line-through opacity-60' : undefined}>
                 <p className="font-medium">{e.description || d.caseBilling.timeEntry}</p>
                 <p className="text-xs text-muted-foreground">
                   {e.user.firstName} {e.user.lastName} — {formatDate(e.date)}
                 </p>
               </div>
-              <div className="text-right tabular-nums">
+              <div className={`text-right tabular-nums ${e.writtenOffAt ? 'line-through opacity-60' : ''}`}>
                 <p>{e.hours}h @ ฿{e.rate}</p>
                 <p className="text-xs text-muted-foreground">{formatCurrency(e.hours * e.rate)}</p>
               </div>
+             </div>
+             {e.writtenOffAt ? (
+               <WrittenOffNote
+                 by={e.writtenOffBy}
+                 reason={e.writeOffReason}
+                 onUndo={canWriteOff && !e.invoiceId && token ? () => void handleUndoWriteOff(() => api.undoTimeEntryWriteOff(id, e.id, token)) : undefined}
+               />
+             ) : (
+               canWriteOff && !e.invoiceId && token && (
+                 <WriteOffAction
+                   label={e.description || d.caseBilling.timeEntry}
+                   onConfirm={async (reason) => { await api.writeOffTimeEntry(id, e.id, reason, token); load(); }}
+                 />
+               )
+             )}
             </div>
           ))}
           {timeEntries.length === 0 && (
