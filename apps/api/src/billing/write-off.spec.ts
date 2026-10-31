@@ -184,17 +184,43 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
       expect(data.discountReason).toBe('ลูกค้าประจำ');
     });
 
-    it('rejects discount > subtotal, missing reason, and discount on split bills', async () => {
-      mockPrisma.caseCustomer.findMany.mockResolvedValue([{ customerId: 'c1', sharePercent: 50 }, { customerId: 'c2', sharePercent: 50 }]);
+    it('audits a create-time discount, and none when there is no discount', async () => {
+      await billing.createInvoice(user, { caseId: 'case-1' }, { ...fee(1000), discountAmount: 100, discountReason: 'ลูกค้าประจำ' } as any);
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          firmId: 'firm-1',
+          userId: 'user-1',
+          action: 'INVOICE_DISCOUNT_SET',
+          metadata: { invoiceId: expect.any(String), subtotal: 1000, discountAmount: 100, reason: 'ลูกค้าประจำ' },
+        },
+      });
+
+      mockPrisma.auditLog.create.mockClear();
+      await billing.createInvoice(user, { caseId: 'case-1' }, fee(1000) as any);
+      expect(mockPrisma.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    // One customer (or none) so only the discount's own validation can reject.
+    it('rejects discount > subtotal', async () => {
+      mockPrisma.caseCustomer.findMany.mockResolvedValue([{ customerId: 'c1', sharePercent: 100 }]);
       await expect(
         billing.createInvoice(user, { caseId: 'case-1' }, { ...fee(1000), discountAmount: 1000.01, discountReason: 'เกินยอด' } as any),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow('ส่วนลดต้องไม่เกินยอดก่อนหัก');
+      expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
+    });
+
+    it('requires a reason when discount > 0', async () => {
       await expect(
         billing.createInvoice(user, { caseId: 'case-1' }, { ...fee(1000), discountAmount: 100 } as any),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow('ส่วนลดต้องระบุเหตุผล');
+      expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a discount on split bills', async () => {
+      mockPrisma.caseCustomer.findMany.mockResolvedValue(two);
       await expect(
-        billing.createInvoice(user, { caseId: 'case-1' }, { ...fee(1000), splits: two, discountAmount: 100, discountReason: 'ลด' } as any),
-      ).rejects.toThrow(BadRequestException);
+        billing.createInvoice(user, { caseId: 'case-1' }, { ...fee(1000), discountAmount: 100, discountReason: 'ลด' } as any),
+      ).rejects.toThrow('ใบที่แบ่งผู้จ่าย');
       expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
     });
   });

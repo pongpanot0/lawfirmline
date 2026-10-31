@@ -1342,6 +1342,17 @@ export class BillingService {
         ),
       );
 
+      if (discountAmount > 0) {
+        await tx.auditLog.create({
+          data: {
+            firmId: user.firmId,
+            userId: user.id,
+            action: 'INVOICE_DISCOUNT_SET',
+            metadata: { invoiceId: invoices[0].id, subtotal, discountAmount, reason: discountReason },
+          },
+        });
+      }
+
       // งานถูกเก็บเงินครั้งเดียวแม้จะแบ่งเป็นหลายใบ จึงผูกไว้กับใบของผู้จ่ายหลัก
       const primaryInvoiceId = invoices[0].id;
       if (billedTime.length) {
