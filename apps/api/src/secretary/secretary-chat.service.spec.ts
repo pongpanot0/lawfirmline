@@ -112,6 +112,15 @@ describe('SecretaryChatService', () => {
     expect(rag.logRun).toHaveBeenCalledWith(expect.objectContaining({ operation: 'secretary_chat', status: 'error' }));
   });
 
+  it('every OpenAI call carries a timeout signal', async () => {
+    const { svc } = build();
+    fetchSpy.mockResolvedValue(json({}, false, 500));
+    await expect(svc.chat(user, msgs)).rejects.toBeInstanceOf(BadGatewayException);
+    await svc.transcribe(user, { mimetype: 'audio/webm', buffer: Buffer.from('a'), originalname: 'a.webm' } as any).catch(() => undefined);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetchSpy.mock.calls) expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('logs secretary_chat with summed tokens', async () => {
     const { svc, rag } = build();
     fetchSpy.mockResolvedValueOnce(toolCall()).mockResolvedValueOnce(final('x'));

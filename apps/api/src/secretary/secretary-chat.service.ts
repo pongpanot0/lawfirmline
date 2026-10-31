@@ -9,6 +9,8 @@ export interface SecretaryMessage { role: 'user' | 'assistant'; content: string 
 
 const MAX_HISTORY = 10;
 const MAX_TOOL_ROUNDS = 4;
+/** Per OpenAI call; a stalled upstream otherwise hangs for undici's ~300 s default. */
+const OPENAI_TIMEOUT_MS = 20_000;
 const BAD_GATEWAY = 'ผู้ช่วย AI ไม่สามารถตอบได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง';
 
 type OaiMessage = Record<string, unknown>;
@@ -44,7 +46,7 @@ export class SecretaryChatService {
 
   private async complete(messages: OaiMessage[], toolChoice: 'auto' | 'none') {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
+      method: 'POST', signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
       headers: { Authorization: `Bearer ${this.config.get<string>('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: chatModel(this.config), temperature: 0.2, messages, tools: this.tools.definitions(), tool_choice: toolChoice }),
     });
@@ -104,7 +106,7 @@ export class SecretaryChatService {
       this.rag.logRun({ model, operation: 'secretary_transcribe', firmId: user.firmId, userId: user.id, latencyMs: Date.now() - started, status });
     try {
       const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
+        method: 'POST', signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
         headers: { Authorization: `Bearer ${this.config.get<string>('OPENAI_API_KEY')}` },
         body: form,
       });

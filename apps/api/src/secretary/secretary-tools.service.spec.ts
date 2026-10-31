@@ -96,6 +96,26 @@ describe('SecretaryToolsService', () => {
     expect((r.content as any).id).toBe('c1');
   });
 
+  it('redaction leaves record ids intact (uuid hyphens look like a phone number)', async () => {
+    const { svc, brief } = build();
+    const id = '5b053993-059d-4627-b506-ae90bcc6a513';
+    brief.getCaseBrief.mockResolvedValue({
+      kind: 'case', id, title: 'คดี', ourParties: ['สมชาย 081-234-5678'],
+      openTasks: [{ id, title: 'งาน', status: 'TODO' }], nextEvent: { id, title: 'นัด' },
+    });
+    const r = (await svc.run(user, 'case_overview', { caseId: id })).content as any;
+    expect(r.id).toBe(id);
+    expect(r.openTasks[0].id).toBe(id);
+    expect(r.nextEvent.id).toBe(id);
+    expect(JSON.stringify(r)).not.toContain('081-234-5678');
+  });
+
+  it('find_matters skips intakes already converted to a case', async () => {
+    const { svc, prisma } = build();
+    await svc.run(user, 'find_matters', { query: 'สมชาย' });
+    expect(prisma.intake.findMany.mock.calls[0][0].where.AND).toContainEqual({ case: null });
+  });
+
   it('definitions lists the 5 tools', () => {
     expect(build().svc.definitions().map((d) => d.function.name)).toEqual(
       ['find_matters', 'case_overview', 'search_documents', 'read_document', 'list_events'],

@@ -106,6 +106,18 @@ describe('DailyBriefService', () => {
     expect(saved(d.prisma).data.stuckCases).toEqual([{ caseId: 'c1', title: 'คดี A', stage: 'FIRST_INSTANCE', daysSinceStageChange: 30 }]);
   });
 
+  it('stuck cases exclude deleted and archived cases', async () => {
+    const d = build({}, null, [row({ daysStuck: 5 })]);
+    await d.svc.generateForFirm('f1', now);
+    expect(d.prisma.case.findMany.mock.calls[0][0].where).toMatchObject({ deletedAt: null, status: { notIn: ['CLOSED', 'ARCHIVED'] } });
+  });
+
+  it('the AI headline call carries a timeout signal', async () => {
+    const d = build({}, null, [row({ daysStuck: 5 })]);
+    await d.svc.generateForFirm('f1', now);
+    expect(fetchSpy.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('sends computed brief when AI fails', async () => {
     fetchSpy.mockRejectedValue(new Error('down'));
     const d = build({}, null, [row({ daysStuck: 5 })]);

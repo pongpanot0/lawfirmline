@@ -77,7 +77,8 @@ export class SecretaryToolsService {
         select: { id: true, title: true, ownRef: true, stage: true }, take: 8,
       }),
       this.prisma.intake.findMany({
-        where: { AND: [intakeFilter, { OR: [{ title: contains(q) }, { clientName: contains(q) }] }] },
+        // A converted intake is the same matter as its case — listing both makes the secretary ask "which one?".
+        where: { AND: [intakeFilter, { case: null }, { OR: [{ title: contains(q) }, { clientName: contains(q) }] }] },
         select: { id: true, title: true, clientName: true, stage: true }, take: 8,
       }),
     ]);
@@ -174,8 +175,15 @@ export class SecretaryToolsService {
   }
 }
 
-/** Redact PII from the serialized payload before it reaches the model; falls back to the redacted string if it no longer parses. */
-function redactContent(content: unknown): unknown {
-  const { text } = redactForAi(JSON.stringify(content));
-  try { return JSON.parse(text); } catch { return text; }
+/** Record ids the model passes back to other tools — a uuid's hyphenated digits can look like a phone number to redactForAi. */
+const ID_KEY = /^id$|Id$/;
+
+/** Redact PII in every string value before it reaches the model, leaving record ids intact. */
+function redactContent(content: unknown, key = ''): unknown {
+  if (typeof content === 'string') return ID_KEY.test(key) ? content : redactForAi(content).text;
+  if (Array.isArray(content)) return content.map((v) => redactContent(v));
+  if (content && typeof content === 'object' && !(content instanceof Date)) {
+    return Object.fromEntries(Object.entries(content).map(([k, v]) => [k, redactContent(v, k)]));
+  }
+  return content;
 }

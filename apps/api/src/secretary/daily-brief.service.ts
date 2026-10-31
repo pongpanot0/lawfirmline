@@ -14,6 +14,7 @@ const UNASSIGNED = 'ยังไม่มีผู้รับผิดชอบ
 const DAY_MS = 86_400_000;
 const AI_GROUPS = 10;
 const AI_ITEMS = 5;
+const OPENAI_TIMEOUT_MS = 20_000;
 
 @Injectable()
 export class DailyBriefService {
@@ -72,7 +73,7 @@ export class DailyBriefService {
     // Same rule as OperationsService.getCaseHealth: open case with no status change within the window.
     const stuckSince = new Date(now.getTime() - stuckStatusDays * DAY_MS);
     const cases = await this.prisma.case.findMany({
-      where: { firmId, status: { not: 'CLOSED' }, openedAt: { lt: stuckSince }, statusLogs: { none: { createdAt: { gte: stuckSince } } } },
+      where: { firmId, deletedAt: null, status: { notIn: ['CLOSED', 'ARCHIVED'] }, openedAt: { lt: stuckSince }, statusLogs: { none: { createdAt: { gte: stuckSince } } } },
       select: { id: true, title: true, stage: true, openedAt: true, statusLogs: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } } },
       orderBy: { openedAt: 'asc' },
       take: 50,
@@ -124,7 +125,7 @@ export class DailyBriefService {
       this.rag.logRun({ model, operation: 'daily_brief', firmId, inputTokens, outputTokens, latencyMs: Date.now() - started, status });
     try {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
+        method: 'POST', signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
         headers: { Authorization: `Bearer ${this.config.get<string>('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model, temperature: 0.2,
