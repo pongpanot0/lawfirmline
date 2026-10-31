@@ -1,6 +1,7 @@
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PracticeSetupModule } from './practice-setup/practice-setup.module';
 import { LawyerLicenseModule } from './lawyer-license/lawyer-license.module';
+import { PaperFilesModule } from './paper-files/paper-files.module';
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -88,6 +89,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     SopsModule,
     PracticeSetupModule,
     LawyerLicenseModule,
+    PaperFilesModule,
     ClosingEmailModule,
     AgendaModule,
     DeadlinesModule,
