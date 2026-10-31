@@ -114,16 +114,22 @@ describe('CaseDriveService', () => {
       await expect(service.linkFolder(user, 'c1', { driveId: 'me', itemId: 'F1' })).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('refuses a folder already linked to another case', async () => {
+    it('refuses a folder a colleague already linked to another case (firm-wide)', async () => {
       mockDrive.getItem.mockResolvedValue({ id: 'F1', name: 'ACME', folder: {}, parentReference: { driveId: 'b!me' } });
-      mockPrisma.caseExternalLink.findUnique.mockResolvedValue({ caseId: 'other' });
+      mockPrisma.caseExternalLink.findFirst.mockResolvedValueOnce({ caseId: 'other' });
       await expect(service.linkFolder(user, 'c1', { driveId: 'me', itemId: 'F1' })).rejects.toBeInstanceOf(ConflictException);
+      expect(mockPrisma.caseExternalLink.findFirst).toHaveBeenCalledWith({
+        where: { firmId: 'f1', kind: 'DRIVE_FOLDER', driveId: 'b!me', externalId: 'F1' },
+        select: { caseId: true },
+      });
     });
 
     it('refuses to replace a folder linked by someone else', async () => {
       mockDrive.getItem.mockResolvedValue({ id: 'F1', name: 'ACME', folder: {}, parentReference: { driveId: 'b!me' } });
       mockPrisma.caseExternalLink.findUnique.mockResolvedValue(null);
-      mockPrisma.caseExternalLink.findFirst.mockResolvedValue({ id: 'link-1', linkedById: 'u2', connection: { userId: 'u2' } });
+      mockPrisma.caseExternalLink.findFirst
+        .mockResolvedValueOnce(null) // the folder itself is free
+        .mockResolvedValueOnce({ id: 'link-1', linkedById: 'u2', connection: { userId: 'u2' } }); // the case's current folder
       await expect(service.linkFolder(user, 'c1', { driveId: 'me', itemId: 'F1' })).rejects.toBeInstanceOf(ForbiddenException);
       expect(mockPrisma.caseExternalLink.deleteMany).not.toHaveBeenCalled();
     });
@@ -355,6 +361,21 @@ describe('CaseDriveService', () => {
       });
       expect(rows[0].parsed).toMatchObject({ blackCaseNumber: 'พE291/2569', courtName: 'ศจ.สมุทรปราการ', teamHint: 'โบ' });
       expect(rows[1].parsed).toBeNull();
+    });
+
+    it('hides the case behind a link the user may not see, but still marks the folder linked', async () => {
+      mockConnections.findActiveForUser.mockResolvedValue({ id: 'conn-me' });
+      mockConnections.getValidAccessToken.mockResolvedValue('tok-me');
+      mockDrive.listChildren.mockResolvedValue([{ id: 'F9', name: '9. คดีลับ', webUrl: 'w', folder: {}, parentReference: { driveId: 'b!d' } }]);
+      mockPrisma.case.findMany.mockResolvedValue([]);
+      mockPrisma.caseExternalLink.findMany.mockResolvedValue([
+        { id: 'l9', externalId: 'F9', caseId: 'secret', case: { ownRef: 'TSB-9', title: 'คดีลับ' } },
+      ]);
+
+      const [row] = await service.folderSuggestions(user, 'b!d', 'ROOT');
+
+      expect(row.link).toEqual({ id: 'l9', caseId: '', ownRef: '—', title: 'คดีที่คุณไม่มีสิทธิ์เข้าถึง' });
+      expect(row.parsed).toBeNull();
     });
   });
 });

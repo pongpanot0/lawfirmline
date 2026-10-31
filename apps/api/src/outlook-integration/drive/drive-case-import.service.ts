@@ -18,6 +18,11 @@ export interface DriveCaseImportResult {
 }
 
 const DRIVE_FOLDER = CaseExternalLinkKind.DRIVE_FOLDER;
+/** P2002 on the link's key means the folder got linked meanwhile; on anything else (e.g. ownRef) nothing was created. */
+const isLinkUniqueViolation = (e: unknown) => {
+  const error = e as { code?: string; meta?: { target?: unknown } } | null;
+  return error?.code === 'P2002' && String(error.meta?.target ?? '').includes('externalId');
+};
 const isUniqueViolation = (e: unknown) => (e as { code?: string } | null)?.code === 'P2002';
 
 /**
@@ -108,7 +113,8 @@ export class DriveCaseImportService {
       });
       return { itemId, status: 'CREATED', caseId: created.id, ownRef: created.ownRef };
     } catch (error) {
-      if (isUniqueViolation(error)) return { itemId, status: 'ALREADY_LINKED' };
+      if (isLinkUniqueViolation(error)) return { itemId, status: 'ALREADY_LINKED' };
+      if (isUniqueViolation(error)) return { itemId, status: 'FAILED', message: 'เลขอ้างอิงคดีชนกับคดีที่เพิ่งสร้าง — กดสร้างอีกครั้ง' };
       this.logger.warn(`OneDrive import of ${itemId} failed: ${error}`);
       return { itemId, status: 'FAILED', message: driveErrorMessage(error) };
     }

@@ -85,11 +85,19 @@ describe('DriveCaseImportService', () => {
   });
 
   it('reports a unique violation inside the transaction as ALREADY_LINKED', async () => {
-    prisma.$transaction.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
+    prisma.$transaction.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002', meta: { target: ['connectionId', 'kind', 'externalId'] } }));
 
     const { results } = await service.importCases(user, { driveId: 'b!d', rows: [row('F1')] } as any);
 
     expect(results[0]).toMatchObject({ itemId: 'F1', status: 'ALREADY_LINKED' });
+  });
+
+  it('reports a P2002 that is not about the folder as FAILED, not linked', async () => {
+    prisma.$transaction.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002', meta: { target: ['firmId', 'ownRef'] } }));
+
+    const { results } = await service.importCases(user, { driveId: 'b!d', rows: [row('F1')] } as any);
+
+    expect(results[0]).toEqual({ itemId: 'F1', status: 'FAILED', message: 'เลขอ้างอิงคดีชนกับคดีที่เพิ่งสร้าง — กดสร้างอีกครั้ง' });
   });
 
   it('fails only the row whose item is a file', async () => {
