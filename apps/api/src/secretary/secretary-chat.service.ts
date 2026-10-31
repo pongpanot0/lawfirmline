@@ -94,7 +94,7 @@ export class SecretaryChatService {
     const form = new FormData();
     form.append('model', model);
     form.append('language', 'th');
-    form.append('file', new Blob([file.buffer], { type: file.mimetype }), file.originalname || 'audio.webm');
+    form.append('file', new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname || 'audio.webm');
     const log = (status: string) =>
       this.rag.logRun({ model, operation: 'secretary_transcribe', firmId: user.firmId, userId: user.id, latencyMs: Date.now() - started, status });
     try {
