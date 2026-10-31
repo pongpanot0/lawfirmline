@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { chatModel } from '../common/openai-model';
 import { randomUUID } from 'crypto';
 import { AuthUser, redactForAi } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
@@ -42,8 +43,7 @@ export class RagService {
   ) {}
 
   chatModel(): string {
-    // Spec's "GPT-5.6 Luna" — swap via env when the model id is available.
-    return this.config.get<string>('OPENAI_MODEL_MAIN') ?? 'gpt-4o';
+    return chatModel(this.config);
   }
 
   async logRun(run: {
