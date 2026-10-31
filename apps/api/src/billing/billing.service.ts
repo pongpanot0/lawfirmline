@@ -396,6 +396,7 @@ export class BillingService {
         amount: dto.amount,
         description: dto.description,
         category: dto.category,
+        officialReceiptNo: dto.officialReceiptNo,
         expensePurpose: dto.expensePurpose,
         date: dto.date ? new Date(dto.date) : new Date(),
         sourceEventId: dto.sourceEventId ?? null,
@@ -449,6 +450,7 @@ export class BillingService {
       amount: dto.amount,
       description: dto.description,
       category: dto.category,
+      officialReceiptNo: dto.officialReceiptNo,
       expensePurpose: dto.expensePurpose,
       date: dto.date ? new Date(dto.date) : new Date(),
       sourceEventId: dto.sourceEventId ?? null,
@@ -485,6 +487,19 @@ export class BillingService {
       });
     }
     return expense;
+  }
+
+  async updateExpenseReceiptNo(user: AuthUser, expenseId: string, officialReceiptNo: string | null) {
+    const where = { id: expenseId, AND: [
+      this.getFirmExpenseFilter(user.firmId),
+      { OR: [{ paidFromAdvanceId: null }, { paidFromAdvance: { firmId: user.firmId } }] },
+    ] };
+    const expense = await this.prisma.expense.findFirst({ where, select: { userId: true } });
+    if (!expense) throw new NotFoundException('ไม่พบค่าใช้จ่ายนี้');
+    if (expense.userId !== user.id && !hasFirmCapability(user.firmRole, 'approveExpenses')) {
+      throw new ForbiddenException('คุณไม่มีสิทธิ์แก้ไขเลขที่ใบเสร็จนี้');
+    }
+    return this.prisma.expense.update({ where, data: { officialReceiptNo } });
   }
 
   async getReceiptFile(user: AuthUser, expenseId: string) {

@@ -86,6 +86,12 @@ export class UpdateTimeEntryDto {
 }
 
 export class CreateExpenseDto {
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(100)
+  officialReceiptNo?: string;
+
   @Type(() => Number)
   @IsNumber(money)
   @Min(MONEY_MIN)
@@ -166,6 +172,36 @@ export class IssueCashAdvanceDto {
 export class UpdateExpenseStatusDto {
   @IsEnum(ExpenseStatus)
   status!: ExpenseStatus;
+}
+
+export class SettleCashAdvanceDto {
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
+export class ReturnCashAdvanceDto extends SettleCashAdvanceDto {
+  @Type(() => Number)
+  @IsNumber(money)
+  @Min(MONEY_MIN)
+  @Max(MONEY_MAX)
+  amount!: number;
+}
+
+export class CashAdvanceReconciliationDto {
+  @IsOptional()
+  @IsIn(['open', 'settled'])
+  status?: 'open' | 'settled';
+}
+
+export class UpdateExpenseReceiptNoDto {
+  @ValidateIf((_object, value) => value !== null)
+  @Trim()
+  @IsString()
+  @MaxLength(100)
+  officialReceiptNo!: string | null;
 }
 
 export class UpdateExpenseClaimStatusDto {

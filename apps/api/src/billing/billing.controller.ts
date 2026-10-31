@@ -30,6 +30,10 @@ import {
   UpdateExpenseClaimStatusDto,
   SubmitExpensesDto,
   IssueCashAdvanceDto,
+  ReturnCashAdvanceDto,
+  SettleCashAdvanceDto,
+  CashAdvanceReconciliationDto,
+  UpdateExpenseReceiptNoDto,
   RecordPaymentDto,
   CollectionFollowUpDto,
   WriteOffDto,
@@ -106,6 +110,42 @@ export class BillingController {
     return this.cashAdvanceService.listMineWithBalance(user);
   }
 
+  @Get('cash-advances/reconciliation')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('issueCashAdvance')
+  reconcileCashAdvances(@CurrentUser() user: AuthUser, @Query() filters: CashAdvanceReconciliationDto) {
+    return this.cashAdvanceService.reconciliation(user, filters);
+  }
+
+  @Post('cash-advances/:id/return')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('issueCashAdvance')
+  returnCashAdvance(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: ReturnCashAdvanceDto,
+  ) {
+    return this.cashAdvanceService.recordReturn(user, id, dto.amount, dto.note);
+  }
+
+  @Post('cash-advances/:id/settle')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('issueCashAdvance')
+  settleCashAdvance(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: SettleCashAdvanceDto,
+  ) {
+    return this.cashAdvanceService.settle(user, id, dto.note);
+  }
+
+  @Get('cash-advances/:id/expenses')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('issueCashAdvance')
+  listCashAdvanceExpenses(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.cashAdvanceService.listExpenses(user, id);
+  }
+
   @Get('finance/summary')
   @UseGuards(FirmRoleGuard)
   @RequireCapability('manageInvoices')
@@ -137,6 +177,15 @@ export class BillingController {
     @UploadedFile() receipt?: Express.Multer.File,
   ) {
     return this.billingService.createStandaloneExpense(user, dto, receipt);
+  }
+
+  @Patch('expenses/:expenseId/receipt-no')
+  updateExpenseReceiptNo(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId') expenseId: string,
+    @Body() dto: UpdateExpenseReceiptNoDto,
+  ) {
+    return this.billingService.updateExpenseReceiptNo(user, expenseId, dto.officialReceiptNo);
   }
 
   @Get('expenses/:expenseId/receipt')
