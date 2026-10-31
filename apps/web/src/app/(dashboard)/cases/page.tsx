@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Download, ArrowUpDown, Columns3, ClipboardList, Briefcase } from 'lucide-react';
+import { Plus, Download, ArrowUpDown, Columns3, ClipboardList, Briefcase, Upload } from 'lucide-react';
 import { FirmRole, Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseListItem, UserItem } from '@/lib/api';
@@ -254,6 +254,11 @@ function CasesPageContent() {
               <Download aria-hidden="true" className="h-4 w-4" />
               {d.common.export}
             </Button>
+            {canCreate && (
+              <Button variant="outline" size="sm" onClick={() => router.push('/cases/import')}>
+                <Upload aria-hidden="true" className="h-4 w-4" />นำเข้าจาก Excel
+              </Button>
+            )}
             {canCreate && (
               <Button size="sm" onClick={() => router.push(newCaseHref)}>
                 <Plus aria-hidden="true" className="h-4 w-4" />{d.cases.newCase}

@@ -22,7 +22,7 @@
 - Stuck task (brief): overdue, OR no movement ≥ `slaConfig.stuckTaskDays` (default **3**), OR open `TaskOnHold` with `nextFollowUpAt` < now. Ranking: tasks whose case has a `CalendarEvent` (COURT_DATE or DEADLINE) in the next 7 days first, then `max(daysStuck, daysOverdue)` desc; grouped by assignee.
 - Brief: cron `30 7 * * *`, `timeZone: 'Asia/Bangkok'`; only firms whose `slug` is in env `AI_DAILY_BRIEF_FIRM_SLUGS` (comma list; prod `thesiambarristers`); recipients = firm members with role OWNER or OFFICE_MANAGER; one row per firm per Bangkok date, re-runs never re-notify; AI failure → brief still sent with the computed list.
 - Credits: `AI_CREDIT_COST.SECRETARY_CHAT = 1` and `SECRETARY_TRANSCRIBE = 1` in `packages/shared/src/ai-credits.ts`, applied with `@RequireCredits` + `AiCreditsInterceptor`. Brief is not charged.
-- Migrations in a worktree: never `prisma migrate dev`. Write the SQL migration by hand under `apps/api/prisma/migrations/20261031100000_daily_brief/`, run `npx prisma generate`. Rebuild `packages/shared` (`npm run build` there) after editing it.
+- Migrations in a worktree: never `prisma migrate dev`. Write the SQL migration by hand under `apps/api/prisma/migrations/20261031110000_daily_brief/`, run `npx prisma generate`. Rebuild `packages/shared` (`npm run build` there) after editing it.
 - Tests: jest, hand-rolled Prisma mocks, `jest.spyOn(global, 'fetch')` for OpenAI (see `apps/api/src/tasks/task-ai-follow-up.spec.ts`). Run from `apps/api`: `npx jest src/secretary`.
 
 ## Review Focus
@@ -173,7 +173,7 @@
 
 **Files:**
 - Modify: `apps/api/prisma/schema.prisma` (model `DailyBrief`; `NotificationCategory` + `DAILY_BRIEF`; back-relation on `Firm`)
-- Create: `apps/api/prisma/migrations/20261031100000_daily_brief/migration.sql`, `apps/api/src/secretary/daily-brief.service.ts`, `apps/api/src/secretary/daily-brief.scheduler.ts`, `apps/api/src/secretary/daily-brief.service.spec.ts`
+- Create: `apps/api/prisma/migrations/20261031110000_daily_brief/migration.sql`, `apps/api/src/secretary/daily-brief.service.ts`, `apps/api/src/secretary/daily-brief.scheduler.ts`, `apps/api/src/secretary/daily-brief.service.spec.ts`
 - Modify: `apps/api/src/secretary/secretary.module.ts`, `secretary.controller.ts`, `packages/shared/src/secretary.ts`
 
 **Interfaces:**
@@ -241,5 +241,5 @@
 
 - [ ] `cd apps/api && npx jest` (full) — compare failures with `main` baseline; only pre-existing failures allowed.
 - [ ] `npx tsc --noEmit` in api/web/mobile — no new errors.
-- [ ] Apply the migration to the local DB (psql + `npx prisma migrate resolve --applied 20261031100000_daily_brief`), start api, hit `GET /cases/:id/brief` and `POST /ai/secretary` with a seeded user; run `DailyBriefService.runAll` once for `thesiambarristers` and check the row + notification.
+- [ ] Apply the migration to the local DB (psql + `npx prisma migrate resolve --applied 20261031110000_daily_brief`), start api, hit `GET /cases/:id/brief` and `POST /ai/secretary` with a seeded user; run `DailyBriefService.runAll` once for `thesiambarristers` and check the row + notification.
 - [ ] Write `.claude/completions/2026-10-31-ai-secretary.md` (what shipped, env `AI_DAILY_BRIEF_FIRM_SLUGS=thesiambarristers` and `OPENAI_TRANSCRIBE_MODEL` for prod, migration before deploy, mobile needs a new build for `expo-audio`).

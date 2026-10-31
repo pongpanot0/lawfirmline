@@ -22,6 +22,7 @@ describe('CaseDriveService', () => {
   const mockConnections = { findActiveForUser: jest.fn(), getValidAccessToken: jest.fn() };
   const mockDrive = {
     getItem: jest.fn(),
+    createFolder: jest.fn(),
     listChildren: jest.fn(),
     downloadContent: jest.fn(),
     sharedWithMe: jest.fn(),
@@ -62,6 +63,40 @@ describe('CaseDriveService', () => {
     mockConnections.getValidAccessToken.mockResolvedValue('tok-a');
   };
 
+  describe('createAndLinkFolder', () => {
+    beforeEach(() => {
+      mockConnections.findActiveForUser.mockResolvedValue({ id: 'conn-me' });
+      mockConnections.getValidAccessToken.mockResolvedValue('tok-me');
+      mockPrisma.caseExternalLink.findFirst.mockResolvedValue(null);
+      mockPrisma.caseExternalLink.findUnique.mockResolvedValue(null);
+      mockPrisma.caseExternalLink.create.mockImplementation(({ data }: any) => ({ id: 'link-new', ...data }));
+    });
+
+    it('creates the folder in the chosen parent, then links it to the case', async () => {
+      const created = { id: 'NEWF', name: 'TSB-1 - คดี', folder: {}, parentReference: { driveId: 'b!me', path: '/drive/root:/Cases' } };
+      mockDrive.createFolder.mockResolvedValue(created);
+      mockDrive.getItem.mockResolvedValue(created);
+
+      const linkResult = await service.createAndLinkFolder(user, 'c1', { driveId: 'b!me', parentId: 'PARENT', name: 'TSB-1 - คดี' });
+
+      expect(mockDrive.createFolder).toHaveBeenCalledWith('tok-me', 'b!me', 'PARENT', 'TSB-1 - คดี');
+      expect(mockDrive.getItem).toHaveBeenCalledWith('tok-me', 'b!me', 'NEWF');
+      expect(linkResult).toMatchObject({ caseId: 'c1', externalId: 'NEWF', driveId: 'b!me', displayPath: 'Cases/TSB-1 - คดี' });
+    });
+
+    it('creates nothing without a Microsoft connection', async () => {
+      mockConnections.findActiveForUser.mockResolvedValue(null);
+      await expect(service.createAndLinkFolder(user, 'c1', { driveId: 'me', parentId: 'root', name: 'x' })).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockDrive.createFolder).not.toHaveBeenCalled();
+    });
+
+    it('creates nothing when the case already has a folder', async () => {
+      mockPrisma.caseExternalLink.findFirst.mockResolvedValue({ id: 'link-1', linkedById: 'u1', connection: { userId: 'u1' } });
+      await expect(service.createAndLinkFolder(user, 'c1', { driveId: 'me', parentId: 'root', name: 'x' })).rejects.toBeInstanceOf(ConflictException);
+      expect(mockDrive.createFolder).not.toHaveBeenCalled();
+    });
+  });
+
   describe('linkFolder', () => {
     beforeEach(() => {
       mockConnections.findActiveForUser.mockResolvedValue({ id: 'conn-me' });
@@ -79,16 +114,22 @@ describe('CaseDriveService', () => {
       await expect(service.linkFolder(user, 'c1', { driveId: 'me', itemId: 'F1' })).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('refuses a folder already linked to another case', async () => {
+    it('refuses a folder a colleague already linked to another case (firm-wide)', async () => {
       mockDrive.getItem.mockResolvedValue({ id: 'F1', name: 'ACME', folder: {}, parentReference: { driveId: 'b!me' } });
-      mockPrisma.caseExternalLink.findUnique.mockResolvedValue({ caseId: 'other' });
+      mockPrisma.caseExternalLink.findFirst.mockResolvedValueOnce({ caseId: 'other' });
       await expect(service.linkFolder(user, 'c1', { driveId: 'me', itemId: 'F1' })).rejects.toBeInstanceOf(ConflictException);
+      expect(mockPrisma.caseExternalLink.findFirst).toHaveBeenCalledWith({
+        where: { firmId: 'f1', kind: 'DRIVE_FOLDER', driveId: 'b!me', externalId: 'F1' },
+        select: { caseId: true },
+      });
     });
 
     it('refuses to replace a folder linked by someone else', async () => {
       mockDrive.getItem.mockResolvedValue({ id: 'F1', name: 'ACME', folder: {}, parentReference: { driveId: 'b!me' } });
       mockPrisma.caseExternalLink.findUnique.mockResolvedValue(null);
-      mockPrisma.caseExternalLink.findFirst.mockResolvedValue({ id: 'link-1', linkedById: 'u2', connection: { userId: 'u2' } });
+      mockPrisma.caseExternalLink.findFirst
+        .mockResolvedValueOnce(null) // the folder itself is free
+        .mockResolvedValueOnce({ id: 'link-1', linkedById: 'u2', connection: { userId: 'u2' } }); // the case's current folder
       await expect(service.linkFolder(user, 'c1', { driveId: 'me', itemId: 'F1' })).rejects.toBeInstanceOf(ForbiddenException);
       expect(mockPrisma.caseExternalLink.deleteMany).not.toHaveBeenCalled();
     });
@@ -297,6 +338,44 @@ describe('CaseDriveService', () => {
       expect(rows[0].suggestions[0].caseId).toBe('c1');
       expect(rows[1].link).toEqual({ id: 'l2', caseId: 'c2', ownRef: 'ACME 2569/0099', title: 'B' });
       expect(rows[1].suggestions).toEqual([]);
+    });
+
+    it('returns parsed for unlinked rows and finds links firm-wide', async () => {
+      mockConnections.findActiveForUser.mockResolvedValue({ id: 'conn-me' });
+      mockConnections.getValidAccessToken.mockResolvedValue('tok-me');
+      mockDrive.listChildren.mockResolvedValue([
+        { id: 'F1', name: '86. คำฟ้อง - พE291.69 - ศจ.สมุทรปราการ (โบ)', webUrl: 'w1', folder: {}, parentReference: { driveId: 'b!d' } },
+        { id: 'F2', name: '89. คำให้การ - พ264.69', webUrl: 'w2', folder: {}, parentReference: { driveId: 'b!d' } },
+      ]);
+      mockPrisma.case.findMany.mockResolvedValue([]);
+      mockPrisma.caseExternalLink.findMany.mockResolvedValue([
+        { id: 'l2', externalId: 'F2', caseId: 'c2', case: { ownRef: 'TSB-2', title: 'B' } },
+      ]);
+
+      const rows = await service.folderSuggestions(user, 'b!d', 'ROOT');
+
+      expect(mockPrisma.caseExternalLink.findMany.mock.calls[0][0].where).toEqual({
+        firmId: 'f1',
+        kind: 'DRIVE_FOLDER',
+        externalId: { in: ['F1', 'F2'] },
+      });
+      expect(rows[0].parsed).toMatchObject({ blackCaseNumber: 'พE291/2569', courtName: 'ศจ.สมุทรปราการ', teamHint: 'โบ' });
+      expect(rows[1].parsed).toBeNull();
+    });
+
+    it('hides the case behind a link the user may not see, but still marks the folder linked', async () => {
+      mockConnections.findActiveForUser.mockResolvedValue({ id: 'conn-me' });
+      mockConnections.getValidAccessToken.mockResolvedValue('tok-me');
+      mockDrive.listChildren.mockResolvedValue([{ id: 'F9', name: '9. คดีลับ', webUrl: 'w', folder: {}, parentReference: { driveId: 'b!d' } }]);
+      mockPrisma.case.findMany.mockResolvedValue([]);
+      mockPrisma.caseExternalLink.findMany.mockResolvedValue([
+        { id: 'l9', externalId: 'F9', caseId: 'secret', case: { ownRef: 'TSB-9', title: 'คดีลับ' } },
+      ]);
+
+      const [row] = await service.folderSuggestions(user, 'b!d', 'ROOT');
+
+      expect(row.link).toEqual({ id: 'l9', caseId: '', ownRef: '—', title: 'คดีที่คุณไม่มีสิทธิ์เข้าถึง' });
+      expect(row.parsed).toBeNull();
     });
   });
 });

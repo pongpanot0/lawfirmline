@@ -26,9 +26,9 @@ describe('case numbers on creation', () => {
     expect(await validate(dto)).toHaveLength(0);
   });
 
-  // Courts prefix the running number with a case-type code in Thai letters;
-  // the digits-only rule made those numbers impossible to enter.
-  it.each(['กก1123/2567', 'ผบ.1234/2567', 'อ 123/2567', 'พ1/2567', '123/2567'])(
+  // Courts prefix the running number with a case-type code in Thai letters (e-filing adds
+  // an English "E"); the digits-only rule made those numbers impossible to enter.
+  it.each(['กก1123/2567', 'ผบ.1234/2567', 'อ 123/2567', 'พ1/2567', '123/2567', 'พE291/2569', 'ผบE8456/2568', 'abc123/2567'])(
     'accepts %s',
     async (blackCaseNumber) => {
       const dto = Object.assign(new CreateCaseDto(), base, { blackCaseNumber });
@@ -36,7 +36,7 @@ describe('case numbers on creation', () => {
     },
   );
 
-  it.each(['abc123/2567', 'กก1123/123', 'กกกกกกก123/2567', '1234567/2567'])(
+  it.each(['กก1123/123', 'พEEEEE1/2569', 'กกกกกกก123/2567', '1234567/2567'])(
     'rejects %s',
     async (blackCaseNumber) => {
       const dto = Object.assign(new CreateCaseDto(), base, { blackCaseNumber });

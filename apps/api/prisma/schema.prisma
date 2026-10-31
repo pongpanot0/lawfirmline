@@ -3017,3 +3017,26 @@ model DailyBrief {
 
   @@unique([firmId, date])
 }
+
+/// Errors from every firm, read only by the operator's /superadmin console.
+model ErrorLog {
+  id         String    @id @default(uuid())
+  /// api = an HTTP request failed with 5xx; server = a Logger.error call (cron, mail, integrations); web = the browser
+  source     String
+  message    String    @db.Text
+  stack      String?   @db.Text
+  /// Nest logger context or exception class name
+  context    String?
+  method     String?
+  path       String?
+  statusCode Int?
+  userId     String?
+  firmId     String?
+  userAgent  String?
+  resolvedAt DateTime?
+  resolvedBy String?
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([source, createdAt])
+}

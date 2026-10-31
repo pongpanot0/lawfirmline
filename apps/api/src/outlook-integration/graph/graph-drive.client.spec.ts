@@ -27,6 +27,15 @@ describe('GraphDriveClient', () => {
     expect(http.paginate).not.toHaveBeenCalled();
   });
 
+  it('creates a folder under the chosen parent, renaming on conflict, with a cleaned name', async () => {
+    http.request.mockResolvedValue({ id: 'NEWF', folder: {} });
+    await expect(client.createFolder('tok', 'b!drv', 'PARENT', 'TSB-1: คำฟ้อง/1')).resolves.toEqual({ id: 'NEWF', folder: {} });
+    expect(http.request).toHaveBeenCalledWith('tok', '/drives/b!drv/items/PARENT/children', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'TSB-1_ คำฟ้อง_1', folder: {}, '@microsoft.graph.conflictBehavior': 'rename' }),
+    });
+  });
+
   it('downloads content through requestBuffer', async () => {
     http.requestBuffer.mockResolvedValue(Buffer.from('pdf'));
     await expect(client.downloadContent('tok', 'b!drv', 'IT')).resolves.toEqual(Buffer.from('pdf'));

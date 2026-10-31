@@ -1217,7 +1217,7 @@ export default function CaseDetailPage() {
               <Sparkles aria-hidden="true" className="h-4 w-4" />สรุปเอกสารรวม
             </Button>
           </div>
-          <CaseDocumentsPanel caseId={id} onChanged={loadCase} />
+          <CaseDocumentsPanel caseId={id} onChanged={loadCase} newFolderName={`${legalCase.ownRef} - ${legalCase.title}`} />
         </div>
       )}
 

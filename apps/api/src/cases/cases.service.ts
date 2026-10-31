@@ -20,6 +20,10 @@ import {
   FirmRole,
   hasFirmCapability,
   isBackwardStage,
+  ourParticipantRole,
+  ParticipantRole,
+  ParticipantSide,
+  PartyRole,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -58,6 +62,33 @@ type ProceedingsBefore = {
   redCaseNumber: string | null;
 };
 const LEVEL_SWITCH_NUMBERS_MESSAGE = 'เปลี่ยนระดับศาลแล้วบันทึกก่อน แล้วจึงแก้เลขคดีของศาลชั้นนั้น';
+
+/** One row of the OneDrive import. The caller has already checked team membership and the plan quota. */
+export interface CaseImportParams {
+  title: string;
+  blackCaseNumber: string | null;
+  courtName: string | null;
+  courtLevel: CourtLevel;
+  leadLawyerId: string;
+  buddyIds: string[];
+  closed: { outcome: CaseOutcome; closingSummary: string; closedAt?: Date } | null;
+  // Excel rows carry the rest of the case; the OneDrive import leaves these out.
+  ownRef?: string;
+  customerRef?: string;
+  clientId?: string;
+  clientName?: string;
+  partyRole?: PartyRole;
+  opponents?: string[];
+  caseTypeId?: string;
+  redCaseNumber?: string;
+  claimedAmount?: number;
+  estimatedFee?: number;
+  limitationDeadline?: Date;
+  description?: string;
+  /** Where an open case stands; a closed one is always CLOSING. */
+  stage?: CaseStage;
+  openedAt?: Date;
+}
 
 @Injectable()
 export class CasesService {
@@ -323,7 +354,8 @@ export class CasesService {
     data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId' | 'stage'>,
     suggestedOwnRef?: string,
   ) {
-    await assertCanOpenCases(db, firmId);
+    // A case created already closed (old work brought in) never occupies an open slot.
+    if (data.status !== CaseStatus.CLOSED && data.status !== CaseStatus.ARCHIVED) await assertCanOpenCases(db, firmId);
     const requested = requestedOwnRef?.trim();
     const isManual = !!requested && requested !== suggestedOwnRef?.trim();
     let ownRef = requested || (await this.generateOwnRef(firmId, db));
@@ -368,6 +400,85 @@ export class CasesService {
   ) {
     const { firmId, ...data } = params;
     return this.insertCase(tx, firmId, undefined, data);
+  }
+
+  /**
+   * Opens one case brought in from an existing OneDrive folder, inside the caller's transaction.
+   * Bulk migration of old work: no assignment notifications and no conflict gate (the folder
+   * gives no parties). A closed row lands closed with the same fields `close()` sets.
+   */
+  async createForImport(tx: Prisma.TransactionClient, user: AuthUser, params: CaseImportParams) {
+    const now = new Date();
+    const closedAt = params.closed?.closedAt ?? now;
+    // A closed case with no known open date opened no later than it closed.
+    const openedAt = params.openedAt ?? (params.closed ? closedAt : now);
+    const buddyIds = [...new Set(params.buddyIds.filter((id) => id !== params.leadLawyerId))];
+    const created = await this.insertCase(tx, user.firmId, params.ownRef, {
+      title: params.title,
+      description: params.description,
+      customerRef: params.customerRef,
+      clientId: params.clientId,
+      clientName: params.clientName,
+      partyRole: params.partyRole,
+      caseTypeId: params.caseTypeId,
+      courtName: params.courtName,
+      courtLevel: params.courtLevel,
+      blackCaseNumber: params.blackCaseNumber,
+      redCaseNumber: params.redCaseNumber,
+      claimedAmount: params.claimedAmount,
+      estimatedFee: params.estimatedFee,
+      limitationDeadline: params.limitationDeadline,
+      leadLawyerId: params.leadLawyerId,
+      ...((params.openedAt || params.closed) && { openedAt }),
+      assignments: buddyIds.length
+        ? { create: buddyIds.map((userId) => ({ user: { connect: { id: userId } }, assignmentType: AssignmentType.BUDDY })) }
+        : undefined,
+      ...(params.closed && {
+        status: CaseStatus.CLOSED,
+        outcome: params.closed.outcome,
+        closingSummary: params.closed.closingSummary.trim(),
+        closedAt,
+      }),
+    });
+    await this.caseFeed.log({ caseId: created.id, userId: user.id, type: ActivityType.NOTE, title: 'เปิดคดี', at: created.openedAt }, tx);
+    if (params.closed) {
+      await tx.case.update({ where: { id: created.id }, data: { stage: CaseStage.CLOSING, stageChangedAt: closedAt } });
+      await this.caseFeed.log(
+        {
+          caseId: created.id,
+          userId: user.id,
+          type: ActivityType.STATUS_CHANGE,
+          title: 'ปิดคดี / Case Closed',
+          description: `${params.closed.closingSummary.trim()}\nผลคดี: ${params.closed.outcome}`,
+          at: closedAt,
+          statusTransition: { from: CaseStatus.OPEN, to: CaseStatus.CLOSED },
+          stageTransition: { from: CaseStage.PRE_LITIGATION, to: CaseStage.CLOSING },
+        },
+        tx,
+      );
+    } else if (params.stage && params.stage !== CaseStage.PRE_LITIGATION) {
+      await tx.case.update({ where: { id: created.id }, data: { stage: params.stage, stageChangedAt: openedAt } });
+    }
+
+    // Parties stay searchable for the next conflict check even though the import skips the gate.
+    if (params.clientId && params.partyRole) {
+      await ensureOurClientParticipant(tx, created.id);
+    } else if (params.clientId || params.clientName) {
+      // The sync only places a client whose side is known; without one, still record them as ours.
+      await tx.caseParticipant.create({
+        data: {
+          caseId: created.id,
+          ...(params.clientId && { clientId: params.clientId }),
+          name: params.clientName ?? '',
+          role: params.partyRole ? ourParticipantRole(params.partyRole) : ParticipantRole.OTHER,
+          side: ParticipantSide.OURS,
+        },
+      });
+    }
+    if (params.opponents?.length) await addOpponents(tx, created.id, params.partyRole, params.opponents.map((name) => ({ name })));
+    if (params.courtName || params.blackCaseNumber || params.redCaseNumber) await snapshotCurrentLevel(tx, created);
+    if (params.limitationDeadline) await syncLimitationReminder(tx, created.id);
+    return { id: created.id, ownRef: created.ownRef };
   }
 
   async create(user: AuthUser, dto: CreateCaseDto) {

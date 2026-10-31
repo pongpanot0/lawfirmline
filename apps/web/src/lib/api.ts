@@ -873,6 +873,43 @@ export interface NotificationPreferences {
 }
 export type DeadlineRuleItem = import('@lawfirm/shared').DeadlineRuleItem;
 
+export interface PlatformOverview {
+  firmsByStatus: Partial<Record<'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED', number>>;
+  newFirms30d: number;
+  users: number;
+  /** Paid BillingInvoice amounts in the last 30 days (THB). */
+  revenue30d: number;
+}
+
+export interface PlatformFirm {
+  id: string;
+  name: string;
+  slug: string;
+  subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED';
+  subscriptionPlan: 'FREE' | 'SOLO' | 'TEAM' | 'FIRM' | 'PROFESSIONAL' | null;
+  trialEndAt: string;
+  currentPeriodEnd: string | null;
+  maxUsers: number;
+  createdAt: string;
+  memberCount: number;
+  caseCount: number;
+  ownerEmail: string | null;
+  stripeManaged: boolean;
+}
+
+export interface PlatformFirmMember {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  createdAt: string;
+}
+
+export type PlatformFirmUpdate = Partial<Pick<PlatformFirm, 'subscriptionStatus' | 'maxUsers' | 'trialEndAt' | 'currentPeriodEnd'>> & {
+  subscriptionPlan?: Exclude<PlatformFirm['subscriptionPlan'], null>;
+};
+
 export interface PublicHolidayItem {
   id: string;
   date: string;
@@ -1205,6 +1242,78 @@ export interface EmailThreadDetail {
 }
 
 export type CaseMatchReason = 'OWN_REF' | 'CASE_NUMBER' | 'CLIENT_NAME';
+
+export type ImportCourtLevel = 'TRIAL' | 'APPEAL' | 'SUPREME';
+export type ImportClosedOutcome = 'WON' | 'LOST' | 'SETTLED' | 'MEDIATED' | 'WITHDRAWN';
+
+/** Pre-fill read from a OneDrive case folder name (api: drive/case-folder-name.ts). */
+export interface ParsedCaseFolder {
+  title: string;
+  blackCaseNumber: string | null;
+  caseNumberRaw: string | null;
+  courtName: string | null;
+  courtLevel: ImportCourtLevel;
+  closed: boolean;
+  outcome: ImportClosedOutcome | null;
+  teamHint: string | null;
+}
+
+export type ImportCaseRow = {
+  itemId: string;
+  title: string;
+  blackCaseNumber?: string;
+  courtName?: string;
+  courtLevel: ImportCourtLevel;
+  leadLawyerId: string;
+  buddyIds?: string[];
+  closed: boolean;
+  outcome?: ImportClosedOutcome;
+  closingSummary?: string;
+};
+
+/** One row of a filled Excel template after the server read and checked it (api: case-import-resolve.ts). */
+export interface ExcelCaseDraft {
+  rowNumber: number;
+  problems: string[];
+  title: string;
+  leadEmail: string;
+  leadLawyerId: string;
+  buddyIds: string[];
+  courtLevel: ImportCourtLevel;
+  ownRef?: string;
+  customerRef?: string;
+  clientId?: string;
+  clientName?: string;
+  clientMatched: boolean;
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT' | 'PETITIONER' | 'RESPONDENT';
+  opponents: string[];
+  caseTypeId?: string;
+  courtName?: string;
+  blackCaseNumber?: string;
+  redCaseNumber?: string;
+  claimedAmount?: number;
+  estimatedFee?: number;
+  limitationDeadline?: string;
+  stage?: string;
+  openedAt?: string;
+  closed: boolean;
+  outcome?: ImportClosedOutcome;
+  closedAt?: string;
+  closingSummary?: string;
+  description?: string;
+}
+
+export type CreateExcelCaseRow = Omit<ExcelCaseDraft, 'problems' | 'leadEmail' | 'clientMatched'>;
+
+export type ExcelCaseResult = { rowNumber: number; status: 'CREATED' | 'FAILED'; caseId?: string; ownRef?: string; message?: string };
+
+export type ImportCaseResult = {
+  itemId: string;
+  status: 'CREATED' | 'ALREADY_LINKED' | 'FAILED';
+  caseId?: string;
+  ownRef?: string;
+  message?: string;
+};
 
 export interface CaseMatchSuggestionItem {
   caseId: string;
@@ -2185,6 +2294,17 @@ export const api = {
   deleteDeadlineRule: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/deadline-rules/${id}`, { method: 'DELETE', token }),
 
+  getPlatformOverview: (token: string) => request<PlatformOverview>('/platform/overview', { token }),
+
+  getPlatformFirms: (token: string, q?: string) =>
+    request<PlatformFirm[]>(`/platform/firms${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),
+
+  getPlatformFirmMembers: (token: string, firmId: string) =>
+    request<PlatformFirmMember[]>(`/platform/firms/${firmId}/members`, { token }),
+
+  updatePlatformFirm: (token: string, firmId: string, data: PlatformFirmUpdate) =>
+    request<unknown>(`/platform/firms/${firmId}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+
   getPublicHolidays: (token: string, year?: number) =>
     request<PublicHolidayItem[]>(`/public-holidays${year ? `?year=${year}` : ''}`, { token }),
 
@@ -3055,6 +3175,13 @@ export const api = {
       body: JSON.stringify({ driveId, itemId }),
     }),
 
+  createCaseDriveFolder: (token: string, caseId: string, driveId: string, parentId: string, name: string) =>
+    request<{ id: string }>(`/cases/${caseId}/drive-folder`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ driveId, parentId, name }),
+    }),
+
   unlinkCaseDriveFolder: (token: string, caseId: string) =>
     request<{ unlinked: boolean }>(`/cases/${caseId}/drive-link`, { method: 'DELETE', token }),
 
@@ -3091,11 +3218,30 @@ export const api = {
         folder: DrivePickerItem;
         link: { id: string; caseId: string; ownRef: string; title: string } | null;
         suggestions: CaseMatchSuggestionItem[];
+        parsed: ParsedCaseFolder | null;
       }>
     >(
       `/outlook/drive/folder-suggestions?driveId=${encodeURIComponent(driveId)}&itemId=${encodeURIComponent(itemId)}`,
       { token },
     ),
+
+  downloadCaseImportTemplate: (token: string) => fetchBlob('/case-import/template', { token }),
+
+  previewCaseImport: (token: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{ drafts: ExcelCaseDraft[]; noKeyRows: number }>('/case-import/preview', { method: 'POST', token, body: form });
+  },
+
+  createCasesFromExcel: (token: string, rows: CreateExcelCaseRow[]) =>
+    request<{ results: ExcelCaseResult[] }>('/case-import', { method: 'POST', token, body: JSON.stringify({ rows }) }),
+
+  importDriveCases: (token: string, body: { driveId: string; rows: ImportCaseRow[] }) =>
+    request<{ results: ImportCaseResult[] }>('/outlook/drive/case-import', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
 
   getDriveShared: (token: string) => request<DrivePickerItem[]>('/outlook/drive/shared', { token }),
 

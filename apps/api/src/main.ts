@@ -6,7 +6,8 @@ import { join, resolve } from 'path';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { assertProductionSecrets } from './common/production-secrets';
-import { PayloadTooLargeFilter } from './common/filters/payload-too-large.filter';
+import { ErrorCaptureLogger } from './error-log/error-capture';
+import { ErrorLogService } from './error-log/error-log.service';
 import { DEFAULT_ROOT_DOMAIN } from '@lawfirm/shared';
 
 config({ path: resolve(__dirname, '../.env') });
@@ -29,6 +30,8 @@ function isAllowedOrigin(origin: string | undefined, allowed: string[], rootDoma
 async function bootstrap() {
   assertProductionSecrets();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+  // Every Logger.error also lands in ErrorLog for /superadmin; 5xx come from ErrorCaptureFilter (APP_FILTER).
+  app.useLogger(new ErrorCaptureLogger(app.get(ErrorLogService)));
   app.useStaticAssets(join(__dirname, '..', 'public'), {
     setHeaders: (res, filePath) => {
       if (/\/line-assets\/home[^/]*\/\d+$/.test(filePath)) {
@@ -61,7 +64,6 @@ async function bootstrap() {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Firm-Slug'],
   });
-  app.useGlobalFilters(new PayloadTooLargeFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

@@ -178,6 +178,14 @@ export class GraphDriveClient {
     return { webUrl: res.link.webUrl };
   }
 
+  /** A new folder under `parentId`; a name already taken there gets Microsoft's " 1" suffix rather than failing. */
+  async createFolder(token: string, driveId: string, parentId: string, name: string): Promise<DriveItem> {
+    return this.http.request<DriveItem>(token, `${itemPath(driveId, parentId)}/children`, {
+      method: 'POST',
+      body: JSON.stringify({ name: safeDriveName(name), folder: {}, '@microsoft.graph.conflictBehavior': 'rename' }),
+    });
+  }
+
   /** `['Samnuan', ownRef]` → `/me/drive/root:/Samnuan/{ownRef}`, creating each missing level. */
   async ensureFolderPath(token: string, segments: string[]): Promise<DriveItem> {
     let parentId = 'root';

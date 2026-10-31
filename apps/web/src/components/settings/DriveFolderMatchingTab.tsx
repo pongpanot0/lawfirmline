@@ -6,6 +6,7 @@ import { api, ApiError, type CaseListItem, type DrivePickerItem } from '@/lib/ap
 import { defaultFolderCaseId } from '@/lib/case-email';
 import { DriveFolderPicker } from '@/components/drive/DriveFolderPicker';
 import { FolderMatchTable, type FolderMatchRow } from '@/components/settings/FolderMatchTable';
+import { DriveCaseImportTable } from '@/components/settings/DriveCaseImportTable';
 
 type Suggestions = Awaited<ReturnType<typeof api.getDriveFolderSuggestions>>;
 
@@ -63,6 +64,11 @@ export function DriveFolderMatchingTab() {
     [items],
   );
 
+  const importItems = useMemo(
+    () => items.flatMap((r) => (!r.link && r.parsed ? [{ folder: r.folder, parsed: r.parsed, suggestions: r.suggestions }] : [])),
+    [items],
+  );
+
   const confirm = async (picks: { id: string; caseId: string }[]) => {
     if (!token || !parent || picks.length === 0) return;
     setSaving(true);
@@ -110,6 +116,9 @@ export function DriveFolderMatchingTab() {
       {loading && <div role="status" aria-label="กำลังจับคู่" className="h-40 animate-pulse rounded-xl bg-muted" />}
       {!loading && parent && (
         <FolderMatchTable rows={rows} cases={cases} saving={saving} onConfirm={confirm} onUnlink={unlink} />
+      )}
+      {!loading && parent && (
+        <DriveCaseImportTable driveId={parent.driveId} items={importItems} onDone={() => load(parent)} />
       )}
       <DriveFolderPicker
         open={pickerOpen}

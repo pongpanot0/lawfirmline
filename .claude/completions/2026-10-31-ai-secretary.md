@@ -9,7 +9,7 @@ Spec: `docs/superpowers/specs/2026-10-31-ai-secretary-design.md` · Plan: `docs/
 - Mobile (built with Codex): `app/secretary.tsx` with tap-to-record voice, case brief card, `app/brief.tsx`, home entries, DAILY_BRIEF inbox category.
 
 ## Deploy checklist
-- Migration `20261031100000_daily_brief` (api auto-migrates on boot).
+- Migration `20261031110000_daily_brief` (api auto-migrates on boot).
 - Env: `AI_DAILY_BRIEF_FIRM_SLUGS=thesiambarristers`; optional `OPENAI_TRANSCRIBE_MODEL` (default gpt-4o-mini-transcribe); remove any `OPENAI_MODEL_MAIN=gpt-4o` override.
 - Mobile needs a new EAS native build (expo-audio + mic permission).
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, FileDown, Folder, Link2, RefreshCw } from 'lucide-react';
+import { ExternalLink, FileDown, Folder, FolderPlus, Link2, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, CaseDriveListing, DriveItemView, DrivePickerItem } from '@/lib/api';
 import { driveDateTime, formatFileSize, openInNewTab } from '@/lib/drive-view';
@@ -11,16 +11,22 @@ import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 
 /** ส่วน "OneDrive" ในแท็บเอกสารคดี — ไฟล์สดจาก folder ที่ผูกไว้ (ไม่เก็บสำเนา จนกว่าจะกดนำเข้า). */
-export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImported: () => void }) {
+export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId: string; onImported: () => void; newFolderName?: string }) {
   const { token } = useAuth();
   const [listing, setListing] = useState<CaseDriveListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // "สร้าง folder ใหม่": the lawyer picks where, then confirms the name — nothing is created before "สร้างและผูก".
+  const [createPickerOpen, setCreatePickerOpen] = useState(false);
+  const [newParent, setNewParent] = useState<DrivePickerItem | null>(null);
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
   const closePicker = useCallback(() => setPickerOpen(false), []);
+  const closeCreatePicker = useCallback(() => setCreatePickerOpen(false), []);
 
   const load = () => {
     if (!token) return;
@@ -87,6 +93,28 @@ export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImp
     load();
   };
 
+  const chooseNewParent = (folder: DrivePickerItem) => {
+    setCreatePickerOpen(false);
+    setNewParent(folder);
+    setNewName(newFolderName ?? '');
+  };
+
+  const createFolder = async () => {
+    if (!token || !newParent || !newName.trim()) return;
+    setCreating(true);
+    setError('');
+    try {
+      await api.createCaseDriveFolder(token, caseId, newParent.driveId, newParent.id, newName.trim());
+      setNewParent(null);
+      setNotice(`สร้าง folder "${newName.trim()}" ใน ${newParent.name} และผูกกับคดีแล้ว`);
+      load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'สร้าง folder ไม่สำเร็จ');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const unlink = async () => {
     if (!token || !window.confirm('ยกเลิกการผูก folder นี้กับคดี? (ไฟล์ใน OneDrive ไม่ถูกลบ)')) return;
     try {
@@ -137,6 +165,16 @@ export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImp
             <Link2 aria-hidden="true" className="h-3.5 w-3.5" />
             {listing?.link ? 'เปลี่ยน folder' : 'ผูก folder OneDrive'}
           </button>
+          {listing?.state === 'NO_LINK' && (
+            <button
+              type="button"
+              onClick={() => setCreatePickerOpen(true)}
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs sm:min-h-8 font-medium hover:bg-accent"
+            >
+              <FolderPlus aria-hidden="true" className="h-3.5 w-3.5" />
+              สร้าง folder ใหม่
+            </button>
+          )}
           {listing?.link && (
             <button type="button" onClick={unlink} className="inline-flex min-h-11 items-center rounded-lg border border-destructive/40 px-2.5 py-1 text-xs text-destructive hover:bg-destructive/5 sm:min-h-8">
               ยกเลิกการผูก
@@ -151,6 +189,27 @@ export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImp
         <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>
       ) : null}
       {notice && <p role="status" className="mb-2 text-sm text-success">{notice}</p>}
+      {newParent && (
+        <div className="mb-3 space-y-2 rounded-lg border bg-muted/30 p-3">
+          <label className="block text-sm">
+            ชื่อ folder ใหม่ใน <strong>{newParent.name}</strong>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              maxLength={200}
+              className="mt-1 min-h-10 w-full rounded-md border bg-background px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+          <div className="flex gap-2">
+            <Button size="sm" disabled={creating || !newName.trim()} onClick={createFolder}>
+              {creating ? 'กำลังสร้าง…' : 'สร้างและผูก'}
+            </Button>
+            <Button size="sm" variant="outline" disabled={creating} onClick={() => setNewParent(null)}>
+              ยกเลิก
+            </Button>
+          </div>
+        </div>
+      )}
       {loading && (
         <div role="status" aria-label="กำลังโหลดจาก OneDrive" className="space-y-2">
           <Skeleton className="h-14 w-full" />
@@ -216,6 +275,7 @@ export function CaseDriveSection({ caseId, onImported }: { caseId: string; onImp
       )}
 
       <DriveFolderPicker open={pickerOpen} title="เลือก folder OneDrive ของคดี" onClose={closePicker} onPick={linkFolder} />
+      <DriveFolderPicker open={createPickerOpen} title="เลือกที่เก็บ folder ใหม่" onClose={closeCreatePicker} onPick={chooseNewParent} />
     </div>
   );
 }
