@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { api, type CaseListItem, type IntakeItem } from '@/lib/api';
 import { CaseAiChat } from './CaseAiChat';
+import { SecretaryChat } from './SecretaryChat';
 import { AiTrayCards } from './AiTrayCards';
 
 const AI_ACTIONS = [
@@ -74,6 +75,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
   const { token, user } = useAuth();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string | null>(null);
+  const [tab, setTab] = useState<'secretary' | 'main'>(caseId || intakeId ? 'main' : 'secretary');
 
   const [cases, setCases] = useState<CaseListItem[] | null>(null);
   const [intakes, setIntakes] = useState<IntakeItem[] | null>(null);
@@ -177,7 +179,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
           <Sparkles className="h-4 w-4 text-primary" aria-hidden />
           <div>
             <p className="text-sm font-semibold">Samnuan AI</p>
-            <p className="text-xs text-muted-foreground">ขับเคลื่อนโดย GPT-4o</p>
+            <p className="text-xs text-muted-foreground">ขับเคลื่อนโดย GPT-4o mini</p>
           </div>
         </div>
         <Button
@@ -193,7 +195,32 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
         </Button>
       </div>
 
-      {(caseId || intakeId) && !active ? (
+      {!active && (
+        <div role="tablist" aria-label="โหมด AI" className="flex gap-1 border-b border-border px-4 py-2">
+          {([
+            ['secretary', 'เลขา'],
+            ['main', caseId || intakeId ? 'เรื่องนี้' : 'เครื่องมือ AI'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={cn(
+                'min-h-11 rounded-full px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8',
+                tab === key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!active && tab === 'secretary' ? (
+        <SecretaryChat />
+      ) : (caseId || intakeId) && !active ? (
         <CaseAiChat caseId={caseId} intakeId={intakeId} onPickLegacy={(a) => openAction(a)} />
       ) : (
       <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
