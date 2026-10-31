@@ -7,6 +7,7 @@ import {
   BarChart3,
   BookOpen,
   ChevronRight,
+  Clock,
   Contact,
   FileClock,
   FilePlus2,
@@ -35,6 +36,7 @@ const ITEMS = [
   { route: '/expenses/claims', Icon: Receipt, title: 'ชุดเบิก', detail: 'รายการที่ส่งเป็นชุด และสถานะการจ่าย' },
   { route: '/clients', Icon: Contact, title: 'ลูกความ', detail: 'สมุดลูกความ โทร/อีเมล และคดีของแต่ละราย' },
   { route: '/expenses', Icon: Wallet, title: 'ค่าใช้จ่าย', detail: 'บันทึกค่าใช้จ่ายหน้างาน ถ่ายใบเสร็จ ส่งเบิก' },
+  { route: '/timesheet', Icon: Clock, title: 'ยืนยันเวลา', detail: 'ยืนยันเวลาทำงานจากนัดศาล งาน อีเมล และกิจกรรมวันนี้' },
   { route: '/case/new', Icon: FilePlus2, title: 'รับเคสใหม่', detail: 'สร้างคดี เลือกคนหลัก คนรอง และแนบไฟล์' },
   { route: '/reports', Icon: BarChart3, title: 'รายงาน', detail: 'สรุปคดีที่ปิด ระยะเวลาเฉลี่ย และปริมาณงาน' },
   { route: '/knowledge', Icon: BookOpen, title: 'คลังความรู้', detail: 'ค้นหาสรุปคดี แนวคำพิพากษา บทเรียน' },
@@ -42,7 +44,7 @@ const ITEMS = [
 ] as const;
 
 const GROUPS = [
-  { title: 'งานสำนักงาน', routes: ['/case/new', '/clients', '/leaves', '/expenses', '/expenses/claims', '/operations'] },
+  { title: 'งานสำนักงาน', routes: ['/case/new', '/clients', '/leaves', '/expenses', '/expenses/claims', '/timesheet', '/operations'] },
   { title: 'เอกสารและข้อมูล', routes: ['/search', '/email-search', '/document-waiting', '/reports', '/knowledge'] },
   { title: 'บัญชีและการตั้งค่า', routes: ['/account', '/settings'] },
 ];

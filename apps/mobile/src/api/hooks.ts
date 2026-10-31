@@ -21,6 +21,7 @@ import type {
   OwnerKpis,
   OwnerFinance,
   TaskItem,
+  TimeSuggestion,
   WorkloadResponse,
 } from './types';
 
@@ -351,6 +352,28 @@ export function useSubmitExpenses() {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['expense-claims'] });
     },
+  });
+}
+
+export function useTimeSuggestions(date: string) {
+  return useQuery({
+    queryKey: ['time-suggestions', date],
+    queryFn: () => api<TimeSuggestion[]>(`/time-entries/suggestions?date=${date}`),
+  });
+}
+
+export function useConfirmTime() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (entries: {
+      caseId: string;
+      hours: number;
+      description: string;
+      date: string;
+      sourceKey?: string;
+      billable?: boolean;
+    }[]) => api<{ created: number }>('/time-entries/confirm', { method: 'POST', body: { entries } }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['time-suggestions'] }),
   });
 }
 

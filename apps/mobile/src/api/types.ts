@@ -298,3 +298,13 @@ export interface EmailComposeOptions {
   recipients: Array<{ name: string; email: string; source: string; group: string }>; signature: string | null;
 }
 export interface EmailTemplateItem { id: string; name: string; subject: string; body: string; builtIn: boolean }
+
+export interface TimeSuggestion {
+  sourceKey: string;
+  source: 'event' | 'task' | 'review' | 'messages' | 'email';
+  caseId: string;
+  caseRef: string | null;
+  description: string;
+  hours: number | null;
+  date: string;
+}

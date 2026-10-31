@@ -302,6 +302,15 @@ export class BillingService {
     });
   }
 
+  /** อัตราค่าเวลาเริ่มต้นของสมาชิก ใช้เติม rate เมื่อไม่ได้ระบุ — ไม่ได้ตั้ง = 0 */
+  async resolveDefaultRate(firmId: string, userId: string): Promise<number> {
+    const member = await this.prisma.firmMember.findUnique({
+      where: { firmId_userId: { firmId, userId } },
+      select: { defaultHourlyRate: true },
+    });
+    return member?.defaultHourlyRate ?? 0;
+  }
+
   async createTimeEntry(user: AuthUser, caseId: string, dto: CreateTimeEntryDto) {
     return this.prisma.timeEntry.create({
       data: {
