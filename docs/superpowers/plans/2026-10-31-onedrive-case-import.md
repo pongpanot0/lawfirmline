@@ -245,3 +245,33 @@ export function draftProblem(d: ImportCaseDraft): string | null   // Thai messag
   - Take a screenshot as proof.
 - [ ] **Step 4: Run** `cd apps/web && npm test && npx tsc --noEmit -p .` — Expected: PASS.
 - [ ] **Step 5: Commit** `git commit -m "feat(web): import OneDrive folders as new cases"`
+
+---
+
+### Task 6: Create a new OneDrive folder from the case page (added mid-run at the user's request)
+
+The user asked for this: when a case is created, help create its folder too. A lawyer presses the button and picks where the folder goes; nothing is automatic.
+
+**Files:**
+- Modify: `apps/api/src/outlook-integration/graph/graph-drive.client.ts`, `drive/case-drive.service.ts`, `drive/case-drive.controller.ts`, `drive/drive.dto.ts`
+- Modify: `apps/web/src/lib/api.ts`, `apps/web/src/components/cases/CaseDriveSection.tsx`
+- Test: `graph-drive.client.spec.ts`, `case-drive.service.spec.ts`
+
+**Interfaces:**
+- `GraphDriveClient.createFolder(token, driveId: string, parentId: string, name: string): Promise<DriveItem>` → `POST {itemPath(driveId,parentId)}/children` with body `{ name: safeDriveName(name), folder: {}, '@microsoft.graph.conflictBehavior': 'rename' }`.
+- `CaseDriveService.createAndLinkFolder(user, caseId, dto: { driveId: string; parentId: string; name: string })`: check case access the same way `linkFolder` does, then `createFolder` with the caller's own token, then `linkFolder(user, caseId, { driveId, itemId: created.id })`. Returns the link.
+- `POST /cases/:id/drive-folder` with roles ADMIN and LAWYER. Body `CreateDriveFolderDto { driveId: string; parentId: string; name: string /*1..200*/ }`.
+- Web: `api.createCaseDriveFolder(token, caseId, driveId, parentId, name)`.
+
+- [ ] **Step 1: Write failing tests.**
+  - `createFolder posts to the parent's children with rename on conflict`.
+  - `createAndLinkFolder creates in the chosen parent then links it to the case`.
+  - `createAndLinkFolder does not create anything without a Microsoft connection`.
+- [ ] **Step 2: Run** `npx jest src/outlook-integration` — Expected: FAIL.
+- [ ] **Step 3: Implement** the API pieces.
+- [ ] **Step 4: Build the UI in CaseDriveSection.** Add a button `สร้าง folder ใหม่` next to `ผูก folder OneDrive`; it is shown only when the case has no linked folder.
+  - The button opens `DriveFolderPicker` titled `เลือกที่เก็บ folder ใหม่`.
+  - After a pick, show an inline name field prefilled `${ownRef} - ${title}` with the buttons `สร้างและผูก` and `ยกเลิก`.
+  - On success, reload the listing.
+- [ ] **Step 5: Run** the api tests and `tsc` for api and web — Expected: PASS. Then check in the browser together with Task 5.
+- [ ] **Step 6: Commit** `git commit -m "feat(drive): create and link a new OneDrive folder from the case page"`
