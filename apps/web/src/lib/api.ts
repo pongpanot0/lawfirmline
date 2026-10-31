@@ -1205,6 +1205,42 @@ export interface EmailThreadDetail {
 
 export type CaseMatchReason = 'OWN_REF' | 'CASE_NUMBER' | 'CLIENT_NAME';
 
+export type ImportCourtLevel = 'TRIAL' | 'APPEAL' | 'SUPREME';
+export type ImportClosedOutcome = 'WON' | 'LOST' | 'SETTLED' | 'MEDIATED' | 'WITHDRAWN';
+
+/** Pre-fill read from a OneDrive case folder name (api: drive/case-folder-name.ts). */
+export interface ParsedCaseFolder {
+  title: string;
+  blackCaseNumber: string | null;
+  caseNumberRaw: string | null;
+  courtName: string | null;
+  courtLevel: ImportCourtLevel;
+  closed: boolean;
+  outcome: ImportClosedOutcome | null;
+  teamHint: string | null;
+}
+
+export type ImportCaseRow = {
+  itemId: string;
+  title: string;
+  blackCaseNumber?: string;
+  courtName?: string;
+  courtLevel: ImportCourtLevel;
+  leadLawyerId: string;
+  buddyIds?: string[];
+  closed: boolean;
+  outcome?: ImportClosedOutcome;
+  closingSummary?: string;
+};
+
+export type ImportCaseResult = {
+  itemId: string;
+  status: 'CREATED' | 'ALREADY_LINKED' | 'FAILED';
+  caseId?: string;
+  ownRef?: string;
+  message?: string;
+};
+
 export interface CaseMatchSuggestionItem {
   caseId: string;
   ownRef: string;
@@ -3073,11 +3109,19 @@ export const api = {
         folder: DrivePickerItem;
         link: { id: string; caseId: string; ownRef: string; title: string } | null;
         suggestions: CaseMatchSuggestionItem[];
+        parsed: ParsedCaseFolder | null;
       }>
     >(
       `/outlook/drive/folder-suggestions?driveId=${encodeURIComponent(driveId)}&itemId=${encodeURIComponent(itemId)}`,
       { token },
     ),
+
+  importDriveCases: (token: string, body: { driveId: string; rows: ImportCaseRow[] }) =>
+    request<{ results: ImportCaseResult[] }>('/outlook/drive/case-import', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
 
   getDriveShared: (token: string) => request<DrivePickerItem[]>('/outlook/drive/shared', { token }),
 
