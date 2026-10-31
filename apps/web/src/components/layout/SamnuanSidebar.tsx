@@ -20,6 +20,7 @@ import {
   Mail,
   Search,
   CalendarOff,
+  Clock,
   GitFork,
   type LucideIcon,
   Sparkles, BookOpen, Flag, Sunrise } from 'lucide-react';
@@ -58,6 +59,7 @@ const NAV_ITEMS = [
 
   { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, group: 'work', children: [] as const },
   { href: '/leaves', labelKey: 'leaves' as const, icon: CalendarOff, group: 'work', children: [] as const },
+  { href: '/timesheet', labelKey: 'timesheet' as const, icon: Clock, group: 'work', children: [] as const },
   { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, group: 'work', children: [] as const },
   { href: '/getting-started', labelKey: 'gettingStarted' as const, icon: Flag, capability: 'manageFirmContent' as const, group: 'firm', children: [] as const },
   {

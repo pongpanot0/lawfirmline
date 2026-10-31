@@ -43,6 +43,7 @@ export default function NewExpensePage() {
     expensePurpose: '',
     caseId: '',
     paidFromAdvanceId: '',
+    officialReceiptNo: '',
   });
 
   useEffect(() => {
@@ -91,6 +92,8 @@ export default function NewExpensePage() {
           amount: parseFloat(form.amount),
           description: form.description,
           category: form.category,
+          officialReceiptNo: form.category === 'ค่าธรรมเนียมศาล'
+            ? form.officialReceiptNo.trim() || undefined : undefined,
           expensePurpose: form.expensePurpose || undefined,
           caseId: form.caseId || undefined,
           paidFromAdvanceId: form.paidFromAdvanceId || undefined,
@@ -154,6 +157,15 @@ export default function NewExpensePage() {
                 </option>
               ))}
             </SelectField>
+
+            {form.category === 'ค่าธรรมเนียมศาล' && (
+              <TextField
+                label="เลขที่ใบเสร็จศาล (ไม่บังคับ)"
+                maxLength={100}
+                value={form.officialReceiptNo}
+                onChange={(e) => setForm({ ...form, officialReceiptNo: e.target.value })}
+              />
+            )}
 
             <TextField
               label={d.expenses.descriptionField}

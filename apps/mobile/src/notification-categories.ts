@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Briefcase, CalendarClock, ClipboardList, Mail, MessageSquare, Plane, UserRound, Wallet } from 'lucide-react-native';
+import { BadgeCheck, Briefcase, CalendarClock, ClipboardList, Mail, MessageSquare, Plane, UserRound, Wallet } from 'lucide-react-native';
 import type { NotificationCategory } from './api/types';
 
 /** Inbox icon and the label a user mutes by, per notification category. */
@@ -13,4 +13,5 @@ export const CATEGORY_META: Record<NotificationCategory, { label: string; Icon: 
   DAILY_BRIEF: { label: 'สรุปประจำวัน', Icon: ClipboardList },
   LEAVE: { label: 'การลา', Icon: Plane },
   EMAIL: { label: 'อีเมลเข้าคดี', Icon: Mail },
+  LICENSE: { label: 'ใบอนุญาตทนาย', Icon: BadgeCheck },
 };

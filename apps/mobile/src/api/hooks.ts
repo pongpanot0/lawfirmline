@@ -23,6 +23,7 @@ import type {
   OwnerKpis,
   OwnerFinance,
   TaskItem,
+  TimeSuggestion,
   WorkloadResponse,
 } from './types';
 
@@ -404,6 +405,51 @@ export function useSubmitExpenses() {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['expense-claims'] });
     },
+  });
+}
+
+export function useTimeSuggestions(date: string) {
+  return useQuery({
+    queryKey: ['time-suggestions', date],
+    queryFn: () => api<TimeSuggestion[]>(`/time-entries/suggestions?date=${date}`),
+  });
+}
+
+export function useDefaultTimeRate(enabled = true) {
+  return useQuery({
+    queryKey: ['time-default-rate'],
+    queryFn: () => api<{ rate: number }>('/time-entries/default-rate'),
+    enabled,
+  });
+}
+
+export function useCreateTimeEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ caseId, ...body }: {
+      caseId: string;
+      hours: number;
+      rate?: number;
+      description?: string;
+      date: string;
+      billable: boolean;
+    }) => api<{ id: string }>(`/cases/${caseId}/billing/time-entries`, { method: 'POST', body }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['time-suggestions'] }),
+  });
+}
+
+export function useConfirmTime() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (entries: {
+      caseId: string;
+      hours: number;
+      description: string;
+      date: string;
+      sourceKey?: string;
+      billable?: boolean;
+    }[]) => api<{ created: number }>('/time-entries/confirm', { method: 'POST', body: { entries } }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['time-suggestions'] }),
   });
 }
 

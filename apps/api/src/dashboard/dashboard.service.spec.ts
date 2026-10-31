@@ -76,6 +76,13 @@ describe('DashboardService', () => {
     );
   });
 
+  it('monthly revenue ignores written-off time entries', async () => {
+    await service.getStats(user);
+    expect(mockPrisma.timeEntry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ billable: true, writtenOffAt: null }) }),
+    );
+  });
+
   it('merges the role-based task filter into the overdueTasks and myTasks counts', async () => {
     await service.getStats(user);
 

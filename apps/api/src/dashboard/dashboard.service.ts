@@ -148,7 +148,7 @@ export class DashboardService {
           },
         }),
         this.prisma.timeEntry.findMany({
-          where: { case: caseFilter, billable: true },
+          where: { case: caseFilter, billable: true, writtenOffAt: null },
           select: { hours: true, rate: true, date: true },
         }),
         this.billingService.getCaseProfits(user),

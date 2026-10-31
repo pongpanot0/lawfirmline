@@ -8,6 +8,8 @@ import {
   ConflictException,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import {
   AssignmentType,
@@ -47,6 +49,8 @@ import {
   snapshotCurrentLevel,
 } from './proceeding-mirror';
 import { assertCanOpenCases } from '../common/plan-limits';
+import { unbilledExpenseWhere, unbilledTimeWhere } from '../billing/unbilled';
+import { CalendarService } from '../calendar/calendar.service';
 
 const OWN_REF_TAKEN_MESSAGE = 'เลขคดีนี้ถูกใช้กับคดีอื่นในสำนักงานแล้ว กรุณาใช้เลขอื่น';
 
@@ -101,6 +105,7 @@ export class CasesService {
     private activitiesService: CaseActivitiesService,
     private assignmentNotifier: AssignmentNotifierService,
     private conflictCheck: ConflictCheckService,
+    @Inject(forwardRef(() => CalendarService)) private calendar: CalendarService,
     @Optional() private cargoClaims?: CargoClaimsService,
   ) {}
 
@@ -909,31 +914,58 @@ export class CasesService {
   async outstanding(user: AuthUser, id: string) {
     await this.findOne(user, id);
     const now = new Date();
-    const [openTasks, upcomingEvents, unapprovedDocuments] = await Promise.all([
+    const caseWhere = { caseId: id, case: { firmId: user.firmId } };
+    const [openTasks, upcomingEvents, unapprovedDocuments, timeEntries, expenses, invoices] = await Promise.all([
       this.prisma.task.findMany({
-        where: { caseId: id, status: { not: 'DONE' } },
+        where: { ...caseWhere, status: { not: 'DONE' } },
         select: { id: true, title: true, status: true, dueDate: true },
         orderBy: { dueDate: 'asc' },
       }),
       this.prisma.calendarEvent.findMany({
-        where: { caseId: id, startAt: { gte: now } },
+        where: { ...caseWhere, startAt: { gte: now } },
         select: { id: true, title: true, startAt: true, type: true },
         orderBy: { startAt: 'asc' },
       }),
       this.prisma.document.findMany({
         where: {
-          caseId: id,
+          ...caseWhere,
           versions: { some: { status: { in: ['DRAFT', 'WAITING_REVIEW', 'RETURNED_FOR_CHANGES'] } } },
         },
         select: { id: true, filename: true, category: true },
       }),
+      this.prisma.timeEntry.findMany({
+        where: { ...caseWhere, ...unbilledTimeWhere() },
+        select: { hours: true, rate: true },
+      }),
+      this.prisma.expense.findMany({
+        where: { ...caseWhere, ...unbilledExpenseWhere() },
+        select: { amount: true },
+      }),
+      this.prisma.invoice.findMany({
+        where: { caseId: id, firmId: user.firmId, status: { in: ['SENT', 'DRAFT'] } },
+        select: { status: true, totalAmount: true, payments: { select: { amount: true } } },
+      }),
     ]);
+    const round = (amount: number) => Math.round(amount * 100) / 100;
+    const unpaidAmounts = invoices.filter(invoice => invoice.status === 'SENT')
+      .map(invoice => round(invoice.totalAmount - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0)))
+      .filter(amount => amount > 0);
+    const draftCount = invoices.filter(invoice => invoice.status === 'DRAFT').length;
 
     return {
       openTasks,
       upcomingEvents,
       unapprovedDocuments,
-      total: openTasks.length + upcomingEvents.length + unapprovedDocuments.length,
+      unbilledTime: {
+        hours: round(timeEntries.reduce((sum, entry) => sum + entry.hours, 0)),
+        amount: round(timeEntries.reduce((sum, entry) => sum + entry.hours * entry.rate, 0)),
+      },
+      unbilledExpenses: { count: expenses.length, amount: round(expenses.reduce((sum, expense) => sum + expense.amount, 0)) },
+      unpaidInvoices: { count: unpaidAmounts.length, outstandingAmount: round(unpaidAmounts.reduce((sum, amount) => sum + amount, 0)) },
+      draftInvoices: { count: draftCount },
+      total: openTasks.length + upcomingEvents.length + unapprovedDocuments.length
+        // Billing counts as one item per non-empty group, matching the grouped checklist.
+        + [timeEntries.length, expenses.length, unpaidAmounts.length, draftCount].filter(Boolean).length,
     };
   }
 
@@ -947,12 +979,23 @@ export class CasesService {
     const outstanding = await this.outstanding(user, id);
     if (outstanding.total > 0 && !dto.acknowledgeOutstanding) {
       throw new BadRequestException({
-        message: 'ยังมีงาน/วันนัด/เอกสารค้างอยู่ — ตรวจแล้วยืนยันอีกครั้งเพื่อปิดคดี',
+        message: 'ยังมีรายการค้างอยู่ — ตรวจแล้วยืนยันอีกครั้งเพื่อปิดคดี',
         outstanding,
       });
     }
 
     const now = new Date();
+    let removedEventCount = 0;
+    if (dto.removeFutureEvents) {
+      const events = await this.prisma.calendarEvent.findMany({
+        where: { caseId: id, case: { firmId: user.firmId }, startAt: { gte: now } },
+        select: { id: true },
+      });
+      for (const event of events) {
+        await this.calendar.remove(user, event.id);
+        removedEventCount++;
+      }
+    }
     const closed = await this.prisma.case.update({
       where: { id },
       data: {
@@ -975,6 +1018,7 @@ export class CasesService {
         dto.closingSummary.trim(),
         dto.outcome ? `ผลคดี: ${dto.outcome}` : null,
         outstanding.total > 0 ? `ปิดโดยรับทราบของค้าง ${outstanding.total} รายการ` : null,
+        dto.removeFutureEvents ? `ลบนัดในอนาคต ${removedEventCount} รายการ` : null,
       ]
         .filter(Boolean)
         .join('\n'),

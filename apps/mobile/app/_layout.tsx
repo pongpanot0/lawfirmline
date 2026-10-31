@@ -216,6 +216,7 @@ function AppStack() {
               <Stack.Screen name="event/[id]/team" options={{ title: 'ทีมที่ไปด้วย' }} />
               <Stack.Screen name="scan/[caseId]" options={{ title: 'ถ่ายรูป / แนบไฟล์คดี' }} />
               <Stack.Screen name="reports" options={{ title: 'รายงาน' }} />
+              <Stack.Screen name="timesheet" options={{ title: 'ยืนยันเวลา' }} />
               <Stack.Screen name="knowledge" options={{ title: 'คลังความรู้' }} />
               <Stack.Screen name="operations" options={{ title: 'งานพักไว้' }} />
               <Stack.Screen

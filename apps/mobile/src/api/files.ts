@@ -109,6 +109,7 @@ export interface NewExpense {
   sourceEventId?: string;
   receiptUri?: string;
   receiptMimeType?: string;
+  officialReceiptNo?: string;
 }
 
 export function createExpense(expense: NewExpense) {
@@ -116,6 +117,9 @@ export function createExpense(expense: NewExpense) {
   form.append('amount', String(expense.amount));
   form.append('description', expense.description);
   form.append('category', expense.category);
+  if (expense.category === 'ค่าธรรมเนียมศาล' && expense.officialReceiptNo?.trim()) {
+    form.append('officialReceiptNo', expense.officialReceiptNo.trim());
+  }
   form.append('date', expense.date);
   if (expense.caseId) form.append('caseId', expense.caseId);
   form.append('status', 'DRAFT');

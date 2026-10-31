@@ -207,7 +207,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       await billing.createInvoice(user, { caseId: 'case-1' }, { timeEntryIds: ['t1'] } as any);
 
       expect(mockPrisma.timeEntry.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: ['t1'] }, invoiceId: null, caseId: 'case-1', billable: true },
+        where: { id: { in: ['t1'] }, invoiceId: null, caseId: 'case-1', billable: true, writtenOffAt: null },
         data: { invoiceId: 'invoice-INV-00001' },
       });
     });

@@ -75,6 +75,17 @@ export interface CaseParticipant {
   representedByParticipantId: string | null;
 }
 
+export interface CaseOutstandingResult {
+  total: number;
+  openTasks: Array<{ id: string; title: string }>;
+  upcomingEvents: Array<{ id: string; title: string; startAt: string }>;
+  unapprovedDocuments: Array<{ id: string; filename: string }>;
+  unbilledTime: { hours: number; amount: number };
+  unbilledExpenses: { count: number; amount: number };
+  unpaidInvoices: { count: number; outstandingAmount: number };
+  draftInvoices: { count: number };
+}
+
 export interface CaseDetail extends CaseListItem {
   clientName: string | null;
   courtLevel: string | null;
@@ -264,7 +275,7 @@ export interface OwnerFinance {
     case: { id: string; ownRef: string } | null; user: { firstName: string; lastName: string } }>;
 }
 
-export type NotificationCategory = 'TASK' | 'CASE' | 'COMMENT' | 'CALENDAR' | 'CLIENT' | 'BILLING' | 'DAILY_BRIEF' | 'LEAVE' | 'EMAIL';
+export type NotificationCategory = 'TASK' | 'CASE' | 'COMMENT' | 'CALENDAR' | 'CLIENT' | 'BILLING' | 'DAILY_BRIEF' | 'LEAVE' | 'EMAIL' | 'LICENSE';
 
 export interface AppNotification {
   id: string;
@@ -298,3 +309,13 @@ export interface EmailComposeOptions {
   recipients: Array<{ name: string; email: string; source: string; group: string }>; signature: string | null;
 }
 export interface EmailTemplateItem { id: string; name: string; subject: string; body: string; builtIn: boolean }
+
+export interface TimeSuggestion {
+  sourceKey: string;
+  source: 'event' | 'task' | 'review' | 'messages' | 'email';
+  caseId: string;
+  caseRef: string | null;
+  description: string;
+  hours: number | null;
+  date: string;
+}

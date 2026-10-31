@@ -128,6 +128,56 @@ describe('BillingService — drafted expenses', () => {
     expect(mockPrisma.expense.create).not.toHaveBeenCalled();
   });
 
+  it.each(['case', 'standalone'])('saves the official receipt number on a %s expense', async (kind) => {
+    const dto = { amount: 100, description: 'ค่าธรรมเนียมศาล', officialReceiptNo: 'ศาล-123' };
+    if (kind === 'case') await service.createExpense(lawyer, 'case-1', dto);
+    else await service.createStandaloneExpense(lawyer, dto);
+    expect(mockPrisma.expense.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ officialReceiptNo: 'ศาล-123' }),
+    }));
+  });
+
+  describe('updateExpenseReceiptNo', () => {
+    it.each([['author', lawyer], ['approver', owner]])('allows the %s to update the receipt number', async (_role, actor) => {
+      mockPrisma.expense.findFirst.mockResolvedValue({ id: 'expense-1', userId: lawyer.id });
+      mockPrisma.expense.update.mockResolvedValue({ id: 'expense-1', officialReceiptNo: 'ศาล-123' });
+      await expect(service.updateExpenseReceiptNo(actor, 'expense-1', 'ศาล-123')).resolves.toEqual({
+        id: 'expense-1', officialReceiptNo: 'ศาล-123',
+      });
+      const firmFilter = { AND: [
+        { OR: [
+          { case: { firmId: 'firm-1' } },
+          { caseId: null, user: { firmMembers: { some: { firmId: 'firm-1' } } } },
+        ] },
+        { OR: [{ paidFromAdvanceId: null }, { paidFromAdvance: { firmId: 'firm-1' } }] },
+      ] };
+      expect(mockPrisma.expense.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'expense-1', ...firmFilter },
+      }));
+      expect(mockPrisma.expense.update).toHaveBeenCalledWith({
+        where: { id: 'expense-1', ...firmFilter }, data: { officialReceiptNo: 'ศาล-123' },
+      });
+    });
+
+    it('allows the author to clear the number with null', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValue({ id: 'expense-1', userId: lawyer.id });
+      await service.updateExpenseReceiptNo(lawyer, 'expense-1', null);
+      expect(mockPrisma.expense.update).toHaveBeenCalledWith(expect.objectContaining({ data: { officialReceiptNo: null } }));
+    });
+
+    it('rejects a different staff member without approveExpenses', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValue({ id: 'expense-1', userId: 'other-lawyer' });
+      await expect(service.updateExpenseReceiptNo(lawyer, 'expense-1', '123')).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.expense.update).not.toHaveBeenCalled();
+    });
+
+    it('returns not found for an expense outside the firm even for an approver', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValue(null);
+      await expect(service.updateExpenseReceiptNo(owner, 'outside-firm', '123')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.expense.update).not.toHaveBeenCalled();
+    });
+  });
+
   it('refuses to approve a draft, which would skip the petty cash deduction', async () => {
     mockPrisma.expense.findFirst.mockResolvedValue({
       id: 'expense-1',

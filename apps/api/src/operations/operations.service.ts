@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, AssignmentType, CaseStatus, Role, TaskStatus } from '@lawfirm/shared';
-import { ExpenseStatus, InvoiceStatus, Prisma } from '../generated/prisma';
+import { InvoiceStatus, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { WorkloadQueryDto } from './dto/operations.dto';
 import { bangkokMonthOf, collectionRate, monthRange, stuckByStage } from './owner-kpis';
+import { unbilledExpenseWhere, unbilledTimeWhere } from '../billing/unbilled';
 
 const round = (n: number) => Math.round(n * 100) / 100;
 const DAY_MS = 86400000;
@@ -449,16 +450,11 @@ export class OperationsService {
 
     const [timeEntries, expenses, invoices, revenueAgg, prevRevenueAgg, openCases, sla] = await Promise.all([
       this.prisma.timeEntry.findMany({
-        where: { billable: true, invoiceId: null, case: { firmId, deletedAt: null } },
+        where: { ...unbilledTimeWhere(), case: { firmId, deletedAt: null } },
         select: { hours: true, rate: true, caseId: true },
       }),
       this.prisma.expense.findMany({
-        where: {
-          billable: true,
-          invoiceId: null,
-          status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] },
-          case: { firmId, deletedAt: null },
-        },
+        where: { ...unbilledExpenseWhere(), case: { firmId, deletedAt: null } },
         select: { amount: true, caseId: true },
       }),
       this.prisma.invoice.findMany({

@@ -5,11 +5,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { useAuth } from '@/api/auth';
 import { useCase } from '@/api/hooks';
+import type { CaseOutstandingResult } from '@/api/types';
 import { Text } from '@/components/AppText';
 import { SelectField, TextArea } from '@/components/Input';
 import { CheckRow, FormPage, FormSection, MissingSummary } from '@/components/Form';
 import { ActionRow, Button, Card, ErrorState, InlineError, LoadingState, PageIntro } from '@/components/ui';
-import { thDate } from '@/format';
+import { formatMoney, thDate } from '@/format';
 import { colors, spacing, typeScale } from '@/theme';
 
 const styles = StyleSheet.create({
@@ -22,12 +23,6 @@ const styles = StyleSheet.create({
   note: { color: colors.muted, fontSize: 15, lineHeight: 24 },
 });
 
-interface Outstanding {
-  total: number;
-  openTasks: Array<{ id: string; title: string }>;
-  upcomingEvents: Array<{ id: string; title: string; startAt: string }>;
-  unapprovedDocuments: Array<{ id: string; filename: string }>;
-}
 const outcomes = [
   { value: 'WON', label: 'ชนะคดี' },
   { value: 'SETTLED', label: 'ตกลงกันได้' }, { value: 'MEDIATED', label: 'ไกล่เกลี่ยสำเร็จ' },
@@ -47,12 +42,13 @@ export default function CaseCloseScreen() {
   const [summary, setSummary] = useState('');
   const [outcome, setOutcome] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
+  const [removeFutureEvents, setRemoveFutureEvents] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [triedSave, setTriedSave] = useState(false);
   const outstanding = useQuery({ queryKey: ['case-outstanding', id], staleTime: 0,
     enabled: !!id && action === 'close' && allowed,
-    queryFn: () => api<Outstanding>(`/cases/${id}/outstanding`) });
+    queryFn: () => api<CaseOutstandingResult>(`/cases/${id}/outstanding`) });
   useEffect(() => { setAcknowledged(false); }, [JSON.stringify(outstanding.data)]);
   if (legalCase.isLoading) return <View style={{ flex: 1, backgroundColor: colors.bg }}><LoadingState label="กำลังโหลดคดี…" /></View>;
   if (!allowed) return <FormPage>
@@ -76,8 +72,8 @@ export default function CaseCloseScreen() {
     setBusy(true); setError('');
     try {
       await api(`/cases/${id}/${action}`, { method: 'POST', body: action === 'close'
-        ? { closingSummary: summary.trim(), outcome, acknowledgeOutstanding: acknowledged } : {} });
-      await Promise.all(['case', 'cases', 'my-day', 'dashboard-stats', 'owner-kpis', 'workload', 'case-outstanding'].map(key =>
+        ? { closingSummary: summary.trim(), outcome, acknowledgeOutstanding: acknowledged, removeFutureEvents } : {} });
+      await Promise.all(['case', 'cases', 'my-day', 'dashboard-stats', 'owner-kpis', 'workload', 'case-outstanding', 'calendar', 'case-events'].map(key =>
         cache.invalidateQueries({ queryKey: [key] })));
       router.back();
     } catch (e) {
@@ -106,7 +102,7 @@ export default function CaseCloseScreen() {
         <Text accessibilityRole="header" style={styles.outstandingTitle}>
           {data.total > 0 ? `รายการค้าง ${data.total} รายการ` : 'ไม่มีรายการค้าง'}
         </Text>
-        {data.total > 0 && <Text style={styles.outstandingDetail}>แตะเพื่อเปิดและจัดการก่อนปิดคดี</Text>}
+        {data.total > 0 && <Text style={styles.outstandingDetail}>ตรวจรายการค้างก่อนปิดคดี</Text>}
         <View style={styles.rows}>
           {data.openTasks.map(item => <View key={item.id} style={styles.row}><ActionRow title={item.title} detail="งานที่ยังไม่เสร็จ"
             onPress={() => router.push(`/task/new?id=${item.id}`)} /></View>)}
@@ -114,9 +110,17 @@ export default function CaseCloseScreen() {
             onPress={() => router.push(`/event/new?id=${item.id}`)} /></View>)}
           {data.unapprovedDocuments.map(item => <View key={item.id} style={styles.row}><ActionRow title={item.filename} detail="เอกสารรออนุมัติ"
             onPress={() => router.push(`/case/${id}?section=documents`)} /></View>)}
+          <Text style={styles.outstandingDetail}>เวลายังไม่เรียกเก็บ: {data.unbilledTime.hours} ชั่วโมง · {formatMoney(data.unbilledTime.amount)} บาท</Text>
+          <Text style={styles.outstandingDetail}>ค่าใช้จ่ายยังไม่เรียกเก็บ: {data.unbilledExpenses.count} รายการ · {formatMoney(data.unbilledExpenses.amount)} บาท</Text>
+          <Text style={styles.outstandingDetail}>ใบแจ้งหนี้ค้างชำระ: {data.unpaidInvoices.count} ใบ · {formatMoney(data.unpaidInvoices.outstandingAmount)} บาท</Text>
+          <Text style={styles.outstandingDetail}>ใบแจ้งหนี้ร่าง: {data.draftInvoices.count} ใบ</Text>
           {data.total > 0 && <View style={styles.row}><CheckRow label="ตรวจรายการค้างแล้ว และยืนยันจะปิดคดี" checked={acknowledged} onChange={setAcknowledged} disabled={busy} /></View>}
         </View>
       </Card>}
+      {data && data.upcomingEvents.length > 0 && <View>
+        <CheckRow label={`ลบนัดในอนาคต ${data.upcomingEvents.length} รายการ`} checked={removeFutureEvents} onChange={setRemoveFutureEvents} disabled={busy} />
+        <Text style={styles.outstandingDetail}>เปิดคดีใหม่จะไม่กู้นัดที่ลบ</Text>
+      </View>}
       <FormSection title="ผลและสรุปก่อนปิดคดี">
         <SelectField label="ผลคดี" required placeholder="เลือกผลคดี" value={outcome} options={outcomes} onChange={setOutcome} disabled={busy}
           error={triedSave && !outcome ? 'เลือกผลคดี' : undefined} />

@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsIn, IsOptional, IsString, MinLength, Matches, Length } from 'class-validator';
+import { IsEmail, IsNumber, IsEnum, IsIn, IsOptional, IsString, MinLength, Matches, Length } from 'class-validator';
 import { FirmRole } from '@lawfirm/shared';
 import { BillingPeriod, SubscriptionPlan } from '../../generated/prisma';
 import { Transform } from 'class-transformer';
@@ -71,4 +71,14 @@ export class UpdateFirmSettingsDto {
   @Length(1, 12, { message: 'Prefix must be 1-12 characters' })
   @Matches(/^[A-Z0-9\-]+$/, { message: 'Prefix must contain only uppercase letters, numbers, and hyphens' })
   ownRefPrefix?: string;
+}
+
+export class UpdateWorkSettingsDto {
+  @IsOptional()
+  @IsNumber()
+  monthlyBillableTargetHours?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  defaultHourlyRate?: number | null;
 }

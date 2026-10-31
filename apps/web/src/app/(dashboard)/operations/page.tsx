@@ -266,7 +266,8 @@ export default function OperationsPage() {
 
   return (
     <div>
-      <PageHeader title={teamTab ? d.nav.operations : d.operations.title} description={teamTab ? 'จัดคนทำงาน ติดตามความคืบหน้า และช่วยแก้คอขวด' : d.operations.description} />
+      <PageHeader title={teamTab ? d.nav.operations : d.operations.title} description={teamTab ? 'จัดคนทำงาน ติดตามความคืบหน้า และช่วยแก้คอขวด' : d.operations.description}
+        actions={<Link href="/operations/paper-files" className={buttonVariants({ variant: 'outline' })}>สำนวนที่ถูกเบิกอยู่</Link>} />
 
       {setupLeft > 0 && (
         <Link href="/getting-started" className="mb-6 flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3 text-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

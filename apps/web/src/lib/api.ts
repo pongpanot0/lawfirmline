@@ -6,6 +6,53 @@ import type { DailyBriefData, MatterBrief, SecretaryCard } from '@lawfirm/shared
 
 export type { CaseProceedingItem } from './proceedings';
 
+/** A lawyer's licence (พ.ร.บ.ทนายความ); expiry is YYYY-MM-DD, null for LIFETIME or unset. */
+export interface LawyerLicense {
+  lawyerLicenseNo: string | null;
+  lawyerLicenseType: 'TWO_YEAR' | 'LIFETIME' | null;
+  lawyerLicenseExpiresAt: string | null;
+}
+
+export type PaperFileAction = 'CHECK_OUT' | 'CHECK_IN' | 'MOVE';
+type PaperFilePerson = { id: string; firstName: string; lastName: string };
+
+export type PaperFileActionInput = (
+  | { action: 'CHECK_OUT'; holderUserId?: string }
+  | { action: 'CHECK_IN' | 'MOVE'; location: string }
+) & { note?: string };
+
+export interface PaperFileState {
+  id: string;
+  folderId: string;
+  paperFileHolderId: string | null;
+  paperFileLocation: string | null;
+  paperFileHolder: PaperFilePerson | null;
+}
+
+export interface PaperFileDetail extends PaperFileState {
+  history: {
+    id: string;
+    action: PaperFileAction;
+    holder: PaperFilePerson | null;
+    location: string | null;
+    note: string | null;
+    createdBy: PaperFilePerson;
+    createdAt: string;
+  }[];
+}
+
+export interface CheckedOutPaperFiles {
+  items: (PaperFileState & {
+    title: string;
+    ownRef: string;
+    checkedOutAt: string;
+    daysOut: number;
+  })[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface ProceedingActionResult {
   proceeding: CaseProceedingItem | null;
   suggestions: number;
@@ -227,6 +274,39 @@ export interface WorkflowMetrics {
   hearingCloseout: { averageDays: number | null; sampleCount: number };
   openDocumentRequests: number;
   overdueDocumentRequests: number;
+}
+
+export type FirmMetricsPeriod = 'this_month' | 'last_month' | 'quarter' | 'year';
+
+export interface FirmMetricsRatios {
+  utilization: number | null;
+  realization: number | null;
+  collection: number | null;
+}
+
+export interface FirmMetricsSums {
+  workedHours: number;
+  workedAmount: number;
+  invoicedHours: number;
+  invoicedAmount: number;
+  collectedHours: number;
+  collectedAmount: number;
+}
+
+export interface FirmMetrics {
+  period: FirmMetricsPeriod;
+  from: string;
+  to: string;
+  timeBasedBilling: boolean;
+  firm: FirmMetricsSums & FirmMetricsRatios & { targetMonthly: number | null };
+  members: Array<
+    FirmMetricsSums & FirmMetricsRatios & {
+      userId: string;
+      name: string;
+      targetMonthly: number | null;
+      pendingDrafts7d: number;
+    }
+  >;
 }
 
 export interface OwnerKpis {
@@ -640,12 +720,31 @@ export interface ExpenseItem {
   paidBy?: { firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string; courtName?: string | null } | null;
   receiptFilename?: string | null;
+  officialReceiptNo?: string | null;
   /** false = สำนักงานออกเอง ไม่ผลักไปเก็บกับลูกค้า */
   billable?: boolean;
   /** ตั้งแล้วแปลว่าออกใบแจ้งหนี้ไปแล้ว แก้ไม่ได้ */
   invoiceId?: string | null;
   paidFromAdvanceId?: string | null;
   paidFromAdvance?: { id: string; issuedById: string } | null;
+  /** ตัดทิ้ง (write-off) แล้ว — ไม่เข้าใบแจ้งหนี้ แต่ยกเลิกได้ถ้ายังไม่ออกบิล */
+  writtenOffAt?: string | null;
+  writtenOffBy?: { id: string; firstName: string; lastName: string } | null;
+  writeOffReason?: string | null;
+}
+
+export interface CreateExpenseInput {
+  amount: number;
+  description: string;
+  category?: string;
+  expensePurpose?: string;
+  date?: string;
+  status?: import('@lawfirm/shared').ExpenseStatus;
+  caseId?: string;
+  paidFromAdvanceId?: string;
+  sourceEventId?: string;
+  billable?: boolean;
+  officialReceiptNo?: string;
 }
 
 export interface CashAdvanceItem {
@@ -657,6 +756,30 @@ export interface CashAdvanceItem {
   issuedById: string;
   userId: string;
   user?: { id: string; firstName: string; lastName: string };
+}
+
+export interface CashAdvanceReconciliationItem {
+  id: string;
+  user: { id: string; firstName: string; lastName: string };
+  issuedAt: string;
+  amount: number;
+  spent: number;
+  returnedAmount: number;
+  remaining: number;
+  missingReceiptFiles: number;
+  courtFeesMissingReceiptNo: number;
+  settledAt: string | null;
+}
+
+export interface CashAdvanceExpenseItem {
+  id: string;
+  date: string;
+  description: string;
+  category: string | null;
+  amount: number;
+  receiptFilename: string | null;
+  officialReceiptNo: string | null;
+  caseId: string | null;
 }
 
 export interface ExpenseClaimSummary {
@@ -1582,6 +1705,10 @@ export interface CaseOutstandingResult {
   openTasks: Array<{ id: string; title: string; status: string; dueDate: string | null }>;
   upcomingEvents: Array<{ id: string; title: string; startAt: string; type: string }>;
   unapprovedDocuments: Array<{ id: string; filename: string; category: string }>;
+  unbilledTime: { hours: number; amount: number };
+  unbilledExpenses: { count: number; amount: number };
+  unpaidInvoices: { count: number; outstandingAmount: number };
+  draftInvoices: { count: number };
   total: number;
 }
 
@@ -1792,7 +1919,7 @@ export const api = {
 
   getTeamMembers: (token: string) =>
     request<
-      {
+      ({
         id: string;
         email: string;
         firstName: string;
@@ -1800,8 +1927,29 @@ export const api = {
         role: string;
         firmRole: string;
         joinedAt: string;
-      }[]
+        monthlyBillableTargetHours: number | null;
+        defaultHourlyRate: number | null;
+      } & LawyerLicense)[]
     >('/saas/members', { token }),
+
+  getMyLicense: (token: string) => request<LawyerLicense>('/users/me/license', { token }),
+
+  updateMyLicense: (token: string, data: Partial<LawyerLicense>) =>
+    request<{ success: boolean }>('/users/me/license', { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  updateMemberLicense: (token: string, userId: string, data: Partial<LawyerLicense>) =>
+    request<{ success: boolean }>(`/firm-members/${userId}/license`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  updateMemberWorkSettings: (
+    token: string,
+    userId: string,
+    data: { monthlyBillableTargetHours?: number | null; defaultHourlyRate?: number | null },
+  ) =>
+    request<{ success: boolean }>(`/firm-members/${userId}/work-settings`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
 
   removeTeamMember: (token: string, userId: string) =>
     request<{ success: boolean }>(`/saas/members/${userId}`, { method: 'DELETE', token }),
@@ -1910,6 +2058,20 @@ export const api = {
   getCase: (token: string, id: string) =>
     request<CaseDetail>(`/cases/${id}`, { token }),
 
+  getPaperFile: (token: string, caseId: string) =>
+    request<PaperFileDetail>(`/cases/${encodeURIComponent(caseId)}/paper-file`, { token }),
+
+  recordPaperFileMovement: (token: string, caseId: string, data: PaperFileActionInput) =>
+    request<PaperFileState>(`/cases/${encodeURIComponent(caseId)}/paper-file`, {
+      token, method: 'POST', body: JSON.stringify(data),
+    }),
+
+  resolvePaperFile: (token: string, folderId: string) =>
+    request<{ caseId: string }>(`/paper-files/by-folder/${encodeURIComponent(folderId)}`, { token }),
+
+  getCheckedOutPaperFiles: (token: string, page = 1, pageSize = 20) =>
+    request<CheckedOutPaperFiles>(`/paper-files/checked-out?page=${page}&pageSize=${pageSize}`, { token }),
+
   deleteCase: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/cases/${id}`, { method: 'DELETE', token }),
 
@@ -1954,7 +2116,7 @@ export const api = {
     token: string,
     id: string,
     closingSummary: string,
-    options: { outcome?: string; acknowledgeOutstanding?: boolean } = {},
+    options: { outcome?: string; acknowledgeOutstanding?: boolean; removeFutureEvents?: boolean } = {},
   ) =>
     request<CaseItem>(`/cases/${id}/close`, {
       method: 'POST',
@@ -2149,6 +2311,9 @@ export const api = {
 
   getOwnerKpis: (token: string, month?: string) =>
     request<OwnerKpis>(`/operations/owner-kpis${month ? `?month=${month}` : ''}`, { token }),
+
+  getFirmMetrics: (token: string, period: FirmMetricsPeriod) =>
+    request<FirmMetrics>(`/reports/firm-metrics?period=${period}`, { token }),
 
   listSops: (token: string, q?: string) =>
     request<SopItem[]>(`/sops${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),
@@ -2686,7 +2851,7 @@ export const api = {
     return request<ExpenseItem[]>(`/expenses${query ? `?${query}` : ''}`, { token });
   },
 
-  createExpense: (token: string, caseId: string, data: Record<string, unknown>) =>
+  createExpense: (token: string, caseId: string, data: CreateExpenseInput) =>
     request(`/cases/${caseId}/billing/expenses`, {
       method: 'POST',
       token,
@@ -2748,8 +2913,77 @@ export const api = {
   getTimeEntries: (token: string, caseId: string) =>
     request<TimeEntryItem[]>(`/cases/${caseId}/billing/time-entries`, { token }),
 
+  createTimeEntry: (token: string, caseId: string, body: TimeEntryInput) =>
+    request<TimeEntryItem>(`/cases/${caseId}/billing/time-entries`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  updateTimeEntry: (token: string, caseId: string, entryId: string, body: Partial<Omit<TimeEntryInput, 'billable'>>) =>
+    request<{ id: string }>(`/cases/${caseId}/billing/time-entries/${entryId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  deleteTimeEntry: (token: string, caseId: string, entryId: string) =>
+    request<{ id: string }>(`/cases/${caseId}/billing/time-entries/${entryId}`, { method: 'DELETE', token }),
+
+  getDefaultTimeRate: (token: string) => request<{ rate: number }>('/time-entries/default-rate', { token }),
+
+  getTimeSuggestions: (token: string, date: string) =>
+    request<TimeSuggestion[]>(`/time-entries/suggestions?date=${date}`, { token }),
+
+  confirmTimeEntries: (token: string, entries: ConfirmTimeEntryInput[]) =>
+    request<{ created: number }>('/time-entries/confirm', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ entries }),
+    }),
+
+  getFirmTimesheet: (token: string, params: { from: string; to: string; userId?: string }) => {
+    const qs = new URLSearchParams({ from: params.from, to: params.to });
+    if (params.userId) qs.set('userId', params.userId);
+    return request<FirmTimesheetResponse>(`/time-entries?${qs.toString()}`, { token });
+  },
+
   getInvoices: (token: string, caseId: string) =>
     request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, { token }),
+
+  writeOffTimeEntry: (caseId: string, entryId: string, reason: string, token: string) =>
+    request<{ id: string }>(`/cases/${caseId}/billing/time-entries/${entryId}/write-off`, {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    }),
+
+  undoTimeEntryWriteOff: (caseId: string, entryId: string, token: string) =>
+    request<{ id: string }>(`/cases/${caseId}/billing/time-entries/${entryId}/write-off`, {
+      token,
+      method: 'DELETE',
+    }),
+
+  writeOffExpense: (expenseId: string, reason: string, token: string) =>
+    request<{ id: string }>(`/expenses/${expenseId}/write-off`, {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    }),
+
+  undoExpenseWriteOff: (expenseId: string, token: string) =>
+    request<{ id: string }>(`/expenses/${expenseId}/write-off`, { token, method: 'DELETE' }),
+
+  setInvoiceDiscount: (
+    invoiceId: string,
+    body: { discountAmount: number; discountReason?: string },
+    token: string,
+  ) =>
+    request<unknown>(`/invoices/${invoiceId}/discount`, {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
 
   setExpenseBillable: (token: string, expenseId: string, billable: boolean) =>
     request<{ id: string; billable: boolean }>(`/expenses/${expenseId}/billable`, {
@@ -2798,7 +3032,7 @@ export const api = {
       { token },
     ),
 
-  createStandaloneExpense: (token: string, data: Record<string, unknown>, receipt?: File) => {
+  createStandaloneExpense: (token: string, data: CreateExpenseInput, receipt?: File) => {
     if (receipt) {
       const form = new FormData();
       for (const [key, value] of Object.entries(data)) {
@@ -2830,6 +3064,27 @@ export const api = {
 
   listMyCashAdvances: (token: string) =>
     request<CashAdvanceItem[]>('/cash-advances/mine', { token }),
+
+  getCashAdvanceReconciliation: (token: string, status: 'open' | 'settled' = 'open') =>
+    request<CashAdvanceReconciliationItem[]>(`/cash-advances/reconciliation?status=${status}`, { token }),
+
+  returnCashAdvance: (token: string, id: string, amount: number, note?: string) =>
+    request<CashAdvanceItem>(`/cash-advances/${id}/return`, {
+      method: 'POST', token, body: JSON.stringify({ amount, note }),
+    }),
+
+  settleCashAdvance: (token: string, id: string, note?: string) =>
+    request<CashAdvanceItem>(`/cash-advances/${id}/settle`, {
+      method: 'POST', token, body: JSON.stringify({ note }),
+    }),
+
+  listCashAdvanceExpenses: (token: string, id: string) =>
+    request<CashAdvanceExpenseItem[]>(`/cash-advances/${id}/expenses`, { token }),
+
+  updateExpenseReceiptNo: (token: string, expenseId: string, officialReceiptNo: string | null) =>
+    request<Pick<ExpenseItem, 'id' | 'officialReceiptNo'>>(`/expenses/${expenseId}/receipt-no`, {
+      method: 'PATCH', token, body: JSON.stringify({ officialReceiptNo }),
+    }),
 
   getCaseKnowledge: (token: string, caseId: string) =>
     request<KnowledgeItem[]>(`/cases/${caseId}/knowledge`, { token }),
@@ -4088,14 +4343,76 @@ export interface TimeEntryItem {
   rate: number;
   description?: string;
   date: string;
-  user: { firstName: string; lastName: string };
+  user: { id: string; firstName: string; lastName: string };
+  invoiceId?: string | null;
+  billable?: boolean;
+  writtenOffAt?: string | null;
+  writtenOffBy?: { id: string; firstName: string; lastName: string } | null;
+  writeOffReason?: string | null;
+}
+
+export interface TimeEntryInput {
+  hours: number;
+  rate?: number;
+  description?: string;
+  date?: string;
+  billable?: boolean;
+}
+
+export interface TimeSuggestion {
+  sourceKey: string;
+  source: 'event' | 'task' | 'review' | 'messages' | 'email';
+  caseId: string;
+  caseRef: string | null;
+  description: string;
+  hours: number | null;
+  date: string;
+}
+
+export interface ConfirmTimeEntryInput {
+  caseId: string;
+  hours: number;
+  description: string;
+  date: string;
+  sourceKey?: string;
+  billable?: boolean;
+}
+
+export interface FirmTimesheetEntry {
+  id: string;
+  date: string;
+  hours: number;
+  rate: number;
+  description: string | null;
+  billable: boolean;
+  caseId: string;
+  caseRef: string | null;
+  userId: string;
+  userName: string;
+  invoiced: boolean;
+  writtenOff: boolean;
+}
+
+export interface FirmTimesheetTotal {
+  userId: string;
+  userName: string;
+  hours: number;
+  billableHours: number;
+}
+
+export interface FirmTimesheetResponse {
+  entries: FirmTimesheetEntry[];
+  totals: FirmTimesheetTotal[];
 }
 
 export interface InvoiceItem {
   id: string;
   invoiceNumber: string;
   status: string;
+  /** ยอดสุทธิหลังหักส่วนลดแล้ว */
   totalAmount: number;
+  discountAmount?: number;
+  discountReason?: string | null;
   /** ลูกค้าที่ถูกวางบิล — ว่างได้ในใบเก่าที่ออกก่อนแยกลูกค้าออกจากลูกความ */
   billToCustomer?: { id: string; name: string } | null;
 }
@@ -4105,6 +4422,8 @@ export interface InvoicePrintData {
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+  discountAmount?: number;
+  discountReason?: string | null;
   issuedAt: string | null;
   dueAt: string | null;
   lineItems: { description: string; quantity: number; unitPrice: number; amount: number }[];
@@ -4147,6 +4466,9 @@ export interface CreateInvoiceInput {
   dueAt?: string;
   /** แบ่งบิลหลายราย — ไม่ส่งมาจะใช้ลูกค้าของคดีตามสัดส่วนที่บันทึกไว้ */
   splits?: { customerId: string; sharePercent: number }[];
+  /** ส่วนลดทั้งใบ — ใบที่แบ่งผู้จ่ายหลายรายตั้งตอนออกไม่ได้ ต้องตั้งรายใบทีหลัง */
+  discountAmount?: number;
+  discountReason?: string;
 }
 
 export interface PortalSubmissionStaffEntry {

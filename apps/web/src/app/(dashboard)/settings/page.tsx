@@ -21,6 +21,8 @@ import { Separator } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { formatDate } from '@/lib/utils';
+import type { LawyerLicense } from '@/lib/api';
+import { LicenseForm } from '@/components/team/LicenseForm';
 
 /** Office-wide master data; each link is capability-gated, so it sits under Settings instead of the sidebar. */
 const OFFICE_LINKS: Array<{ href: string; icon: typeof Shield; labelKey: 'reimbursements' | 'caseTypes' | 'deadlineRules' | 'holidays' | 'courts' | 'auditLog' | 'emailTemplates' | 'microsoftStatus'; capability: FirmCapability }> = [
@@ -72,6 +74,7 @@ function SettingsContent() {
   const [oaUrl, setOaUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
+  const [license, setLicense] = useState<LawyerLicense | null>(null);
   const [prefsSaving, setPrefsSaving] = useState(false);
   const [prefsError, setPrefsError] = useState('');
   const [signature, setSignature] = useState('');
@@ -102,6 +105,7 @@ function SettingsContent() {
     const token = getStoredToken();
     if (!token) return;
     api.getMyPreferences(token).then((p) => { setPrefs(p); setSignature(p.emailSignature ?? ''); }).catch(() => setPrefs(null));
+    api.getMyLicense(token).then(setLicense).catch(() => setLicense(null));
   }, []);
 
   const handleDigestToggle = async () => {
@@ -257,6 +261,19 @@ function SettingsContent() {
                 {sigState === 'saving' ? 'กำลังบันทึก…' : 'บันทึกลายเซ็น'}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {view === 'profile' && license && (
+        <Card className="mt-4">
+          <CardContent className="space-y-3 p-6">
+            <div>
+              <p className="text-sm font-medium">ใบอนุญาตทนายความ</p>
+              <p className="text-xs text-muted-foreground">ระบบเตือนก่อนหมดอายุ 90, 30 และ 7 วัน และใส่เลขที่ในเอกสารจาก template ให้</p>
+            </div>
+            <LicenseForm idPrefix="my-license" initial={license}
+              onSave={async (data) => { const token = getStoredToken(); if (token) await api.updateMyLicense(token, data); }} />
           </CardContent>
         </Card>
       )}

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -17,8 +18,10 @@ import { Response } from 'express';
 import { BillingService } from './billing.service';
 import { CashAdvanceService } from './cash-advance.service';
 import { CollectionsService } from './collections.service';
+import { TimeSuggestionsService } from './time-suggestions.service';
 import {
   CreateTimeEntryDto,
+  UpdateTimeEntryDto,
   CreateExpenseDto,
   CreateStandaloneExpenseDto,
   CreateInvoiceDto,
@@ -27,8 +30,15 @@ import {
   UpdateExpenseClaimStatusDto,
   SubmitExpensesDto,
   IssueCashAdvanceDto,
+  ReturnCashAdvanceDto,
+  SettleCashAdvanceDto,
+  CashAdvanceReconciliationDto,
+  UpdateExpenseReceiptNoDto,
   RecordPaymentDto,
   CollectionFollowUpDto,
+  WriteOffDto,
+  SetInvoiceDiscountDto,
+  ConfirmTimeEntriesDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -50,7 +60,33 @@ export class BillingController {
     private fileStorage: FileStorageService,
     private cashAdvanceService: CashAdvanceService,
     private collectionsService: CollectionsService,
+    private timeSuggestionsService: TimeSuggestionsService,
   ) {}
+
+  @Get('time-entries/default-rate')
+  async getDefaultTimeRate(@CurrentUser() user: AuthUser) {
+    return { rate: await this.billingService.resolveDefaultRate(user.firmId, user.id) };
+  }
+
+  @Get('time-entries/suggestions')
+  getTimeSuggestions(@CurrentUser() user: AuthUser, @Query('date') date: string) {
+    return this.timeSuggestionsService.suggest(user, date);
+  }
+
+  @Post('time-entries/confirm')
+  confirmTimeEntries(@CurrentUser() user: AuthUser, @Body() dto: ConfirmTimeEntriesDto) {
+    return this.timeSuggestionsService.confirm(user, dto.entries);
+  }
+
+  @Get('time-entries')
+  getFirmTimesheet(
+    @CurrentUser() user: AuthUser,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.timeSuggestionsService.timesheet(user, { from, to, userId });
+  }
 
   @Get('petty-cash')
   @UseGuards(FirmRoleGuard)
@@ -72,6 +108,42 @@ export class BillingController {
   @Get('cash-advances/mine')
   listMyCashAdvances(@CurrentUser() user: AuthUser) {
     return this.cashAdvanceService.listMineWithBalance(user);
+  }
+
+  @Get('cash-advances/reconciliation')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('issueCashAdvance')
+  reconcileCashAdvances(@CurrentUser() user: AuthUser, @Query() filters: CashAdvanceReconciliationDto) {
+    return this.cashAdvanceService.reconciliation(user, filters);
+  }
+
+  @Post('cash-advances/:id/return')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('issueCashAdvance')
+  returnCashAdvance(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: ReturnCashAdvanceDto,
+  ) {
+    return this.cashAdvanceService.recordReturn(user, id, dto.amount, dto.note);
+  }
+
+  @Post('cash-advances/:id/settle')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('issueCashAdvance')
+  settleCashAdvance(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: SettleCashAdvanceDto,
+  ) {
+    return this.cashAdvanceService.settle(user, id, dto.note);
+  }
+
+  @Get('cash-advances/:id/expenses')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('issueCashAdvance')
+  listCashAdvanceExpenses(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.cashAdvanceService.listExpenses(user, id);
   }
 
   @Get('finance/summary')
@@ -105,6 +177,15 @@ export class BillingController {
     @UploadedFile() receipt?: Express.Multer.File,
   ) {
     return this.billingService.createStandaloneExpense(user, dto, receipt);
+  }
+
+  @Patch('expenses/:expenseId/receipt-no')
+  updateExpenseReceiptNo(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId') expenseId: string,
+    @Body() dto: UpdateExpenseReceiptNoDto,
+  ) {
+    return this.billingService.updateExpenseReceiptNo(user, expenseId, dto.officialReceiptNo);
   }
 
   @Get('expenses/:expenseId/receipt')
@@ -166,6 +247,24 @@ export class BillingController {
     return this.billingService.setExpenseBillable(user, expenseId, dto.billable);
   }
 
+  @Patch('expenses/:expenseId/write-off')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  writeOffExpense(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId', ParseUUIDPipe) expenseId: string,
+    @Body() dto: WriteOffDto,
+  ) {
+    return this.billingService.writeOffExpense(user, expenseId, dto.reason);
+  }
+
+  @Delete('expenses/:expenseId/write-off')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  undoExpenseWriteOff(@CurrentUser() user: AuthUser, @Param('expenseId', ParseUUIDPipe) expenseId: string) {
+    return this.billingService.undoExpenseWriteOff(user, expenseId);
+  }
+
   @Patch('expenses/:expenseId/status')
   @UseGuards(FirmRoleGuard)
   @RequireCapability('approveExpenses')
@@ -197,6 +296,50 @@ export class BillingController {
     @Body() dto: CreateTimeEntryDto,
   ) {
     return this.billingService.createTimeEntry(user, caseId, dto);
+  }
+
+  @Patch('cases/:caseId/billing/time-entries/:entryId')
+  @UseGuards(CaseAccessGuard)
+  updateTimeEntry(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+    @Body() dto: UpdateTimeEntryDto,
+  ) {
+    return this.billingService.updateTimeEntry(user, caseId, entryId, dto);
+  }
+
+  @Delete('cases/:caseId/billing/time-entries/:entryId')
+  @UseGuards(CaseAccessGuard)
+  deleteTimeEntry(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+  ) {
+    return this.billingService.deleteTimeEntry(user, caseId, entryId);
+  }
+
+  @Patch('cases/:caseId/billing/time-entries/:entryId/write-off')
+  @UseGuards(CaseAccessGuard, FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  writeOffTimeEntry(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+    @Body() dto: WriteOffDto,
+  ) {
+    return this.billingService.writeOffTimeEntry(user, caseId, entryId, dto.reason);
+  }
+
+  @Delete('cases/:caseId/billing/time-entries/:entryId/write-off')
+  @UseGuards(CaseAccessGuard, FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  undoTimeEntryWriteOff(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+  ) {
+    return this.billingService.undoTimeEntryWriteOff(user, caseId, entryId);
   }
 
   @Get('cases/:caseId/billing/expenses')
@@ -312,6 +455,17 @@ export class BillingController {
   @RequireCapability('manageInvoices')
   sendInvoiceReminder(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     return this.collectionsService.sendReminder(user, invoiceId);
+  }
+
+  @Patch('invoices/:invoiceId/discount')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  setInvoiceDiscount(
+    @CurrentUser() user: AuthUser,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @Body() dto: SetInvoiceDiscountDto,
+  ) {
+    return this.billingService.setInvoiceDiscount(user, invoiceId, dto);
   }
 
   @Get('invoices/owner-worklist')

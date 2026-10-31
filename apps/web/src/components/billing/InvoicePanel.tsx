@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { allocateShares } from '@/lib/invoice-split';
 import { buildBillingDocHtml, openBillingDocWindow } from '@/lib/billing-doc';
+import { hasFirmCapability, MONEY_MAX } from '@lawfirm/shared';
 import { formatCurrency } from '@/lib/utils';
 import { InlineEmptyState } from '@/components/ui/misc';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
@@ -66,6 +67,13 @@ export function InvoicePanel({
   const [items, setItems] = useState<{ description: string; quantity: string; unitPrice: string }[]>([]);
   const [shareOverrides, setShareOverrides] = useState<Record<string, string>>({});
   const [billToId, setBillToId] = useState('');
+  const [discount, setDiscount] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
+  // ใบที่ออกมาแล้วแต่ยังเป็นร่าง ตั้ง/แก้ส่วนลดได้ทีละใบ
+  const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null);
+  const [editDiscount, setEditDiscount] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const canDiscount = hasFirmCapability(user?.firmRole, 'manageInvoices');
 
   const handlePrint = async (invoiceId: string, kind: 'INVOICE' | 'RECEIPT') => {
     if (!token) return;
@@ -88,6 +96,8 @@ export function InvoicePanel({
           billTo: data.billToCustomer ?? null,
           lines,
           totalAmount: data.totalAmount,
+          discountAmount: data.discountAmount,
+          discountReason: data.discountReason,
         }),
       );
       if (!ok) setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาต popup สำหรับเว็บไซต์นี้');
@@ -136,6 +146,11 @@ export function InvoicePanel({
       0,
     );
 
+  // ใบที่แบ่งผู้จ่ายหลายรายตั้งส่วนลดตอนออกไม่ได้ — ต้องออกก่อนแล้วตั้งรายใบ
+  const canDiscountAtCreate = customers.length <= 1;
+  const discountAmount = canDiscountAtCreate ? parseFloat(discount) || 0 : 0;
+  const netTotal = total - discountAmount;
+
   // สัดส่วนที่ยังไม่ตกลงกัน ถือว่าหารเท่ากับรายอื่น — ตรงกับฝั่ง API
   const shareOf = (customer: CustomerShareItem) => {
     const override = shareOverrides[customer.customerId];
@@ -160,6 +175,14 @@ export function InvoicePanel({
       setError('เลือกงานที่จะเก็บเงิน หรือเพิ่มรายการเอง');
       return;
     }
+    if (discountAmount > total) {
+      setError('ส่วนลดต้องไม่เกินยอดก่อนหัก');
+      return;
+    }
+    if (discountAmount > 0 && !discountReason.trim()) {
+      setError('ส่วนลดต้องระบุเหตุผล');
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -172,6 +195,8 @@ export function InvoicePanel({
             ? customers.map((c) => ({ customerId: c.customerId, sharePercent: shareOf(c) }))
             : undefined,
         billToCustomerId: standalone && billToId ? billToId : undefined,
+        discountAmount: discountAmount > 0 ? discountAmount : undefined,
+        discountReason: discountAmount > 0 ? discountReason.trim() : undefined,
       };
       if (caseId) await api.createInvoice(token, caseId, payload);
       else if (intakeId) await api.createIntakeInvoice(token, intakeId, payload);
@@ -181,6 +206,8 @@ export function InvoicePanel({
       setDueAt('');
       setShareOverrides({});
       setBillToId('');
+      setDiscount('');
+      setDiscountReason('');
       setShowForm(false);
       load();
       onChanged?.();
@@ -188,6 +215,34 @@ export function InvoicePanel({
       setError(err instanceof Error ? err.message : 'ออกใบแจ้งหนี้ไม่สำเร็จ กรุณาลองใหม่');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const startEditDiscount = (inv: InvoiceItem) => {
+    setEditingDiscountId(inv.id);
+    setEditDiscount(inv.discountAmount ? String(inv.discountAmount) : '');
+    setEditReason(inv.discountReason ?? '');
+    setError('');
+  };
+
+  const saveDiscount = async (inv: InvoiceItem) => {
+    if (!token) return;
+    const amount = parseFloat(editDiscount) || 0;
+    const subtotal = inv.totalAmount + (inv.discountAmount ?? 0);
+    if (amount > subtotal) return setError('ส่วนลดต้องไม่เกินยอดก่อนหัก');
+    if (amount > 0 && !editReason.trim()) return setError('ส่วนลดต้องระบุเหตุผล');
+    setError('');
+    try {
+      await api.setInvoiceDiscount(
+        inv.id,
+        { discountAmount: amount, discountReason: amount > 0 ? editReason.trim() : undefined },
+        token,
+      );
+      setEditingDiscountId(null);
+      load();
+      onChanged?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'บันทึกส่วนลดไม่สำเร็จ กรุณาลองใหม่');
     }
   };
 
@@ -363,9 +418,47 @@ export function InvoicePanel({
               />
             </label>
             <p className="text-sm">
-              รวม <span className="font-semibold tabular-nums">{formatCurrency(total)}</span>
+              {discountAmount > 0 ? 'รวมก่อนหักส่วนลด' : 'รวม'}{' '}
+              <span className="font-semibold tabular-nums">{formatCurrency(total)}</span>
             </p>
           </div>
+
+          {canDiscount && canDiscountAtCreate && (
+            <div className="space-y-2 rounded-lg bg-muted p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label htmlFor="invoice-discount" className="text-sm font-medium">ส่วนลด (บาท)</label>
+                <MoneyInput
+                  id="invoice-discount"
+                  min={0}
+                  max={MONEY_MAX}
+                  value={discount}
+                  onValueChange={setDiscount}
+                  className="h-10 w-36 rounded-lg border border-border bg-card px-3 py-2 text-right text-sm tabular-nums"
+                />
+              </div>
+              {discountAmount > 0 && (
+                <>
+                  <input
+                    aria-label="เหตุผลที่ให้ส่วนลด"
+                    value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)}
+                    placeholder="เหตุผลที่ให้ส่วนลด"
+                    maxLength={500}
+                    className="h-10 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <p className="flex justify-between text-sm">
+                    <span>ยอดสุทธิหลังหักส่วนลด</span>
+                    <span className="font-semibold tabular-nums">{formatCurrency(netTotal)}</span>
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+          {canDiscount && !canDiscountAtCreate && (
+            <p className="text-xs text-muted-foreground">
+              ใบที่แบ่งผู้จ่ายตั้งส่วนลดตอนออกไม่ได้ — ออกใบแล้วตั้งส่วนลดทีละใบได้จากรายการใบแจ้งหนี้
+            </p>
+          )}
 
           {customers.length > 1 && (
             <div className="space-y-2 rounded-lg bg-muted p-3">
@@ -415,11 +508,13 @@ export function InvoicePanel({
       </SideDrawer>
 
       {!formOnly && <div className="space-y-2">
+        {!showForm && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {invoices.map((inv) => (
           <div
             key={inv.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-border px-3 py-2 text-sm"
           >
+           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
               <span className="font-medium">{inv.invoiceNumber}</span>
               {inv.billToCustomer && (
@@ -429,6 +524,12 @@ export function InvoicePanel({
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="tabular-nums">{formatCurrency(inv.totalAmount)}</p>
+                {!!inv.discountAmount && inv.discountAmount > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    ส่วนลด -{formatCurrency(inv.discountAmount)}
+                    {inv.discountReason ? ` (${inv.discountReason})` : ''}
+                  </p>
+                )}
                 <Badge variant={inv.status === 'PAID' ? 'success' : inv.status === 'SENT' ? 'default' : 'muted'}>
                   {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
                 </Badge>
@@ -440,7 +541,42 @@ export function InvoicePanel({
               >
                 {inv.status === 'PAID' ? 'พิมพ์ใบเสร็จ' : 'พิมพ์ใบแจ้งหนี้'}
               </button>
+              {canDiscount && inv.status === 'DRAFT' && editingDiscountId !== inv.id && (
+                <button
+                  type="button"
+                  aria-label={`ส่วนลด: ${inv.invoiceNumber}`}
+                  onClick={() => startEditDiscount(inv)}
+                  className="min-h-11 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent sm:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  ส่วนลด
+                </button>
+              )}
             </div>
+           </div>
+           {editingDiscountId === inv.id && (
+             <div className="mt-2 space-y-2 rounded-lg bg-muted/40 p-2">
+               <MoneyInput
+                 aria-label={`ส่วนลดของ ${inv.invoiceNumber}`}
+                 min={0}
+                 max={MONEY_MAX}
+                 value={editDiscount}
+                 onValueChange={setEditDiscount}
+                 className="h-10 w-full rounded-lg border border-border bg-card px-3 py-2 text-right text-sm tabular-nums"
+               />
+               <input
+                 aria-label={`เหตุผลส่วนลดของ ${inv.invoiceNumber}`}
+                 value={editReason}
+                 onChange={(e) => setEditReason(e.target.value)}
+                 placeholder="เหตุผลที่ให้ส่วนลด"
+                 maxLength={500}
+                 className="h-10 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+               />
+               <div className="flex gap-2">
+                 <Button type="button" size="sm" onClick={() => void saveDiscount(inv)}>บันทึกส่วนลด</Button>
+                 <Button type="button" size="sm" variant="outline" onClick={() => setEditingDiscountId(null)}>ยกเลิก</Button>
+               </div>
+             </div>
+           )}
           </div>
         ))}
         {invoices.length === 0 && (

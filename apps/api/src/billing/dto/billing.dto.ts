@@ -2,6 +2,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ArrayMaxSize,
   ArrayMinSize,
   IsNotEmpty,
   IsBoolean,
@@ -60,7 +61,37 @@ export class CreateTimeEntryDto {
   billable?: boolean;
 }
 
+export class UpdateTimeEntryDto {
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(HOURS_MIN)
+  @Max(HOURS_MAX)
+  hours?: number;
+
+  @IsOptional()
+  @IsNumber(money)
+  @Min(0)
+  @Max(MONEY_MAX)
+  rate?: number;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+}
+
 export class CreateExpenseDto {
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(100)
+  officialReceiptNo?: string;
+
   @Type(() => Number)
   @IsNumber(money)
   @Min(MONEY_MIN)
@@ -141,6 +172,36 @@ export class IssueCashAdvanceDto {
 export class UpdateExpenseStatusDto {
   @IsEnum(ExpenseStatus)
   status!: ExpenseStatus;
+}
+
+export class SettleCashAdvanceDto {
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
+export class ReturnCashAdvanceDto extends SettleCashAdvanceDto {
+  @Type(() => Number)
+  @IsNumber(money)
+  @Min(MONEY_MIN)
+  @Max(MONEY_MAX)
+  amount!: number;
+}
+
+export class CashAdvanceReconciliationDto {
+  @IsOptional()
+  @IsIn(['open', 'settled'])
+  status?: 'open' | 'settled';
+}
+
+export class UpdateExpenseReceiptNoDto {
+  @ValidateIf((_object, value) => value !== null)
+  @Trim()
+  @IsString()
+  @MaxLength(100)
+  officialReceiptNo!: string | null;
 }
 
 export class UpdateExpenseClaimStatusDto {
@@ -228,6 +289,19 @@ export class CreateInvoiceDto {
   @Type(() => InvoiceLineItemDto)
   lineItems?: InvoiceLineItemDto[];
 
+  /** ส่วนลดทั้งใบ — ยอดสุดท้ายคำนวณที่ server เสมอ */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber(money)
+  @Min(0)
+  @Max(MONEY_MAX)
+  discountAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  discountReason?: string;
+
   /** บันทึกเวลาในคดีที่จะเก็บเงินรอบนี้ — ราคาอ่านจาก DB ไม่เชื่อค่าที่ส่งมา */
   @IsOptional()
   @IsArray()
@@ -239,6 +313,50 @@ export class CreateInvoiceDto {
   @IsArray()
   @IsUUID('4', { each: true })
   expenseIds?: string[];
+}
+
+export class ConfirmTimeEntryDto {
+  @IsUUID()
+  caseId!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.25)
+  @Max(24)
+  hours!: number;
+
+  /** ว่าง = ใช้ FirmMember.defaultHourlyRate ของผู้ยืนยัน (ไม่ตั้งไว้ = 0) */
+  @IsOptional()
+  @IsNumber(money)
+  @Min(0)
+  @Max(MONEY_MAX)
+  rate?: number;
+
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  description!: string;
+
+  @IsDateString()
+  date!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  sourceKey?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  billable?: boolean;
+}
+
+export class ConfirmTimeEntriesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => ConfirmTimeEntryDto)
+  entries!: ConfirmTimeEntryDto[];
 }
 
 export class RecordPaymentDto {
@@ -287,4 +405,23 @@ export class CollectionFollowUpDto {
   @IsString()
   @MaxLength(2000)
   note?: string | null;
+}
+
+export class WriteOffDto {
+  @IsString()
+  @MaxLength(500)
+  reason!: string;
+}
+
+export class SetInvoiceDiscountDto {
+  @Type(() => Number)
+  @IsNumber(money)
+  @Min(0)
+  @Max(MONEY_MAX)
+  discountAmount!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  discountReason?: string;
 }

@@ -35,12 +35,12 @@ export class ReminderScheduler {
     private notifier: AssignmentNotifierService,
   ) {}
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Cron(CronExpression.EVERY_10_MINUTES, { timeZone: 'Asia/Bangkok' })
   async processReminders() {
     const now = new Date();
     const horizon = new Date(now.getTime() + MAX_REMINDER_LEAD_MINUTES * 60 * 1000);
     const events = await this.prisma.calendarEvent.findMany({
-      where: { startAt: { gt: now, lte: horizon }, case: { deletedAt: null } },
+      where: { startAt: { gt: now, lte: horizon }, case: { deletedAt: null, status: { notIn: ['CLOSED', 'ARCHIVED'] } } },
       include: { reminderLogs: true, case: true, ...eventAssigneesInclude },
     });
 

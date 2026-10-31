@@ -68,6 +68,16 @@ describe('TemplatesService', () => {
       const vars = await service.caseVariables('firm-1', 'case-1');
       expect([vars.nextHearingDate, vars.nextHearingTime, vars.nextHearingCourt]).toEqual(['', '', '']);
     });
+    it("fills lawyerLicenseNo from the lead lawyer's licence, empty when unset", async () => {
+      mockPrisma.calendarEvent.findFirst.mockResolvedValue(null);
+      mockPrisma.case.findFirst.mockResolvedValue({
+        ...legalCase,
+        leadLawyer: { ...legalCase.leadLawyer, lawyerLicenseNo: '12345/2560' },
+      });
+      expect((await service.caseVariables('firm-1', 'case-1')).lawyerLicenseNo).toBe('12345/2560');
+      mockPrisma.case.findFirst.mockResolvedValue(legalCase);
+      expect((await service.caseVariables('firm-1', 'case-1')).lawyerLicenseNo).toBe('');
+    });
   });
 
   describe('render', () => {

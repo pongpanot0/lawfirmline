@@ -14,10 +14,14 @@ export class CloseCaseDto {
   outcome!: CaseOutcome;
 
   /**
-   * รับทราบว่ายังมีงาน/วันนัด/เอกสารค้างอยู่ แล้วยืนยันจะปิด
+   * รับทราบว่ายังมีรายการค้างอยู่ แล้วยืนยันจะปิด
    * ระบบไม่ตัดสินใจแทน แต่ต้องให้เห็นก่อนกดปิด
    */
   @IsOptional()
   @IsBoolean()
   acknowledgeOutstanding?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  removeFutureEvents?: boolean;
 }

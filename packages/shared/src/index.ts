@@ -1115,4 +1115,5 @@ export * from './default-playbooks';
 export * from './task-review';
 export * from './office-routines';
 export * from './email-quote';
+export * from './office-operations';
 export * from './secretary';

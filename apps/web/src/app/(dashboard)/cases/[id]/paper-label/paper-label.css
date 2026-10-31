@@ -1,0 +1,20 @@
+#paper-file-print {
+  display: none;
+}
+
+@media print {
+  @page paper-file-label {
+    margin: 12mm;
+  }
+
+  body:has(> #paper-file-print) > :not(#paper-file-print) {
+    display: none !important;
+  }
+
+  body > #paper-file-print {
+    display: block !important;
+    page: paper-file-label;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
