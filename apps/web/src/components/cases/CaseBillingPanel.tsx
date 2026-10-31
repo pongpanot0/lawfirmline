@@ -25,6 +25,14 @@ import { Plus } from 'lucide-react';
 
 const WRITE_OFF_MIN_REASON = 5;
 
+// ตรงกับ unbilledTimeWhere / unbilledExpenseWhere ฝั่ง API — ตัดทิ้งได้เฉพาะงานที่ยังเรียกเก็บได้จริง
+const canWriteOffTime = (e: TimeEntryItem) => e.billable !== false && !e.invoiceId && !e.writtenOffAt;
+const canWriteOffExpense = (e: ExpenseItem) =>
+  e.billable !== false &&
+  !e.invoiceId &&
+  !e.writtenOffAt &&
+  (e.status === ExpenseStatus.APPROVED || e.status === ExpenseStatus.PAID);
+
 /** ปุ่มตัดทิ้ง → กรอกเหตุผล (อย่างน้อย 5 ตัวอักษร) → ยืนยัน */
 function WriteOffAction({ label, onConfirm }: { label: string; onConfirm: (reason: string) => Promise<void> }) {
   const [open, setOpen] = useState(false);
@@ -343,7 +351,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                  onUndo={canWriteOff && !e.invoiceId && token ? () => void handleUndoWriteOff(() => api.undoExpenseWriteOff(e.id, token)) : undefined}
                />
              ) : (
-               canWriteOff && !e.invoiceId && token && (
+               canWriteOff && canWriteOffExpense(e) && token && (
                  <WriteOffAction
                    label={e.description}
                    onConfirm={async (reason) => { await api.writeOffExpense(e.id, reason, token); load(); }}
@@ -391,7 +399,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                  onUndo={canWriteOff && !e.invoiceId && token ? () => void handleUndoWriteOff(() => api.undoTimeEntryWriteOff(id, e.id, token)) : undefined}
                />
              ) : (
-               canWriteOff && !e.invoiceId && token && (
+               canWriteOff && canWriteOffTime(e) && token && (
                  <WriteOffAction
                    label={e.description || d.caseBilling.timeEntry}
                    onConfirm={async (reason) => { await api.writeOffTimeEntry(id, e.id, reason, token); load(); }}

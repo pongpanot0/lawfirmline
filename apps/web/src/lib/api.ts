@@ -3964,6 +3964,7 @@ export interface TimeEntryItem {
   date: string;
   user: { firstName: string; lastName: string };
   invoiceId?: string | null;
+  billable?: boolean;
   writtenOffAt?: string | null;
   writtenOffBy?: { id: string; firstName: string; lastName: string } | null;
   writeOffReason?: string | null;

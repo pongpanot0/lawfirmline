@@ -52,7 +52,7 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
   });
 
   describe('time entry write-off', () => {
-    const entry = { id: 'te-1', invoiceId: null, writtenOffAt: null, hours: 2, rate: 1000 };
+    const entry = { id: 'te-1', invoiceId: null, writtenOffAt: null, billable: true, hours: 2, rate: 1000 };
 
     it('writes off an unbilled entry with reason and audit', async () => {
       mockPrisma.timeEntry.findFirst.mockResolvedValue(entry);
@@ -62,7 +62,7 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
         expect.objectContaining({ where: { id: 'te-1', caseId: 'case-1', case: { firmId: 'firm-1' } } }),
       );
       expect(mockPrisma.timeEntry.updateMany).toHaveBeenCalledWith({
-        where: { id: 'te-1', invoiceId: null, writtenOffAt: null },
+        where: { id: 'te-1', ...unbilledTimeWhere() },
         data: { writtenOffAt: expect.any(Date), writtenOffById: 'user-1', writeOffReason: 'ลูกความไม่ได้ตกลงค่าชั่วโมงนี้' },
       });
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
@@ -72,6 +72,12 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
 
     it('rejects write-off of an invoiced entry', async () => {
       mockPrisma.timeEntry.findFirst.mockResolvedValue({ ...entry, invoiceId: 'inv-1' });
+      await expect(billing.writeOffTimeEntry(user, 'case-1', 'te-1', 'เหตุผลที่ยาวพอ')).rejects.toThrow(ConflictException);
+      expect(mockPrisma.timeEntry.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects write-off of a non-billable entry', async () => {
+      mockPrisma.timeEntry.findFirst.mockResolvedValue({ ...entry, billable: false });
       await expect(billing.writeOffTimeEntry(user, 'case-1', 'te-1', 'เหตุผลที่ยาวพอ')).rejects.toThrow(ConflictException);
       expect(mockPrisma.timeEntry.updateMany).not.toHaveBeenCalled();
     });
@@ -110,7 +116,7 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
   });
 
   describe('expense write-off', () => {
-    const expense = { id: 'ex-1', caseId: 'case-1', invoiceId: null, writtenOffAt: null, amount: 300 };
+    const expense = { id: 'ex-1', caseId: 'case-1', invoiceId: null, writtenOffAt: null, billable: true, status: 'APPROVED', amount: 300 };
 
     it('writes off scoped by the firm expense filter, with audit', async () => {
       mockPrisma.expense.findFirst.mockResolvedValue(expense);
@@ -119,11 +125,25 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
       expect(where.id).toBe('ex-1');
       expect(JSON.stringify(where.OR)).toContain('firm-1');
       expect(mockPrisma.expense.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'ex-1', invoiceId: null, writtenOffAt: null } }),
+        expect.objectContaining({ where: { id: 'ex-1', ...unbilledExpenseWhere() } }),
       );
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ action: 'EXPENSE_WRITTEN_OFF' }),
       });
+    });
+
+    it('rejects non-billable, DRAFT/PENDING/REJECTED expenses; allows PAID', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValue({ ...expense, billable: false });
+      await expect(billing.writeOffExpense(user, 'ex-1', 'ค่าถ่ายเอกสารเล็กน้อย')).rejects.toThrow(ConflictException);
+      for (const status of ['DRAFT', 'PENDING', 'REJECTED']) {
+        mockPrisma.expense.findFirst.mockResolvedValue({ ...expense, status });
+        await expect(billing.writeOffExpense(user, 'ex-1', 'ค่าถ่ายเอกสารเล็กน้อย')).rejects.toThrow(ConflictException);
+      }
+      expect(mockPrisma.expense.updateMany).not.toHaveBeenCalled();
+
+      mockPrisma.expense.findFirst.mockResolvedValue({ ...expense, status: 'PAID' });
+      await billing.writeOffExpense(user, 'ex-1', 'ค่าถ่ายเอกสารเล็กน้อย');
+      expect(mockPrisma.expense.updateMany).toHaveBeenCalledTimes(1);
     });
 
     it('rejects invoiced expense and short reason; undo works', async () => {
@@ -138,6 +158,14 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
         data: { writtenOffAt: null, writtenOffById: null, writeOffReason: null },
       });
     });
+  });
+
+  it('getExpenseSummary revenue ignores written-off time', async () => {
+    mockPrisma.expense.aggregate = jest.fn().mockResolvedValue({ _sum: { amount: 0 } });
+    mockPrisma.invoice.aggregate = jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 } });
+    mockPrisma.case.findUnique.mockResolvedValue({ estimatedFee: null });
+    await billing.getExpenseSummary('case-1');
+    expect(mockPrisma.timeEntry.findMany.mock.calls[0][0].where).toEqual({ caseId: 'case-1', billable: true, writtenOffAt: null });
   });
 
   it('getInvoiceDraft excludes written-off time and expenses', async () => {

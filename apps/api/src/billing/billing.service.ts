@@ -167,7 +167,7 @@ export class BillingService {
         select: { estimatedFee: true },
       }),
       this.prisma.timeEntry.findMany({
-        where: { caseId, billable: true },
+        where: { caseId, billable: true, writtenOffAt: null },
         select: { hours: true, rate: true },
       }),
       this.prisma.invoice.aggregate({
@@ -1043,13 +1043,14 @@ export class BillingService {
     const trimmed = this.assertWriteOffReason(reason);
     const entry = await this.prisma.timeEntry.findFirst({
       where: { id: entryId, caseId, case: { firmId: user.firmId } },
-      select: { id: true, invoiceId: true, writtenOffAt: true, hours: true, rate: true },
+      select: { id: true, invoiceId: true, writtenOffAt: true, billable: true, hours: true, rate: true },
     });
     if (!entry) throw new NotFoundException('Time entry not found');
     if (entry.invoiceId) throw new ConflictException('รายการนี้ออกใบแจ้งหนี้ไปแล้ว ตัดทิ้งไม่ได้');
     if (entry.writtenOffAt) throw new ConflictException('รายการนี้ถูกตัดทิ้งไปแล้ว');
+    if (!entry.billable) throw new ConflictException('รายการนี้ไม่ได้เรียกเก็บอยู่แล้ว ตัดทิ้งไม่ได้');
     const result = await this.prisma.timeEntry.updateMany({
-      where: { id: entryId, invoiceId: null, writtenOffAt: null },
+      where: { id: entryId, ...unbilledTimeWhere() },
       data: { writtenOffAt: new Date(), writtenOffById: user.id, writeOffReason: trimmed },
     });
     if (result.count !== 1) throw new ConflictException('รายการเปลี่ยนไปแล้ว กรุณาโหลดล่าสุด');
@@ -1078,13 +1079,17 @@ export class BillingService {
     const trimmed = this.assertWriteOffReason(reason);
     const expense = await this.prisma.expense.findFirst({
       where: { id: expenseId, ...this.getFirmExpenseFilter(user.firmId) },
-      select: { id: true, caseId: true, invoiceId: true, writtenOffAt: true, amount: true },
+      select: { id: true, caseId: true, invoiceId: true, writtenOffAt: true, billable: true, status: true, amount: true },
     });
     if (!expense) throw new NotFoundException('Expense not found');
     if (expense.invoiceId) throw new ConflictException('รายการนี้ออกใบแจ้งหนี้ไปแล้ว ตัดทิ้งไม่ได้');
     if (expense.writtenOffAt) throw new ConflictException('รายการนี้ถูกตัดทิ้งไปแล้ว');
+    if (!expense.billable) throw new ConflictException('สำนักงานออกค่าใช้จ่ายนี้เอง ไม่ได้เรียกเก็บ ตัดทิ้งไม่ได้');
+    if (expense.status !== ExpenseStatus.APPROVED && expense.status !== ExpenseStatus.PAID) {
+      throw new ConflictException('ตัดทิ้งได้เฉพาะค่าใช้จ่ายที่อนุมัติหรือจ่ายแล้ว');
+    }
     const result = await this.prisma.expense.updateMany({
-      where: { id: expenseId, invoiceId: null, writtenOffAt: null },
+      where: { id: expenseId, ...unbilledExpenseWhere() },
       data: { writtenOffAt: new Date(), writtenOffById: user.id, writeOffReason: trimmed },
     });
     if (result.count !== 1) throw new ConflictException('รายการเปลี่ยนไปแล้ว กรุณาโหลดล่าสุด');
