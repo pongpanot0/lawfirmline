@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, REFRESH_KEY } from '@/lib/auth';
 import { redirectToFirmApp, getBrowserFirmSlug } from '@/lib/firm-slug';
+import { loginReturnPath } from '@/lib/login-return';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuthShell } from '@/components/auth/AuthShell';
@@ -27,12 +28,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (loading || !user) return;
+    const next = loginReturnPath(window.location.search);
     const refresh =
       typeof window !== 'undefined' ? localStorage.getItem(REFRESH_KEY) : null;
-    if (token && refresh && redirectToFirmApp(user, { accessToken: token, refreshToken: refresh })) {
+    if (token && refresh && redirectToFirmApp(user, { accessToken: token, refreshToken: refresh }, next)) {
       return;
     }
-    router.replace('/dashboard');
+    router.replace(next);
   }, [user, loading, router, token]);
 
   // Apex has no localStorage session of its own (tokens live on the firm subdomain) — so
@@ -47,7 +49,7 @@ export default function LoginPage() {
     let cancelled = false;
     void api.apexSession().then((session) => {
       if (cancelled) return;
-      if (session && redirectToFirmApp(session.user, session)) return;
+      if (session && redirectToFirmApp(session.user, session, loginReturnPath(window.location.search))) return;
       setCheckingSession(false);
     });
     return () => {
@@ -72,10 +74,11 @@ export default function LoginPage() {
         setMfaToken(res.mfaToken);
         return;
       }
-      if (redirectToFirmApp(res.user, res)) {
+      const next = loginReturnPath(window.location.search);
+      if (redirectToFirmApp(res.user, res, next)) {
         return;
       }
-      router.push('/dashboard');
+      router.push(next);
     } catch (err) {
       setError(err instanceof ApiError && err.status === 401 ? d.auth.invalidCredentials : d.auth.connectionFailed);
     } finally {
@@ -91,10 +94,11 @@ export default function LoginPage() {
     try {
       const res = await api.verifyMfaLogin(mfaToken, code.trim());
       applySession(res.accessToken, res.refreshToken, res.user);
-      if (redirectToFirmApp(res.user, res)) {
+      const next = loginReturnPath(window.location.search);
+      if (redirectToFirmApp(res.user, res, next)) {
         return;
       }
-      router.push('/dashboard');
+      router.push(next);
     } catch (err) {
       setError(err instanceof ApiError && err.status === 400 ? d.auth.mfaInvalidCode : d.auth.connectionFailed);
     } finally {

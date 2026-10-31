@@ -4,6 +4,7 @@ import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CasePrintForms } from '@/components/cases/CasePrintForms';
 import { CaseOverviewForm, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
 import { CaseProceedingsCard } from '@/components/cases/CaseProceedingsCard';
+import { PaperFileCard } from '@/components/cases/PaperFileCard';
 import { LitigationCalculatorsCard } from '@/components/cases/LitigationCalculatorsCard';
 import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
@@ -1301,6 +1302,7 @@ export default function CaseDetailPage() {
       <div className={styles.workspace}>
         <section className={styles.mainPane} aria-label="ข้อมูลและประวัติคดี">
           <CaseSummaryPanel caseId={id} onChanged={loadCase} />
+          <PaperFileCard key={id} caseId={id} />
           <Card data-testid="case-information">
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-base">{editingOverview ? 'แก้ไขข้อมูลคดี' : 'ข้อมูลคดี'}</CardTitle>

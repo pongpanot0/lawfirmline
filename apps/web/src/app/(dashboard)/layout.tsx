@@ -31,7 +31,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   useEffect(() => {
-    if (!loading && !user) router.replace('/login');
+    if (!loading && !user) {
+      const next = `${pathname}${window.location.search}${window.location.hash}`;
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
+    }
     // A freelancer has exactly one page; the API refuses everything else anyway.
     if (!loading && external && pathname !== '/work') router.replace('/work');
   }, [user, loading, router, external, pathname]);

@@ -12,6 +12,46 @@ export interface LawyerLicense {
   lawyerLicenseExpiresAt: string | null;
 }
 
+export type PaperFileAction = 'CHECK_OUT' | 'CHECK_IN' | 'MOVE';
+type PaperFilePerson = { id: string; firstName: string; lastName: string };
+
+export type PaperFileActionInput = (
+  | { action: 'CHECK_OUT'; holderUserId?: string }
+  | { action: 'CHECK_IN' | 'MOVE'; location: string }
+) & { note?: string };
+
+export interface PaperFileState {
+  id: string;
+  folderId: string;
+  paperFileHolderId: string | null;
+  paperFileLocation: string | null;
+  paperFileHolder: PaperFilePerson | null;
+}
+
+export interface PaperFileDetail extends PaperFileState {
+  history: {
+    id: string;
+    action: PaperFileAction;
+    holder: PaperFilePerson | null;
+    location: string | null;
+    note: string | null;
+    createdBy: PaperFilePerson;
+    createdAt: string;
+  }[];
+}
+
+export interface CheckedOutPaperFiles {
+  items: (PaperFileState & {
+    title: string;
+    ownRef: string;
+    checkedOutAt: string;
+    daysOut: number;
+  })[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface ProceedingActionResult {
   proceeding: CaseProceedingItem | null;
   suggestions: number;
@@ -1864,6 +1904,20 @@ export const api = {
 
   getCase: (token: string, id: string) =>
     request<CaseDetail>(`/cases/${id}`, { token }),
+
+  getPaperFile: (token: string, caseId: string) =>
+    request<PaperFileDetail>(`/cases/${encodeURIComponent(caseId)}/paper-file`, { token }),
+
+  recordPaperFileMovement: (token: string, caseId: string, data: PaperFileActionInput) =>
+    request<PaperFileState>(`/cases/${encodeURIComponent(caseId)}/paper-file`, {
+      token, method: 'POST', body: JSON.stringify(data),
+    }),
+
+  resolvePaperFile: (token: string, folderId: string) =>
+    request<{ caseId: string }>(`/paper-files/by-folder/${encodeURIComponent(folderId)}`, { token }),
+
+  getCheckedOutPaperFiles: (token: string, page = 1, pageSize = 20) =>
+    request<CheckedOutPaperFiles>(`/paper-files/checked-out?page=${page}&pageSize=${pageSize}`, { token }),
 
   deleteCase: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/cases/${id}`, { method: 'DELETE', token }),
