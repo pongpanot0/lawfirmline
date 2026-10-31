@@ -16,3 +16,9 @@ export interface MatterBrief {
   openTasks: MatterTaskItem[];
   leadLawyerName: string | null;
 }
+
+export type SecretaryCard =
+  | { type: 'case'; id: string; title: string; ownRef: string | null }
+  | { type: 'intake'; id: string; title: string }
+  | { type: 'document'; id: string; caseId: string | null; filename: string }
+  | { type: 'event'; id: string; caseId: string; title: string; startAt: string };
