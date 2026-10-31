@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { CaseOutcome, CaseStage, CourtLevel, PartyRole, PLAN_LIMIT_CASES } from '@lawfirm/shared';
 import { ConflictException } from '@nestjs/common';
 import { CasesService, CaseImportParams } from './cases.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
@@ -54,6 +55,7 @@ describe('CasesService.createForImport', () => {
         { provide: CaseActivitiesService, useValue: { create: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: notifier },
         { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn(), recordForCase: jest.fn() } },
+        { provide: CalendarService, useValue: { remove: jest.fn() } },
       ],
     }).compile();
     service = module.get(CasesService);
