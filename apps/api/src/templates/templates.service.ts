@@ -97,8 +97,7 @@ export class TemplatesService {
       supremeBlackCaseNumber: supreme?.blackCaseNumber ?? '',
       supremeRedCaseNumber: supreme?.redCaseNumber ?? '',
       lawyerName: `${legalCase.leadLawyer.firstName} ${legalCase.leadLawyer.lastName}`,
-      // ponytail: no license-number field exists on User/FirmMember yet — leave
-      // {{lawyerLicenseNo}} unfilled (reported missing) until one is added.
+      lawyerLicenseNo: legalCase.leadLawyer.lawyerLicenseNo ?? '',
     };
   }
 

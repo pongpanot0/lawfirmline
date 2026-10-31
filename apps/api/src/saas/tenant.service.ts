@@ -200,6 +200,9 @@ export class TenantService {
             firstName: true,
             lastName: true,
             role: true,
+            lawyerLicenseNo: true,
+            lawyerLicenseType: true,
+            lawyerLicenseExpiresAt: true,
           },
         },
       },
@@ -216,6 +219,9 @@ export class TenantService {
       joinedAt: m.createdAt.toISOString(),
       monthlyBillableTargetHours: m.monthlyBillableTargetHours,
       defaultHourlyRate: m.defaultHourlyRate,
+      lawyerLicenseNo: m.user.lawyerLicenseNo,
+      lawyerLicenseType: m.user.lawyerLicenseType,
+      lawyerLicenseExpiresAt: m.user.lawyerLicenseExpiresAt?.toISOString().slice(0, 10) ?? null,
     }));
   }
 
