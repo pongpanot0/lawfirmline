@@ -8,7 +8,8 @@
     "start": "expo start",
     "ios": "expo start --ios",
     "android": "expo start --android",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/lib/secretary.test.mjs src/api/secretary.test.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/anuphan": "^0.4.1",
@@ -19,6 +20,7 @@
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-query-persist-client": "^5.62.0",
     "expo": "~56.0.21",
+    "expo-audio": "~56.0.13",
     "expo-constants": "~56.0.25",
     "expo-dev-client": "~56.0.26",
     "expo-device": "~56.0.4",

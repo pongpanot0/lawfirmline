@@ -17,6 +17,8 @@ import {
   CalendarOff,
   Search,
   Mail,
+  Mic,
+  ClipboardList,
   Users,
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
@@ -227,6 +229,21 @@ export default function MyDayScreen() {
           ) : pendingActions > 0 ? <View style={styles.bellDot} /> : null}
         </Pressable>
       </View>
+
+      <Pressable accessibilityRole="button" accessibilityLabel="เลขา · พิมพ์หรือพูดถามข้อมูลคดี"
+        onPress={() => router.push('/secretary')} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 80, marginBottom: spacing.md }}>
+          <Mic size={30} color={colors.ink} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ ...typeScale.section, color: colors.ink }}>เลขา</Text>
+            <Text style={{ ...typeScale.meta, color: colors.muted }}>พิมพ์หรือพูดถามข้อมูลคดี</Text>
+          </View>
+          <ChevronRight size={22} color={colors.muted} />
+        </Card>
+      </Pressable>
+      {hasFirmCapability(user?.firmRole, 'viewAllCases') ? <View style={{ marginBottom: spacing.md }}>
+        <Button title="สรุปประจำวัน" icon={ClipboardList} variant="secondary" onPress={() => router.push('/brief')} />
+      </View> : null}
 
       {/* Shortcuts stay one tap away under the greeting without pushing today's work down. */}
       <Disclosure variant="plain" title="ทางลัด" summary="ค้นไฟล์ · ค้นอีเมล · ขอลา · รับเคส · ค่าใช้จ่าย · อื่น ๆ">

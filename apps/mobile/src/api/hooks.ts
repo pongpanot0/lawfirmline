@@ -4,9 +4,11 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { api } from './client';
+import { api, ApiError } from './client';
+import { transcribeSecretaryAudio } from './files';
+import { secretaryMessages, type SecretaryMessage } from '../lib/secretary';
 import { calendarRangeQuery } from '../format';
-import type { DailyWorkboard, PersonWorkload } from '@lawfirm/shared';
+import type { DailyBriefData, DailyWorkboard, MatterBrief, PersonWorkload, SecretaryCard } from '@lawfirm/shared';
 import type {
   AppNotification,
   CalendarEventItem,
@@ -28,6 +30,57 @@ export function useMyDay() {
   return useQuery({
     queryKey: ['my-day'],
     queryFn: () => api<MyDayResponse>('/agenda/my-day'),
+  });
+}
+
+export function useSecretaryChat() {
+  return useMutation({
+    retry: false,
+    mutationFn: (messages: SecretaryMessage[]) => api<{ reply: string; cards: SecretaryCard[] }>('/ai/secretary', {
+      method: 'POST', body: { messages: secretaryMessages(messages) },
+    }),
+  });
+}
+
+export function useTranscribe() {
+  return useMutation({ mutationFn: transcribeSecretaryAudio, retry: false });
+}
+
+export function useCaseBrief(caseId: string) {
+  return useQuery({
+    queryKey: ['case-brief', caseId],
+    queryFn: () => api<MatterBrief>(`/cases/${encodeURIComponent(caseId)}/brief`),
+    enabled: !!caseId,
+    retry: false,
+  });
+}
+
+interface DailyBriefResponse {
+  date: string;
+  summary: string | null;
+  data: DailyBriefData;
+  createdAt: string;
+}
+
+export function useDailyBrief(date?: string, enabled = true) {
+  return useQuery({
+    queryKey: ['daily-brief', date ?? 'latest'],
+    queryFn: () => api<DailyBriefResponse>(`/ai/daily-brief${date ? `?date=${encodeURIComponent(date)}` : ''}`)
+      .catch((error: unknown) => {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }),
+    enabled,
+    retry: false,
+  });
+}
+
+export function useDailyBriefDates(enabled = true) {
+  return useQuery({
+    queryKey: ['daily-brief-dates'],
+    queryFn: () => api<string[]>('/ai/daily-brief/dates'),
+    enabled,
+    retry: false,
   });
 }
 
