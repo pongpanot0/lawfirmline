@@ -3,6 +3,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { Prisma } from '../generated/prisma';
 import { ReviewResearchFactDto } from './dto/research.dto';
 import { ConfigService } from '@nestjs/config';
+import { chatModel } from '../common/openai-model';
 import { AI_CREDIT_COST, AuthUser, RedactionCounts, redactForAi, isUnusableAnalysis } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient, type IappDekaSearchResult } from '../intelligence/iapp-legal.client';
@@ -180,7 +181,7 @@ export class IntakePrecedentAnalysisService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: chatModel(this.config),
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },

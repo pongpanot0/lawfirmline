@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { chatModel } from '../common/openai-model';
 import { AI_CREDIT_COST } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 
@@ -50,7 +51,7 @@ export class ReceiptExtractionService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: chatModel(this.config),
           messages: [
             {
               role: 'system',

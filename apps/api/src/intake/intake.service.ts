@@ -2,6 +2,7 @@ import { assertFirmRefs } from '../common/firm-refs';
 import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ConfigService } from '@nestjs/config';
+import { chatModel } from '../common/openai-model';
 import {
   ActivityType,
   AuthUser,
@@ -1050,7 +1051,7 @@ export class IntakeService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: chatModel(this.config),
         messages: [
           {
             role: 'system',
