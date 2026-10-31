@@ -5,7 +5,7 @@ describe('DrivePickerController.folderSuggestions', () => {
   it('delegates to CaseDriveService with default drive/item', async () => {
     const user = { id: 'u1', firmId: 'f1' } as unknown as AuthUser;
     const caseDrive = { folderSuggestions: jest.fn().mockResolvedValue([]) };
-    const controller = new DrivePickerController(caseDrive as never);
+    const controller = new DrivePickerController(caseDrive as never, {} as never);
 
     await controller.folderSuggestions(user, { driveId: 'b!d', itemId: 'ROOT' });
     await controller.folderSuggestions(user, {});
