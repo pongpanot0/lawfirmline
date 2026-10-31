@@ -37,20 +37,28 @@ describe('groupCollectedRatio', () => {
 
 describe('periodRange (Bangkok)', () => {
   const now = new Date('2026-11-15T05:00:00Z');
-  it('quarter = Oct 1 .. Jan 1 (exclusive), 3 months', () => {
+  it('quarter = Oct 1 .. Jan 1 (exclusive)', () => {
     expect(periodRange('quarter', now)).toEqual({
       from: new Date('2026-09-30T17:00:00Z'),
       to: new Date('2026-12-31T17:00:00Z'),
-      months: 3,
+      months: 1.5,
     });
   });
   it('this_month / last_month / year', () => {
-    expect(periodRange('this_month', now)).toEqual({ from: new Date('2026-10-31T17:00:00Z'), to: new Date('2026-11-30T17:00:00Z'), months: 1 });
+    expect(periodRange('this_month', now)).toEqual({ from: new Date('2026-10-31T17:00:00Z'), to: new Date('2026-11-30T17:00:00Z'), months: 0.5 });
     expect(periodRange('last_month', now)).toEqual({ from: new Date('2026-09-30T17:00:00Z'), to: new Date('2026-10-31T17:00:00Z'), months: 1 });
-    expect(periodRange('year', now)).toEqual({ from: new Date('2025-12-31T17:00:00Z'), to: new Date('2026-12-31T17:00:00Z'), months: 12 });
+    expect(periodRange('year', now)).toEqual({ from: new Date('2025-12-31T17:00:00Z'), to: new Date('2026-12-31T17:00:00Z'), months: 10.5 });
   });
   it('uses the Bangkok month at the UTC boundary', () => {
     // 2026-10-31T20:00Z is already Nov 1 in Bangkok
     expect(periodRange('this_month', new Date('2026-10-31T20:00:00Z')).from).toEqual(new Date('2026-10-31T17:00:00Z'));
+  });
+  it('prorates months by days elapsed; past periods stay whole', () => {
+    expect(periodRange('this_month', now).months).toBe(0.5);
+    expect(periodRange('quarter', now).months).toBe(1.5); // Oct 1 + Nov 15/30 + Dec 0
+    expect(periodRange('year', now).months).toBe(10.5);
+    expect(periodRange('last_month', now).months).toBe(1);
+    expect(periodRange('last_month', new Date('2026-11-01T02:00:00Z')).months).toBe(1);
+    expect(periodRange('this_month', new Date('2026-11-30T05:00:00Z')).months).toBe(1);
   });
 });

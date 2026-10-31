@@ -63,7 +63,7 @@ describe('ReportsService.getFirmMetrics', () => {
     expect(a).toMatchObject({ workedHours: 17, invoicedHours: 10, collectedHours: 10, name: 'A X' });
     expect(a.realization).toBe(0.5882);
     expect(a.collection).toBe(1);
-    expect(a.utilization).toBe(0.17);
+    expect(a.utilization).toBe(0.34); // 17 / (100 x 0.5 prorated)
     expect(r.timeBasedBilling).toBe(true);
     expect(r.members.find((m: any) => m.userId === 'b')!.utilization).toBeNull();
   });
@@ -93,8 +93,8 @@ describe('ReportsService.getFirmMetrics', () => {
     expect(r.timeBasedBilling).toBe(false);
     expect(r.firm.workedHours).toBe(12);
     expect(r.firm.targetMonthly).toBe(100);
-    // utilization counts only members who have a target: 8 / (100 x 3)
-    expect(r.firm.utilization).toBe(0.0267);
+    // utilization counts only members who have a target: 8 / (100 x 1.5 prorated months)
+    expect(r.firm.utilization).toBe(0.0533);
     expect(suggest).toHaveBeenCalledTimes(14);
     expect(r.members[0].pendingDrafts7d).toBe(14);
   });

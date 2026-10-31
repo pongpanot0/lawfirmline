@@ -1,33 +1,40 @@
+import { bangkokDayEnd } from '../common/utils/bangkok-time';
 import { bangkokMonthOf, monthRange } from './owner-kpis';
 
 export const METRICS_PERIODS = ['this_month', 'last_month', 'quarter', 'year'] as const;
 export type MetricsPeriod = (typeof METRICS_PERIODS)[number];
 
+const DAY_MS = 86400000;
+
 /**
- * Bangkok calendar range for a period: `from` inclusive, `to` exclusive.
- * Every period is whole calendar months, so `months` (the multiplier for a
- * monthly target) is exact; a to-date period would need a day-weighted count.
+ * Bangkok calendar range for a period: `from` inclusive, `to` exclusive (the query window).
+ * `months` is the multiplier for a monthly target, prorated by days so an in-progress period
+ * is not judged against a full target: each month counts days elapsed (through today) / days
+ * in that month, so past months are 1 and future months are 0.
  */
 export function periodRange(period: MetricsPeriod, now: Date): { from: Date; to: Date; months: number } {
   const current = bangkokMonthOf(now);
   const year = Number(current.slice(0, 4));
   const month = Number(current.slice(5));
   const monthKey = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
-  if (period === 'this_month') {
-    const r = monthRange(current);
-    return { from: r.start, to: r.end, months: 1 };
+  let first: number;
+  let count: number;
+  if (period === 'this_month') [first, count] = [month, 1];
+  else if (period === 'last_month') [first, count] = [month - 1, 1];
+  else if (period === 'quarter') [first, count] = [month - ((month - 1) % 3), 3];
+  else [first, count] = [1, 12];
+
+  const from = monthRange(monthKey(year, first)).start;
+  const to = monthRange(monthKey(year, first + count - 1)).end;
+  const elapsedUntil = bangkokDayEnd(now).getTime();
+  let months = 0;
+  for (let i = 0; i < count; i++) {
+    const { start, end } = monthRange(monthKey(year, first + i));
+    const length = (end.getTime() - start.getTime()) / DAY_MS;
+    const elapsed = Math.min(length, Math.max(0, (elapsedUntil - start.getTime()) / DAY_MS));
+    months += elapsed / length;
   }
-  if (period === 'last_month') {
-    const r = monthRange(current);
-    return { from: r.prevStart, to: r.start, months: 1 };
-  }
-  const firstMonth = period === 'year' ? 1 : month - ((month - 1) % 3);
-  const months = period === 'year' ? 12 : 3;
-  return {
-    from: monthRange(monthKey(year, firstMonth)).start,
-    to: monthRange(monthKey(year, firstMonth + months - 1)).end,
-    months,
-  };
+  return { from, to, months };
 }
 
 /** Paid share of an invoice group; 0 when nothing was billed, capped at 1 (overpayment). */
