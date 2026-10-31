@@ -79,6 +79,17 @@ describe('readCaseImportSheet', () => {
     expect(rows[0].values['ชื่อคดี *']).toBe('คดี ตัวหนา');
     expect(rows[0].values['ทนายหลัก (อีเมล) *']).toBe('a@x.co');
   });
+
+  it('reads a hyperlink whose text is rich text', async () => {
+    const book = new ExcelJS.Workbook();
+    const sheet = book.addWorksheet(CASE_IMPORT_SHEET);
+    sheet.addRow([...CASE_IMPORT_HEADERS]);
+    sheet.getCell('A2').value = { text: { richText: [{ text: 'คดี ' }, { text: 'ลิงก์' }] }, hyperlink: 'https://x.co' } as never;
+    sheet.getCell('B2').value = 'a@x.co';
+    sheet.getCell('C2').value = 'ศาลชั้นต้น';
+    const { rows } = await readCaseImportSheet(Buffer.from(await book.xlsx.writeBuffer()));
+    expect(rows[0].values['ชื่อคดี *']).toBe('คดี ลิงก์');
+  });
 });
 
 describe('parseImportDate', () => {

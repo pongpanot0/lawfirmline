@@ -24,7 +24,8 @@ function cellValue(raw: ExcelJS.CellValue): CellValue | undefined {
   if (typeof raw === 'boolean') return String(raw);
   if ('richText' in raw) return raw.richText.map((part) => part.text).join('').trim() || undefined;
   if ('result' in raw) return cellValue(raw.result as ExcelJS.CellValue);
-  if ('text' in raw) return String(raw.text).trim() || undefined;
+  // Hyperlinks: their text may itself be rich text.
+  if ('text' in raw) return cellValue(raw.text as ExcelJS.CellValue);
   return undefined;
 }
 

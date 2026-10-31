@@ -114,6 +114,16 @@ describe('resolveCaseRows', () => {
     expect(one({ ผลคดี: 'เสมอ', วันปิดคดี: 'xx' })).toMatchObject({ problems: [], outcome: undefined, closedAt: undefined });
   });
 
+  it('treats case numbers that differ only by spaces or a dot after the prefix as the same', () => {
+    const l = lookups({ existingNumbers: [{ number: 'ผบ1234/2567', court: null, ownRef: 'TSB-0050' }] });
+    const rows = [row({ เลขคดีดำ: 'ผบ.1234/2567' }, 2), row({ เลขคดีดำ: 'พ 77/2569' }, 3), row({ เลขคดีดำ: 'พ77/2569' }, 4)];
+    expect(resolveCaseRows(rows, l, TODAY).map((d) => d.problems)).toEqual([
+      ['มีคดีนี้ในระบบแล้ว (TSB-0050)'],
+      [],
+      ['ซ้ำกับแถวที่ 3 ในไฟล์'],
+    ]);
+  });
+
   it('flags duplicates against the firm and inside the file', () => {
     const rows = [
       row({ เลขคดีดำ: 'พ1/2569', ศาล: 'ศาลแพ่ง' }, 2),

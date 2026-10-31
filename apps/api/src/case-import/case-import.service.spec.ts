@@ -76,6 +76,18 @@ describe('CaseImportService', () => {
     expect(noKeyRows).toBe(1);
   });
 
+  it("judges 'today' on the Bangkok calendar, not UTC", async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] }).setSystemTime(new Date('2026-10-31T18:30:00Z')); // 01:30 on 1 Nov in Bangkok
+    try {
+      const { drafts } = await service.preview(user, await sheet([
+        ['คดี A', 'anan@firm.co', 'ศาลชั้นต้น', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '01/11/2569'],
+      ]));
+      expect(drafts[0].problems).toEqual([]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('preview creates nothing', async () => {
     await service.preview(user, await sheet([['คดี A', 'anan@firm.co', 'ศาลชั้นต้น']]));
     expect(prisma.case.create).not.toHaveBeenCalled();

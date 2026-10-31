@@ -56,6 +56,8 @@ const text = (v: CellValue | undefined) => (v === undefined ? '' : v instanceof 
 const key = (v: string) => v.trim().toLowerCase();
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const norm = (court: string | undefined | null) => (court ? key(court) : null);
+/** "พ 264/2569", "ผบ.1234/2567" and "ผบ1234/2567" are the same court number. */
+const numberKey = (n: string) => n.replace(/[\s.]/g, '');
 
 export function resolveCaseRows(rows: RawCaseRow[], lookups: ImportLookups, today: Date): ExcelCaseDraft[] {
   const seenRefs = new Map<string, number>();
@@ -78,7 +80,7 @@ export function existingDuplicate(
   if (d.ownRef && lookups.existingOwnRefs.has(d.ownRef)) return `มีคดีนี้ในระบบแล้ว (${d.ownRef})`;
   const court = norm(d.courtName);
   const hit = d.blackCaseNumber
-    ? lookups.existingNumbers.find((n) => n.number === d.blackCaseNumber && (!court || !n.court || norm(n.court) === court))
+    ? lookups.existingNumbers.find((n) => numberKey(n.number) === numberKey(d.blackCaseNumber!) && (!court || !n.court || norm(n.court) === court))
     : undefined;
   return hit ? `มีคดีนี้ในระบบแล้ว (${hit.ownRef})` : null;
 }
@@ -96,7 +98,7 @@ function findDuplicate(
   const sameCourt = (other: string | null) => !court || !other || other === court;
   const earlier =
     (d.ownRef && seenRefs.get(d.ownRef)) ||
-    (d.blackCaseNumber && seenNumbers.find((n) => n.number === d.blackCaseNumber && sameCourt(n.court))?.rowNumber);
+    (d.blackCaseNumber && seenNumbers.find((n) => numberKey(n.number) === numberKey(d.blackCaseNumber!) && sameCourt(n.court))?.rowNumber);
   return earlier ? `ซ้ำกับแถวที่ ${earlier} ในไฟล์` : null;
 }
 

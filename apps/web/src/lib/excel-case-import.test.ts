@@ -39,6 +39,26 @@ describe('excelRowProblems', () => {
   });
 });
 
+describe('excelRowProblems after edits', () => {
+  const uploaded = { blackCaseNumber: 'พ1/2569' };
+
+  it('drops a number duplicate once the black number is changed (the server re-checks on create)', () => {
+    const d = draft({ blackCaseNumber: 'พ2/2569', problems: ['มีคดีนี้ในระบบแล้ว (TSB-7)', 'ซ้ำกับแถวที่ 3 ในไฟล์'] });
+    assert.deepEqual(excelRowProblems(d, uploaded), []);
+    assert.deepEqual(excelRowProblems({ ...d, blackCaseNumber: 'พ 1/2569' }, uploaded), ['มีคดีนี้ในระบบแล้ว (TSB-7)', 'ซ้ำกับแถวที่ 3 ในไฟล์']);
+  });
+
+  it('keeps an own-ref duplicate even when the number changes', () => {
+    const d = draft({ ownRef: 'TSB-1', blackCaseNumber: 'พ2/2569', problems: ['มีคดีนี้ในระบบแล้ว (TSB-1)', 'ซ้ำกับแถวที่ 3 ในไฟล์'] });
+    assert.deepEqual(excelRowProblems(d, uploaded), ['มีคดีนี้ในระบบแล้ว (TSB-1)', 'ซ้ำกับแถวที่ 3 ในไฟล์']);
+  });
+
+  it('drops close-date problems once the row is no longer closed', () => {
+    const d = draft({ closed: false, problems: ['วันปิดคดีไม่ถูกต้อง', 'วันปิดคดีก่อนวันเปิดคดี', 'วันปิดคดีอยู่ในอนาคต', 'วันเปิดคดีไม่ถูกต้อง'] });
+    assert.deepEqual(excelRowProblems(d, uploaded), ['วันเปิดคดีไม่ถูกต้อง']);
+  });
+});
+
 describe('toCreateRow', () => {
   it('drops display-only fields and closed fields on an open row', () => {
     const row = toCreateRow(draft({ problems: ['x'], outcome: 'WON', closingSummary: 'ignored summary', closedAt: '2025-01-01' }));

@@ -1,6 +1,7 @@
 import { BadRequestException, HttpException, Injectable, Logger } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { assertCanOpenCases } from '../common/plan-limits';
+import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { PrismaService } from '../prisma/prisma.module';
 import { CasesService } from '../cases/cases.service';
 import { buildCaseImportTemplate } from './case-import-template';
@@ -25,6 +26,8 @@ export interface UploadedSheet {
 }
 
 const lower = (v: string) => v.trim().toLowerCase();
+/** Today as the Thai calendar has it, at UTC midnight — the same shape the sheet's dates are parsed into. */
+const bangkokToday = () => new Date(`${bangkokDayKey(new Date())}T00:00:00Z`);
 
 /** "นำเข้าคดีจาก Excel": template download, read-only preview, then create (see createCases). */
 @Injectable()
@@ -92,7 +95,7 @@ export class CaseImportService {
     if (!file.originalname.toLowerCase().endsWith('.xlsx')) throw new BadRequestException('รองรับเฉพาะไฟล์ .xlsx');
     if (file.size > CASE_IMPORT_MAX_BYTES) throw new BadRequestException('ไฟล์ใหญ่เกิน 2 MB');
     const { rows } = await readCaseImportSheet(file.buffer);
-    const drafts = resolveCaseRows(rows, await this.lookups(user.firmId), new Date());
+    const drafts = resolveCaseRows(rows, await this.lookups(user.firmId), bangkokToday());
     return { drafts, noKeyRows: drafts.filter((d) => !d.ownRef && !d.blackCaseNumber).length };
   }
 
@@ -134,7 +137,7 @@ export class CaseImportService {
     if (duplicate) return { rowNumber, status: 'FAILED', message: duplicate };
     const day = (iso?: string) => (iso ? new Date(`${iso.slice(0, 10)}T00:00:00Z`) : undefined);
     // Same date rules as the preview — the browser sends the row back and could have changed it.
-    const [dateProblem] = dateProblems({ openedAt: day(row.openedAt), closedAt: day(row.closedAt), closed: row.closed }, new Date());
+    const [dateProblem] = dateProblems({ openedAt: day(row.openedAt), closedAt: day(row.closedAt), closed: row.closed }, bangkokToday());
     if (dateProblem) return { rowNumber, status: 'FAILED', message: dateProblem };
     try {
       const created = await this.prisma.$transaction((tx) =>

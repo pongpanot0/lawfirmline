@@ -22,7 +22,8 @@ const field = 'min-h-10 w-full rounded-md border bg-background px-2 py-1.5 text-
 const thaiDate = (iso?: string) => (iso ? new Date(`${iso}T00:00:00Z`).toLocaleDateString('th-TH', { timeZone: 'UTC' }) : '');
 const baht = (n?: number) => (n == null ? '' : `${n.toLocaleString('th-TH')} บาท`);
 
-type Row = ExcelCaseDraft & { selected: boolean };
+/** `uploaded` is the row as the file had it, so an edit can clear the problem it fixed. */
+type Row = ExcelCaseDraft & { selected: boolean; uploaded: { blackCaseNumber?: string }; createError?: string };
 
 /** "นำเข้าคดีจาก Excel": template → upload → review each row → create. Nothing is created before the button. */
 export default function CaseImportPage() {
@@ -40,7 +41,7 @@ export default function CaseImportPage() {
   }, [token]);
   const lawyerName = useMemo(() => new Map(lawyers.map((l) => [l.id, `${l.firstName} ${l.lastName}`])), [lawyers]);
 
-  const problemsOf = (r: Row) => excelRowProblems(r);
+  const problemsOf = (r: Row) => excelRowProblems(r, r.uploaded);
   const selected = rows.filter((r) => r.selected && problemsOf(r).length === 0);
 
   const update = (rowNumber: number, patch: Partial<Row>) =>
@@ -73,7 +74,7 @@ export default function CaseImportPage() {
     setFileName(file.name);
     try {
       const preview = await api.previewCaseImport(token, file);
-      setRows(preview.drafts.map((d) => ({ ...d, selected: excelRowProblems(d).length === 0 })));
+      setRows(preview.drafts.map((d) => ({ ...d, selected: excelRowProblems(d).length === 0, uploaded: { blackCaseNumber: d.blackCaseNumber } })));
       setNoKeyRows(preview.noKeyRows);
     } catch (e) {
       setRows([]);
@@ -92,7 +93,14 @@ export default function CaseImportPage() {
       const titles = new Map(selected.map((r) => [r.rowNumber, r.title]));
       setResults(done.map((r) => ({ ...r, title: titles.get(r.rowNumber) ?? '' })));
       const createdRows = new Set(done.filter((r) => r.status === 'CREATED').map((r) => r.rowNumber));
-      setRows((list) => list.filter((r) => !createdRows.has(r.rowNumber)));
+      const failure = new Map(done.filter((r) => r.status === 'FAILED').map((r) => [r.rowNumber, r.message ?? 'สร้างคดีไม่สำเร็จ']));
+      // Created rows leave the list; failed ones are unticked with their reason shown, so pressing again
+      // doesn't just repeat the failure — but they can be re-ticked after a fix or a temporary error.
+      setRows((list) =>
+        list
+          .filter((r) => !createdRows.has(r.rowNumber))
+          .map((r) => (failure.has(r.rowNumber) ? { ...r, selected: false, createError: failure.get(r.rowNumber) } : { ...r, createError: undefined })),
+      );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'สร้างคดีไม่สำเร็จ');
     } finally {
@@ -155,6 +163,13 @@ export default function CaseImportPage() {
             <h2 id="excel-review-heading" className="text-sm font-semibold">
               3. ตรวจและเลือกแถวที่จะสร้าง <span className="tabular-nums">({selected.length}/{rows.length})</span>
             </h2>
+            {/* One live summary instead of an alert per row — 300 alerts would flood a screen reader. */}
+            <p role="status" className="text-xs text-muted-foreground">
+              {(() => {
+                const blocked = rows.filter((r) => problemsOf(r).length > 0).length;
+                return blocked ? `${blocked} แถวมีปัญหา ต้องแก้ก่อนจึงเลือกได้` : 'ทุกแถวพร้อมสร้าง';
+              })()}
+            </p>
             {noKeyRows > 0 && (
               <p className="text-xs text-warning">{noKeyRows} แถวไม่มีเลขอ้างอิงหรือเลขคดีดำ — ระบบตรวจซ้ำให้ไม่ได้</p>
             )}
@@ -244,8 +259,9 @@ export default function CaseImportPage() {
                     {r.estimatedFee != null && <div><dt className="inline">ค่าวิชาชีพประมาณการ: </dt><dd className="inline">{baht(r.estimatedFee)}</dd></div>}
                   </dl>
 
+                  {r.createError && <p className="mt-2 text-xs text-destructive">สร้างไม่สำเร็จ: {r.createError}</p>}
                   {problems.length > 0 && (
-                    <ul role="alert" className="mt-2 list-disc pl-5 text-xs text-destructive">
+                    <ul aria-label={`ปัญหาของแถว ${r.rowNumber}`} className="mt-2 list-disc pl-5 text-xs text-destructive">
                       {problems.map((p) => <li key={p}>{p}</li>)}
                     </ul>
                   )}

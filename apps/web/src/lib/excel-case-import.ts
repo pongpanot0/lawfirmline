@@ -14,9 +14,29 @@ const EDITABLE_PROBLEM_PREFIXES = [
   'สรุปตอนปิดต้องยาวอย่างน้อย',
 ];
 
-/** What still blocks this row: the server's findings on fields only the file can fix, plus a fresh check of the editable ones. */
-export function excelRowProblems(d: ExcelCaseDraft): string[] {
-  const kept = d.problems.filter((p) => !EDITABLE_PROBLEM_PREFIXES.some((prefix) => p.startsWith(prefix)));
+const CLOSE_DATE_PROBLEMS = ['วันปิดคดีไม่ถูกต้อง', 'วันปิดคดีก่อนวันเปิดคดี', 'วันปิดคดีอยู่ในอนาคต'];
+const numberKey = (n?: string) => (n ?? '').replace(/[\s.]/g, '');
+
+/**
+ * Was this server problem caused by something since edited away? A number duplicate goes once the black number
+ * changes (an own-ref one stays — that field isn't editable here); close-date problems go once the row isn't closed.
+ * Anything dropped is checked again by the server on create.
+ */
+function editedAway(p: string, d: ExcelCaseDraft, uploaded?: { blackCaseNumber?: string }): boolean {
+  if (!d.closed && CLOSE_DATE_PROBLEMS.includes(p)) return true;
+  if (!uploaded || numberKey(d.blackCaseNumber) === numberKey(uploaded.blackCaseNumber)) return false;
+  if (d.ownRef) return p !== `มีคดีนี้ในระบบแล้ว (${d.ownRef})` && p.startsWith('มีคดีนี้ในระบบแล้ว');
+  return p.startsWith('มีคดีนี้ในระบบแล้ว') || p.startsWith('ซ้ำกับแถวที่');
+}
+
+/**
+ * What still blocks this row: the server's findings on fields only the file can fix, plus a fresh check of the
+ * editable ones. `uploaded` is the row as the file had it, so edits can clear what they fixed.
+ */
+export function excelRowProblems(d: ExcelCaseDraft, uploaded?: { blackCaseNumber?: string }): string[] {
+  const kept = d.problems.filter(
+    (p) => !EDITABLE_PROBLEM_PREFIXES.some((prefix) => p.startsWith(prefix)) && !editedAway(p, d, uploaded),
+  );
   const fresh: string[] = [];
   if (!d.title.trim()) fresh.push('ยังไม่ได้กรอกชื่อคดี');
   if (!d.leadLawyerId) fresh.push('ยังไม่ได้เลือกทนายหลัก');
