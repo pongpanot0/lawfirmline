@@ -1233,6 +1233,42 @@ export type ImportCaseRow = {
   closingSummary?: string;
 };
 
+/** One row of a filled Excel template after the server read and checked it (api: case-import-resolve.ts). */
+export interface ExcelCaseDraft {
+  rowNumber: number;
+  problems: string[];
+  title: string;
+  leadEmail: string;
+  leadLawyerId: string;
+  buddyIds: string[];
+  courtLevel: ImportCourtLevel;
+  ownRef?: string;
+  customerRef?: string;
+  clientId?: string;
+  clientName?: string;
+  clientMatched: boolean;
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT' | 'PETITIONER' | 'RESPONDENT';
+  opponents: string[];
+  caseTypeId?: string;
+  courtName?: string;
+  blackCaseNumber?: string;
+  redCaseNumber?: string;
+  claimedAmount?: number;
+  estimatedFee?: number;
+  limitationDeadline?: string;
+  stage?: string;
+  openedAt?: string;
+  closed: boolean;
+  outcome?: ImportClosedOutcome;
+  closedAt?: string;
+  closingSummary?: string;
+  description?: string;
+}
+
+export type CreateExcelCaseRow = Omit<ExcelCaseDraft, 'problems' | 'leadEmail' | 'clientMatched'>;
+
+export type ExcelCaseResult = { rowNumber: number; status: 'CREATED' | 'FAILED'; caseId?: string; ownRef?: string; message?: string };
+
 export type ImportCaseResult = {
   itemId: string;
   status: 'CREATED' | 'ALREADY_LINKED' | 'FAILED';
@@ -3122,6 +3158,17 @@ export const api = {
       `/outlook/drive/folder-suggestions?driveId=${encodeURIComponent(driveId)}&itemId=${encodeURIComponent(itemId)}`,
       { token },
     ),
+
+  downloadCaseImportTemplate: (token: string) => fetchBlob('/case-import/template', { token }),
+
+  previewCaseImport: (token: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{ drafts: ExcelCaseDraft[]; noKeyRows: number }>('/case-import/preview', { method: 'POST', token, body: form });
+  },
+
+  createCasesFromExcel: (token: string, rows: CreateExcelCaseRow[]) =>
+    request<{ results: ExcelCaseResult[] }>('/case-import', { method: 'POST', token, body: JSON.stringify({ rows }) }),
 
   importDriveCases: (token: string, body: { driveId: string; rows: ImportCaseRow[] }) =>
     request<{ results: ImportCaseResult[] }>('/outlook/drive/case-import', {
