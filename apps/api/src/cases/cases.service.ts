@@ -59,6 +59,17 @@ type ProceedingsBefore = {
 };
 const LEVEL_SWITCH_NUMBERS_MESSAGE = 'เปลี่ยนระดับศาลแล้วบันทึกก่อน แล้วจึงแก้เลขคดีของศาลชั้นนั้น';
 
+/** One row of the OneDrive import. The caller has already checked team membership and the plan quota. */
+export interface CaseImportParams {
+  title: string;
+  blackCaseNumber: string | null;
+  courtName: string | null;
+  courtLevel: CourtLevel;
+  leadLawyerId: string;
+  buddyIds: string[];
+  closed: { outcome: CaseOutcome; closingSummary: string } | null;
+}
+
 @Injectable()
 export class CasesService {
   private readonly logger = new Logger(CasesService.name);
@@ -323,7 +334,8 @@ export class CasesService {
     data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId' | 'stage'>,
     suggestedOwnRef?: string,
   ) {
-    await assertCanOpenCases(db, firmId);
+    // A case created already closed (old work brought in) never occupies an open slot.
+    if (data.status !== CaseStatus.CLOSED && data.status !== CaseStatus.ARCHIVED) await assertCanOpenCases(db, firmId);
     const requested = requestedOwnRef?.trim();
     const isManual = !!requested && requested !== suggestedOwnRef?.trim();
     let ownRef = requested || (await this.generateOwnRef(firmId, db));
@@ -368,6 +380,51 @@ export class CasesService {
   ) {
     const { firmId, ...data } = params;
     return this.insertCase(tx, firmId, undefined, data);
+  }
+
+  /**
+   * Opens one case brought in from an existing OneDrive folder, inside the caller's transaction.
+   * Bulk migration of old work: no assignment notifications and no conflict gate (the folder
+   * gives no parties). A closed row lands closed with the same fields `close()` sets.
+   */
+  async createForImport(tx: Prisma.TransactionClient, user: AuthUser, params: CaseImportParams) {
+    const now = new Date();
+    const buddyIds = [...new Set(params.buddyIds.filter((id) => id !== params.leadLawyerId))];
+    const created = await this.insertCase(tx, user.firmId, undefined, {
+      title: params.title,
+      courtName: params.courtName,
+      courtLevel: params.courtLevel,
+      blackCaseNumber: params.blackCaseNumber,
+      leadLawyerId: params.leadLawyerId,
+      assignments: buddyIds.length
+        ? { create: buddyIds.map((userId) => ({ user: { connect: { id: userId } }, assignmentType: AssignmentType.BUDDY })) }
+        : undefined,
+      ...(params.closed && {
+        status: CaseStatus.CLOSED,
+        outcome: params.closed.outcome,
+        closingSummary: params.closed.closingSummary.trim(),
+        closedAt: now,
+      }),
+    });
+    await this.caseFeed.log({ caseId: created.id, userId: user.id, type: ActivityType.NOTE, title: 'เปิดคดี', at: created.openedAt }, tx);
+    if (params.closed) {
+      await tx.case.update({ where: { id: created.id }, data: { stage: CaseStage.CLOSING, stageChangedAt: now } });
+      await this.caseFeed.log(
+        {
+          caseId: created.id,
+          userId: user.id,
+          type: ActivityType.STATUS_CHANGE,
+          title: 'ปิดคดี / Case Closed',
+          description: `${params.closed.closingSummary.trim()}\nผลคดี: ${params.closed.outcome}`,
+          at: now,
+          statusTransition: { from: CaseStatus.OPEN, to: CaseStatus.CLOSED },
+          stageTransition: { from: CaseStage.PRE_LITIGATION, to: CaseStage.CLOSING },
+        },
+        tx,
+      );
+    }
+    if (params.courtName || params.blackCaseNumber) await snapshotCurrentLevel(tx, created);
+    return { id: created.id, ownRef: created.ownRef };
   }
 
   async create(user: AuthUser, dto: CreateCaseDto) {
