@@ -15,6 +15,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { KpiStrip } from '@/components/reports/KpiStrip';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { OwnerKpiSection } from '@/components/reports/OwnerKpiSection';
+import { FirmMetricsSection } from '@/components/reports/FirmMetricsSection';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
 import {
@@ -182,6 +183,8 @@ export default function ReportsPage() {
       />
 
       {hasFirmCapability(user.firmRole, 'runOperations') && token && <OwnerKpiSection token={token} />}
+
+      {hasFirmCapability(user.firmRole, 'viewFirmReports') && token && <FirmMetricsSection token={token} />}
 
       <KpiStrip
         className="mb-6"

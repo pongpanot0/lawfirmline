@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,6 +34,54 @@ const ROLE_OPTIONS: Array<{
   { value: FirmRole.EXTERNAL, labelKey: 'roleExternal', hintKey: 'roleExternalHint' },
 ];
 
+function toNum(v: string): number | null {
+  return v.trim() === '' ? null : Number(v);
+}
+
+function WorkSettingsRow({ member, token }: { member: TeamMember; token: string }) {
+  const [target, setTarget] = useState(member.monthlyBillableTargetHours?.toString() ?? '');
+  const [rate, setRate] = useState(member.defaultHourlyRate?.toString() ?? '');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  async function save() {
+    setSaving(true);
+    setMsg('');
+    try {
+      await api.updateMemberWorkSettings(token, member.id, {
+        monthlyBillableTargetHours: toNum(target),
+        defaultHourlyRate: toNum(rate),
+      });
+      setMsg('บันทึกแล้ว');
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const name = `${member.firstName} ${member.lastName}`;
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{name}</TableCell>
+      <TableCell>
+        <Input type="number" min={0} max={400} step="any" inputMode="decimal" className="w-28" aria-label={`เป้าชั่วโมง/เดือน ${name}`}
+          value={target} onChange={(e) => setTarget(e.target.value)} />
+      </TableCell>
+      <TableCell>
+        <Input type="number" min={0} step="any" inputMode="decimal" className="w-32" aria-label={`อัตรา/ชม. ${name}`}
+          value={rate} onChange={(e) => setRate(e.target.value)} />
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Button type="button" size="sm" disabled={saving} onClick={save}>บันทึก</Button>
+          {msg && <span role="status" className="text-xs text-muted-foreground">{msg}</span>}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export default function TeamPage() {
   const { token, user } = useAuth();
   const { locale } = useLocale();
@@ -40,6 +89,7 @@ export default function TeamPage() {
   const loc = dateLocale(locale);
   const canInvite = hasFirmCapability(user?.firmRole, 'inviteMembers');
   const canManageMembers = hasFirmCapability(user?.firmRole, 'manageMembers');
+  const canRunOperations = hasFirmCapability(user?.firmRole, 'runOperations');
   const inviteRoleOptions = ROLE_OPTIONS.filter((o) => canInviteFirmRole(user?.firmRole ?? '', o.value));
 
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -392,6 +442,30 @@ export default function TeamPage() {
           )}
         </CardContent>
       </Card>
+
+      {canRunOperations && token && members.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">เป้าและอัตราของสมาชิก</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <p className="mb-3 text-sm text-muted-foreground">เว้นว่างไว้ถ้าไม่ตั้งเป้า — แดชบอร์ดจะไม่แสดงอัตราการใช้เวลาของคนนั้น</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{d.team.member}</TableHead>
+                  <TableHead>เป้าชั่วโมง/เดือน</TableHead>
+                  <TableHead>อัตรา/ชม. (บาท)</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {members.map((m) => <WorkSettingsRow key={m.id} member={m} token={token} />)}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

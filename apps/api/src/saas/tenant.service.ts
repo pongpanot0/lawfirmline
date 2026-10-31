@@ -214,7 +214,43 @@ export class TenantService {
       role: m.user.role,
       firmRole: m.role,
       joinedAt: m.createdAt.toISOString(),
+      monthlyBillableTargetHours: m.monthlyBillableTargetHours,
+      defaultHourlyRate: m.defaultHourlyRate,
     }));
+  }
+
+  /** Null clears a value; omitted keys are left untouched. */
+  async updateMemberWorkSettings(
+    actor: AuthUser,
+    targetUserId: string,
+    dto: { monthlyBillableTargetHours?: number | null; defaultHourlyRate?: number | null },
+  ) {
+    if (!hasFirmCapability(actor.firmRole, 'runOperations')) {
+      throw new ForbiddenException('Insufficient permissions to edit work settings');
+    }
+    const { monthlyBillableTargetHours: target, defaultHourlyRate: rate } = dto;
+    const bad = (v: number | null | undefined, max = Infinity) =>
+      v != null && (!Number.isFinite(v) || v < 0 || v > max);
+    if (bad(target, 400) || bad(rate)) {
+      throw new BadRequestException('Target hours must be 0-400 and rate must be >= 0');
+    }
+
+    const where = { firmId_userId: { firmId: actor.firmId, userId: targetUserId } };
+    if (!(await this.prisma.firmMember.findUnique({ where }))) {
+      throw new NotFoundException('Member not found');
+    }
+
+    const data = {
+      ...(target !== undefined && { monthlyBillableTargetHours: target }),
+      ...(rate !== undefined && { defaultHourlyRate: rate }),
+    };
+    await this.prisma.$transaction(async (tx) => {
+      await tx.firmMember.update({ where, data });
+      await tx.auditLog.create({
+        data: { firmId: actor.firmId, userId: actor.id, action: 'MEMBER_WORK_SETTINGS_UPDATED', metadata: { targetUserId, ...data } },
+      });
+    });
+    return { success: true };
   }
 
   async removeMember(owner: AuthUser, targetUserId: string) {

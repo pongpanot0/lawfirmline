@@ -228,6 +228,39 @@ export interface WorkflowMetrics {
   overdueDocumentRequests: number;
 }
 
+export type FirmMetricsPeriod = 'this_month' | 'last_month' | 'quarter' | 'year';
+
+export interface FirmMetricsRatios {
+  utilization: number | null;
+  realization: number | null;
+  collection: number | null;
+}
+
+export interface FirmMetricsSums {
+  workedHours: number;
+  workedAmount: number;
+  invoicedHours: number;
+  invoicedAmount: number;
+  collectedHours: number;
+  collectedAmount: number;
+}
+
+export interface FirmMetrics {
+  period: FirmMetricsPeriod;
+  from: string;
+  to: string;
+  timeBasedBilling: boolean;
+  firm: FirmMetricsSums & FirmMetricsRatios & { targetMonthly: number | null };
+  members: Array<
+    FirmMetricsSums & FirmMetricsRatios & {
+      userId: string;
+      name: string;
+      targetMonthly: number | null;
+      pendingDrafts7d: number;
+    }
+  >;
+}
+
 export interface OwnerKpis {
   month: string;
   unbilled: { amount: number; caseCount: number; hours: number };
@@ -1694,8 +1727,21 @@ export const api = {
         role: string;
         firmRole: string;
         joinedAt: string;
+        monthlyBillableTargetHours: number | null;
+        defaultHourlyRate: number | null;
       }[]
     >('/saas/members', { token }),
+
+  updateMemberWorkSettings: (
+    token: string,
+    userId: string,
+    data: { monthlyBillableTargetHours?: number | null; defaultHourlyRate?: number | null },
+  ) =>
+    request<{ success: boolean }>(`/firm-members/${userId}/work-settings`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
 
   removeTeamMember: (token: string, userId: string) =>
     request<{ success: boolean }>(`/saas/members/${userId}`, { method: 'DELETE', token }),
@@ -2043,6 +2089,9 @@ export const api = {
 
   getOwnerKpis: (token: string, month?: string) =>
     request<OwnerKpis>(`/operations/owner-kpis${month ? `?month=${month}` : ''}`, { token }),
+
+  getFirmMetrics: (token: string, period: FirmMetricsPeriod) =>
+    request<FirmMetrics>(`/reports/firm-metrics?period=${period}`, { token }),
 
   listSops: (token: string, q?: string) =>
     request<SopItem[]>(`/sops${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),
