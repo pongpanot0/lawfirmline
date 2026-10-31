@@ -6,7 +6,7 @@ import {
   STAGE_BY_LABEL,
   STATUS_LABELS,
 } from './case-import-columns';
-import { parseAmount, parseImportDate, splitList, type CellValue, type RawCaseRow } from './case-import-reader';
+import { dateProblems, parseAmount, parseImportDate, splitList, type CellValue, type RawCaseRow } from './case-import-reader';
 
 /** Everything a row may point at, loaded for the caller's firm only. Keys are lowercased/trimmed. */
 export interface ImportLookups {
@@ -149,7 +149,6 @@ function resolveRow({ rowNumber, values: v }: RawCaseRow, lookups: ImportLookups
 
   const opened = parseImportDate(v['วันเปิดคดี']);
   if (opened === 'INVALID') problems.push('วันเปิดคดีไม่ถูกต้อง');
-  else if (opened && opened > today) problems.push('วันเปิดคดีอยู่ในอนาคต');
 
   const statusLabel = text(v['สถานะ']);
   if (statusLabel && statusLabel !== STATUS_LABELS.open && statusLabel !== STATUS_LABELS.closed) {
@@ -171,11 +170,14 @@ function resolveRow({ rowNumber, values: v }: RawCaseRow, lookups: ImportLookups
     else if (!outcome) problems.push(`ผลคดีไม่ถูกต้อง: ${outcomeLabel}`);
     const closedDate = parseImportDate(v['วันปิดคดี']);
     if (closedDate === 'INVALID') problems.push('วันปิดคดีไม่ถูกต้อง');
-    else if (closedDate && opened instanceof Date && closedDate < opened) problems.push('วันปิดคดีก่อนวันเปิดคดี');
     closedAt = closedDate instanceof Date ? isoDay(closedDate) : undefined;
     closingSummary = text(v['สรุปตอนปิด']) || `นำเข้าจาก Excel: ${title}`;
     if (closingSummary.length < 10) problems.push('สรุปตอนปิดต้องยาวอย่างน้อย 10 ตัวอักษร');
   }
+
+  problems.push(
+    ...dateProblems({ openedAt: opened instanceof Date ? opened : null, closedAt: closedAt ? new Date(`${closedAt}T00:00:00Z`) : null, closed }, today),
+  );
 
   return {
     rowNumber,

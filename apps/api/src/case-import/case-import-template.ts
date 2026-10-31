@@ -53,7 +53,8 @@ export async function buildCaseImportTemplate(input: {
       };
     }
   });
-  for (const header of DATE_HEADERS) sheet.getColumn(CASE_IMPORT_HEADERS.indexOf(header) + 1).numFmt = 'dd/mm/yyyy';
+  // Text, not a date format: Excel would otherwise guess day/month order by locale and keep 2569 as a CE year.
+  for (const header of DATE_HEADERS) sheet.getColumn(CASE_IMPORT_HEADERS.indexOf(header) + 1).numFmt = '@';
 
   help.columns = [{ width: 34 }, { width: 70 }];
   help.addRow(['คอลัมน์', 'วิธีกรอก']).font = { bold: true };

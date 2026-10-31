@@ -409,8 +409,9 @@ export class CasesService {
    */
   async createForImport(tx: Prisma.TransactionClient, user: AuthUser, params: CaseImportParams) {
     const now = new Date();
-    const openedAt = params.openedAt ?? now;
     const closedAt = params.closed?.closedAt ?? now;
+    // A closed case with no known open date opened no later than it closed.
+    const openedAt = params.openedAt ?? (params.closed ? closedAt : now);
     const buddyIds = [...new Set(params.buddyIds.filter((id) => id !== params.leadLawyerId))];
     const created = await this.insertCase(tx, user.firmId, params.ownRef, {
       title: params.title,
@@ -428,7 +429,7 @@ export class CasesService {
       estimatedFee: params.estimatedFee,
       limitationDeadline: params.limitationDeadline,
       leadLawyerId: params.leadLawyerId,
-      ...(params.openedAt && { openedAt }),
+      ...((params.openedAt || params.closed) && { openedAt }),
       assignments: buddyIds.length
         ? { create: buddyIds.map((userId) => ({ user: { connect: { id: userId } }, assignmentType: AssignmentType.BUDDY })) }
         : undefined,
@@ -460,13 +461,15 @@ export class CasesService {
     }
 
     // Parties stay searchable for the next conflict check even though the import skips the gate.
-    if (params.clientId) {
+    if (params.clientId && params.partyRole) {
       await ensureOurClientParticipant(tx, created.id);
-    } else if (params.clientName) {
+    } else if (params.clientId || params.clientName) {
+      // The sync only places a client whose side is known; without one, still record them as ours.
       await tx.caseParticipant.create({
         data: {
           caseId: created.id,
-          name: params.clientName,
+          ...(params.clientId && { clientId: params.clientId }),
+          name: params.clientName ?? '',
           role: params.partyRole ? ourParticipantRole(params.partyRole) : ParticipantRole.OTHER,
           side: ParticipantSide.OURS,
         },

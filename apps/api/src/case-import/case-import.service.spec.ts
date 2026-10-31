@@ -158,6 +158,16 @@ describe('CaseImportService', () => {
       expect(results[1].status).toBe('CREATED');
     });
 
+    it('re-checks the date rules the browser could have bypassed', async () => {
+      const { results } = await service.createCases(user, { rows: [
+        row('A', { openedAt: '2999-01-01' }),
+        row('B', { rowNumber: 3, closed: true, outcome: 'WON', closingSummary: 'ชนะคดีเรียบร้อยแล้ว', openedAt: '2026-05-01', closedAt: '2026-04-01' }),
+        row('C', { rowNumber: 4, closed: true, outcome: 'WON', closingSummary: 'ชนะคดีเรียบร้อยแล้ว', closedAt: '2999-01-01' }),
+      ] } as any);
+      expect(results.map((r) => r.message)).toEqual(['วันเปิดคดีอยู่ในอนาคต', 'วันปิดคดีก่อนวันเปิดคดี', 'วันปิดคดีอยู่ในอนาคต']);
+      expect(cases.createForImport).not.toHaveBeenCalled();
+    });
+
     it('a failing row does not stop the others', async () => {
       prisma.$transaction.mockRejectedValueOnce(new Error('boom'));
       const { results } = await service.createCases(user, { rows: [row('A'), row('B', { rowNumber: 3 })] } as any);

@@ -28,8 +28,34 @@ function cellValue(raw: ExcelJS.CellValue): CellValue | undefined {
   return undefined;
 }
 
+/** 300 template rows unzip to well under 1 MB; this leaves room for formatting without letting a zip bomb in. */
+const MAX_INFLATED_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Total uncompressed size the zip's central directory declares, or null when it isn't a zip.
+ * ponytail: trusts the declared sizes; a streaming reader that counts real bytes would close a forged-header bomb too.
+ */
+function declaredInflatedSize(buf: Buffer): number | null {
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
+    if (buf.readUInt32LE(i) !== 0x06054b50) continue;
+    const entries = buf.readUInt16LE(i + 10);
+    let p = buf.readUInt32LE(i + 16);
+    let total = 0;
+    for (let e = 0; e < entries; e++) {
+      if (p + 46 > buf.length || buf.readUInt32LE(p) !== 0x02014b50) return null;
+      total += buf.readUInt32LE(p + 24);
+      p += 46 + buf.readUInt16LE(p + 28) + buf.readUInt16LE(p + 30) + buf.readUInt16LE(p + 32);
+    }
+    return total;
+  }
+  return null;
+}
+
 /** Reads sheet "คดี" by header text. File-level problems throw one Thai BadRequest; row problems are the resolver's. */
 export async function readCaseImportSheet(buf: Buffer): Promise<{ rows: RawCaseRow[] }> {
+  const inflated = declaredInflatedSize(buf);
+  if (inflated === null) throw new BadRequestException('อ่านไฟล์ไม่ได้ — ใช้ไฟล์ .xlsx จาก template ของระบบ');
+  if (inflated > MAX_INFLATED_BYTES) throw new BadRequestException('ไฟล์ใหญ่เกินไปเมื่อแตกไฟล์ — ใช้ template ของระบบ ไม่เกิน 300 แถว');
   const book = new ExcelJS.Workbook();
   try {
     await book.xlsx.load(buf as unknown as ExcelJS.Buffer);
@@ -42,7 +68,10 @@ export async function readCaseImportSheet(buf: Buffer): Promise<{ rows: RawCaseR
   const columns = new Map<number, CaseImportHeader>();
   sheet.getRow(1).eachCell((cell, col) => {
     const text = String(cellValue(cell.value) ?? '');
-    if (KNOWN_HEADERS.has(text)) columns.set(col, text as CaseImportHeader);
+    if (!text) return;
+    // A renamed column would otherwise drop every value under it without a word.
+    if (!KNOWN_HEADERS.has(text)) throw new BadRequestException(`ไม่รู้จักคอลัมน์ "${text}" — ใช้ชื่อคอลัมน์ตาม template ของระบบ`);
+    columns.set(col, text as CaseImportHeader);
   });
   const present = new Set(columns.values());
   const missing = REQUIRED_HEADERS.find((h) => !present.has(h));
@@ -62,13 +91,27 @@ export async function readCaseImportSheet(buf: Buffer): Promise<{ rows: RawCaseR
   return { rows };
 }
 
+/** Open must not be in the future; a closed case closes on or after it opens and not in the future. */
+export function dateProblems(d: { openedAt?: Date | null; closedAt?: Date | null; closed: boolean }, today: Date): string[] {
+  const problems: string[] = [];
+  if (d.openedAt && d.openedAt > today) problems.push('วันเปิดคดีอยู่ในอนาคต');
+  if (d.closed && d.closedAt) {
+    if (d.openedAt && d.closedAt < d.openedAt) problems.push('วันปิดคดีก่อนวันเปิดคดี');
+    if (d.closedAt > today) problems.push('วันปิดคดีอยู่ในอนาคต');
+  }
+  return problems;
+}
+
 const DMY = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 
 /** Excel date cell, or วว/ดด/ปปปป with a Buddhist (> 2400) or Christian year → UTC midnight of that day. */
 export function parseImportDate(value: unknown): Date | null | 'INVALID' {
   if (value == null || value === '') return null;
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? 'INVALID' : new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+    if (Number.isNaN(value.getTime())) return 'INVALID';
+    // Typing 15/03/2569 into a date cell stores the year 2569 CE: the Buddhist year needs the same -543.
+    const year = value.getUTCFullYear();
+    return new Date(Date.UTC(year > 2400 ? year - 543 : year, value.getUTCMonth(), value.getUTCDate()));
   }
   const match = DMY.exec(String(value).trim());
   if (!match) return 'INVALID';

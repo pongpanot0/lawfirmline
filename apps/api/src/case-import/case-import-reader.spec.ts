@@ -50,6 +50,24 @@ describe('readCaseImportSheet', () => {
     await expect(readCaseImportSheet(await workbook(CASE_IMPORT_HEADERS, rows))).rejects.toThrow('ไฟล์มีคดีเกิน 300 แถว — แบ่งเป็นหลายไฟล์');
   });
 
+  it('rejects an unknown column header instead of dropping its data', async () => {
+    const headers = [...CASE_IMPORT_HEADERS.slice(0, 15), 'วันหมดอายุความ'];
+    await expect(readCaseImportSheet(await workbook(headers, [['คดี A', 'a@x.co', 'ศาลชั้นต้น']]))).rejects.toThrow(
+      'ไม่รู้จักคอลัมน์ "วันหมดอายุความ" — ใช้ชื่อคอลัมน์ตาม template ของระบบ',
+    );
+  });
+
+  it('refuses a file that inflates past the size cap before parsing it', async () => {
+    const book = new ExcelJS.Workbook();
+    const s = book.addWorksheet(CASE_IMPORT_SHEET);
+    s.addRow([...CASE_IMPORT_HEADERS]);
+    // Highly compressible text: small on disk, large once unzipped.
+    for (let i = 0; i < 3000; i++) s.addRow([`${i} ${'ก'.repeat(5000)}`, 'a@x.co', 'ศาลชั้นต้น']); // unique, so shared strings can't dedupe
+    const buf = Buffer.from(await book.xlsx.writeBuffer());
+    expect(buf.length).toBeLessThan(2 * 1024 * 1024);
+    await expect(readCaseImportSheet(buf)).rejects.toThrow('ไฟล์ใหญ่เกินไปเมื่อแตกไฟล์ — ใช้ template ของระบบ ไม่เกิน 300 แถว');
+  });
+
   it('reads formula results and rich text as text', async () => {
     const book = new ExcelJS.Workbook();
     const sheet = book.addWorksheet(CASE_IMPORT_SHEET);
@@ -69,6 +87,11 @@ describe('parseImportDate', () => {
     expect(day(parseImportDate('15/03/2569'))).toBe('2026-03-15');
     expect(day(parseImportDate('15/03/2026'))).toBe('2026-03-15');
     expect(day(parseImportDate(' 5/3/2569 '))).toBe('2026-03-05');
+  });
+
+  it('converts a Buddhist year that Excel stored inside a real date cell', () => {
+    // Typing 15/03/2569 into a date-formatted cell stores the year 2569 CE.
+    expect(day(parseImportDate(new Date(Date.UTC(2569, 2, 15))))).toBe('2026-03-15');
   });
 
   it('rejects impossible or malformed dates and treats blank as none', () => {

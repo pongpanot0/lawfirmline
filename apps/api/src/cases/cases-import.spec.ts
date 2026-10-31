@@ -145,6 +145,20 @@ describe('CasesService.createForImport', () => {
       expect(tx.case.update.mock.calls[0][0].data).toEqual({ stage: 'CLOSING', stageChangedAt: closedAt });
     });
 
+    it('opens a closed case no later than it closed when no open date is given', async () => {
+      const closedAt = new Date(Date.UTC(2025, 8, 30));
+      await service.createForImport(tx, user, { ...base, closed: { outcome: CaseOutcome.WON, closingSummary: 'ชนะคดีเรียบร้อยแล้ว', closedAt } });
+      expect(tx.case.create.mock.calls[0][0].data.openedAt).toEqual(closedAt);
+    });
+
+    it('writes an OURS party for a matched client even without a party role', async () => {
+      await service.createForImport(tx, user, { ...base, clientId: 'c1', clientName: 'ACME' });
+      expect(tx.caseParticipant.create).toHaveBeenCalledWith({
+        data: { caseId: 'case-1', clientId: 'c1', name: 'ACME', role: 'OTHER', side: 'OURS' },
+      });
+      expect(ensureOurClientParticipant).not.toHaveBeenCalled();
+    });
+
     it('copies the plain fields', async () => {
       await service.createForImport(tx, user, {
         ...base, customerRef: 'CL-9', caseTypeId: 't1', redCaseNumber: 'พ1/2570', claimedAmount: 100, estimatedFee: 5,

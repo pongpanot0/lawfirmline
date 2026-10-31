@@ -4,7 +4,7 @@ import { assertCanOpenCases } from '../common/plan-limits';
 import { PrismaService } from '../prisma/prisma.module';
 import { CasesService } from '../cases/cases.service';
 import { buildCaseImportTemplate } from './case-import-template';
-import { readCaseImportSheet } from './case-import-reader';
+import { dateProblems, readCaseImportSheet } from './case-import-reader';
 import { existingDuplicate, ImportLookups, resolveCaseRows } from './case-import-resolve';
 import { CreateExcelCaseRowDto, CreateExcelCasesDto } from './case-import.dto';
 
@@ -133,6 +133,9 @@ export class CaseImportService {
     const duplicate = existingDuplicate(row, lookups);
     if (duplicate) return { rowNumber, status: 'FAILED', message: duplicate };
     const day = (iso?: string) => (iso ? new Date(`${iso.slice(0, 10)}T00:00:00Z`) : undefined);
+    // Same date rules as the preview — the browser sends the row back and could have changed it.
+    const [dateProblem] = dateProblems({ openedAt: day(row.openedAt), closedAt: day(row.closedAt), closed: row.closed }, new Date());
+    if (dateProblem) return { rowNumber, status: 'FAILED', message: dateProblem };
     try {
       const created = await this.prisma.$transaction((tx) =>
         this.cases.createForImport(tx, user, {
