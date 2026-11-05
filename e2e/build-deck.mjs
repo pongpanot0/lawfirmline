@@ -151,14 +151,14 @@ const FLOWS = [
     title: 'เส้นทางของหนึ่งเรื่อง — ตั้งแต่ลูกค้าติดต่อจนปิดคดี',
     intro: 'ทุกเรื่องในสำนักงานเดินตามลำดับนี้ ใช้หน้านี้เป็นแผนที่ แล้วเปิดหน้าที่ระบุในแต่ละกล่องเพื่อดูวิธีทำ',
     steps: [
-      { name: 'รับเรื่อง', who: 'เจ้าหน้าที่รับเรื่อง', what: 'ลูกค้าโทร ส่งอีเมล หรือส่งผ่าน Portal บันทึกเป็นเรื่องรับเข้า', refs: ['35-intake', '36-intake-new', '39-email-intake', '38-intake-portal-submissions'] },
-      { name: 'ประเมิน & ตัดสินใจ', who: 'ทนาย / เจ้าของสำนักงาน', what: 'รับเรื่อง → กำลังประเมิน → รับดำเนินการ หรือ ปฏิเสธ', refs: ['35-intake'] },
-      { name: 'เปิดคดี', who: 'ทนาย / ธุรการ', what: 'แปลงเรื่องเป็นคดี หรือสร้างคดีใหม่ เลือกประเภท ลูกความ และทนายผู้รับผิดชอบ', refs: ['05-case-new', '59-cases-import'] },
-      { name: 'มอบหมายงาน', who: 'ทนายผู้รับผิดชอบ', what: 'แตกงานในคดีพร้อมกำหนดส่งและผู้รับผิดชอบ', refs: ['08-case-tasks', '27-work'] },
-      { name: 'นัดหมาย & ขึ้นศาล', who: 'ทนาย / เสมียน', what: 'ลงนัดศาลในคดี ระบบเตือนล่วงหน้า วันนัดเปิดหน้าเตรียมวันนัดศาล', refs: ['31-case-calendar', '13-court-schedule', '65-court-day'] },
-      { name: 'เอกสาร', who: 'ทุกคนในคดี', what: 'อัปโหลด ร่าง และตรวจเอกสารคดีไว้ที่เดียว', refs: ['09-case-documents', '14-documents'] },
-      { name: 'ค่าใช้จ่าย & เรียกเก็บเงิน', who: 'ทีมงาน / บัญชี', what: 'บันทึกเวลาและค่าใช้จ่าย แล้วออกใบแจ้งหนี้ให้ลูกค้า', refs: ['10-case-billing', '41-expenses-new', '30-invoices'] },
-      { name: 'ปิดคดี', who: 'ทนายผู้รับผิดชอบ', what: 'สรุปผลคดีในแท็บสรุปปิดคดี แล้วเปลี่ยนสถานะเป็นปิดคดี', refs: ['34-case-closing-report'] },
+      { name: 'รับเรื่อง', shot: '35-intake', x: 500, y: 170, w: 1760, h: 800, who: 'เจ้าหน้าที่รับเรื่อง', what: 'ลูกค้าโทร ส่งอีเมล หรือส่งผ่าน Portal บันทึกเป็นเรื่องรับเข้า', refs: ['35-intake', '36-intake-new', '39-email-intake', '38-intake-portal-submissions'] },
+      { name: 'ประเมิน & ตัดสินใจ', shot: '35-intake', x: 560, y: 830, w: 1760, h: 800, who: 'ทนาย / เจ้าของสำนักงาน', what: 'รับเรื่อง → กำลังประเมิน → รับดำเนินการ หรือ ปฏิเสธ', refs: ['35-intake'] },
+      { name: 'เปิดคดี', shot: '05-case-new', x: 930, y: 570, w: 1760, h: 800, who: 'ทนาย / ธุรการ', what: 'แปลงเรื่องเป็นคดี หรือสร้างคดีใหม่ เลือกประเภท ลูกความ และทนายผู้รับผิดชอบ', refs: ['05-case-new', '59-cases-import'] },
+      { name: 'มอบหมายงาน', shot: '27-work', x: 520, y: 1000, w: 1760, h: 800, who: 'ทนายผู้รับผิดชอบ', what: 'แตกงานในคดีพร้อมกำหนดส่งและผู้รับผิดชอบ', refs: ['08-case-tasks', '27-work'] },
+      { name: 'นัดหมาย & ขึ้นศาล', shot: '65-court-day', x: 620, y: 190, w: 1760, h: 800, who: 'ทนาย / เสมียน', what: 'ลงนัดศาลในคดี ระบบเตือนล่วงหน้า วันนัดเปิดหน้าเตรียมวันนัดศาล', refs: ['31-case-calendar', '13-court-schedule', '65-court-day'] },
+      { name: 'เอกสาร', shot: '14-documents', x: 520, y: 170, w: 1760, h: 800, who: 'ทุกคนในคดี', what: 'อัปโหลด ร่าง และตรวจเอกสารคดีไว้ที่เดียว', refs: ['09-case-documents', '14-documents'] },
+      { name: 'ค่าใช้จ่าย & เรียกเก็บเงิน', shot: '30-invoices', x: 540, y: 70, w: 1760, h: 800, who: 'ทีมงาน / บัญชี', what: 'บันทึกเวลาและค่าใช้จ่าย แล้วออกใบแจ้งหนี้ให้ลูกค้า', refs: ['10-case-billing', '41-expenses-new', '30-invoices'] },
+      { name: 'ปิดคดี', shot: '34-case-closing-report', x: 520, y: 330, w: 1760, h: 800, who: 'ทนายผู้รับผิดชอบ', what: 'สรุปผลคดีในแท็บสรุปปิดคดี แล้วเปลี่ยนสถานะเป็นปิดคดี', refs: ['34-case-closing-report'] },
     ],
     lanes: [
       { label: 'สถานะคดี (ติดตามที่บอร์ดคดี)', states: ['คดีใหม่', 'ร่างคำฟ้อง', 'ยื่นฟ้องแล้ว', 'นัดศาล', 'รอคำพิพากษา', 'ปิดคดี', 'เก็บเข้าคลัง'], refs: ['04-cases-board'] },
@@ -169,11 +169,11 @@ const FLOWS = [
     title: 'การไล่งาน — งานหนึ่งชิ้นเดินจากมอบหมายจนเสร็จ',
     intro: 'งานทุกชิ้นมีผู้รับผิดชอบและกำหนดส่ง หัวหน้าไล่งานได้จากสถานะ ไม่ต้องถามทีละคน',
     steps: [
-      { name: 'มอบหมาย', who: 'หัวหน้า / ทนายผู้รับผิดชอบ', what: 'สร้างงานในคดีหรือผ่าน LINE ("เพิ่ม Task") ระบุผู้รับและกำหนดส่ง', refs: ['08-case-tasks'] },
-      { name: 'เริ่มวันใหม่', who: 'ผู้รับงาน', what: 'เปิดสรุปประจำวัน / วันของฉัน ดูงานที่ครบกำหนดและนัดวันนี้', refs: ['53-brief', '26-my-day'] },
-      { name: 'ลงมือทำ', who: 'ผู้รับงาน', what: 'ย้ายงานเป็น "กำลังทำ" ที่กล่องงาน แนบเอกสารหรือบันทึกเวลาได้', refs: ['27-work'] },
-      { name: 'ส่งตรวจ', who: 'ผู้รับงาน', what: 'เสร็จแล้วย้ายเป็น "รอตรวจ" ให้หัวหน้าเห็น', refs: ['27-work'] },
-      { name: 'ตรวจงาน', who: 'หัวหน้า', what: 'ผ่าน → "เสร็จแล้ว" ไม่ผ่าน → "ต้องแก้ไข" ส่งกลับไปทำต่อ', refs: ['27-work', '57-workflows'] },
+      { name: 'มอบหมาย', shot: '08-case-tasks', x: 520, y: 1100, w: 1760, h: 800, who: 'หัวหน้า / ทนายผู้รับผิดชอบ', what: 'สร้างงานในคดีหรือผ่าน LINE ("เพิ่ม Task") ระบุผู้รับและกำหนดส่ง', refs: ['08-case-tasks'] },
+      { name: 'เริ่มวันใหม่', shot: '26-my-day', x: 520, y: 170, w: 1760, h: 800, who: 'ผู้รับงาน', what: 'เปิดสรุปประจำวัน / วันของฉัน ดูงานที่ครบกำหนดและนัดวันนี้', refs: ['53-brief', '26-my-day'] },
+      { name: 'ลงมือทำ', shot: '27-work', x: 520, y: 1000, w: 1760, h: 800, who: 'ผู้รับงาน', what: 'ย้ายงานเป็น "กำลังทำ" ที่กล่องงาน แนบเอกสารหรือบันทึกเวลาได้', refs: ['27-work'] },
+      { name: 'ส่งตรวจ', shot: '27-work', x: 520, y: 600, w: 1760, h: 800, who: 'ผู้รับงาน', what: 'เสร็จแล้วย้ายเป็น "รอตรวจ" ให้หัวหน้าเห็น', refs: ['27-work'] },
+      { name: 'ตรวจงาน', shot: '27-work', x: 520, y: 190, w: 1760, h: 800, who: 'หัวหน้า', what: 'ผ่าน → "เสร็จแล้ว" ไม่ผ่าน → "ต้องแก้ไข" ส่งกลับไปทำต่อ', refs: ['27-work', '57-workflows'] },
     ],
     lanes: [
       { label: 'สถานะงาน', states: ['ยังไม่เริ่ม', 'กำลังทำ', 'รอตรวจ', 'เสร็จแล้ว'], loop: 'ต้องแก้ไข → กลับไป กำลังทำ', refs: ['27-work'] },
@@ -185,11 +185,11 @@ const FLOWS = [
     title: 'การไล่เงิน — ค่าใช้จ่ายและใบแจ้งหนี้',
     intro: 'ค่าใช้จ่ายที่พนักงานจ่ายไปก่อนต้องผ่านการอนุมัติของเจ้าของสำนักงาน ส่วนใบแจ้งหนี้ติดตามจนลูกค้าชำระ',
     steps: [
-      { name: 'บันทึกค่าใช้จ่าย', who: 'พนักงาน', what: 'กรอกเองหรือส่งรูปใบเสร็จผ่าน LINE ผูกกับคดีได้ รายการเป็น "ร่าง"', refs: ['41-expenses-new', '15-expenses'] },
-      { name: 'ส่งขอเบิก', who: 'พนักงาน', what: 'รวมรายการแล้วส่งขออนุมัติ สถานะเป็น "รออนุมัติ"', refs: ['42-expenses-claim'] },
-      { name: 'อนุมัติ', who: 'เจ้าของสำนักงาน', what: 'อนุมัติหรือไม่อนุมัติทั้งชุด แล้วบันทึกว่าจ่ายเงินคืนแล้ว', refs: ['20-reimbursements'] },
-      { name: 'ออกใบแจ้งหนี้', who: 'บัญชี / ทนาย', what: 'รวมเวลาและค่าใช้จ่ายของคดี ออกใบแจ้งหนี้ให้ลูกค้า', refs: ['10-case-billing', '30-invoices'] },
-      { name: 'ติดตามการชำระ', who: 'บัญชี', what: 'ส่งแล้ว → ชำระแล้ว ดูยอดค้างได้ที่หน้าใบแจ้งหนี้', refs: ['30-invoices'] },
+      { name: 'บันทึกค่าใช้จ่าย', shot: '41-expenses-new', x: 520, y: 170, w: 1760, h: 800, who: 'พนักงาน', what: 'กรอกเองหรือส่งรูปใบเสร็จผ่าน LINE ผูกกับคดีได้ รายการเป็น "ร่าง"', refs: ['41-expenses-new', '15-expenses'] },
+      { name: 'ส่งขอเบิก', shot: '15-expenses', x: 520, y: 170, w: 1760, h: 800, who: 'พนักงาน', what: 'รวมรายการแล้วส่งขออนุมัติ สถานะเป็น "รออนุมัติ"', refs: ['42-expenses-claim'] },
+      { name: 'อนุมัติ', shot: '20-reimbursements', x: 520, y: 170, w: 1760, h: 800, who: 'เจ้าของสำนักงาน', what: 'อนุมัติหรือไม่อนุมัติทั้งชุด แล้วบันทึกว่าจ่ายเงินคืนแล้ว', refs: ['20-reimbursements'] },
+      { name: 'ออกใบแจ้งหนี้', shot: '30-invoices', x: 540, y: 70, w: 1760, h: 800, who: 'บัญชี / ทนาย', what: 'รวมเวลาและค่าใช้จ่ายของคดี ออกใบแจ้งหนี้ให้ลูกค้า', refs: ['10-case-billing', '30-invoices'] },
+      { name: 'ติดตามการชำระ', shot: '30-invoices', x: 520, y: 760, w: 1760, h: 800, who: 'บัญชี', what: 'ส่งแล้ว → ชำระแล้ว ดูยอดค้างได้ที่หน้าใบแจ้งหนี้', refs: ['30-invoices'] },
     ],
     lanes: [
       { label: 'สถานะค่าใช้จ่าย', states: ['ร่าง', 'รออนุมัติ', 'อนุมัติแล้ว', 'จ่ายแล้ว'], loop: 'หรือ ปฏิเสธ', refs: ['20-reimbursements'] },
@@ -201,12 +201,14 @@ const refText = (refs) => {
   const known = refs.filter((r) => slides.some((s) => s.id === r));
   return known.length ? `ดูหน้า ${known.map((r) => `@@P:slide-${r}@@`).join(', ')}` : '';
 };
+const shotFor = (st) => slides.find((s) => s.id === st.shot)?.file;
 const flowHtml = (f) => `
-  <section class="slide flow-page" id="${f.id}">
+  <section class="slide flow-page${f.steps.length > 5 ? ' flow-dense' : ''}" id="${f.id}">
     <header><span class="num">ภาพรวม</span><h2>${esc(f.title)}</h2></header>
     <p class="desc">${esc(f.intro)}</p>
     <ol class="flow" style="grid-template-columns:repeat(${f.steps.length <= 5 ? f.steps.length : 4},1fr)">${f.steps
-      .map((st, i) => `<li${(i + 1) % (f.steps.length <= 5 ? f.steps.length : 4) === 0 ? ' class="row-end"' : ''}><span class="pin">${i + 1}</span><b>${esc(st.name)}</b><i>${esc(st.who)}</i><p>${esc(st.what)}</p><small>${refText(st.refs)}</small></li>`)
+      .map((st) => (f.steps.length > 5 ? st : { ...st, h: 1250 }))
+      .map((st, i) => `<li${(i + 1) % (f.steps.length <= 5 ? f.steps.length : 4) === 0 ? ' class="row-end"' : ''}><span class="pin">${i + 1}</span>${shotFor(st) ? `<div class="shot" style="aspect-ratio:${st.w}/${st.h}"><img src="shots/${esc(shotFor(st))}" alt="${esc(st.name)}" style="width:${(2880 / st.w) * 100}%;margin-left:-${(st.x / st.w) * 100}%;margin-top:-${(st.y / st.w) * 100}%" /></div>` : ''}<b>${esc(st.name)}</b><i>${esc(st.who)}</i><p>${esc(st.what)}</p><small>${refText(st.refs)}</small></li>`)
       .join('')}</ol>
     ${f.lanes
       .map((l) => `<div class="lane"><b>${esc(l.label)}</b><div>${l.states.map((x) => `<span>${esc(x)}</span>`).join('<em>→</em>')}${l.loop ? `<span class="loop">${esc(l.loop)}</span>` : ''}</div><small>${refText(l.refs)}</small></div>`)
@@ -335,6 +337,9 @@ const html = `<!doctype html>
   .flow { list-style:none; margin:0 0 14px; padding:0; display:grid; grid-template-columns:repeat(4,1fr); gap:22px 26px; counter-reset:f }
   .flow li { position:relative; background:var(--bg); border:1px solid var(--line); border-top:4px solid var(--red); border-radius:10px; padding:10px 12px }
   .flow li:not(:last-child):not(.row-end)::after { content:'➜'; position:absolute; right:-21px; top:38%; color:var(--red); font-size:16px }
+  /* zoomed crop of a 2880px-wide shot: x/y/w/h in source pixels (vertical % margins are relative to width) */
+  .flow .shot { overflow:hidden; border:1px solid var(--line); border-radius:6px; margin-top:6px; background:#fff }
+  .flow .shot img { display:block; max-width:none !important; max-height:none !important; height:auto }
   .flow li b { display:block; font-size:14px; margin:4px 0 0 }
   .flow li i { display:block; font-style:normal; font-size:12px; color:var(--red) }
   .flow li p { margin:4px 0; font-size:12.5px; color:#334155; line-height:1.45 }
