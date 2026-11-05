@@ -21,8 +21,12 @@ await page.emulateMedia({ media: 'print' });
 await page.pdf({
   path: OUT,
   format: 'A4',
+  landscape: true,
   printBackground: true,
-  margin: { top: '14mm', bottom: '14mm', left: '10mm', right: '10mm' },
+  displayHeaderFooter: true,
+  headerTemplate: '<span></span>',
+  footerTemplate: '<div style="width:100%;text-align:center;font-size:9px;color:#64748b"><span class="pageNumber"></span></div>',
+  margin: { top: '8mm', bottom: '12mm', left: '10mm', right: '10mm' },
 });
 await browser.close();
 console.log(`built ${OUT}`);

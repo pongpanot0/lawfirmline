@@ -41,83 +41,45 @@
   .line-flow h4 { margin:0 0 6px; font-size:15px }
   .line-cmd { margin:0 0 8px; font-size:13px; color:var(--muted) }
   .line-flow ol { margin:0; padding-left:18px; display:grid; gap:5px; font-size:13.5px; color:#334155 }
+  .part { min-height:320px; display:flex; flex-direction:column; justify-content:center }
+  .mobile-layout { display:grid; grid-template-columns:32% 1fr; gap:28px; align-items:start }
+  .mobile-layout figure { border:8px solid #1e293b; border-radius:26px; max-width:280px; margin:auto }
+  .mobile-layout ol { padding-left:24px }
   @media (max-width:700px) { .line-grid{grid-template-columns:1fr} }
   @media print {
     body { background:#fff }
     .wrap { max-width:none; padding:0 }
-    .cover { border:none; border-radius:0; page-break-after:always }
-    .slide { page-break-after:always; page-break-inside:avoid; border:none; border-radius:0 }
-    .toc a { border-color:#cbd5e1 }
+    .cover, .slide { border:none; border-radius:0; break-after:page; break-inside:avoid; margin:0; padding:4mm; height:187mm; overflow:hidden }
+    .slide figure:not(.mobile-layout figure) img { width:auto; max-width:100%; max-height:118mm; object-fit:contain; margin:auto }
+    .mobile-layout figure img { max-height:135mm; width:auto; max-width:100%; object-fit:contain; margin:auto }
+    .toc { display:block; columns:2; column-gap:12mm; margin-top:6px }
+    .toc a { display:flex; justify-content:space-between; gap:8px; padding:1px 0; font-size:10.5px; border:none; background:none; break-inside:avoid }
+    .toc a b { font-weight:400; color:var(--muted) }
+    .toc a.lv0 { font-weight:700; font-size:12px; color:var(--red); margin-top:4px }
+    .toc a.lv1 { font-weight:700; margin-top:3px }
+    .toc a.lv2 { padding-left:10px }
+    .slide header { margin-bottom:8px; padding-bottom:6px }
+    .desc { margin-bottom:8px; font-size:13px }
+    .callouts { margin-bottom:8px; gap:4px; grid-template-columns:repeat(3,1fr) }
+    .callouts li { padding:3px 6px; font-size:11px }
+    .line-grid { grid-template-columns:180px 1fr; gap:12px }
+    .line-link-steps, .line-grid p { font-size:11px !important; gap:2px }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="cover">
-    <h1>Samnuan — คู่มือการใช้งานทีละหน้าจอ</h1>
-    <p>ภาพหน้าจอทั้งหมดถูกถ่ายอัตโนมัติด้วย Playwright จากระบบจริง กรอบและป้ายสีแดงคือจุดที่ต้องกด/กรอกในแต่ละหน้า
-    ส่วนท้ายเล่มมีวิธีใช้งานผ่านแชท LINE Official Account เพิ่มเติม</p>
-    <nav class="toc">
-      <a href="#slide-1">1. หน้าเข้าสู่ระบบ (Login)</a>
-      <a href="#slide-2">2. แดชบอร์ด — ภาพรวมงาน</a>
-      <a href="#slide-3">3. คดี — รายการคดีทั้งหมด</a>
-      <a href="#slide-4">4. Case Workflow Board — บอร์ดติดตามสถานะ</a>
-      <a href="#slide-5">5. สร้างคดีใหม่ — ขั้นที่ 1 เลือกประเภทคดี</a>
-      <a href="#slide-6">6. สร้างคดีใหม่ — ขั้นที่ 2 ข้อมูลพื้นฐาน</a>
-      <a href="#slide-7">7. รายละเอียดคดี</a>
-      <a href="#slide-8">8. งานในคดี (Tasks)</a>
-      <a href="#slide-9">9. เอกสารของคดี</a>
-      <a href="#slide-10">10. การเงินรายคดี — เวลาทำงาน ค่าใช้จ่าย ใบแจ้งหนี้</a>
-      <a href="#slide-11">11. ลูกค้า — ทะเบียนลูกค้าและผู้ติดต่อ</a>
-      <a href="#slide-12">12. เพิ่มลูกค้า — พร้อมผู้ติดต่อหลายคน</a>
-      <a href="#slide-13">13. ตารางศาล — ปฏิทินนัดหมาย</a>
-      <a href="#slide-14">14. เอกสาร — คลังเอกสารรวมทุกคดี</a>
-      <a href="#slide-15">15. ค่าใช้จ่าย &amp; การเงิน</a>
-      <a href="#slide-16">16. รายงาน</a>
-      <a href="#slide-17">17. Knowledge Base — คลังสรุปคดี</a>
-      <a href="#slide-18">18. จัดการทีม — เชิญและกำหนดสิทธิ์</a>
-      <a href="#slide-19">19. แพ็กเกจ &amp; การชำระเงิน</a>
-      <a href="#slide-20">20. เบิกจ่าย — อนุมัติค่าใช้จ่าย (เฉพาะเจ้าของสำนักงาน)</a>
-      <a href="#slide-21">21. ประเภทคดี — ตั้งค่าฟิลด์ของแต่ละประเภท</a>
-      <a href="#slide-22">22. ศาล — ทะเบียนศาลของสำนักงาน</a>
-      <a href="#slide-23">23. ตั้งค่า — โปรไฟล์ ธีม และการเชื่อมต่อ</a>
-      <a href="#slide-24">24. Client Portal — หน้าเข้าสู่ระบบของลูกค้า</a>
-      <a href="#slide-25">25. Client Portal — ตรวจสอบอีเมล</a>
-      <a href="#slide-26">26. เริ่มใช้งานสำนักงาน — นำเข้าข้อมูลเดิม</a>
-      <a href="#slide-27">27. วันของฉัน — สรุปงานและนัดวันนี้</a>
-      <a href="#slide-28">28. งานที่ต้องทำ — กล่องงานรวมทั้งงานคดีและงานส่วนตัว</a>
-      <a href="#slide-29">29. งานส่วนตัว — เช็คลิสต์ของแต่ละคน</a>
-      <a href="#slide-30">30. ปฏิทิน — ตารางรายวันของสำนักงาน</a>
-      <a href="#slide-31">31. ใบแจ้งหนี้ — ออกและติดตามการชำระเงิน</a>
-      <a href="#slide-32">32. คดี — แท็บปฏิทิน/นัดของคดีนี้</a>
-      <a href="#slide-33">33. คดี — แท็บเคลมประกัน</a>
-      <a href="#slide-34">34. คดี — แท็บข้อความกับลูกค้า</a>
-      <a href="#slide-35">35. คดี — แท็บสรุปปิดคดี</a>
-      <a href="#slide-36">36. รับเรื่อง — คิวเรื่องที่กำลังคัดกรอง</a>
-      <a href="#slide-37">37. รับเรื่องใหม่ — กรอกรายละเอียดเบื้องต้น</a>
-      <a href="#slide-38">38. ห้องทำงานเรื่องรับเข้า — คัดกรองก่อนเปิดคดี</a>
-      <a href="#slide-39">39. เรื่องที่ส่งจาก Customer Portal</a>
-      <a href="#slide-40">40. รับเรื่องจากอีเมล — กล่องอีเมลที่เชื่อมต่อไว้</a>
-      <a href="#slide-41">41. อีเมลรับเข้า — ตรวจสอบและยืนยันข้อมูล</a>
-      <a href="#slide-42">42. บันทึกค่าใช้จ่ายใหม่</a>
-      <a href="#slide-43">43. แบบฟอร์มเบิกค่าใช้จ่าย — พิมพ์/ส่งขออนุมัติ</a>
-      <a href="#slide-44">44. Playbooks — ชุดงานมาตรฐานของแต่ละประเภทคดี</a>
-      <a href="#slide-45">45. SOP / คู่มือการทำงาน</a>
-      <a href="#slide-46">46. ภาระงานทีม — มอบหมายงานให้สมดุล</a>
-      <a href="#slide-47">47. การใช้งาน AI — ติดตามการใช้เครดิต</a>
-      <a href="#slide-48">48. บันทึกการใช้งาน — Audit Log (เฉพาะเจ้าของสำนักงาน)</a>
-      <a href="#slide-49">49. กฎวันครบกำหนด — คำนวณเดดไลน์อัตโนมัติ</a>
-      <a href="#slide-50">50. วันหยุดราชการ — ใช้คำนวณวันทำการ</a>
-      <a href="#slide-51">51. เริ่มต้นสำนักงานของคุณ — สมัครใช้งาน</a>
-      <a href="#slide-52">52. ลืมรหัสผ่าน — ขอลิงก์ตั้งรหัสผ่านใหม่</a>
-      <a href="#slide-53">53. หน้าแรกของ Samnuan</a>
-      <a href="#line-section">LINE. ใช้งานผ่าน LINE</a>
-    </nav>
+    <h1>คู่มือการใช้งาน Samnuan — เว็บและแอปมือถือ</h1>
+    <p>5 พฤศจิกายน 2569</p>
+    <p>คู่มือทีละขั้นตอนสำหรับสำนักงานและลูกค้า กรอบสีแดงแสดงจุดสำคัญบนหน้าจอ</p>
   </div>
-  
-  <section class="slide" id="slide-1" data-index="1">
+  <section class="slide toc-page"><h2>สารบัญ 1 / 3</h2><nav class="toc"><a class="lv0" href="#web-part"><span>ส่วนที่ 1 เว็บ (สำหรับสำนักงาน)</span><b>5</b></a><a class="lv1" href="#group-0"><span>เริ่มต้น</span><b>6</b></a><a class="lv2" href="#slide-01-login"><span>หน้าเข้าสู่ระบบ (Login)</span><b>7</b></a><a class="lv2" href="#slide-50-register"><span>เริ่มต้นสำนักงานของคุณ — สมัครใช้งาน</span><b>8</b></a><a class="lv2" href="#slide-51-forgot-password"><span>ลืมรหัสผ่าน — ขอลิงก์ตั้งรหัสผ่านใหม่</span><b>9</b></a><a class="lv2" href="#slide-52-landing"><span>หน้าแรกของ Samnuan</span><b>10</b></a><a class="lv1" href="#group-1"><span>คดี</span><b>11</b></a><a class="lv2" href="#slide-03-cases-list"><span>คดี — รายการคดีทั้งหมด</span><b>12</b></a><a class="lv2" href="#slide-04-cases-board"><span>Case Workflow Board — บอร์ดติดตามสถานะ</span><b>13</b></a><a class="lv2" href="#slide-05-case-new"><span>สร้างคดีใหม่ — กรอกหน้าเดียวจบ</span><b>14</b></a><a class="lv2" href="#slide-07-case-detail"><span>รายละเอียดคดี</span><b>15</b></a><a class="lv2" href="#slide-08-case-tasks"><span>งานในคดี (Tasks)</span><b>16</b></a><a class="lv2" href="#slide-09-case-documents"><span>เอกสารของคดี</span><b>17</b></a><a class="lv2" href="#slide-10-case-billing"><span>การเงินรายคดี — เวลาทำงาน ค่าใช้จ่าย ใบแจ้งหนี้</span><b>18</b></a><a class="lv2" href="#slide-32-case-insurance"><span>คดี — แท็บเคลมประกัน</span><b>19</b></a><a class="lv2" href="#slide-33-case-messages"><span>คดี — แท็บข้อความกับลูกค้า</span><b>20</b></a><a class="lv2" href="#slide-34-case-closing-report"><span>คดี — แท็บสรุปปิดคดี</span><b>21</b></a><a class="lv2" href="#slide-59-cases-import"><span>นำเข้าคดีจาก Excel</span><b>22</b></a><a class="lv2" href="#slide-64-paper-label"><span>ป้ายแฟ้มคดี</span><b>23</b></a><a class="lv1" href="#group-2"><span>ลูกค้า &amp; รับเรื่อง</span><b>24</b></a><a class="lv2" href="#slide-11-clients"><span>ลูกค้า — ทะเบียนลูกค้าและผู้ติดต่อ</span><b>25</b></a><a class="lv2" href="#slide-12-clients-new"><span>เพิ่มลูกค้า — พร้อมผู้ติดต่อหลายคน</span><b>26</b></a><a class="lv2" href="#slide-35-intake"><span>รับเรื่อง — คิวเรื่องที่กำลังคัดกรอง</span><b>27</b></a><a class="lv2" href="#slide-36-intake-new"><span>รับเรื่องใหม่ — กรอกรายละเอียดเบื้องต้น</span><b>28</b></a><a class="lv2" href="#slide-38-intake-portal-submissions"><span>เรื่องที่ส่งจาก Customer Portal</span><b>29</b></a><a class="lv2" href="#slide-39-email-intake"><span>รับเรื่องจากอีเมล — กล่องอีเมลที่เชื่อมต่อไว้</span><b>30</b></a><a class="lv1" href="#group-3"><span>ปฏิทิน &amp; ศาล</span><b>31</b></a><a class="lv2" href="#slide-13-court-schedule"><span>ตารางศาล — ปฏิทินนัดหมาย</span><b>32</b></a><a class="lv2" href="#slide-29-calendar"><span>ปฏิทิน — ตารางรายวันของสำนักงาน</span><b>33</b></a><a class="lv2" href="#slide-31-case-calendar"><span>คดี — แท็บปฏิทิน/นัดของคดีนี้</span><b>34</b></a><a class="lv2" href="#slide-65-court-day"><span>เตรียมวันนัดศาล</span><b>35</b></a><a class="lv1" href="#group-4"><span>งาน</span><b>36</b></a><a class="lv2" href="#slide-16-reports"><span>รายงาน</span><b>37</b></a><a class="lv2" href="#slide-17-knowledge"><span>Knowledge Base — คลังสรุปคดี</span><b>38</b></a><a class="lv2" href="#slide-19-account-billing"><span>แพ็กเกจ &amp; การชำระเงิน</span><b>39</b></a><a class="lv2" href="#slide-25-getting-started"><span>เริ่มใช้งานสำนักงาน — นำเข้าข้อมูลเดิม</span><b>40</b></a><a class="lv2" href="#slide-26-my-day"><span>วันของฉัน — สรุปงานและนัดวันนี้</span><b>41</b></a><a class="lv2" href="#slide-27-work"><span>งานที่ต้องทำ — กล่องงานรวมทั้งงานคดีและงานส่วนตัว</span><b>42</b></a><a class="lv2" href="#slide-28-todos"><span>งานส่วนตัว — เช็คลิสต์ของแต่ละคน</span><b>43</b></a><a class="lv2" href="#slide-43-playbooks"><span>Playbooks — ชุดงานมาตรฐานของแต่ละประเภทคดี</span><b>44</b></a><a class="lv2" href="#slide-44-sops"><span>SOP / คู่มือการทำงาน</span><b>45</b></a><a class="lv2" href="#slide-45-operations"><span>ภาระงานทีม — มอบหมายงานให้สมดุล</span><b>46</b></a><a class="lv2" href="#slide-53-brief"><span>สรุปประจำวัน</span><b>47</b></a><a class="lv2" href="#slide-57-workflows"><span>สายงาน</span><b>48</b></a><a class="lv2" href="#slide-60-paper-files"><span>แฟ้มกระดาษที่ถูกยืม</span><b>49</b></a><a class="lv1" href="#group-5"><span>เอกสาร</span><b>50</b></a><a class="lv2" href="#slide-14-documents"><span>เอกสาร — คลังเอกสารรวมทุกคดี</span><b>51</b></a><a class="lv2" href="#slide-58-email-search"><span>ค้นหาอีเมล</span><b>52</b></a><a class="lv1" href="#group-6"><span>การเงิน</span><b>53</b></a><a class="lv2" href="#slide-15-expenses"><span>ค่าใช้จ่าย &amp; การเงิน</span><b>54</b></a><a class="lv2" href="#slide-30-invoices"><span>ใบแจ้งหนี้ — ออกและติดตามการชำระเงิน</span><b>55</b></a><a class="lv2" href="#slide-41-expenses-new"><span>บันทึกค่าใช้จ่ายใหม่</span><b>56</b></a></nav></section><section class="slide toc-page"><h2>สารบัญ 2 / 3</h2><nav class="toc"><a class="lv2" href="#slide-42-expenses-claim"><span>แบบฟอร์มเบิกค่าใช้จ่าย — พิมพ์/ส่งขออนุมัติ</span><b>57</b></a><a class="lv2" href="#slide-55-timesheet"><span>บันทึกเวลาทำงาน</span><b>58</b></a><a class="lv1" href="#group-7"><span>ทีม &amp; ตั้งค่า</span><b>59</b></a><a class="lv2" href="#slide-18-team"><span>จัดการทีม — เชิญและกำหนดสิทธิ์</span><b>60</b></a><a class="lv2" href="#slide-20-reimbursements"><span>เบิกจ่าย — อนุมัติค่าใช้จ่าย (เฉพาะเจ้าของสำนักงาน)</span><b>61</b></a><a class="lv2" href="#slide-21-case-types"><span>ประเภทคดี — ตั้งค่าฟิลด์ของแต่ละประเภท</span><b>62</b></a><a class="lv2" href="#slide-22-courts"><span>ศาล — ทะเบียนศาลของสำนักงาน</span><b>63</b></a><a class="lv2" href="#slide-23-settings"><span>ตั้งค่า — โปรไฟล์ ธีม และการเชื่อมต่อ</span><b>64</b></a><a class="lv2" href="#slide-46-ai-usage"><span>การใช้งาน AI — ติดตามการใช้เครดิต</span><b>65</b></a><a class="lv2" href="#slide-47-admin-audit-log"><span>บันทึกการใช้งาน — Audit Log (เฉพาะเจ้าของสำนักงาน)</span><b>66</b></a><a class="lv2" href="#slide-48-admin-deadline-rules"><span>กฎวันครบกำหนด — คำนวณเดดไลน์อัตโนมัติ</span><b>67</b></a><a class="lv2" href="#slide-49-admin-holidays"><span>วันหยุดราชการ — ใช้คำนวณวันทำการ</span><b>68</b></a><a class="lv2" href="#slide-54-leaves"><span>วันลา</span><b>69</b></a><a class="lv2" href="#slide-61-email-templates"><span>แม่แบบอีเมล</span><b>70</b></a><a class="lv2" href="#slide-62-outlook-folders"><span>โฟลเดอร์ Outlook</span><b>71</b></a><a class="lv1" href="#group-8"><span>Client Portal</span><b>72</b></a><a class="lv2" href="#slide-24-portal-login"><span>Client Portal — หน้าเข้าสู่ระบบของลูกค้า</span><b>73</b></a><a class="lv2" href="#slide-24.1-portal-check-email"><span>Client Portal — ตรวจสอบอีเมล</span><b>74</b></a><a class="lv2" href="#slide-66-portal"><span>พอร์ทัลลูกค้า</span><b>75</b></a><a class="lv2" href="#slide-67-portal-intake-new"><span>ส่งเรื่องใหม่ให้สำนักงาน</span><b>76</b></a><a class="lv2" href="#slide-68-portal-reports"><span>รายงานของลูกค้า</span><b>77</b></a><a class="lv2" href="#slide-69-portal-operations"><span>ติดตามงานดำเนินการ</span><b>78</b></a><a class="lv2" href="#slide-70-portal-settings"><span>ตั้งค่าพอร์ทัล</span><b>79</b></a><a class="lv0" href="#mobile-part"><span>ส่วนที่ 2 แอปมือถือ</span><b>80</b></a><a class="lv1" href="#mobile-group-0"><span>เริ่มต้นใช้งาน</span><b>81</b></a><a class="lv2" href="#mobile-m01-login"><span>เข้าสู่ระบบ</span><b>82</b></a><a class="lv2" href="#mobile-m02-today"><span>แท็บ วันนี้ — หน้าแรกหลังเข้าสู่ระบบ</span><b>83</b></a><a class="lv2" href="#mobile-m07-more"><span>เมนู อื่น ๆ</span><b>84</b></a><a class="lv1" href="#mobile-group-1"><span>คดี</span><b>85</b></a><a class="lv2" href="#mobile-m03-cases"><span>แท็บ คดี — รายการคดี</span><b>86</b></a><a class="lv2" href="#mobile-m08-case-detail"><span>แฟ้มคดี</span><b>87</b></a><a class="lv2" href="#mobile-m09-case-new"><span>รับเคสใหม่</span><b>88</b></a><a class="lv2" href="#mobile-m25-clients"><span>ลูกความ</span><b>89</b></a><a class="lv2" href="#mobile-m26-client-detail"><span>รายละเอียดลูกความ</span><b>90</b></a><a class="lv1" href="#mobile-group-2"><span>ปฏิทินและวันขึ้นศาล</span><b>91</b></a><a class="lv2" href="#mobile-m04-calendar"><span>แท็บ ปฏิทิน</span><b>92</b></a><a class="lv2" href="#mobile-m11-event-new"><span>เพิ่มนัดหมาย</span><b>93</b></a><a class="lv2" href="#mobile-m10-court-day"><span>วันขึ้นศาล (Court Day)</span><b>94</b></a><a class="lv1" href="#mobile-group-3"><span>งาน</span><b>95</b></a><a class="lv2" href="#mobile-m05-tasks"><span>แท็บ งาน</span><b>96</b></a><a class="lv2" href="#mobile-m12-task-new"><span>เพิ่มงาน / มอบหมายงาน</span><b>97</b></a><a class="lv2" href="#mobile-m13-task-work"><span>หน้าทำงาน</span><b>98</b></a><a class="lv2" href="#mobile-m21-timesheet"><span>ยืนยันเวลา</span><b>99</b></a><a class="lv1" href="#mobile-group-4"><span>เอกสาร</span><b>100</b></a><a class="lv2" href="#mobile-m14-scan"><span>แนบเอกสารเข้าคดี</span><b>101</b></a><a class="lv2" href="#mobile-m15-doc-template"><span>สร้างเอกสารจากแบบ</span><b>102</b></a><a class="lv2" href="#mobile-m16-doc-waiting"><span>รอเอกสารจากภายนอก</span><b>103</b></a><a class="lv2" href="#mobile-m23-search"><span>ค้นหาไฟล์</span><b>104</b></a><a class="lv2" href="#mobile-m24-email-search"><span>ค้นหาอีเมล</span><b>105</b></a><a class="lv2" href="#mobile-m33-knowledge"><span>คลังความรู้</span><b>106</b></a><a class="lv2" href="#mobile-m22-secretary"><span>เลขา — ถามข้อมูลด้วยเสียงหรือข้อความ</span><b>107</b></a><a class="lv1" href="#mobile-group-5"><span>ค่าใช้จ่ายและการลา</span><b>108</b></a></nav></section><section class="slide toc-page"><h2>สารบัญ 3 / 3</h2><nav class="toc"><a class="lv2" href="#mobile-m17-expenses"><span>ค่าใช้จ่าย</span><b>109</b></a><a class="lv2" href="#mobile-m18-expense-new"><span>เพิ่มค่าใช้จ่าย</span><b>110</b></a><a class="lv2" href="#mobile-m19-claims"><span>ชุดเบิก</span><b>111</b></a><a class="lv2" href="#mobile-m20-leaves"><span>ขอลา</span><b>112</b></a><a class="lv1" href="#mobile-group-6"><span>ทีมและเจ้าของสำนักงาน</span><b>113</b></a><a class="lv2" href="#mobile-m06-team"><span>แท็บ ทีม</span><b>114</b></a><a class="lv2" href="#mobile-m31-team-week"><span>ภาระงานทีม 7 วัน</span><b>115</b></a><a class="lv2" href="#mobile-m28-brief"><span>สรุปประจำวัน</span><b>116</b></a><a class="lv2" href="#mobile-m29-owner-decisions"><span>คิวตัดสินใจวันนี้</span><b>117</b></a><a class="lv2" href="#mobile-m30-owner-finance"><span>เงินสำนักงาน / ลูกหนี้</span><b>118</b></a><a class="lv2" href="#mobile-m32-reports"><span>รายงาน</span><b>119</b></a><a class="lv2" href="#mobile-m34-operations"><span>งานพักไว้</span><b>120</b></a><a class="lv1" href="#mobile-group-7"><span>การแจ้งเตือนและตั้งค่า</span><b>121</b></a><a class="lv2" href="#mobile-m27-notifications"><span>การแจ้งเตือน</span><b>122</b></a><a class="lv2" href="#mobile-m35-settings"><span>ตั้งค่า</span><b>123</b></a><a class="lv2" href="#mobile-m36-account"><span>บัญชีของฉัน</span><b>124</b></a><a class="lv0" href="#line-part"><span>ส่วนที่ 3 LINE OA</span><b>125</b></a></nav></section>
+  <section class="slide part" id="web-part"><h1>ส่วนที่ 1 เว็บ (สำหรับสำนักงาน)</h1><p>เลือกหัวข้อที่ต้องการจากสารบัญ แล้วทำตามคำแนะนำในแต่ละหน้า</p></section>
+  <section class="slide part" id="group-0"><h2>เริ่มต้น</h2><p>เริ่มใช้งาน เข้าสู่ระบบ และดูภาพรวมของสำนักงาน</p></section>
+  <section class="slide" id="slide-01-login" data-index="1">
     <header>
-      <span class="num">1 / 53</span>
+      <span class="num">เว็บ 1</span>
       <h2>หน้าเข้าสู่ระบบ (Login)</h2>
       <code>/login</code>
     </header>
@@ -130,35 +92,49 @@
     </ol>
     <figure><img src="shots/01-login.png" alt="หน้าเข้าสู่ระบบ (Login)" /></figure>
   </section>
-
-  <section class="slide" id="slide-2" data-index="2">
+  <section class="slide" id="slide-50-register" data-index="47">
     <header>
-      <span class="num">2 / 53</span>
-      <h2>แดชบอร์ด — ภาพรวมงาน</h2>
-      <code>/dashboard</code>
+      <span class="num">เว็บ 47</span>
+      <h2>เริ่มต้นสำนักงานของคุณ — สมัครใช้งาน</h2>
+      <code>/register</code>
     </header>
-    <p class="desc">หน้าแรกหลังเข้าสู่ระบบ สรุปคดีที่ยังไม่ปิด งานที่ยังไม่เสร็จ งานเกินกำหนด และนัดที่กำลังจะมาถึง พร้อมรายการงานที่ต้องทำ/เรื่องรับเข้าล่าสุด คดีล่าสุด และนัดหมายถัดไป</p>
+    <p class="desc">หน้าสมัครสำนักงานใหม่ กรอกชื่อสำนักงาน อีเมล และรหัสผ่าน ระบบจะสร้างสำนักงาน (tenant) แยกของตัวเองให้ทันที</p>
     <ol class="callouts">
-      <li><span class="pin">1</span>เมนูหลัก ใช้สลับหน้าจอทั้งระบบ</li>
-      <li><span class="pin">2</span>ช่องค้นหาด่วน คดี/ลูกค้า</li>
-      <li><span class="pin">3</span>ชื่อหน้าและสำนักงานที่ใช้งาน</li>
-      <li><span class="pin">4</span>จำนวนคดีที่ยังไม่ปิด</li>
-      <li><span class="pin">5</span>จำนวนงานที่ยังไม่เสร็จ</li>
-      <li><span class="pin">6</span>งานที่เลยกำหนดส่งแล้ว</li>
-      <li><span class="pin">7</span>นัดที่กำลังจะถึง</li>
-      <li><span class="pin">8</span>ปุ่มลัด รับงานใหม่</li>
-      <li><span class="pin">9</span>ไปหน้ารายการคดีทั้งหมด</li>
-    </ol>
-    <figure><img src="shots/02-dashboard.png" alt="แดชบอร์ด — ภาพรวมงาน" /></figure>
-  </section>
 
-  <section class="slide" id="slide-3" data-index="3">
+    </ol>
+    <figure><img src="shots/50-register.png" alt="เริ่มต้นสำนักงานของคุณ — สมัครใช้งาน" /></figure>
+  </section>
+  <section class="slide" id="slide-51-forgot-password" data-index="48">
     <header>
-      <span class="num">3 / 53</span>
+      <span class="num">เว็บ 48</span>
+      <h2>ลืมรหัสผ่าน — ขอลิงก์ตั้งรหัสผ่านใหม่</h2>
+      <code>/forgot-password</code>
+    </header>
+    <p class="desc">กรอกอีเมลที่ใช้สมัคร ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้ทางอีเมล</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ส่งลิงก์ตั้งรหัสผ่านใหม่</li>
+    </ol>
+    <figure><img src="shots/51-forgot-password.png" alt="ลืมรหัสผ่าน — ขอลิงก์ตั้งรหัสผ่านใหม่" /></figure>
+  </section>
+  <section class="slide" id="slide-52-landing" data-index="49">
+    <header>
+      <span class="num">เว็บ 49</span>
+      <h2>หน้าแรกของ Samnuan</h2>
+      <code>/</code>
+    </header>
+    <p class="desc">หน้าแนะนำระบบสำหรับผู้ที่ยังไม่ได้เป็นลูกค้า อธิบายจุดเด่นของระบบและมีปุ่มขอทดลองใช้งานฟรี</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ขอทดลองใช้งานฟรี</li>
+    </ol>
+    <figure><img src="shots/52-landing.png" alt="หน้าแรกของ Samnuan" /></figure>
+  </section><section class="slide part" id="group-1"><h2>คดี</h2><p>ค้นหา เปิด และติดตามข้อมูลคดีตั้งแต่เริ่มจนปิดคดี</p></section>
+  <section class="slide" id="slide-03-cases-list" data-index="2">
+    <header>
+      <span class="num">เว็บ 2</span>
       <h2>คดี — รายการคดีทั้งหมด</h2>
       <code>/cases</code>
     </header>
-    <p class="desc">ตารางคดีทั้งหมดของสำนักงาน ค้นหาด้วย Own Ref / Customer Ref / เลขดำ / เลขแดง / ชื่อลูกค้า กรองตามสถานะ และส่งออกเป็นไฟล์ได้</p>
+    <p class="desc">ตารางคดีทั้งหมดของสำนักงาน ค้นหาด้วย Own Ref / Customer Ref / หมายเลขคดีดำ / หมายเลขคดีแดง / ชื่อลูกค้า กรองตามสถานะ และส่งออกเป็นไฟล์ได้</p>
     <ol class="callouts">
       <li><span class="pin">1</span>ค้นหาคดีจากเลขอ้างอิงหรือชื่อลูกค้า</li>
       <li><span class="pin">2</span>กรองตามสถานะคดี</li>
@@ -167,10 +143,9 @@
     </ol>
     <figure><img src="shots/03-cases-list.png" alt="คดี — รายการคดีทั้งหมด" /></figure>
   </section>
-
-  <section class="slide" id="slide-4" data-index="4">
+  <section class="slide" id="slide-04-cases-board" data-index="3">
     <header>
-      <span class="num">4 / 53</span>
+      <span class="num">เว็บ 3</span>
       <h2>Case Workflow Board — บอร์ดติดตามสถานะ</h2>
       <code>/cases/board</code>
     </header>
@@ -182,38 +157,26 @@
     </ol>
     <figure><img src="shots/04-cases-board.png" alt="Case Workflow Board — บอร์ดติดตามสถานะ" /></figure>
   </section>
-
-  <section class="slide" id="slide-5" data-index="5">
+  <section class="slide" id="slide-05-case-new" data-index="4">
     <header>
-      <span class="num">5 / 53</span>
-      <h2>สร้างคดีใหม่ — ขั้นที่ 1 เลือกประเภทคดี</h2>
+      <span class="num">เว็บ 4</span>
+      <h2>สร้างคดีใหม่ — กรอกหน้าเดียวจบ</h2>
       <code>/cases/new</code>
     </header>
-    <p class="desc">การสร้างคดีเป็นแบบ 4 ขั้นตอน ขั้นแรกเลือกประเภทคดี ระบบจะปรับฟิลด์ในขั้นถัดไปตามประเภทที่เลือก</p>
+    <p class="desc">เปิดคดีใหม่ได้ในหน้าเดียว ช่องที่มี * ต้องกรอก ที่เหลือเติมภายหลังได้ 1) เลือกประเภทคดี 2) เลือกลูกความ 3) ตั้งชื่อคดี 4) เลือกทนายผู้รับผิดชอบ 5) ถ้ามีคู่ความและศาลให้กรอกในส่วน &quot;คู่ความและศาล&quot; แล้วกด &quot;สร้างคดี&quot;</p>
     <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อหน้า สร้างคดีใหม่</li>
-      <li><span class="pin">2</span>คลิกเลือกประเภทคดี</li>
-      <li><span class="pin">3</span>กดถัดไปเพื่อไปขั้นถัดไป (ต้องเลือกประเภทก่อน)</li>
+      <li><span class="pin">1</span>1. เลือกประเภทคดี (บังคับ)</li>
+      <li><span class="pin">2</span>2. เลือกลูกความ (เติมทีหลังได้)</li>
+      <li><span class="pin">3</span>3. ตั้งชื่อคดี (บังคับ)</li>
+      <li><span class="pin">4</span>4. เลือกทนายผู้รับผิดชอบ</li>
+      <li><span class="pin">5</span>5. คู่ความฝ่ายตรงข้ามและศาล (ถ้ามี)</li>
+      <li><span class="pin">6</span>กดเพื่อบันทึกคดี</li>
     </ol>
-    <figure><img src="shots/05-case-new-step1.png" alt="สร้างคดีใหม่ — ขั้นที่ 1 เลือกประเภทคดี" /></figure>
+    <figure><img src="shots/05-case-new.png" alt="สร้างคดีใหม่ — กรอกหน้าเดียวจบ" /></figure>
   </section>
-
-  <section class="slide" id="slide-6" data-index="6">
+  <section class="slide" id="slide-07-case-detail" data-index="5">
     <header>
-      <span class="num">6 / 53</span>
-      <h2>สร้างคดีใหม่ — ขั้นที่ 2 ข้อมูลพื้นฐาน</h2>
-      <code>/cases/new</code>
-    </header>
-    <p class="desc">กรอกข้อมูลคดี Own Ref ถูกสร้างอัตโนมัติ (TSBREF + ปี + เลขรัน) ส่วนเลขดำ/เลขแดงกรอกในรูปแบบ เลขที่/ปีพ.ศ. เช่น 123/2567 และระบุลูกค้ากับรายได้โดยประมาณ</p>
-    <ol class="callouts">
-      
-    </ol>
-    <figure><img src="shots/06-case-new-step2.png" alt="สร้างคดีใหม่ — ขั้นที่ 2 ข้อมูลพื้นฐาน" /></figure>
-  </section>
-
-  <section class="slide" id="slide-7" data-index="7">
-    <header>
-      <span class="num">7 / 53</span>
+      <span class="num">เว็บ 5</span>
       <h2>รายละเอียดคดี</h2>
       <code>/cases/:id</code>
     </header>
@@ -224,10 +187,9 @@
     </ol>
     <figure><img src="shots/07-case-detail.png" alt="รายละเอียดคดี" /></figure>
   </section>
-
-  <section class="slide" id="slide-8" data-index="8">
+  <section class="slide" id="slide-08-case-tasks" data-index="6">
     <header>
-      <span class="num">8 / 53</span>
+      <span class="num">เว็บ 6</span>
       <h2>งานในคดี (Tasks)</h2>
       <code>/cases/:id/tasks</code>
     </header>
@@ -239,10 +201,9 @@
     </ol>
     <figure><img src="shots/08-case-tasks.png" alt="งานในคดี (Tasks)" /></figure>
   </section>
-
-  <section class="slide" id="slide-9" data-index="9">
+  <section class="slide" id="slide-09-case-documents" data-index="7">
     <header>
-      <span class="num">9 / 53</span>
+      <span class="num">เว็บ 7</span>
       <h2>เอกสารของคดี</h2>
       <code>/cases/:id/documents</code>
     </header>
@@ -253,10 +214,9 @@
     </ol>
     <figure><img src="shots/09-case-documents.png" alt="เอกสารของคดี" /></figure>
   </section>
-
-  <section class="slide" id="slide-10" data-index="10">
+  <section class="slide" id="slide-10-case-billing" data-index="8">
     <header>
-      <span class="num">10 / 53</span>
+      <span class="num">เว็บ 8</span>
       <h2>การเงินรายคดี — เวลาทำงาน ค่าใช้จ่าย ใบแจ้งหนี้</h2>
       <code>/cases/:id/billing</code>
     </header>
@@ -266,10 +226,71 @@
     </ol>
     <figure><img src="shots/10-case-billing.png" alt="การเงินรายคดี — เวลาทำงาน ค่าใช้จ่าย ใบแจ้งหนี้" /></figure>
   </section>
-
-  <section class="slide" id="slide-11" data-index="11">
+  <section class="slide" id="slide-32-case-insurance" data-index="31">
     <header>
-      <span class="num">11 / 53</span>
+      <span class="num">เว็บ 31</span>
+      <h2>คดี — แท็บเคลมประกัน</h2>
+      <code>/cases/:id/insurance</code>
+    </header>
+    <p class="desc">สำหรับคดีที่เกี่ยวข้องกับการเคลมประกัน ติดตามขั้นตอนการเคลมและเอกสารที่เกี่ยวข้องแยกจากแท็บอื่น</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อคดีที่กำลังดู</li>
+    </ol>
+    <figure><img src="shots/32-case-insurance.png" alt="คดี — แท็บเคลมประกัน" /></figure>
+  </section>
+  <section class="slide" id="slide-33-case-messages" data-index="32">
+    <header>
+      <span class="num">เว็บ 32</span>
+      <h2>คดี — แท็บข้อความกับลูกค้า</h2>
+      <code>/cases/:id/messages</code>
+    </header>
+    <p class="desc">พูดคุยกับลูกค้าเป็นรายคดี ข้อความที่ส่งจากแท็บนี้จะไปปรากฏใน Client Portal ของลูกค้าด้วย</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อคดีที่กำลังดู</li>
+    </ol>
+    <figure><img src="shots/33-case-messages.png" alt="คดี — แท็บข้อความกับลูกค้า" /></figure>
+  </section>
+  <section class="slide" id="slide-34-case-closing-report" data-index="33">
+    <header>
+      <span class="num">เว็บ 33</span>
+      <h2>คดี — แท็บสรุปปิดคดี</h2>
+      <code>/cases/:id/closing-report</code>
+    </header>
+    <p class="desc">สรุปผลคดีเมื่อปิดคดีแล้ว ใช้ประกอบการส่งอีเมลปิดงานให้ลูกค้าและเก็บเป็นสรุปคดีใน Knowledge Base</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อคดีที่กำลังดู</li>
+    </ol>
+    <figure><img src="shots/34-case-closing-report.png" alt="คดี — แท็บสรุปปิดคดี" /></figure>
+  </section>
+  <section class="slide" id="slide-59-cases-import" data-index="55">
+    <header>
+      <span class="num">เว็บ 55</span>
+      <h2>นำเข้าคดีจาก Excel</h2>
+      <code>/cases/import</code>
+    </header>
+    <p class="desc">ใช้เตรียมนำเข้าคดีหลายรายการ ดาวน์โหลดแบบฟอร์ม กรอกหนึ่งแถวต่อคดี อัปโหลดและตรวจข้อมูลก่อนสร้างคดี</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>เลือกไฟล์ Excel ที่กรอกแล้ว</li>
+    </ol>
+    <figure><img src="shots/59-cases-import.png" alt="นำเข้าคดีจาก Excel" /></figure>
+  </section>
+  <section class="slide" id="slide-64-paper-label" data-index="59">
+    <header>
+      <span class="num">เว็บ 59</span>
+      <h2>ป้ายแฟ้มคดี</h2>
+      <code>/cases/:id/paper-label</code>
+    </header>
+    <p class="desc">ใช้พิมพ์ป้ายสำหรับแฟ้มกระดาษ เปิดคดี ตรวจข้อมูลบนป้าย แล้วเลือกพิมพ์เพื่อนำไปติดแฟ้ม</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ป้ายแฟ้มของคดี</li>
+      <li><span class="pin">2</span>สั่งพิมพ์ป้าย</li>
+    </ol>
+    <figure><img src="shots/64-paper-label.png" alt="ป้ายแฟ้มคดี" /></figure>
+  </section><section class="slide part" id="group-2"><h2>ลูกค้า &amp; รับเรื่อง</h2><p>จัดการข้อมูลลูกค้าและคัดกรองเรื่องที่ติดต่อเข้ามา</p></section>
+  <section class="slide" id="slide-11-clients" data-index="9">
+    <header>
+      <span class="num">เว็บ 9</span>
       <h2>ลูกค้า — ทะเบียนลูกค้าและผู้ติดต่อ</h2>
       <code>/clients</code>
     </header>
@@ -282,10 +303,9 @@
     </ol>
     <figure><img src="shots/11-clients.png" alt="ลูกค้า — ทะเบียนลูกค้าและผู้ติดต่อ" /></figure>
   </section>
-
-  <section class="slide" id="slide-12" data-index="12">
+  <section class="slide" id="slide-12-clients-new" data-index="10">
     <header>
-      <span class="num">12 / 53</span>
+      <span class="num">เว็บ 10</span>
       <h2>เพิ่มลูกค้า — พร้อมผู้ติดต่อหลายคน</h2>
       <code>/clients/new</code>
     </header>
@@ -295,10 +315,57 @@
     </ol>
     <figure><img src="shots/12-clients-new.png" alt="เพิ่มลูกค้า — พร้อมผู้ติดต่อหลายคน" /></figure>
   </section>
-
-  <section class="slide" id="slide-13" data-index="13">
+  <section class="slide" id="slide-35-intake" data-index="34">
     <header>
-      <span class="num">13 / 53</span>
+      <span class="num">เว็บ 34</span>
+      <h2>รับเรื่อง — คิวเรื่องที่กำลังคัดกรอง</h2>
+      <code>/intake</code>
+    </header>
+    <p class="desc">จุดเริ่มต้นก่อนเปิดเป็นคดีจริง ใช้คัดกรองเรื่องที่ลูกค้าติดต่อเข้ามา (โทร/อีเมล/เดินเข้ามา) ก่อนตัดสินใจรับเป็นคดี</p>
+    <ol class="callouts">
+
+    </ol>
+    <figure><img src="shots/35-intake.png" alt="รับเรื่อง — คิวเรื่องที่กำลังคัดกรอง" /></figure>
+  </section>
+  <section class="slide" id="slide-36-intake-new" data-index="35">
+    <header>
+      <span class="num">เว็บ 35</span>
+      <h2>รับเรื่องใหม่ — กรอกรายละเอียดเบื้องต้น</h2>
+      <code>/intake/new</code>
+    </header>
+    <p class="desc">กรอกหัวข้อเรื่อง วางข้อความจากอีเมล/แชทของลูกค้า ใส่ชื่อผู้ติดต่อ และเลือกผู้รับผิดชอบได้หลายคน ระบบช่วยสรุปข้อเท็จจริงเบื้องต้นให้</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>วางข้อความจากอีเมล/แชทของลูกค้า</li>
+    </ol>
+    <figure><img src="shots/36-intake-new.png" alt="รับเรื่องใหม่ — กรอกรายละเอียดเบื้องต้น" /></figure>
+  </section>
+  <section class="slide" id="slide-38-intake-portal-submissions" data-index="36">
+    <header>
+      <span class="num">เว็บ 36</span>
+      <h2>เรื่องที่ส่งจาก Customer Portal</h2>
+      <code>/intake/portal-submissions</code>
+    </header>
+    <p class="desc">คำขอที่ลูกค้ากรอกเข้ามาเองผ่าน Client Portal (ก่อนเป็นลูกค้าในระบบ) พนักงานตรวจแล้วเลือกแปลงเป็นเรื่องรับเข้า/คดีได้</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>หัวข้อหน้า</li>
+    </ol>
+    <figure><img src="shots/38-intake-portal-submissions.png" alt="เรื่องที่ส่งจาก Customer Portal" /></figure>
+  </section>
+  <section class="slide" id="slide-39-email-intake" data-index="37">
+    <header>
+      <span class="num">เว็บ 37</span>
+      <h2>รับเรื่องจากอีเมล — กล่องอีเมลที่เชื่อมต่อไว้</h2>
+      <code>/email-intake</code>
+    </header>
+    <p class="desc">แสดงอีเมล/เธรดที่ระบบดึงมาจากกล่องอีเมลที่เชื่อมต่อ (Outlook) AI จะช่วยเสนอข้อมูลคดีเบื้องต้นให้ตรวจสอบก่อนรับเข้า คลิกแถวเพื่อเปิดดูรายละเอียด</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>หัวข้อหน้า</li>
+    </ol>
+    <figure><img src="shots/39-email-intake.png" alt="รับเรื่องจากอีเมล — กล่องอีเมลที่เชื่อมต่อไว้" /></figure>
+  </section><section class="slide part" id="group-3"><h2>ปฏิทิน &amp; ศาล</h2><p>ตรวจนัดหมาย เตรียมตัวไปศาล และติดตามกำหนดการ</p></section>
+  <section class="slide" id="slide-13-court-schedule" data-index="11">
+    <header>
+      <span class="num">เว็บ 11</span>
       <h2>ตารางศาล — ปฏิทินนัดหมาย</h2>
       <code>/court-schedule</code>
     </header>
@@ -308,10 +375,208 @@
     </ol>
     <figure><img src="shots/13-court-schedule.png" alt="ตารางศาล — ปฏิทินนัดหมาย" /></figure>
   </section>
-
-  <section class="slide" id="slide-14" data-index="14">
+  <section class="slide" id="slide-29-calendar" data-index="28">
     <header>
-      <span class="num">14 / 53</span>
+      <span class="num">เว็บ 28</span>
+      <h2>ปฏิทิน — ตารางรายวันของสำนักงาน</h2>
+      <code>/calendar</code>
+    </header>
+    <p class="desc">ปฏิทินรวมนัดทั้งสำนักงาน ทุกคดีและทุกทนาย สลับมุมมองวัน/สัปดาห์/เดือนได้เหมือนตารางศาล</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เพิ่มนัดหมายใหม่</li>
+      <li><span class="pin">2</span>หัวข้อหน้า ปฏิทิน</li>
+    </ol>
+    <figure><img src="shots/29-calendar.png" alt="ปฏิทิน — ตารางรายวันของสำนักงาน" /></figure>
+  </section>
+  <section class="slide" id="slide-31-case-calendar" data-index="30">
+    <header>
+      <span class="num">เว็บ 30</span>
+      <h2>คดี — แท็บปฏิทิน/นัดของคดีนี้</h2>
+      <code>/cases/:id/calendar</code>
+    </header>
+    <p class="desc">ลิงก์ลัดจากแดชบอร์ด/My Day พาไปที่แท็บปฏิทินของคดีนั้นโดยตรง แสดงนัดศาลและนัดหมายเฉพาะคดีนี้</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อคดีที่กำลังดู</li>
+    </ol>
+    <figure><img src="shots/31-case-calendar.png" alt="คดี — แท็บปฏิทิน/นัดของคดีนี้" /></figure>
+  </section>
+  <section class="slide" id="slide-65-court-day" data-index="60">
+    <header>
+      <span class="num">เว็บ 60</span>
+      <h2>เตรียมวันนัดศาล</h2>
+      <code>/court-day/:eventId</code>
+    </header>
+    <p class="desc">ใช้เตรียมและติดตามวันนัด เปิดนัดศาล ตรวจรายการเตรียมตัวและเอกสาร แล้วบันทึกผลเมื่อดำเนินการเสร็จ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>รายละเอียดวันนัด</li>
+      <li><span class="pin">2</span>ตรวจรายการเตรียมตัว</li>
+    </ol>
+    <figure><img src="shots/65-court-day.png" alt="เตรียมวันนัดศาล" /></figure>
+  </section><section class="slide part" id="group-4"><h2>งาน</h2><p>วางแผน มอบหมาย และติดตามงานของสำนักงาน</p></section>
+  <section class="slide" id="slide-16-reports" data-index="14">
+    <header>
+      <span class="num">เว็บ 14</span>
+      <h2>รายงาน</h2>
+      <code>/reports</code>
+    </header>
+    <p class="desc">รายงานเชิงบริหาร ปริมาณคดีตามประเภท รายได้ต่อทนาย บันทึกการขึ้นศาล และสรุปค่าใช้จ่าย ส่งออกได้ทั้งหมด</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>การ์ดรายงานแต่ละหัวข้อ</li>
+    </ol>
+    <figure><img src="shots/16-reports.png" alt="รายงาน" /></figure>
+  </section>
+  <section class="slide" id="slide-17-knowledge" data-index="15">
+    <header>
+      <span class="num">เว็บ 15</span>
+      <h2>Knowledge Base — คลังสรุปคดี</h2>
+      <code>/knowledge</code>
+    </header>
+    <p class="desc">รวมบทสรุปคดีที่ผ่านมา ค้นหาและกรองตามประเภท/ผลคดี เพื่อใช้อ้างอิงกับคดีใหม่</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>กรองตามประเภทคดีและผลคดี</li>
+    </ol>
+    <figure><img src="shots/17-knowledge.png" alt="Knowledge Base — คลังสรุปคดี" /></figure>
+  </section>
+  <section class="slide" id="slide-19-account-billing" data-index="17">
+    <header>
+      <span class="num">เว็บ 17</span>
+      <h2>แพ็กเกจ &amp; การชำระเงิน</h2>
+      <code>/account/billing</code>
+    </header>
+    <p class="desc">ดูสถานะทดลองใช้/แพ็กเกจปัจจุบัน จำนวนผู้ใช้ที่ใช้ไป และเลือกสมัครแพ็กเกจ Solo / Firm / Professional</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>สถานะแพ็กเกจปัจจุบันและจำนวนผู้ใช้</li>
+      <li><span class="pin">2</span>เลือกแพ็กเกจแล้วชำระเงิน</li>
+    </ol>
+    <figure><img src="shots/19-account-billing.png" alt="แพ็กเกจ &amp; การชำระเงิน" /></figure>
+  </section>
+  <section class="slide" id="slide-25-getting-started" data-index="24">
+    <header>
+      <span class="num">เว็บ 24</span>
+      <h2>เริ่มใช้งานสำนักงาน — นำเข้าข้อมูลเดิม</h2>
+      <code>/getting-started</code>
+    </header>
+    <p class="desc">ใช้ตอนเริ่มระบบครั้งแรก ดาวน์โหลดแบบฟอร์ม CSV กรอกรายชื่อคดี/ลูกค้าเดิม แล้วอัปโหลดกลับเข้าระบบ ระบบจะแสดงตัวอย่างก่อนนำเข้าจริงเสมอ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เลือกไฟล์ CSV ที่กรอกแล้ว</li>
+      <li><span class="pin">2</span>ไปตั้งค่า Playbook ของสำนักงาน</li>
+    </ol>
+    <figure><img src="shots/25-getting-started.png" alt="เริ่มใช้งานสำนักงาน — นำเข้าข้อมูลเดิม" /></figure>
+  </section>
+  <section class="slide" id="slide-26-my-day" data-index="25">
+    <header>
+      <span class="num">เว็บ 25</span>
+      <h2>วันของฉัน — สรุปงานและนัดวันนี้</h2>
+      <code>/my-day</code>
+    </header>
+    <p class="desc">มุมมองแบบรายวันสำหรับเตรียมตัวก่อนเริ่มงาน รวมนัดศาล นัดลูกค้า และงานที่ครบกำหนดวันนี้ไว้ในที่เดียว กดที่รายการเพื่อเปิดรายละเอียด</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>หัวข้อหน้า วันของฉัน</li>
+    </ol>
+    <figure><img src="shots/26-my-day.png" alt="วันของฉัน — สรุปงานและนัดวันนี้" /></figure>
+  </section>
+  <section class="slide" id="slide-27-work" data-index="26">
+    <header>
+      <span class="num">เว็บ 26</span>
+      <h2>งานที่ต้องทำ — กล่องงานรวมทั้งงานคดีและงานส่วนตัว</h2>
+      <code>/work</code>
+    </header>
+    <p class="desc">รวมงานทั้งหมดที่มอบหมายให้คุณ ทั้งงานในคดีและงานทั่วไป กรองตาม ทั้งหมด/มอบหมายให้ฉัน/งานคดี/งานทั่วไป และตามกำหนดส่ง ค้นหาได้จากชื่องาน คดี หรือผู้รับผิดชอบ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เพิ่มงานส่วนตัวใหม่</li>
+    </ol>
+    <figure><img src="shots/27-work.png" alt="งานที่ต้องทำ — กล่องงานรวมทั้งงานคดีและงานส่วนตัว" /></figure>
+  </section>
+  <section class="slide" id="slide-28-todos" data-index="27">
+    <header>
+      <span class="num">เว็บ 27</span>
+      <h2>งานส่วนตัว — เช็คลิสต์ของแต่ละคน</h2>
+      <code>/todos</code>
+    </header>
+    <p class="desc">จดงานส่วนตัวที่ไม่ผูกกับคดี เช่น งานธุรการหรืองานที่ได้รับมอบหมายนอกคดี สลับดูงานของตัวเอง/ทีม</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เพิ่มงานใหม่</li>
+    </ol>
+    <figure><img src="shots/28-todos.png" alt="งานส่วนตัว — เช็คลิสต์ของแต่ละคน" /></figure>
+  </section>
+  <section class="slide" id="slide-43-playbooks" data-index="40">
+    <header>
+      <span class="num">เว็บ 40</span>
+      <h2>Playbooks — ชุดงานมาตรฐานของแต่ละประเภทคดี</h2>
+      <code>/playbooks</code>
+    </header>
+    <p class="desc">กำหนดชุดงาน/เอกสารมาตรฐานสำหรับคดีแต่ละประเภท (เช่น คดีอุบัติเหตุ คดีแพทย์) เมื่อเปิดคดีใหม่แล้วนำ Playbook มาใช้ ระบบจะสร้างงานตามชุดนี้ให้อัตโนมัติ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>หัวข้อหน้า Playbooks</li>
+      <li><span class="pin">2</span>ไปเลือกคดีเพื่อนำ Playbook ไปใช้</li>
+    </ol>
+    <figure><img src="shots/43-playbooks.png" alt="Playbooks — ชุดงานมาตรฐานของแต่ละประเภทคดี" /></figure>
+  </section>
+  <section class="slide" id="slide-44-sops" data-index="41">
+    <header>
+      <span class="num">เว็บ 41</span>
+      <h2>SOP / คู่มือการทำงาน</h2>
+      <code>/sops</code>
+    </header>
+    <p class="desc">คลังคู่มือ/ขั้นตอนมาตรฐานภายในสำนักงาน ค้นหาได้ เจ้าของสำนักงานเพิ่ม/แก้ไข/ลบได้ ใช้อ้างอิงเวลาอบรมพนักงานใหม่</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ค้นหา SOP</li>
+    </ol>
+    <figure><img src="shots/44-sops.png" alt="SOP / คู่มือการทำงาน" /></figure>
+  </section>
+  <section class="slide" id="slide-45-operations" data-index="42">
+    <header>
+      <span class="num">เว็บ 42</span>
+      <h2>ภาระงานทีม — มอบหมายงานให้สมดุล</h2>
+      <code>/operations</code>
+    </header>
+    <p class="desc">ภาพรวมภาระงานของทีมทั้งหมด ดูว่าใครงานล้นใครงานว่าง แล้วมอบหมายงานเพิ่มเติมให้สมดุลกันได้จากหน้านี้</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>หัวข้อหน้า ภาระงานทีม</li>
+    </ol>
+    <figure><img src="shots/45-operations.png" alt="ภาระงานทีม — มอบหมายงานให้สมดุล" /></figure>
+  </section>
+  <section class="slide" id="slide-53-brief" data-index="50">
+    <header>
+      <span class="num">เว็บ 50</span>
+      <h2>สรุปประจำวัน</h2>
+      <code>/brief</code>
+    </header>
+    <p class="desc">ใช้ดูภาพรวมงานวันนี้ เริ่มจากตรวจรายการที่ต้องติดตาม แล้วเปิดคดีหรืองานที่ต้องดำเนินการต่อ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+    </ol>
+    <figure><img src="shots/53-brief.png" alt="สรุปประจำวัน" /></figure>
+  </section>
+  <section class="slide" id="slide-57-workflows" data-index="53">
+    <header>
+      <span class="num">เว็บ 53</span>
+      <h2>สายงาน</h2>
+      <code>/workflows</code>
+    </header>
+    <p class="desc">ใช้ติดตามงานที่ส่งต่อกัน ตรวจขั้นตอนและผู้รับผิดชอบ หากต้องเริ่มสายงานให้เปิดคดีและไปที่แท็บงาน</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>เปิดคดีหรือเลือกมุมมองสายงาน</li>
+    </ol>
+    <figure><img src="shots/57-workflows.png" alt="สายงาน" /></figure>
+  </section>
+  <section class="slide" id="slide-60-paper-files" data-index="56">
+    <header>
+      <span class="num">เว็บ 56</span>
+      <h2>แฟ้มกระดาษที่ถูกยืม</h2>
+      <code>/operations/paper-files</code>
+    </header>
+    <p class="desc">ใช้ติดตามแฟ้มที่นำออกจากที่เก็บ ตรวจรายการและผู้ถือแฟ้ม แล้วเปิดคดีที่ต้องการติดตาม</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>ตรวจรายการแฟ้ม</li>
+    </ol>
+    <figure><img src="shots/60-paper-files.png" alt="แฟ้มกระดาษที่ถูกยืม" /></figure>
+  </section><section class="slide part" id="group-5"><h2>เอกสาร</h2><p>ค้นหาและจัดเก็บเอกสารที่ใช้ในการทำงาน</p></section>
+  <section class="slide" id="slide-14-documents" data-index="12">
+    <header>
+      <span class="num">เว็บ 12</span>
       <h2>เอกสาร — คลังเอกสารรวมทุกคดี</h2>
       <code>/documents</code>
     </header>
@@ -322,10 +587,22 @@
     </ol>
     <figure><img src="shots/14-documents.png" alt="เอกสาร — คลังเอกสารรวมทุกคดี" /></figure>
   </section>
-
-  <section class="slide" id="slide-15" data-index="15">
+  <section class="slide" id="slide-58-email-search" data-index="54">
     <header>
-      <span class="num">15 / 53</span>
+      <span class="num">เว็บ 54</span>
+      <h2>ค้นหาอีเมล</h2>
+      <code>/email-search</code>
+    </header>
+    <p class="desc">ใช้ค้นอีเมลที่เกี่ยวข้อง พิมพ์ชื่อหรือคำค้น แล้วเปิดผลลัพธ์เพื่อตรวจข้อความต้นทาง</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>พิมพ์คำค้นอีเมล</li>
+    </ol>
+    <figure><img src="shots/58-email-search.png" alt="ค้นหาอีเมล" /></figure>
+  </section><section class="slide part" id="group-6"><h2>การเงิน</h2><p>บันทึกเวลา ค่าใช้จ่าย และติดตามการเรียกเก็บเงิน</p></section>
+  <section class="slide" id="slide-15-expenses" data-index="13">
+    <header>
+      <span class="num">เว็บ 13</span>
       <h2>ค่าใช้จ่าย &amp; การเงิน</h2>
       <code>/expenses</code>
     </header>
@@ -335,36 +612,58 @@
     </ol>
     <figure><img src="shots/15-expenses.png" alt="ค่าใช้จ่าย &amp; การเงิน" /></figure>
   </section>
-
-  <section class="slide" id="slide-16" data-index="16">
+  <section class="slide" id="slide-30-invoices" data-index="29">
     <header>
-      <span class="num">16 / 53</span>
-      <h2>รายงาน</h2>
-      <code>/reports</code>
+      <span class="num">เว็บ 29</span>
+      <h2>ใบแจ้งหนี้ — ออกและติดตามการชำระเงิน</h2>
+      <code>/invoices</code>
     </header>
-    <p class="desc">รายงานเชิงบริหาร ปริมาณคดีตามประเภท รายได้ต่อทนาย บันทึกการขึ้นศาล และสรุปค่าใช้จ่าย ส่งออกได้ทั้งหมด</p>
+    <p class="desc">รวมใบแจ้งหนี้ทุกคดี ดูสถานะค้างชำระ/ชำระแล้ว และออกใบแจ้งหนี้ใหม่จากชั่วโมงทำงานและค่าใช้จ่ายที่บันทึกไว้</p>
     <ol class="callouts">
-      <li><span class="pin">1</span>การ์ดรายงานแต่ละหัวข้อ</li>
+      <li><span class="pin">1</span>หัวข้อหน้า ใบแจ้งหนี้</li>
     </ol>
-    <figure><img src="shots/16-reports.png" alt="รายงาน" /></figure>
+    <figure><img src="shots/30-invoices.png" alt="ใบแจ้งหนี้ — ออกและติดตามการชำระเงิน" /></figure>
   </section>
-
-  <section class="slide" id="slide-17" data-index="17">
+  <section class="slide" id="slide-41-expenses-new" data-index="38">
     <header>
-      <span class="num">17 / 53</span>
-      <h2>Knowledge Base — คลังสรุปคดี</h2>
-      <code>/knowledge</code>
+      <span class="num">เว็บ 38</span>
+      <h2>บันทึกค่าใช้จ่ายใหม่</h2>
+      <code>/expenses/new</code>
     </header>
-    <p class="desc">รวมบทสรุปคดีที่ผ่านมา ค้นหาและกรองตามประเภท/ผลคดี เพื่อใช้อ้างอิงกับคดีใหม่</p>
+    <p class="desc">กรอกยอดเงิน รายละเอียด แนบใบเสร็จ และเลือกคดีที่เกี่ยวข้อง (ถ้ามี) เพื่อส่งขออนุมัติเบิกค่าใช้จ่าย</p>
     <ol class="callouts">
-      <li><span class="pin">1</span>กรองตามประเภทคดีและผลคดี</li>
-    </ol>
-    <figure><img src="shots/17-knowledge.png" alt="Knowledge Base — คลังสรุปคดี" /></figure>
-  </section>
 
-  <section class="slide" id="slide-18" data-index="18">
+    </ol>
+    <figure><img src="shots/41-expenses-new.png" alt="บันทึกค่าใช้จ่ายใหม่" /></figure>
+  </section>
+  <section class="slide" id="slide-42-expenses-claim" data-index="39">
     <header>
-      <span class="num">18 / 53</span>
+      <span class="num">เว็บ 39</span>
+      <h2>แบบฟอร์มเบิกค่าใช้จ่าย — พิมพ์/ส่งขออนุมัติ</h2>
+      <code>/expenses/claim</code>
+    </header>
+    <p class="desc">รวมรายการค่าใช้จ่ายที่ยังเป็นร่างเป็นแบบฟอร์มเบิกฉบับเดียว พิมพ์เป็น PDF หรือส่งให้เจ้าของสำนักงานอนุมัติทีเดียว</p>
+    <ol class="callouts">
+
+    </ol>
+    <figure><img src="shots/42-expenses-claim.png" alt="แบบฟอร์มเบิกค่าใช้จ่าย — พิมพ์/ส่งขออนุมัติ" /></figure>
+  </section>
+  <section class="slide" id="slide-55-timesheet" data-index="52">
+    <header>
+      <span class="num">เว็บ 52</span>
+      <h2>บันทึกเวลาทำงาน</h2>
+      <code>/timesheet</code>
+    </header>
+    <p class="desc">ใช้บันทึกเวลาที่ทำงานให้คดี เลือกเพิ่มรายการ กรอกคดีและชั่วโมง แล้วตรวจรายการก่อนบันทึก</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>เพิ่มหรือตรวจรายการเวลา</li>
+    </ol>
+    <figure><img src="shots/55-timesheet.png" alt="บันทึกเวลาทำงาน" /></figure>
+  </section><section class="slide part" id="group-7"><h2>ทีม &amp; ตั้งค่า</h2><p>ดูแลสมาชิกสำนักงาน สิทธิ์ และการตั้งค่าระบบ</p></section>
+  <section class="slide" id="slide-18-team" data-index="16">
+    <header>
+      <span class="num">เว็บ 16</span>
       <h2>จัดการทีม — เชิญและกำหนดสิทธิ์</h2>
       <code>/team</code>
     </header>
@@ -377,37 +676,21 @@
     </ol>
     <figure><img src="shots/18-team.png" alt="จัดการทีม — เชิญและกำหนดสิทธิ์" /></figure>
   </section>
-
-  <section class="slide" id="slide-19" data-index="19">
+  <section class="slide" id="slide-20-reimbursements" data-index="18">
     <header>
-      <span class="num">19 / 53</span>
-      <h2>แพ็กเกจ &amp; การชำระเงิน</h2>
-      <code>/account/billing</code>
-    </header>
-    <p class="desc">ดูสถานะทดลองใช้/แพ็กเกจปัจจุบัน จำนวนผู้ใช้ที่ใช้ไป และเลือกสมัครแพ็กเกจ Solo / Firm / Professional</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>สถานะแพ็กเกจปัจจุบันและจำนวนผู้ใช้</li>
-      <li><span class="pin">2</span>เลือกแพ็กเกจแล้วชำระเงิน</li>
-    </ol>
-    <figure><img src="shots/19-account-billing.png" alt="แพ็กเกจ &amp; การชำระเงิน" /></figure>
-  </section>
-
-  <section class="slide" id="slide-20" data-index="20">
-    <header>
-      <span class="num">20 / 53</span>
+      <span class="num">เว็บ 18</span>
       <h2>เบิกจ่าย — อนุมัติค่าใช้จ่าย (เฉพาะเจ้าของสำนักงาน)</h2>
       <code>/admin/reimbursements</code>
     </header>
     <p class="desc">คิวอนุมัติค่าใช้จ่ายที่ทีมส่งเข้ามา กรองตามสถานะ แล้วกด Approve / Reject / Mark Paid</p>
     <ol class="callouts">
-      
+
     </ol>
     <figure><img src="shots/20-reimbursements.png" alt="เบิกจ่าย — อนุมัติค่าใช้จ่าย (เฉพาะเจ้าของสำนักงาน)" /></figure>
   </section>
-
-  <section class="slide" id="slide-21" data-index="21">
+  <section class="slide" id="slide-21-case-types" data-index="19">
     <header>
-      <span class="num">21 / 53</span>
+      <span class="num">เว็บ 19</span>
       <h2>ประเภทคดี — ตั้งค่าฟิลด์ของแต่ละประเภท</h2>
       <code>/admin/case-types</code>
     </header>
@@ -417,10 +700,9 @@
     </ol>
     <figure><img src="shots/21-case-types.png" alt="ประเภทคดี — ตั้งค่าฟิลด์ของแต่ละประเภท" /></figure>
   </section>
-
-  <section class="slide" id="slide-22" data-index="22">
+  <section class="slide" id="slide-22-courts" data-index="20">
     <header>
-      <span class="num">22 / 53</span>
+      <span class="num">เว็บ 20</span>
       <h2>ศาล — ทะเบียนศาลของสำนักงาน</h2>
       <code>/admin/courts</code>
     </header>
@@ -430,27 +712,108 @@
     </ol>
     <figure><img src="shots/22-courts.png" alt="ศาล — ทะเบียนศาลของสำนักงาน" /></figure>
   </section>
-
-  <section class="slide" id="slide-23" data-index="23">
+  <section class="slide" id="slide-23-settings" data-index="21">
     <header>
-      <span class="num">23 / 53</span>
+      <span class="num">เว็บ 21</span>
       <h2>ตั้งค่า — โปรไฟล์ ธีม และการเชื่อมต่อ</h2>
       <code>/settings</code>
     </header>
     <p class="desc">แก้ไขชื่อผู้ใช้ สลับโหมดสว่าง/มืด และในหัวข้อ &quot;การเชื่อมต่อ&quot; ด้านล่างมีทั้งการตั้งค่า LINE Messaging API ของทั้งสำนักงาน (เฉพาะแอดมิน) และปุ่มเชื่อมต่อ LINE ส่วนตัวของแต่ละคน</p>
     <ol class="callouts">
       <li><span class="pin">1</span>ข้อมูลโปรไฟล์ (อีเมลแก้ไขไม่ได้)</li>
-      <li><span class="pin">2</span>ตั้งค่า LINE ของสำนักงาน (แอดมิน) — Channel ID/Secret</li>
-      <li><span class="pin">3</span>ทดสอบว่าตั้งค่า LINE ของสำนักงานถูกต้อง</li>
-      <li><span class="pin">4</span>ส่วนเชื่อมต่อบัญชี LINE ของตัวเอง</li>
-      <li><span class="pin">5</span>กดเพื่อเชื่อมต่อ/ยกเลิกเชื่อมต่อ LINE ส่วนตัว</li>
     </ol>
     <figure><img src="shots/23-settings.png" alt="ตั้งค่า — โปรไฟล์ ธีม และการเชื่อมต่อ" /></figure>
   </section>
-
-  <section class="slide" id="slide-24" data-index="24">
+  <section class="slide" id="slide-46-ai-usage" data-index="43">
     <header>
-      <span class="num">24 / 53</span>
+      <span class="num">เว็บ 43</span>
+      <h2>การใช้งาน AI — ติดตามการใช้เครดิต</h2>
+      <code>/ai-usage</code>
+    </header>
+    <p class="desc">ดูว่าใครในทีมเรียกใช้ฟีเจอร์ AI (ค้นฎีกา สรุปเอกสาร) มากน้อยแค่ไหน สลับช่วงเวลาดู 7/14/30 วัน คลิกรายการเพื่อดูต้นทางของการเรียกนั้น</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>หัวข้อหน้า การใช้งาน AI</li>
+    </ol>
+    <figure><img src="shots/46-ai-usage.png" alt="การใช้งาน AI — ติดตามการใช้เครดิต" /></figure>
+  </section>
+  <section class="slide" id="slide-47-admin-audit-log" data-index="44">
+    <header>
+      <span class="num">เว็บ 44</span>
+      <h2>บันทึกการใช้งาน — Audit Log (เฉพาะเจ้าของสำนักงาน)</h2>
+      <code>/admin/audit-log</code>
+    </header>
+    <p class="desc">ประวัติการกระทำสำคัญทุกอย่างในระบบ ใครทำอะไรเมื่อไหร่ กรองตามประเภทการกระทำได้ ใช้ตรวจสอบย้อนหลังเมื่อมีข้อสงสัย</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>หัวข้อหน้า Audit Log</li>
+    </ol>
+    <figure><img src="shots/47-admin-audit-log.png" alt="บันทึกการใช้งาน — Audit Log (เฉพาะเจ้าของสำนักงาน)" /></figure>
+  </section>
+  <section class="slide" id="slide-48-admin-deadline-rules" data-index="45">
+    <header>
+      <span class="num">เว็บ 45</span>
+      <h2>กฎวันครบกำหนด — คำนวณเดดไลน์อัตโนมัติ</h2>
+      <code>/admin/deadline-rules</code>
+    </header>
+    <p class="desc">ตั้งกฎให้ระบบคำนวณวันครบกำหนดของงานอัตโนมัติตามประเภทคดี/เหตุการณ์ (เช่น ยื่นอุทธรณ์ภายใน 30 วัน) ลดความเสี่ยงลืมกำหนด</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เพิ่มกฎใหม่</li>
+    </ol>
+    <figure><img src="shots/48-admin-deadline-rules.png" alt="กฎวันครบกำหนด — คำนวณเดดไลน์อัตโนมัติ" /></figure>
+  </section>
+  <section class="slide" id="slide-49-admin-holidays" data-index="46">
+    <header>
+      <span class="num">เว็บ 46</span>
+      <h2>วันหยุดราชการ — ใช้คำนวณวันทำการ</h2>
+      <code>/admin/holidays</code>
+    </header>
+    <p class="desc">รายการวันหยุดราชการที่ระบบใช้นับวันทำการเวลาคำนวณกำหนดส่งงาน เพิ่มทีละวันหรือวางเป็นชุดได้ (Bulk add)</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>วางรายการวันหยุดหลายวันพร้อมกัน</li>
+    </ol>
+    <figure><img src="shots/49-admin-holidays.png" alt="วันหยุดราชการ — ใช้คำนวณวันทำการ" /></figure>
+  </section>
+  <section class="slide" id="slide-54-leaves" data-index="51">
+    <header>
+      <span class="num">เว็บ 51</span>
+      <h2>วันลา</h2>
+      <code>/leaves</code>
+    </header>
+    <p class="desc">ใช้ขอลาและตรวจสถานะ เริ่มจากเลือกประเภทและวันที่ลา กรอกรายละเอียด แล้วตรวจข้อมูลก่อนส่งคำขอ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>กรอกรายละเอียดวันลา</li>
+    </ol>
+    <figure><img src="shots/54-leaves.png" alt="วันลา" /></figure>
+  </section>
+  <section class="slide" id="slide-61-email-templates" data-index="57">
+    <header>
+      <span class="num">เว็บ 57</span>
+      <h2>แม่แบบอีเมล</h2>
+      <code>/settings/email-templates</code>
+    </header>
+    <p class="desc">ใช้จัดข้อความที่ส่งบ่อย เลือกสร้างแม่แบบ กรอกชื่อ หัวเรื่องและเนื้อหา แล้วตรวจข้อความก่อนบันทึก</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>สร้างหรือแก้ไขแม่แบบ</li>
+    </ol>
+    <figure><img src="shots/61-email-templates.png" alt="แม่แบบอีเมล" /></figure>
+  </section>
+  <section class="slide" id="slide-62-outlook-folders" data-index="58">
+    <header>
+      <span class="num">เว็บ 58</span>
+      <h2>โฟลเดอร์ Outlook</h2>
+      <code>/settings/outlook-folders</code>
+    </header>
+    <p class="desc">ใช้จัดโฟลเดอร์อีเมลที่เชื่อมต่อ ตรวจบัญชีและรายการโฟลเดอร์ แล้วเลือกการตั้งค่าที่ต้องการ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>ตรวจบัญชีและโฟลเดอร์</li>
+    </ol>
+    <figure><img src="shots/62-outlook-folders.png" alt="โฟลเดอร์ Outlook" /></figure>
+  </section><section class="slide part" id="group-8"><h2>Client Portal</h2><p>พื้นที่ให้ลูกค้าติดตามคดีและติดต่อสำนักงาน</p></section>
+  <section class="slide" id="slide-24-portal-login" data-index="22">
+    <header>
+      <span class="num">เว็บ 22</span>
       <h2>Client Portal — หน้าเข้าสู่ระบบของลูกค้า</h2>
       <code>/portal/login</code>
     </header>
@@ -463,393 +826,87 @@
     </ol>
     <figure><img src="shots/24-portal-login.png" alt="Client Portal — หน้าเข้าสู่ระบบของลูกค้า" /></figure>
   </section>
-
-  <section class="slide" id="slide-25" data-index="25">
+  <section class="slide" id="slide-24.1-portal-check-email" data-index="23">
     <header>
-      <span class="num">25 / 53</span>
+      <span class="num">เว็บ 23</span>
       <h2>Client Portal — ตรวจสอบอีเมล</h2>
       <code>/portal/check-email</code>
     </header>
     <p class="desc">หลังขอ magic link ระบบพาไปหน้านี้ให้ลูกค้าไปเปิดอีเมลและกดลิงก์ที่ส่งไปเพื่อเข้าสู่ระบบ</p>
     <ol class="callouts">
-      
+
     </ol>
     <figure><img src="shots/24.1-portal-check-email.png" alt="Client Portal — ตรวจสอบอีเมล" /></figure>
   </section>
-
-  <section class="slide" id="slide-26" data-index="26">
+  <section class="slide" id="slide-66-portal" data-index="61">
     <header>
-      <span class="num">26 / 53</span>
-      <h2>เริ่มใช้งานสำนักงาน — นำเข้าข้อมูลเดิม</h2>
-      <code>/getting-started</code>
+      <span class="num">เว็บ 61</span>
+      <h2>พอร์ทัลลูกค้า</h2>
+      <code>/portal</code>
     </header>
-    <p class="desc">ใช้ตอนเริ่มระบบครั้งแรก ดาวน์โหลดแบบฟอร์ม CSV กรอกรายชื่อคดี/ลูกค้าเดิม แล้วอัปโหลดกลับเข้าระบบ ระบบจะแสดงตัวอย่างก่อนนำเข้าจริงเสมอ</p>
+    <p class="desc">ใช้ดูภาพรวมเรื่องและคดี เลือกเมนูหรือรายการที่ต้องการเพื่อติดตามความคืบหน้า</p>
     <ol class="callouts">
-      <li><span class="pin">1</span>เลือกไฟล์ CSV ที่กรอกแล้ว</li>
-      <li><span class="pin">2</span>ไปตั้งค่า Playbook ของสำนักงาน</li>
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>เปิดรายการที่ต้องการ</li>
     </ol>
-    <figure><img src="shots/25-getting-started.png" alt="เริ่มใช้งานสำนักงาน — นำเข้าข้อมูลเดิม" /></figure>
+    <figure><img src="shots/66-portal.png" alt="พอร์ทัลลูกค้า" /></figure>
   </section>
-
-  <section class="slide" id="slide-27" data-index="27">
+  <section class="slide" id="slide-67-portal-intake-new" data-index="62">
     <header>
-      <span class="num">27 / 53</span>
-      <h2>วันของฉัน — สรุปงานและนัดวันนี้</h2>
-      <code>/my-day</code>
+      <span class="num">เว็บ 62</span>
+      <h2>ส่งเรื่องใหม่ให้สำนักงาน</h2>
+      <code>/portal/intake/new</code>
     </header>
-    <p class="desc">มุมมองแบบรายวันสำหรับเตรียมตัวก่อนเริ่มงาน รวมนัดศาล นัดลูกค้า และงานที่ครบกำหนดวันนี้ไว้ในที่เดียว กดที่รายการเพื่อเปิดรายละเอียด</p>
+    <p class="desc">ใช้แจ้งเรื่องใหม่ กรอกหัวข้อและรายละเอียด แนบเอกสารที่เกี่ยวข้อง แล้วตรวจข้อมูลก่อนส่ง</p>
     <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อหน้า วันของฉัน</li>
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>กรอกหัวข้อและรายละเอียด</li>
     </ol>
-    <figure><img src="shots/26-my-day.png" alt="วันของฉัน — สรุปงานและนัดวันนี้" /></figure>
+    <figure><img src="shots/67-portal-intake-new.png" alt="ส่งเรื่องใหม่ให้สำนักงาน" /></figure>
   </section>
-
-  <section class="slide" id="slide-28" data-index="28">
+  <section class="slide" id="slide-68-portal-reports" data-index="63">
     <header>
-      <span class="num">28 / 53</span>
-      <h2>งานที่ต้องทำ — กล่องงานรวมทั้งงานคดีและงานส่วนตัว</h2>
-      <code>/work</code>
+      <span class="num">เว็บ 63</span>
+      <h2>รายงานของลูกค้า</h2>
+      <code>/portal/reports</code>
     </header>
-    <p class="desc">รวมงานทั้งหมดที่มอบหมายให้คุณ ทั้งงานในคดีและงานทั่วไป กรองตาม ทั้งหมด/มอบหมายให้ฉัน/งานคดี/งานทั่วไป และตามกำหนดส่ง ค้นหาได้จากชื่องาน คดี หรือผู้รับผิดชอบ</p>
+    <p class="desc">ใช้ดูรายงานที่สำนักงานจัดเตรียม เลือกรายงานจากรายการเพื่ออ่านรายละเอียด</p>
     <ol class="callouts">
-      <li><span class="pin">1</span>ค้นหางาน คดี หรือผู้รับผิดชอบ</li>
-      <li><span class="pin">2</span>กรองเฉพาะงานของฉัน</li>
-      <li><span class="pin">3</span>กรองงานที่เลยกำหนดส่ง</li>
-      <li><span class="pin">4</span>เพิ่มงานส่วนตัวใหม่</li>
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>เลือกรายงานหรือดูสถานะ</li>
     </ol>
-    <figure><img src="shots/27-work.png" alt="งานที่ต้องทำ — กล่องงานรวมทั้งงานคดีและงานส่วนตัว" /></figure>
+    <figure><img src="shots/68-portal-reports.png" alt="รายงานของลูกค้า" /></figure>
   </section>
-
-  <section class="slide" id="slide-29" data-index="29">
+  <section class="slide" id="slide-69-portal-operations" data-index="64">
     <header>
-      <span class="num">29 / 53</span>
-      <h2>งานส่วนตัว — เช็คลิสต์ของแต่ละคน</h2>
-      <code>/todos</code>
+      <span class="num">เว็บ 64</span>
+      <h2>ติดตามงานดำเนินการ</h2>
+      <code>/portal/operations</code>
     </header>
-    <p class="desc">จดงานส่วนตัวที่ไม่ผูกกับคดี เช่น งานธุรการหรืองานที่ได้รับมอบหมายนอกคดี สลับดูงานของตัวเอง/ทีม</p>
+    <p class="desc">ใช้ดูความคืบหน้างานที่สำนักงานดำเนินการ ตรวจรายการและเปิดเรื่องที่ต้องการติดตาม</p>
     <ol class="callouts">
-      <li><span class="pin">1</span>เพิ่มงานใหม่</li>
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>ตรวจรายการหรือส่งเรื่องใหม่</li>
     </ol>
-    <figure><img src="shots/28-todos.png" alt="งานส่วนตัว — เช็คลิสต์ของแต่ละคน" /></figure>
+    <figure><img src="shots/69-portal-operations.png" alt="ติดตามงานดำเนินการ" /></figure>
   </section>
-
-  <section class="slide" id="slide-30" data-index="30">
+  <section class="slide" id="slide-70-portal-settings" data-index="65">
     <header>
-      <span class="num">30 / 53</span>
-      <h2>ปฏิทิน — ตารางรายวันของสำนักงาน</h2>
-      <code>/calendar</code>
+      <span class="num">เว็บ 65</span>
+      <h2>ตั้งค่าพอร์ทัล</h2>
+      <code>/portal/settings</code>
     </header>
-    <p class="desc">ปฏิทินรวมนัดทั้งสำนักงาน ทุกคดีและทุกทนาย สลับมุมมองวัน/สัปดาห์/เดือนได้เหมือนตารางศาล</p>
+    <p class="desc">ใช้ตั้งค่าการแจ้งเตือนและเชื่อมต่อ LINE ตรวจช่องทางที่ต้องการ แล้วทำตามขั้นตอนบนหน้า</p>
     <ol class="callouts">
-      <li><span class="pin">1</span>เพิ่มนัดหมายใหม่</li>
-      <li><span class="pin">2</span>หัวข้อหน้า ปฏิทิน</li>
+      <li><span class="pin">1</span>ชื่อหน้า</li>
+      <li><span class="pin">2</span>เลือกหัวข้อการแจ้งเตือนหรือ LINE</li>
     </ol>
-    <figure><img src="shots/29-calendar.png" alt="ปฏิทิน — ตารางรายวันของสำนักงาน" /></figure>
+    <figure><img src="shots/70-portal-settings.png" alt="ตั้งค่าพอร์ทัล" /></figure>
   </section>
+  <section class="slide part" id="mobile-part"><h1>ส่วนที่ 2 แอปมือถือ</h1><p>ดูขั้นตอนการใช้งานแอปมือถือแยกตามหัวข้อ</p></section>
+  <section class="slide part" id="mobile-group-0"><h2>เริ่มต้นใช้งาน</h2></section><section class="slide mobile-slide" id="mobile-m01-login"><header><span class="num">มือถือ</span><h2>เข้าสู่ระบบ</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m01-login.png" alt="เข้าสู่ระบบ" /></figure><div><p class="desc">ใช้อีเมลและรหัสผ่านเดียวกับบนเว็บ บัญชีสร้างโดยเจ้าของสำนักงาน ถ้ายังไม่มีให้ขอคำเชิญจากเจ้าของสำนักงาน</p><ol><li>กรอก &quot;อีเมล&quot; ของบัญชีสำนักงาน</li><li>กรอก &quot;รหัสผ่าน&quot; (แตะรูปตาเพื่อดูรหัสที่พิมพ์)</li><li>แตะ &quot;เข้าสู่ระบบ&quot; ถ้าระบบขอ &quot;รหัสยืนยัน 6 หลัก&quot; ให้กรอกแล้วแตะ &quot;ยืนยันรหัส&quot;</li><li>ลืมรหัส แตะ &quot;ลืมรหัสผ่าน&quot; แล้วกรอกอีเมลเพื่อรับลิงก์ตั้งรหัสใหม่</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m02-today"><header><span class="num">มือถือ</span><h2>แท็บ วันนี้ — หน้าแรกหลังเข้าสู่ระบบ</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m02-today.png" alt="แท็บ วันนี้ — หน้าแรกหลังเข้าสู่ระบบ" /></figure><div><p class="desc">สรุปสิ่งที่ต้องทำวันนี้ในจอเดียว ทั้งงานเกินกำหนด นัดวันนี้ คิวตัดสินใจ และทางลัดไปทุกเมนู แถบด้านล่างมี 5 แท็บ: วันนี้ / คดี / ปฏิทิน / งาน / ทีม</p><ol><li>อ่าน &quot;เกินกำหนด&quot; และ &quot;นัดวันนี้&quot; ก่อนเริ่มงาน</li><li>แตะ &quot;เลขา&quot; เพื่อพิมพ์หรือพูดถามข้อมูลคดี</li><li>แตะ &quot;สรุปประจำวัน&quot; (เจ้าของ/ผู้จัดการสำนักงาน) ดูงานค้างของทีม</li><li>แตะไอคอนกระดิ่งเพื่อดูการแจ้งเตือน ไอคอนตารางคือ &quot;เมนูเพิ่มเติม&quot;</li><li>ใช้ &quot;ทางลัด&quot; ไป ค้นไฟล์ · ค้นอีเมล · ขอลา · รับเคส · ค่าใช้จ่าย</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m07-more"><header><span class="num">มือถือ</span><h2>เมนู อื่น ๆ</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m07-more.png" alt="เมนู อื่น ๆ" /></figure><div><p class="desc">รวมเมนูที่ไม่อยู่บนแถบล่าง แบ่งเป็น งานสำนักงาน / เอกสารและข้อมูล / บัญชีและการตั้งค่า</p><ol><li>จากหน้า วันนี้ แตะ &quot;เมนูเพิ่มเติม&quot;</li><li>งานสำนักงาน: ขอลา, ชุดเบิก, ลูกความ, ค่าใช้จ่าย, ยืนยันเวลา, รับเคสใหม่</li><li>เอกสารและข้อมูล: ค้นหาไฟล์, ค้นหาอีเมล, รอเอกสารจากภายนอก, รายงาน, คลังความรู้</li><li>ด้านล่างสุดมี &quot;ออกจากระบบ&quot; และ &quot;ลบบัญชีและข้อมูล&quot;</li></ol></div></div></section><section class="slide part" id="mobile-group-1"><h2>คดี</h2></section><section class="slide mobile-slide" id="mobile-m03-cases"><header><span class="num">มือถือ</span><h2>แท็บ คดี — รายการคดี</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m03-cases.png" alt="แท็บ คดี — รายการคดี" /></figure><div><p class="desc">ดูคดีทั้งหมดที่คุณเข้าถึงได้ ค้นหาและกรองตามสถานะ แตะการ์ดเพื่อเปิดแฟ้มคดี</p><ol><li>แตะแท็บ &quot;คดี&quot;</li><li>พิมพ์เลขคดี ชื่อคดี หรือชื่อลูกความในช่องค้นหา</li><li>เลือกตัวกรอง ทั้งหมด / เปิดอยู่ / ปิดแล้ว</li><li>แตะการ์ดคดีเพื่อเปิดรายละเอียด</li><li>แตะ &quot;+ รับเคส&quot; มุมขวาบนเพื่อเปิดคดีใหม่</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m08-case-detail"><header><span class="num">มือถือ</span><h2>แฟ้มคดี</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m08-case-detail.png" alt="แฟ้มคดี" /></figure><div><p class="desc">ข้อมูลทุกอย่างของคดีเดียว แบ่งแท็บ ภาพรวม / นัดหมาย / งาน / เอกสาร / อีเมล</p><ol><li>&quot;ภาพรวม&quot; ดูคนหลัก คนรอง ลูกความ ศาล เลขคดี และคู่ความ</li><li>&quot;นัดหมาย&quot; เพิ่มนัด หรือเปิด Court Day ของนัดศาล</li><li>&quot;งาน&quot; เพิ่มงานหรือเปิดงานในคดี</li><li>&quot;เอกสาร&quot; แนบเอกสารด้วยการถ่ายรูป สร้างจากแบบสำเร็จ หรือบันทึกเอกสารที่รอจากภายนอก</li><li>แตะ &quot;แก้ไข&quot; มุมขวาบนเพื่อแก้ข้อมูลคดี; ปิดคดีได้จากปุ่ม &quot;ปิดคดี · ตรวจรายการค้าง&quot;</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m09-case-new"><header><span class="num">มือถือ</span><h2>รับเคสใหม่</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m09-case-new.png" alt="รับเคสใหม่" /></figure><div><p class="desc">เปิดคดีใหม่จากมือถือได้ทันที กรอกเฉพาะช่องที่มี * ก็บันทึกได้ ข้อมูลอื่นเติมทีหลัง</p><ol><li>กรอก &quot;ชื่อคดี&quot;</li><li>เลือก &quot;คนรับผิดชอบหลัก&quot; และ &quot;คนรอง&quot; (ถ้ามี)</li><li>พิมพ์ชื่อเพื่อค้นหา &quot;ลูกความ&quot; หรือสร้างใหม่</li><li>ถ้ามี เติมคู่ความ ศาล ประเภทคดี และไฟล์</li><li>แตะ &quot;บันทึกเคส&quot;</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m25-clients"><header><span class="num">มือถือ</span><h2>ลูกความ</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m25-clients.png" alt="ลูกความ" /></figure><div><p class="desc">สมุดรายชื่อลูกความ ใช้หาเบอร์โทร/อีเมล และคดีของแต่ละราย (เพิ่มลูกความใหม่ทำบนเว็บ)</p><ol><li>เปิดจาก อื่น ๆ → ลูกความ</li><li>พิมพ์ชื่อในช่อง &quot;ค้นหาชื่อลูกความ&quot;</li><li>แตะชื่อเพื่อดูรายละเอียด</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m26-client-detail"><header><span class="num">มือถือ</span><h2>รายละเอียดลูกความ</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m26-client-detail.png" alt="รายละเอียดลูกความ" /></figure><div><p class="desc">ผู้ติดต่อทุกคนของลูกความพร้อมเบอร์และอีเมล และรายการคดีที่เปิดอยู่/ปิดแล้ว</p><ol><li>แตะเบอร์โทรเพื่อโทรออกทันที</li><li>แตะอีเมลเพื่อเปิดแอปอีเมล</li><li>แตะคดีในส่วน &quot;คดี&quot; เพื่อเปิดแฟ้มคดี</li></ol></div></div></section><section class="slide part" id="mobile-group-2"><h2>ปฏิทินและวันขึ้นศาล</h2></section><section class="slide mobile-slide" id="mobile-m04-calendar"><header><span class="num">มือถือ</span><h2>แท็บ ปฏิทิน</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m04-calendar.png" alt="แท็บ ปฏิทิน" /></figure><div><p class="desc">ปฏิทินรายเดือน (ปี พ.ศ.) วันที่มีจุดคือมีนัด แตะวันเพื่อดูนัดของวันนั้น</p><ol><li>แตะลูกศรเพื่อเปลี่ยนเดือน</li><li>แตะวันที่เพื่อดูรายการนัด</li><li>แตะนัดศาลแล้วเลือก &quot;เปิดวันขึ้นศาล&quot; หรือ &quot;เปิดทีมที่ไปด้วย&quot;</li><li>แตะ &quot;+ เพิ่มนัด&quot; เพื่อสร้างนัดในวันที่เลือก</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m11-event-new"><header><span class="num">มือถือ</span><h2>เพิ่มนัดหมาย</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m11-event-new.png" alt="เพิ่มนัดหมาย" /></figure><div><p class="desc">สร้างนัดศาล นัดลูกความ หรือวันครบกำหนด พร้อมจัดทีมที่ไปด้วย ระบบเตือนถ้าคนในทีมลาวันนั้น</p><ol><li>เลือก &quot;คดี&quot; และ &quot;ประเภท&quot; (นัดศาล / นัดลูกความ / ครบกำหนด / อื่นๆ)</li><li>กรอก &quot;ชื่อนัดหมาย&quot; เช่น นัดสืบพยานโจทก์ และเลือกศาล</li><li>เลือกวันและเวลา</li><li>เลือกคนหลักและคนที่ไปด้วย แล้วติ๊ก &quot;ตรวจแล้ว · ยืนยันบันทึกทีมนี้&quot;</li><li>แตะ &quot;บันทึกนัดหมาย&quot;</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m10-court-day"><header><span class="num">มือถือ</span><h2>วันขึ้นศาล (Court Day)</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m10-court-day.png" alt="วันขึ้นศาล (Court Day)" /></figure><div><p class="desc">ผู้ช่วยสำหรับวันนัดศาล แบ่ง 3 ช่วง: ก่อนไป → ที่ศาล → เติมที่สำนักงาน ร่างเก็บในเครื่องอัตโนมัติ ผลนัดบันทึกจริงเมื่อกดยืนยันเท่านั้น</p><ol><li>&quot;ก่อนไป&quot; ติ๊กเช็คลิสต์: ตรวจเอกสาร ยืนยันทีม ตรวจสถานที่และเวลา</li><li>&quot;ที่ศาล&quot; จดสั้น ๆ ระหว่างพิจารณา</li><li>&quot;เติมที่สำนักงาน&quot; กรอกผลนัด นัดครั้งหน้า งานที่ต้องทำต่อ และใบเสร็จ</li><li>แตะ &quot;ตรวจทานและยืนยันผลนัด&quot; แล้ว &quot;ยืนยันผลนัด&quot;</li><li>ผู้ช่วยดูได้อย่างเดียว ทนาย/เจ้าของแก้ไขได้</li></ol></div></div></section><section class="slide part" id="mobile-group-3"><h2>งาน</h2></section><section class="slide mobile-slide" id="mobile-m05-tasks"><header><span class="num">มือถือ</span><h2>แท็บ งาน</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m05-tasks.png" alt="แท็บ งาน" /></figure><div><p class="desc">กล่องงานของคุณ แยกมุมมอง งานของฉัน / งานที่ฉันสร้าง / รอฉันตรวจ (เจ้าของมี ต้องตาม และ ยังไม่มีคนรับ เพิ่ม)</p><ol><li>เลือกมุมมองด้านบน</li><li>แตะงานเพื่อเปิดหน้าทำงาน</li><li>ติ๊กช่องหน้างานเมื่อเสร็จ (งานที่รอตรวจติ๊กจากรายการไม่ได้)</li><li>แตะ &quot;เพิ่มงาน&quot; เพื่อสร้างงานใหม่</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m12-task-new"><header><span class="num">มือถือ</span><h2>เพิ่มงาน / มอบหมายงาน</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m12-task-new.png" alt="เพิ่มงาน / มอบหมายงาน" /></figure><div><p class="desc">สร้างงานใหม่โดยเริ่มจาก ชื่องาน กับ ผู้รับผิดชอบ รายละเอียดอื่นซ่อนไว้ในส่วนเพิ่มเติม</p><ol><li>กรอก &quot;ชื่องาน&quot; เช่น ร่างคำให้การ</li><li>เลือก &quot;ผู้รับผิดชอบ&quot; (แตะ &quot;ช่วยเลือกคน&quot; เพื่อเทียบภาระงานทีม)</li><li>ตั้ง &quot;กำหนดส่ง&quot;: ไม่กำหนด / วันนี้ / พรุ่งนี้ / เลือกวัน</li><li>ถ้าต้องตรวจก่อนปิด ตั้งผู้ตรวจในส่วนเพิ่มเติม</li><li>แตะ &quot;+ เพิ่มงาน&quot;</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m13-task-work"><header><span class="num">มือถือ</span><h2>หน้าทำงาน</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m13-task-work.png" alt="หน้าทำงาน" /></figure><div><p class="desc">ทำงานหนึ่งชิ้นจนจบ: รับงาน แนบผลงาน รายงานความคืบหน้า แจ้งจุดติดขัด แล้วส่งตรวจ</p><ol><li>แตะ &quot;รับงานนี้&quot; เมื่อเริ่มทำ</li><li>แนบไฟล์ใน &quot;ผลงานและไฟล์แนบ&quot;</li><li>เขียน &quot;รายงานความคืบหน้า&quot; (ทำแล้ว / เหลืออะไร / ติดอะไร)</li><li>ติดขัดให้แตะ &quot;แจ้งเอกสารขาด / จุดติดขัด&quot;</li><li>แตะ &quot;ส่งตรวจงาน&quot; หรือ &quot;บันทึกว่างานเสร็จ&quot;; ผู้ตรวจเลือก ผ่าน หรือ ส่งกลับแก้ไข</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m21-timesheet"><header><span class="num">มือถือ</span><h2>ยืนยันเวลา</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m21-timesheet.png" alt="ยืนยันเวลา" /></figure><div><p class="desc">ระบบเสนอรายการเวลาทำงานของวันจากนัด งาน อีเมล ให้ติ๊กยืนยันแทนการจดเอง</p><ol><li>เลือกวันที่ด้านบน</li><li>ติ๊กรายการที่ทำจริงและปรับจำนวนชั่วโมง</li><li>แตะ &quot;เพิ่มเวลา&quot; ถ้ามีงานที่ไม่อยู่ในรายการ</li><li>แตะ &quot;ยืนยัน N รายการ&quot;</li></ol></div></div></section><section class="slide part" id="mobile-group-4"><h2>เอกสาร</h2></section><section class="slide mobile-slide" id="mobile-m14-scan"><header><span class="num">มือถือ</span><h2>แนบเอกสารเข้าคดี</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m14-scan.png" alt="แนบเอกสารเข้าคดี" /></figure><div><p class="desc">ถ่ายรูปเอกสารหรือเลือกไฟล์ในเครื่อง ส่งเข้าแฟ้มคดีโดยตรง</p><ol><li>จากแฟ้มคดี แท็บ เอกสาร แตะ &quot;แนบเอกสาร&quot;</li><li>แตะ &quot;แนบไฟล์หรือรูป&quot; แล้วถ่ายรูปหรือเลือกไฟล์</li><li>แตะ &quot;ส่ง N ไฟล์เข้าคดี&quot; (ถ้าส่งไม่ครบ แตะ &quot;ส่งไฟล์ที่เหลือ&quot;)</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m15-doc-template"><header><span class="num">มือถือ</span><h2>สร้างเอกสารจากแบบ</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m15-doc-template.png" alt="สร้างเอกสารจากแบบ" /></figure><div><p class="desc">สร้างไฟล์ Word จากแบบเอกสารของสำนักงาน ข้อมูลคดีเติมให้อัตโนมัติ</p><ol><li>เลือก &quot;แบบเอกสาร&quot;</li><li>ตรวจร่างและเติมช่องที่ระบบแจ้งว่า &quot;ยังต้องเติม&quot;</li><li>แตะ &quot;สร้างไฟล์ DOCX เก็บในคดี&quot;</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m16-doc-waiting"><header><span class="num">มือถือ</span><h2>รอเอกสารจากภายนอก</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m16-doc-waiting.png" alt="รอเอกสารจากภายนอก" /></figure><div><p class="desc">จดรายการเอกสารที่รอจากลูกความหรือหน่วยงาน พร้อมวันติดตาม ไม่ให้ลืมทวง</p><ol><li>แตะ &quot;เพิ่มรายการเอกสารที่รอ&quot;</li><li>กรอก เอกสารที่รอ, รอจากใคร, วันติดตามครั้งถัดไป</li><li>เมื่อได้รับ แตะ &quot;ได้รับ … แล้ว&quot; แล้วแนบเข้าคดี</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m23-search"><header><span class="num">มือถือ</span><h2>ค้นหาไฟล์</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m23-search.png" alt="ค้นหาไฟล์" /></figure><div><p class="desc">ค้นชื่อไฟล์ในทุกคดีและงานที่คุณมีสิทธิ์</p><ol><li>พิมพ์ชื่อไฟล์บางส่วน</li><li>แตะผลลัพธ์เพื่อเปิดไฟล์ หรือ &quot;เข้าแฟ้มคดี&quot;</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m24-email-search"><header><span class="num">มือถือ</span><h2>ค้นหาอีเมล</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m24-email-search.png" alt="ค้นหาอีเมล" /></figure><div><p class="desc">ค้นอีเมลจากทุกคดีที่เข้าถึงได้ ด้วยชื่อลูกความ อีเมล เลขคดี หรือชื่อไฟล์แนบ</p><ol><li>พิมพ์อย่างน้อย 2 ตัวอักษร</li><li>แตะผลลัพธ์ที่ผูกคดีเพื่อเปิดอีเมล (อีเมลที่ยังไม่ผูกคดีเปิดดูบนเว็บ)</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m33-knowledge"><header><span class="num">มือถือ</span><h2>คลังความรู้</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m33-knowledge.png" alt="คลังความรู้" /></figure><div><p class="desc">อ่านสรุปคดี แนวคำพิพากษา กลยุทธ์ และบทเรียนที่สำนักงานบันทึกไว้ (เพิ่มรายการบนเว็บ)</p><ol><li>ค้นหาหรือเลือกหมวด</li><li>แตะรายการเพื่ออ่านต่อ หรือ &quot;เปิดคดี&quot; ที่เกี่ยวข้อง</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m22-secretary"><header><span class="num">มือถือ</span><h2>เลขา — ถามข้อมูลด้วยเสียงหรือข้อความ</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m22-secretary.png" alt="เลขา — ถามข้อมูลด้วยเสียงหรือข้อความ" /></figure><div><p class="desc">ถามเรื่องคดี เอกสาร หรือนัดหมายด้วยภาษาปกติ ระบบตอบเป็นการ์ดที่แตะเปิดได้</p><ol><li>แตะ &quot;แตะเพื่อพูด&quot; แล้วพูดคำถาม หรือพิมพ์ในช่อง &quot;ถามเลขา…&quot;</li><li>แตะ &quot;ส่ง&quot;</li><li>แตะการ์ดคำตอบเพื่อเปิดคดี นัด หรือเอกสาร</li></ol></div></div></section><section class="slide part" id="mobile-group-5"><h2>ค่าใช้จ่ายและการลา</h2></section><section class="slide mobile-slide" id="mobile-m17-expenses"><header><span class="num">มือถือ</span><h2>ค่าใช้จ่าย</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m17-expenses.png" alt="ค่าใช้จ่าย" /></figure><div><p class="desc">บันทึกค่าใช้จ่ายหน้างาน เก็บเป็นร่างไว้ก่อน แล้วเลือกรวมส่งเบิกเป็นชุด</p><ol><li>แตะ &quot;เพิ่มค่าใช้จ่าย&quot;</li><li>รายการที่บันทึกแล้วอยู่ใน &quot;บันทึกแล้ว · รอส่งเบิก&quot;</li><li>ติ๊กรายการที่จะเบิก แล้วแตะ &quot;ส่งเบิกชุดที่เลือก&quot; → &quot;ส่งชุดนี้&quot;</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m18-expense-new"><header><span class="num">มือถือ</span><h2>เพิ่มค่าใช้จ่าย</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m18-expense-new.png" alt="เพิ่มค่าใช้จ่าย" /></figure><div><p class="desc">กรอกรายการค่าใช้จ่ายพร้อมถ่ายใบเสร็จ ร่างเก็บในเครื่องอัตโนมัติแม้สัญญาณหลุด</p><ol><li>เลือก &quot;เบิกค่าอะไร&quot; (อื่นๆ ต้องใส่รายละเอียด)</li><li>กรอก &quot;จำนวนเงิน (บาท)&quot; และ &quot;วันที่จ่าย&quot;</li><li>แตะ &quot;ถ่ายใบเสร็จ&quot; หรือ &quot;เลือกรูป&quot; และเลือกคดี (ถ้ามี)</li><li>แตะ &quot;บันทึกค่าใช้จ่าย&quot; หรือ &quot;เก็บเป็นร่างแล้วออก&quot;</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m19-claims"><header><span class="num">มือถือ</span><h2>ชุดเบิก</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m19-claims.png" alt="ชุดเบิก" /></figure><div><p class="desc">ติดตามสถานะชุดเบิก: รออนุมัติ / อนุมัติ · รอจ่าย / จ่ายแล้ว / ไม่อนุมัติ เจ้าของสำนักงานเห็นชุดของทั้งทีม</p><ol><li>เลือกตัวกรองสถานะ</li><li>แตะชุดเพื่อดูรายการและใบเสร็จ</li><li>เจ้าของ: แตะ &quot;อนุมัติทั้งชุด&quot; / &quot;ไม่อนุมัติทั้งชุด&quot; แล้วยืนยัน และ &quot;บันทึกว่าจ่ายเงินชุดนี้แล้ว&quot; เมื่อจ่าย</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m20-leaves"><header><span class="num">มือถือ</span><h2>ขอลา</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m20-leaves.png" alt="ขอลา" /></figure><div><p class="desc">ส่งคำขอลาและดูสถานะ ลาป่วยบันทึกอนุมัติทันที ลากิจ/ลาพักร้อนรอเจ้าของสำนักงานอนุมัติ</p><ol><li>เลือกประเภท ลาป่วย / ลากิจ / ลาพักร้อน</li><li>เลือก &quot;วันที่ลา&quot; (เปิด &quot;ลาหลายวัน&quot; ถ้าลาต่อเนื่อง)</li><li>แตะ &quot;ส่งคำขอลา&quot; → &quot;ส่งคำขอ&quot;</li><li>ดูสถานะใน &quot;คำขอของฉัน&quot;</li></ol></div></div></section><section class="slide part" id="mobile-group-6"><h2>ทีมและเจ้าของสำนักงาน</h2></section><section class="slide mobile-slide" id="mobile-m06-team"><header><span class="num">มือถือ</span><h2>แท็บ ทีม</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m06-team.png" alt="แท็บ ทีม" /></figure><div><p class="desc">ภาระงานรายคน เรียงจากงานมากไปน้อย เห็นใครมีงานเกินกำหนดหรือมีนัดวันนี้</p><ol><li>ดูตัวเลข งานเปิดทั้งทีม และ นัดศาล 7 วัน</li><li>แตะ &quot;งาน&quot; / &quot;คดี&quot; / &quot;นัดหมาย&quot; ใต้ชื่อเพื่อกรองข้อมูลของคนนั้น</li><li>แตะการ์ดเพื่อดูรายละเอียดสมาชิก</li><li>แตะ &quot;ดูภาระงานทีมล่วงหน้า 7 วัน&quot; ก่อนมอบหมายงาน</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m31-team-week"><header><span class="num">มือถือ</span><h2>ภาระงานทีม 7 วัน</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m31-team-week.png" alt="ภาระงานทีม 7 วัน" /></figure><div><p class="desc">ตารางงาน นัด และวันลาของแต่ละคนล่วงหน้า 7 วัน ใช้เลือกคนรับงานใหม่</p><ol><li>เลือก &quot;เริ่มดูตั้งแต่วันที่&quot;</li><li>เรียง &quot;ภาระมากก่อน&quot; หรือ &quot;ภาระน้อยก่อน&quot;</li><li>แตะคนเพื่อดูงานรายชิ้น ย้ายงาน หรือมอบหมายเพิ่ม</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m28-brief"><header><span class="num">มือถือ</span><h2>สรุปประจำวัน</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m28-brief.png" alt="สรุปประจำวัน" /></figure><div><p class="desc">สำหรับเจ้าของและผู้จัดการสำนักงาน สรุปงานค้าง งานเลยกำหนด และผู้รับผิดชอบของวัน</p><ol><li>เลือกวันที่</li><li>อ่านยอด งานค้าง / เลยกำหนด</li><li>แตะรายการเพื่อเปิดงานหรือคดี</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m29-owner-decisions"><header><span class="num">มือถือ</span><h2>คิวตัดสินใจวันนี้</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m29-owner-decisions.png" alt="คิวตัดสินใจวันนี้" /></figure><div><p class="desc">รวมเรื่องที่รอเจ้าของ/ผู้จัดการตัดสินใจ: งานรอตรวจ ลารออนุมัติ เบิกรออนุมัติ และงานที่ต้องเข้าไปช่วย</p><ol><li>เลือกตัวกรองด้านบน</li><li>คำขอลา: แตะ &quot;เทียบกำลังคนช่วงวันลา&quot; แล้ว &quot;อนุมัติคำขอลา&quot; หรือ &quot;ไม่อนุมัติ&quot;</li><li>แตะงานเพื่อเปิดดูและช่วยแก้</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m30-owner-finance"><header><span class="num">มือถือ</span><h2>เงินสำนักงาน / ลูกหนี้</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m30-owner-finance.png" alt="เงินสำนักงาน / ลูกหนี้" /></figure><div><p class="desc">ภาพรวมเงินรายเดือน: ลูกหนี้ เงินรับแล้ว วางบิลแล้ว ยังไม่วางบิล (เจ้าของและผู้จัดการสำนักงาน)</p><ol><li>เลือกเดือนด้วยลูกศร</li><li>ดู &quot;ยอดค้างทั้งหมด&quot; และรายการ &quot;ต้องตาม&quot;</li><li>แตะใบแจ้งหนี้เพื่อบันทึกวางบิล รับเงินจริง หรือการติดตาม</li><li>งานที่ยังไม่วางบิล แตะ &quot;สร้างร่างใบแจ้งหนี้&quot;</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m32-reports"><header><span class="num">มือถือ</span><h2>รายงาน</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m32-reports.png" alt="รายงาน" /></figure><div><p class="desc">ตัวชี้วัดของสำนักงาน (หรือเฉพาะคดีของคุณ ถ้าไม่ใช่เจ้าของ): อัตราเก็บเงิน หนี้ค้าง ผลคดี ระยะเวลาเฉลี่ย</p><ol><li>เปิดจาก อื่น ๆ → รายงาน</li><li>แตะ &quot;การเงินสำนักงาน&quot; เพื่อไปหน้าลูกหนี้</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m34-operations"><header><span class="num">มือถือ</span><h2>งานพักไว้</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m34-operations.png" alt="งานพักไว้" /></figure><div><p class="desc">งานที่พักไว้เพราะรอลูกความ ศาล หรือเอกสาร เรียงตามวันติดตาม (ปลดพักงานทำบนเว็บ)</p><ol><li>เปิดจาก อื่น ๆ → งานพักไว้</li><li>แตะงานเพื่อดูผู้รับผิดชอบและผู้ติดตาม</li></ol></div></div></section><section class="slide part" id="mobile-group-7"><h2>การแจ้งเตือนและตั้งค่า</h2></section><section class="slide mobile-slide" id="mobile-m27-notifications"><header><span class="num">มือถือ</span><h2>การแจ้งเตือน</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m27-notifications.png" alt="การแจ้งเตือน" /></figure><div><p class="desc">งานที่ได้รับมอบหมาย นัดที่เปลี่ยน และข้อความจากลูกความ แยก ล่าสุด กับ รอจัดการ</p><ol><li>แตะกระดิ่งบนหน้า วันนี้</li><li>แท็บ &quot;รอจัดการ&quot; คือเรื่องที่ยังต้องทำ</li><li>แตะรายการเพื่อเปิดเรื่องนั้น</li><li>แตะไอคอนปรับค่าเพื่อเลือกช่องทางแจ้งเตือน</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m35-settings"><header><span class="num">มือถือ</span><h2>ตั้งค่า</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m35-settings.png" alt="ตั้งค่า" /></figure><div><p class="desc">เลือกว่าเรื่องไหนให้เด้งในแอปหรือส่ง LINE และปรับขนาดตัวอักษรทั้งแอป</p><ol><li>เปิด/ปิด &quot;แอป&quot; และ &quot;LINE&quot; ของแต่ละหมวด (งาน คดี นัดหมาย ลูกความ …)</li><li>เลือกขนาดตัวอักษร ปกติ / ใหญ่ / ใหญ่มาก / ใหญ่พิเศษ</li><li>ถ้าขึ้น &quot;ยังไม่เชื่อม LINE&quot; ให้เชื่อมผ่าน LINE OA ของสำนักงานก่อน</li></ol></div></div></section><section class="slide mobile-slide" id="mobile-m36-account"><header><span class="num">มือถือ</span><h2>บัญชีของฉัน</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/m36-account.png" alt="บัญชีของฉัน" /></figure><div><p class="desc">แก้ชื่อที่แสดงในทีมและเปลี่ยนรหัสผ่าน</p><ol><li>แก้ &quot;ชื่อ&quot; / &quot;นามสกุล&quot; แล้วแตะ &quot;บันทึกชื่อของฉัน&quot;</li><li>แตะ &quot;เปลี่ยนรหัสผ่าน&quot; กรอกรหัสปัจจุบันและรหัสใหม่ (อย่างน้อย 8 ตัวอักษร)</li><li>หลังเปลี่ยนรหัส ต้องเข้าสู่ระบบใหม่</li><li>&quot;ลบบัญชีและข้อมูลส่วนตัว&quot; เป็นการส่งคำขอให้สำนักงานตรวจก่อน ไม่ลบทันที</li></ol></div></div></section>
+  <section class="slide part" id="line-part"><h1>ส่วนที่ 3 LINE OA</h1><p>ใช้งานและรับการแจ้งเตือนผ่านแชท LINE ของสำนักงาน</p></section>
 
-  <section class="slide" id="slide-31" data-index="31">
-    <header>
-      <span class="num">31 / 53</span>
-      <h2>ใบแจ้งหนี้ — ออกและติดตามการชำระเงิน</h2>
-      <code>/invoices</code>
-    </header>
-    <p class="desc">รวมใบแจ้งหนี้ทุกคดี ดูสถานะค้างชำระ/ชำระแล้ว และออกใบแจ้งหนี้ใหม่จากชั่วโมงทำงานและค่าใช้จ่ายที่บันทึกไว้</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อหน้า ใบแจ้งหนี้</li>
-    </ol>
-    <figure><img src="shots/30-invoices.png" alt="ใบแจ้งหนี้ — ออกและติดตามการชำระเงิน" /></figure>
-  </section>
-
-  <section class="slide" id="slide-32" data-index="32">
-    <header>
-      <span class="num">32 / 53</span>
-      <h2>คดี — แท็บปฏิทิน/นัดของคดีนี้</h2>
-      <code>/cases/:id/calendar</code>
-    </header>
-    <p class="desc">ลิงก์ลัดจากแดชบอร์ด/My Day พาไปที่แท็บปฏิทินของคดีนั้นโดยตรง แสดงนัดศาลและนัดหมายเฉพาะคดีนี้</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>ชื่อคดีที่กำลังดู</li>
-    </ol>
-    <figure><img src="shots/31-case-calendar.png" alt="คดี — แท็บปฏิทิน/นัดของคดีนี้" /></figure>
-  </section>
-
-  <section class="slide" id="slide-33" data-index="33">
-    <header>
-      <span class="num">33 / 53</span>
-      <h2>คดี — แท็บเคลมประกัน</h2>
-      <code>/cases/:id/insurance</code>
-    </header>
-    <p class="desc">สำหรับคดีที่เกี่ยวข้องกับการเคลมประกัน ติดตามขั้นตอนการเคลมและเอกสารที่เกี่ยวข้องแยกจากแท็บอื่น</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>ชื่อคดีที่กำลังดู</li>
-    </ol>
-    <figure><img src="shots/32-case-insurance.png" alt="คดี — แท็บเคลมประกัน" /></figure>
-  </section>
-
-  <section class="slide" id="slide-34" data-index="34">
-    <header>
-      <span class="num">34 / 53</span>
-      <h2>คดี — แท็บข้อความกับลูกค้า</h2>
-      <code>/cases/:id/messages</code>
-    </header>
-    <p class="desc">พูดคุยกับลูกค้าเป็นรายคดี ข้อความที่ส่งจากแท็บนี้จะไปปรากฏใน Client Portal ของลูกค้าด้วย</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>ชื่อคดีที่กำลังดู</li>
-    </ol>
-    <figure><img src="shots/33-case-messages.png" alt="คดี — แท็บข้อความกับลูกค้า" /></figure>
-  </section>
-
-  <section class="slide" id="slide-35" data-index="35">
-    <header>
-      <span class="num">35 / 53</span>
-      <h2>คดี — แท็บสรุปปิดคดี</h2>
-      <code>/cases/:id/closing-report</code>
-    </header>
-    <p class="desc">สรุปผลคดีเมื่อปิดคดีแล้ว ใช้ประกอบการส่งอีเมลปิดงานให้ลูกค้าและเก็บเป็นสรุปคดีใน Knowledge Base</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>ชื่อคดีที่กำลังดู</li>
-    </ol>
-    <figure><img src="shots/34-case-closing-report.png" alt="คดี — แท็บสรุปปิดคดี" /></figure>
-  </section>
-
-  <section class="slide" id="slide-36" data-index="36">
-    <header>
-      <span class="num">36 / 53</span>
-      <h2>รับเรื่อง — คิวเรื่องที่กำลังคัดกรอง</h2>
-      <code>/intake</code>
-    </header>
-    <p class="desc">จุดเริ่มต้นก่อนเปิดเป็นคดีจริง ใช้คัดกรองเรื่องที่ลูกค้าติดต่อเข้ามา (โทร/อีเมล/เดินเข้ามา) ก่อนตัดสินใจรับเป็นคดี</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>สร้างเรื่องรับเข้าใหม่</li>
-    </ol>
-    <figure><img src="shots/35-intake.png" alt="รับเรื่อง — คิวเรื่องที่กำลังคัดกรอง" /></figure>
-  </section>
-
-  <section class="slide" id="slide-37" data-index="37">
-    <header>
-      <span class="num">37 / 53</span>
-      <h2>รับเรื่องใหม่ — กรอกรายละเอียดเบื้องต้น</h2>
-      <code>/intake/new</code>
-    </header>
-    <p class="desc">กรอกหัวข้อเรื่อง วางข้อความจากอีเมล/แชทของลูกค้า ใส่ชื่อผู้ติดต่อ และเลือกผู้รับผิดชอบได้หลายคน ระบบช่วยสรุปข้อเท็จจริงเบื้องต้นให้</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อเรื่องโดยย่อ</li>
-      <li><span class="pin">2</span>วางข้อความจากอีเมล/แชทของลูกค้า</li>
-      <li><span class="pin">3</span>ชื่อผู้ติดต่อหรือบริษัท</li>
-    </ol>
-    <figure><img src="shots/36-intake-new.png" alt="รับเรื่องใหม่ — กรอกรายละเอียดเบื้องต้น" /></figure>
-  </section>
-
-  <section class="slide" id="slide-38" data-index="38">
-    <header>
-      <span class="num">38 / 53</span>
-      <h2>ห้องทำงานเรื่องรับเข้า — คัดกรองก่อนเปิดคดี</h2>
-      <code>/intake/:id</code>
-    </header>
-    <p class="desc">พื้นที่ทำงานของเรื่องรับเข้าหนึ่งเรื่อง จัดข้อเท็จจริง มอบหมายผู้รับผิดชอบ แนบเอกสาร และเมื่อพร้อมก็กดแปลงเป็นคดีจริงได้จากหน้านี้</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อเรื่องรับเข้า</li>
-    </ol>
-    <figure><img src="shots/37-intake-detail.png" alt="ห้องทำงานเรื่องรับเข้า — คัดกรองก่อนเปิดคดี" /></figure>
-  </section>
-
-  <section class="slide" id="slide-39" data-index="39">
-    <header>
-      <span class="num">39 / 53</span>
-      <h2>เรื่องที่ส่งจาก Customer Portal</h2>
-      <code>/intake/portal-submissions</code>
-    </header>
-    <p class="desc">คำขอที่ลูกค้ากรอกเข้ามาเองผ่าน Client Portal (ก่อนเป็นลูกค้าในระบบ) พนักงานตรวจแล้วเลือกแปลงเป็นเรื่องรับเข้า/คดีได้</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อหน้า</li>
-    </ol>
-    <figure><img src="shots/38-intake-portal-submissions.png" alt="เรื่องที่ส่งจาก Customer Portal" /></figure>
-  </section>
-
-  <section class="slide" id="slide-40" data-index="40">
-    <header>
-      <span class="num">40 / 53</span>
-      <h2>รับเรื่องจากอีเมล — กล่องอีเมลที่เชื่อมต่อไว้</h2>
-      <code>/email-intake</code>
-    </header>
-    <p class="desc">แสดงอีเมล/เธรดที่ระบบดึงมาจากกล่องอีเมลที่เชื่อมต่อ (Outlook) AI จะช่วยเสนอข้อมูลคดีเบื้องต้นให้ตรวจสอบก่อนรับเข้า คลิกแถวเพื่อเปิดดูรายละเอียด</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อหน้า</li>
-    </ol>
-    <figure><img src="shots/39-email-intake.png" alt="รับเรื่องจากอีเมล — กล่องอีเมลที่เชื่อมต่อไว้" /></figure>
-  </section>
-
-  <section class="slide" id="slide-41" data-index="41">
-    <header>
-      <span class="num">41 / 53</span>
-      <h2>อีเมลรับเข้า — ตรวจสอบและยืนยันข้อมูล</h2>
-      <code>/email-intake/:threadId</code>
-    </header>
-    <p class="desc">อ่านเนื้อความอีเมลเต็ม ตรวจข้อมูลที่ AI เสนอ (ยืนยัน/ปฏิเสธทีละรายการ) แล้วกดยืนยันเพื่อสร้างเป็นเรื่องรับเข้า</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้ออีเมล</li>
-    </ol>
-    <figure><img src="shots/40-email-intake-thread.png" alt="อีเมลรับเข้า — ตรวจสอบและยืนยันข้อมูล" /></figure>
-  </section>
-
-  <section class="slide" id="slide-42" data-index="42">
-    <header>
-      <span class="num">42 / 53</span>
-      <h2>บันทึกค่าใช้จ่ายใหม่</h2>
-      <code>/expenses/new</code>
-    </header>
-    <p class="desc">กรอกยอดเงิน รายละเอียด แนบใบเสร็จ และเลือกคดีที่เกี่ยวข้อง (ถ้ามี) เพื่อส่งขออนุมัติเบิกค่าใช้จ่าย</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>ยอดเงิน (บาท)</li>
-    </ol>
-    <figure><img src="shots/41-expenses-new.png" alt="บันทึกค่าใช้จ่ายใหม่" /></figure>
-  </section>
-
-  <section class="slide" id="slide-43" data-index="43">
-    <header>
-      <span class="num">43 / 53</span>
-      <h2>แบบฟอร์มเบิกค่าใช้จ่าย — พิมพ์/ส่งขออนุมัติ</h2>
-      <code>/expenses/claim</code>
-    </header>
-    <p class="desc">รวมรายการค่าใช้จ่ายที่ยังเป็นร่างเป็นแบบฟอร์มเบิกฉบับเดียว พิมพ์เป็น PDF หรือส่งให้เจ้าของสำนักงานอนุมัติทีเดียว</p>
-    <ol class="callouts">
-      
-    </ol>
-    <figure><img src="shots/42-expenses-claim.png" alt="แบบฟอร์มเบิกค่าใช้จ่าย — พิมพ์/ส่งขออนุมัติ" /></figure>
-  </section>
-
-  <section class="slide" id="slide-44" data-index="44">
-    <header>
-      <span class="num">44 / 53</span>
-      <h2>Playbooks — ชุดงานมาตรฐานของแต่ละประเภทคดี</h2>
-      <code>/playbooks</code>
-    </header>
-    <p class="desc">กำหนดชุดงาน/เอกสารมาตรฐานสำหรับคดีแต่ละประเภท (เช่น คดีอุบัติเหตุ คดีแพทย์) เมื่อเปิดคดีใหม่แล้วนำ Playbook มาใช้ ระบบจะสร้างงานตามชุดนี้ให้อัตโนมัติ</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อหน้า Playbooks</li>
-      <li><span class="pin">2</span>ไปเลือกคดีเพื่อนำ Playbook ไปใช้</li>
-    </ol>
-    <figure><img src="shots/43-playbooks.png" alt="Playbooks — ชุดงานมาตรฐานของแต่ละประเภทคดี" /></figure>
-  </section>
-
-  <section class="slide" id="slide-45" data-index="45">
-    <header>
-      <span class="num">45 / 53</span>
-      <h2>SOP / คู่มือการทำงาน</h2>
-      <code>/sops</code>
-    </header>
-    <p class="desc">คลังคู่มือ/ขั้นตอนมาตรฐานภายในสำนักงาน ค้นหาได้ เจ้าของสำนักงานเพิ่ม/แก้ไข/ลบได้ ใช้อ้างอิงเวลาอบรมพนักงานใหม่</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>ค้นหา SOP</li>
-      <li><span class="pin">2</span>เพิ่ม SOP ใหม่ (เจ้าของสำนักงาน)</li>
-    </ol>
-    <figure><img src="shots/44-sops.png" alt="SOP / คู่มือการทำงาน" /></figure>
-  </section>
-
-  <section class="slide" id="slide-46" data-index="46">
-    <header>
-      <span class="num">46 / 53</span>
-      <h2>ภาระงานทีม — มอบหมายงานให้สมดุล</h2>
-      <code>/operations</code>
-    </header>
-    <p class="desc">ภาพรวมภาระงานของทีมทั้งหมด ดูว่าใครงานล้นใครงานว่าง แล้วมอบหมายงานเพิ่มเติมให้สมดุลกันได้จากหน้านี้</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อหน้า ภาระงานทีม</li>
-    </ol>
-    <figure><img src="shots/45-operations.png" alt="ภาระงานทีม — มอบหมายงานให้สมดุล" /></figure>
-  </section>
-
-  <section class="slide" id="slide-47" data-index="47">
-    <header>
-      <span class="num">47 / 53</span>
-      <h2>การใช้งาน AI — ติดตามการใช้เครดิต</h2>
-      <code>/ai-usage</code>
-    </header>
-    <p class="desc">ดูว่าใครในทีมเรียกใช้ฟีเจอร์ AI (ค้นฎีกา สรุปเอกสาร) มากน้อยแค่ไหน สลับช่วงเวลาดู 7/14/30 วัน คลิกรายการเพื่อดูต้นทางของการเรียกนั้น</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อหน้า การใช้งาน AI</li>
-    </ol>
-    <figure><img src="shots/46-ai-usage.png" alt="การใช้งาน AI — ติดตามการใช้เครดิต" /></figure>
-  </section>
-
-  <section class="slide" id="slide-48" data-index="48">
-    <header>
-      <span class="num">48 / 53</span>
-      <h2>บันทึกการใช้งาน — Audit Log (เฉพาะเจ้าของสำนักงาน)</h2>
-      <code>/admin/audit-log</code>
-    </header>
-    <p class="desc">ประวัติการกระทำสำคัญทุกอย่างในระบบ ใครทำอะไรเมื่อไหร่ กรองตามประเภทการกระทำได้ ใช้ตรวจสอบย้อนหลังเมื่อมีข้อสงสัย</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>หัวข้อหน้า Audit Log</li>
-    </ol>
-    <figure><img src="shots/47-admin-audit-log.png" alt="บันทึกการใช้งาน — Audit Log (เฉพาะเจ้าของสำนักงาน)" /></figure>
-  </section>
-
-  <section class="slide" id="slide-49" data-index="49">
-    <header>
-      <span class="num">49 / 53</span>
-      <h2>กฎวันครบกำหนด — คำนวณเดดไลน์อัตโนมัติ</h2>
-      <code>/admin/deadline-rules</code>
-    </header>
-    <p class="desc">ตั้งกฎให้ระบบคำนวณวันครบกำหนดของงานอัตโนมัติตามประเภทคดี/เหตุการณ์ (เช่น ยื่นอุทธรณ์ภายใน 30 วัน) ลดความเสี่ยงลืมกำหนด</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>เพิ่มกฎใหม่</li>
-    </ol>
-    <figure><img src="shots/48-admin-deadline-rules.png" alt="กฎวันครบกำหนด — คำนวณเดดไลน์อัตโนมัติ" /></figure>
-  </section>
-
-  <section class="slide" id="slide-50" data-index="50">
-    <header>
-      <span class="num">50 / 53</span>
-      <h2>วันหยุดราชการ — ใช้คำนวณวันทำการ</h2>
-      <code>/admin/holidays</code>
-    </header>
-    <p class="desc">รายการวันหยุดราชการที่ระบบใช้นับวันทำการเวลาคำนวณกำหนดส่งงาน เพิ่มทีละวันหรือวางเป็นชุดได้ (Bulk add)</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>วางรายการวันหยุดหลายวันพร้อมกัน</li>
-    </ol>
-    <figure><img src="shots/49-admin-holidays.png" alt="วันหยุดราชการ — ใช้คำนวณวันทำการ" /></figure>
-  </section>
-
-  <section class="slide" id="slide-51" data-index="51">
-    <header>
-      <span class="num">51 / 53</span>
-      <h2>เริ่มต้นสำนักงานของคุณ — สมัครใช้งาน</h2>
-      <code>/register</code>
-    </header>
-    <p class="desc">หน้าสมัครสำนักงานใหม่ กรอกชื่อสำนักงาน อีเมล และรหัสผ่าน ระบบจะสร้างสำนักงาน (tenant) แยกของตัวเองให้ทันที</p>
-    <ol class="callouts">
-      
-    </ol>
-    <figure><img src="shots/50-register.png" alt="เริ่มต้นสำนักงานของคุณ — สมัครใช้งาน" /></figure>
-  </section>
-
-  <section class="slide" id="slide-52" data-index="52">
-    <header>
-      <span class="num">52 / 53</span>
-      <h2>ลืมรหัสผ่าน — ขอลิงก์ตั้งรหัสผ่านใหม่</h2>
-      <code>/forgot-password</code>
-    </header>
-    <p class="desc">กรอกอีเมลที่ใช้สมัคร ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้ทางอีเมล</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>ส่งลิงก์ตั้งรหัสผ่านใหม่</li>
-    </ol>
-    <figure><img src="shots/51-forgot-password.png" alt="ลืมรหัสผ่าน — ขอลิงก์ตั้งรหัสผ่านใหม่" /></figure>
-  </section>
-
-  <section class="slide" id="slide-53" data-index="53">
-    <header>
-      <span class="num">53 / 53</span>
-      <h2>หน้าแรกของ Samnuan</h2>
-      <code>/</code>
-    </header>
-    <p class="desc">หน้าแนะนำระบบสำหรับผู้ที่ยังไม่ได้เป็นลูกค้า อธิบายจุดเด่นของระบบและมีปุ่มขอทดลองใช้งานฟรี</p>
-    <ol class="callouts">
-      <li><span class="pin">1</span>ขอทดลองใช้งานฟรี</li>
-    </ol>
-    <figure><img src="shots/52-landing.png" alt="หน้าแรกของ Samnuan" /></figure>
-  </section>
-  
   <section class="slide" id="line-section">
     <header>
       <span class="num">LINE</span>
@@ -885,39 +942,38 @@
       </div>
     </div>
 
-    <h3 style="margin-top:24px">ขั้นตอนที่ 2 — ใช้แต่ละคำสั่ง</h3>
-    <div class="line-flows">
+  </section>
+  <section class="slide" id="line-flow-0"><header><span class="num">LINE</span><h2>ใช้งานผ่าน LINE — สร้าง Case</h2></header>
       <div class="line-flow">
         <h4>📋 สร้าง Case</h4>
         <p class="line-cmd">พิมพ์ &quot;สร้าง Case&quot; หรือแตะปุ่มบนเมนูรูปภาพ</p>
         <ol><li>บอทถาม &quot;ชื่อเรื่อง/หัวข้อคดีคืออะไรครับ?&quot; — พิมพ์หัวข้อคดี</li><li>&quot;ลูกความชื่ออะไรครับ? (พิมพ์ชื่อเพื่อค้นหา)&quot; — พิมพ์ชื่อ บอทจะค้นในรายชื่อลูกค้าที่มีอยู่ให้เลือก หรือกด &quot;ไม่เจอ&quot; เพื่อใช้ชื่อที่พิมพ์ไปตรง ๆ</li><li>&quot;มีผู้รับผิดชอบร่วมไหมครับ? (เลือกได้หลายคน)&quot; — เลือกทนาย/ผู้ช่วยที่ดูแลร่วม แล้วกด &quot;พอแล้ว&quot;</li><li>&quot;มีรายละเอียดเพิ่มเติมไหมครับ?&quot; — พิมพ์รายละเอียดหรือกด &quot;ไม่ระบุ&quot;</li><li>บอทสรุปข้อมูลทั้งหมดให้ตรวจ กด &quot;ยืนยัน&quot; เพื่อสร้างคดี หรือกดหัวข้อที่ต้องการแก้ก่อน</li></ol>
-      </div>
+      </div></section><section class="slide" id="line-flow-1"><header><span class="num">LINE</span><h2>ใช้งานผ่าน LINE — เพิ่ม Task</h2></header>
       <div class="line-flow">
         <h4>✅ เพิ่ม Task</h4>
         <p class="line-cmd">พิมพ์ &quot;เพิ่ม Task&quot; หรือแตะปุ่มบนเมนูรูปภาพ</p>
         <ol><li>&quot;ชื่องานที่จะมอบหมายคืออะไรครับ?&quot; — พิมพ์ชื่องาน</li><li>บอทให้ &quot;เลือกคดีครับ&quot; — พิมพ์ชื่อ/เลขคดีเพื่อค้นหา หรือกด &quot;นอกคดี&quot; ถ้าเป็นงานที่ไม่ผูกกับคดีไหน</li><li>&quot;กำหนดส่ง&quot; — เลือกวันครบกำหนด</li><li>&quot;มอบหมายให้ใครครับ?&quot; — เลือกผู้รับผิดชอบ</li><li>ตรวจสรุปแล้วกด &quot;ยืนยัน&quot; — งานจะไปโผล่ในหน้า งานที่ต้องทำ/รายละเอียดคดี ทันที</li></ol>
-      </div>
+      </div></section><section class="slide" id="line-flow-2"><header><span class="num">LINE</span><h2>ใช้งานผ่าน LINE — สร้าง Todo</h2></header>
       <div class="line-flow">
         <h4>📝 สร้าง Todo</h4>
         <p class="line-cmd">พิมพ์ &quot;สร้าง Todo&quot; หรือแตะปุ่มบนเมนูรูปภาพ</p>
         <ol><li>&quot;สร้าง Todo ใหม่ — ชื่องานคืออะไรครับ?&quot; — พิมพ์ชื่องานส่วนตัว (ไม่ผูกกับคดี)</li><li>&quot;กำหนดส่ง&quot; — เลือกวันครบกำหนด (ข้ามได้)</li><li>&quot;มอบหมายให้ใครครับ?&quot; — ปกติจะเป็นตัวเอง หรือมอบให้คนอื่นได้</li><li>กด &quot;ยืนยัน&quot; — ไปโผล่ในหน้า งานส่วนตัว (/todos) ของผู้รับ</li></ol>
-      </div>
+      </div></section><section class="slide" id="line-flow-3"><header><span class="num">LINE</span><h2>ใช้งานผ่าน LINE — บันทึกค่าใช้จ่าย</h2></header>
       <div class="line-flow">
         <h4>💸 บันทึกค่าใช้จ่าย</h4>
         <p class="line-cmd">พิมพ์ &quot;บันทึกค่าใช้จ่าย&quot; หรือแตะชิป &quot;💸 ค่าใช้จ่าย&quot; ใต้เมนู</p>
         <ol><li>&quot;จะกรอกเองหรือให้ AI อ่านจากรูปใบเสร็จครับ?&quot; — เลือก &quot;AI อ่านจากรูป&quot; แล้วส่งรูปใบเสร็จ หรือเลือก &quot;กรอกเอง&quot;</li><li>ถ้าส่งรูป AI จะอ่านยอดเงินให้อัตโนมัติ ถ้าอ่านไม่ได้บอทจะถามยอดเงินเอง</li><li>&quot;ค่าอะไรครับ? (เช่น ค่าส่งเอกสาร)&quot; — พิมพ์รายละเอียดค่าใช้จ่าย</li><li>&quot;ผูกกับคดีไหนครับ?&quot; — พิมพ์ชื่อคดีเพื่อค้นหา หรือกด &quot;ข้าม&quot; ถ้าเป็นค่าใช้จ่ายทั่วไปของสำนักงาน</li><li>กด &quot;ยืนยัน&quot; — รายการจะเข้าไปเป็นสถานะร่างในหน้า ค่าใช้จ่าย (/expenses) รอส่งขออนุมัติ</li></ol>
-      </div>
+      </div></section><section class="slide" id="line-flow-4"><header><span class="num">LINE</span><h2>ใช้งานผ่าน LINE — เบิกล่วงหน้า</h2></header>
       <div class="line-flow">
         <h4>💰 เบิกล่วงหน้า</h4>
         <p class="line-cmd">พิมพ์ &quot;เบิกล่วงหน้า&quot; หรือแตะชิป &quot;💰 เบิกล่วงหน้า&quot; ใต้เมนู (เฉพาะเจ้าของสำนักงาน)</p>
         <ol><li>&quot;จ่ายเงินสำรองล่วงหน้าให้ใครครับ?&quot; — เลือกสมาชิกในทีมที่จะรับเงินสำรอง</li><li>&quot;จำนวนเงินเท่าไหร่ครับ?&quot; — พิมพ์จำนวนเงิน (ตัวเลขมากกว่า 0)</li><li>&quot;หมายเหตุครับ (หรือกด &quot;ข้าม&quot;)&quot; — ใส่เหตุผล/รายละเอียด</li><li>กด &quot;ยืนยัน&quot; — ผู้รับจะได้ข้อความ LINE แจ้งทันทีว่า &quot;💰 คุณได้รับเงินสำรองจ่าย…&quot;</li></ol>
-      </div>
+      </div></section><section class="slide" id="line-flow-5"><header><span class="num">LINE</span><h2>ใช้งานผ่าน LINE — งานของฉันวันนี้</h2></header>
       <div class="line-flow">
         <h4>📊 งานของฉันวันนี้</h4>
         <p class="line-cmd">พิมพ์ &quot;งานของฉันวันนี้&quot; ตรง ๆ หรือแตะชิป &quot;📊 งานวันนี้&quot; ใต้เมนู</p>
         <ol><li>บอทตอบกลับสรุปนัดและงานที่ครบกำหนดวันนี้ทันที — เนื้อหาเดียวกับหน้า วันของฉัน (/my-day) บนเว็บ แต่ดูได้จากแชทโดยไม่ต้องเปิดแอป</li></ol>
-      </div></div>
-  </section>
+      </div></section>
 </div>
 </body>
 </html>

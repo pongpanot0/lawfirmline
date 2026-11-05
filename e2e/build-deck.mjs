@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GUIDE = path.resolve(HERE, '../docs/user-guide');
 const slides = JSON.parse(fs.readFileSync(path.join(GUIDE, 'slides.json'), 'utf8'));
+const mobilePath = path.join(GUIDE, 'mobile-slides.json');
+const mobileSlides = fs.existsSync(mobilePath) ? JSON.parse(fs.readFileSync(mobilePath, 'utf8')) : [];
 
 const esc = (s) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -134,14 +136,40 @@ const lineSectionHtml = `
       </div>
     </div>
 
-    <h3 style="margin-top:24px">ขั้นตอนที่ 2 — ใช้แต่ละคำสั่ง</h3>
-    <div class="line-flows">${LINE_FLOWS.map(lineFlowHtml).join('')}</div>
-  </section>`;
+  </section>
+  ${LINE_FLOWS.map((flow, i) => `<section class="slide" id="line-flow-${i}"><header><span class="num">LINE</span><h2>ใช้งานผ่าน LINE — ${esc(flow.name)}</h2></header>${lineFlowHtml(flow)}</section>`).join('')}`;
+
+const groups = [
+  ['เริ่มต้น', 'เริ่มใช้งาน เข้าสู่ระบบ และดูภาพรวมของสำนักงาน'],
+  ['คดี', 'ค้นหา เปิด และติดตามข้อมูลคดีตั้งแต่เริ่มจนปิดคดี'],
+  ['ลูกค้า & รับเรื่อง', 'จัดการข้อมูลลูกค้าและคัดกรองเรื่องที่ติดต่อเข้ามา'],
+  ['ปฏิทิน & ศาล', 'ตรวจนัดหมาย เตรียมตัวไปศาล และติดตามกำหนดการ'],
+  ['งาน', 'วางแผน มอบหมาย และติดตามงานของสำนักงาน'],
+  ['เอกสาร', 'ค้นหาและจัดเก็บเอกสารที่ใช้ในการทำงาน'],
+  ['การเงิน', 'บันทึกเวลา ค่าใช้จ่าย และติดตามการเรียกเก็บเงิน'],
+  ['ทีม & ตั้งค่า', 'ดูแลสมาชิกสำนักงาน สิทธิ์ และการตั้งค่าระบบ'],
+  ['Client Portal', 'พื้นที่ให้ลูกค้าติดตามคดีและติดต่อสำนักงาน'],
+];
+function groupFor(s) {
+  const r = s.route;
+  if (r.startsWith('/portal')) return 'Client Portal';
+  if (/^\/(login|register|forgot-password|dashboard|$)/.test(r)) return 'เริ่มต้น';
+  if (/^\/cases/.test(r) && !r.includes('calendar')) return 'คดี';
+  if (/^\/(clients|intake|email-intake)/.test(r)) return 'ลูกค้า & รับเรื่อง';
+  if (/calendar|court-day|court-schedule/.test(r)) return 'ปฏิทิน & ศาล';
+  if (/^\/(billing|expenses|timesheet|invoices|reimbursements)/.test(r)) return 'การเงิน';
+  if (/^\/(documents|research|email-search)/.test(r)) return 'เอกสาร';
+  if (/^\/(settings|admin|team|users|leaves|ai-usage)/.test(r)) return 'ทีม & ตั้งค่า';
+  return 'งาน';
+}
+const grouped = groups.map(([name, intro]) => ({ name, intro, slides: slides.filter((s) => groupFor(s) === name) })).filter((g) => g.slides.length);
+const mobileGroups = [...new Set(mobileSlides.map((s) => s.group))];
+const anchor = (s) => `slide-${s.id}`;
 
 const slideHtml = (s, i) => `
-  <section class="slide" id="slide-${i + 1}" data-index="${i + 1}">
+  <section class="slide" id="${esc(anchor(s))}" data-index="${i + 1}">
     <header>
-      <span class="num">${i + 1} / ${slides.length}</span>
+      <span class="num">เว็บ ${i + 1}</span>
       <h2>${esc(s.title)}</h2>
       <code>${esc(s.route)}</code>
     </header>
@@ -151,6 +179,35 @@ const slideHtml = (s, i) => `
     </ol>
     <figure><img src="shots/${esc(s.file)}" alt="${esc(s.title)}" /></figure>
   </section>`;
+
+const mobileHtml = (s) => `<section class="slide mobile-slide" id="mobile-${esc(s.id)}"><header><span class="num">มือถือ</span><h2>${esc(s.title)}</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/${esc(s.file)}" alt="${esc(s.title)}" /></figure><div><p class="desc">${esc(s.description)}</p><ol>${s.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol></div></div></section>`;
+const mobileGroupId = (g) => `mobile-group-${mobileGroups.indexOf(g)}`;
+const tocEntries = [
+  { title: 'ส่วนที่ 1 เว็บ (สำหรับสำนักงาน)', href: 'web-part', level: 0 },
+  ...grouped.flatMap((g) => [
+    { title: g.name, href: `group-${groups.findIndex(([name]) => name === g.name)}`, level: 1 },
+    ...g.slides.map((s) => ({ title: s.title, href: anchor(s), level: 2 })),
+  ]),
+  { title: 'ส่วนที่ 2 แอปมือถือ', href: 'mobile-part', level: 0 },
+  ...mobileGroups.flatMap((g) => [
+    { title: g, href: mobileGroupId(g), level: 1 },
+    ...mobileSlides.filter((s) => s.group === g).map((s) => ({ title: s.title, href: `mobile-${s.id}`, level: 2 })),
+  ]),
+  { title: 'ส่วนที่ 3 LINE OA', href: 'line-part', level: 0 },
+];
+// Every <section class="slide"> prints as exactly one page (fixed height + overflow hidden in print CSS),
+// so a TOC entry's page = cover + TOC pages + its position among the sections that follow the TOC.
+const TOC_PER_PAGE = 52;
+const tocPages = Array.from({ length: Math.ceil(tocEntries.length / TOC_PER_PAGE) }, (_, i) => tocEntries.slice(i * TOC_PER_PAGE, (i + 1) * TOC_PER_PAGE));
+const tocHtml = (pageOf) =>
+  tocPages
+    .map(
+      (entries, i) =>
+        `<section class="slide toc-page"><h2>สารบัญ${tocPages.length > 1 ? ` ${i + 1} / ${tocPages.length}` : ''}</h2><nav class="toc">${entries
+          .map((e) => `<a class="lv${e.level}" href="#${esc(e.href)}"><span>${esc(e.title)}</span><b>${pageOf(e.href) ?? ''}</b></a>`)
+          .join('')}</nav></section>`,
+    )
+    .join('');
 
 const html = `<!doctype html>
 <html lang="th">
@@ -195,32 +252,55 @@ const html = `<!doctype html>
   .line-flow h4 { margin:0 0 6px; font-size:15px }
   .line-cmd { margin:0 0 8px; font-size:13px; color:var(--muted) }
   .line-flow ol { margin:0; padding-left:18px; display:grid; gap:5px; font-size:13.5px; color:#334155 }
+  .part { min-height:320px; display:flex; flex-direction:column; justify-content:center }
+  .mobile-layout { display:grid; grid-template-columns:32% 1fr; gap:28px; align-items:start }
+  .mobile-layout figure { border:8px solid #1e293b; border-radius:26px; max-width:280px; margin:auto }
+  .mobile-layout ol { padding-left:24px }
   @media (max-width:700px) { .line-grid{grid-template-columns:1fr} }
   @media print {
     body { background:#fff }
     .wrap { max-width:none; padding:0 }
-    .cover { border:none; border-radius:0; page-break-after:always }
-    .slide { page-break-after:always; page-break-inside:avoid; border:none; border-radius:0 }
-    .toc a { border-color:#cbd5e1 }
+    .cover, .slide { border:none; border-radius:0; break-after:page; break-inside:avoid; margin:0; padding:4mm; height:187mm; overflow:hidden }
+    .slide figure:not(.mobile-layout figure) img { width:auto; max-width:100%; max-height:118mm; object-fit:contain; margin:auto }
+    .mobile-layout figure img { max-height:135mm; width:auto; max-width:100%; object-fit:contain; margin:auto }
+    .toc { display:block; columns:2; column-gap:12mm; margin-top:6px }
+    .toc a { display:flex; justify-content:space-between; gap:8px; padding:1px 0; font-size:10.5px; border:none; background:none; break-inside:avoid }
+    .toc a b { font-weight:400; color:var(--muted) }
+    .toc a.lv0 { font-weight:700; font-size:12px; color:var(--red); margin-top:4px }
+    .toc a.lv1 { font-weight:700; margin-top:3px }
+    .toc a.lv2 { padding-left:10px }
+    .slide header { margin-bottom:8px; padding-bottom:6px }
+    .desc { margin-bottom:8px; font-size:13px }
+    .callouts { margin-bottom:8px; gap:4px; grid-template-columns:repeat(3,1fr) }
+    .callouts li { padding:3px 6px; font-size:11px }
+    .line-grid { grid-template-columns:180px 1fr; gap:12px }
+    .line-link-steps, .line-grid p { font-size:11px !important; gap:2px }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="cover">
-    <h1>Samnuan — คู่มือการใช้งานทีละหน้าจอ</h1>
-    <p>ภาพหน้าจอทั้งหมดถูกถ่ายอัตโนมัติด้วย Playwright จากระบบจริง กรอบและป้ายสีแดงคือจุดที่ต้องกด/กรอกในแต่ละหน้า
-    ส่วนท้ายเล่มมีวิธีใช้งานผ่านแชท LINE Official Account เพิ่มเติม</p>
-    <nav class="toc">
-      ${slides.map((s, i) => `<a href="#slide-${i + 1}">${i + 1}. ${esc(s.title)}</a>`).join('\n      ')}
-      <a href="#line-section">LINE. ใช้งานผ่าน LINE</a>
-    </nav>
+    <h1>คู่มือการใช้งาน Samnuan — เว็บและแอปมือถือ</h1>
+    <p>5 พฤศจิกายน 2569</p>
+    <p>คู่มือทีละขั้นตอนสำหรับสำนักงานและลูกค้า กรอบสีแดงแสดงจุดสำคัญบนหน้าจอ</p>
   </div>
-  ${slides.map(slideHtml).join('\n')}
+  @@TOC@@
+  <section class="slide part" id="web-part"><h1>ส่วนที่ 1 เว็บ (สำหรับสำนักงาน)</h1><p>เลือกหัวข้อที่ต้องการจากสารบัญ แล้วทำตามคำแนะนำในแต่ละหน้า</p></section>
+  ${grouped.map((g) => `<section class="slide part" id="group-${groups.findIndex(([name]) => name === g.name)}"><h2>${esc(g.name)}</h2><p>${esc(g.intro)}</p></section>${g.slides.map((s) => slideHtml(s, slides.indexOf(s))).join('')}`).join('')}
+  <section class="slide part" id="mobile-part"><h1>ส่วนที่ 2 แอปมือถือ</h1><p>${mobileSlides.length ? 'ดูขั้นตอนการใช้งานแอปมือถือแยกตามหัวข้อ' : 'ส่วนแอปมือถือ (กำลังจัดทำ)'}</p></section>
+  ${mobileGroups.map((g) => `<section class="slide part" id="${mobileGroupId(g)}"><h2>${esc(g)}</h2></section>${mobileSlides.filter((s) => s.group === g).map(mobileHtml).join('')}`).join('')}
+  <section class="slide part" id="line-part"><h1>ส่วนที่ 3 LINE OA</h1><p>ใช้งานและรับการแจ้งเตือนผ่านแชท LINE ของสำนักงาน</p></section>
   ${lineSectionHtml}
 </div>
 </body>
 </html>`;
 
-fs.writeFileSync(path.join(GUIDE, 'index.html'), html);
+const afterToc = html.slice(html.indexOf('@@TOC@@'));
+const sectionIds = [...afterToc.matchAll(/<section class="slide[^"]*"(?: id="([^"]*)")?/g)].map((m) => m[1] ?? null);
+const pageOf = (id) => {
+  const i = sectionIds.indexOf(id);
+  return i < 0 ? null : 1 + tocPages.length + i + 1;
+};
+fs.writeFileSync(path.join(GUIDE, 'index.html'), html.replace('@@TOC@@', tocHtml(pageOf)).replace(/[ \t]+$/gm, ''));
 console.log(`built ${path.join(GUIDE, 'index.html')} — ${slides.length} slides`);
