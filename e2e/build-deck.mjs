@@ -139,6 +139,80 @@ const lineSectionHtml = `
   </section>
   ${LINE_FLOWS.map((flow, i) => `<section class="slide" id="line-flow-${i}"><header><span class="num">LINE</span><h2>ใช้งานผ่าน LINE — ${esc(flow.name)}</h2></header>${lineFlowHtml(flow)}</section>`).join('')}`;
 
+
+/**
+ * "How work moves" overview pages. Status names are the labels the web app shows
+ * (apps/web/src/lib/i18n/dashboard.ts, intake/[id], invoices pages); `refs` are slide ids,
+ * rendered as page numbers once the page layout is known (@@P:<anchor>@@).
+ */
+const FLOWS = [
+  {
+    id: 'flow-case',
+    title: 'เส้นทางของหนึ่งเรื่อง — ตั้งแต่ลูกค้าติดต่อจนปิดคดี',
+    intro: 'ทุกเรื่องในสำนักงานเดินตามลำดับนี้ ใช้หน้านี้เป็นแผนที่ แล้วเปิดหน้าที่ระบุในแต่ละกล่องเพื่อดูวิธีทำ',
+    steps: [
+      { name: 'รับเรื่อง', who: 'เจ้าหน้าที่รับเรื่อง', what: 'ลูกค้าโทร ส่งอีเมล หรือส่งผ่าน Portal บันทึกเป็นเรื่องรับเข้า', refs: ['35-intake', '36-intake-new', '39-email-intake', '38-intake-portal-submissions'] },
+      { name: 'ประเมิน & ตัดสินใจ', who: 'ทนาย / เจ้าของสำนักงาน', what: 'รับเรื่อง → กำลังประเมิน → รับดำเนินการ หรือ ปฏิเสธ', refs: ['35-intake'] },
+      { name: 'เปิดคดี', who: 'ทนาย / ธุรการ', what: 'แปลงเรื่องเป็นคดี หรือสร้างคดีใหม่ เลือกประเภท ลูกความ และทนายผู้รับผิดชอบ', refs: ['05-case-new', '59-cases-import'] },
+      { name: 'มอบหมายงาน', who: 'ทนายผู้รับผิดชอบ', what: 'แตกงานในคดีพร้อมกำหนดส่งและผู้รับผิดชอบ', refs: ['08-case-tasks', '27-work'] },
+      { name: 'นัดหมาย & ขึ้นศาล', who: 'ทนาย / เสมียน', what: 'ลงนัดศาลในคดี ระบบเตือนล่วงหน้า วันนัดเปิดหน้าเตรียมวันนัดศาล', refs: ['31-case-calendar', '13-court-schedule', '65-court-day'] },
+      { name: 'เอกสาร', who: 'ทุกคนในคดี', what: 'อัปโหลด ร่าง และตรวจเอกสารคดีไว้ที่เดียว', refs: ['09-case-documents', '14-documents'] },
+      { name: 'ค่าใช้จ่าย & เรียกเก็บเงิน', who: 'ทีมงาน / บัญชี', what: 'บันทึกเวลาและค่าใช้จ่าย แล้วออกใบแจ้งหนี้ให้ลูกค้า', refs: ['10-case-billing', '41-expenses-new', '30-invoices'] },
+      { name: 'ปิดคดี', who: 'ทนายผู้รับผิดชอบ', what: 'สรุปผลคดีในแท็บสรุปปิดคดี แล้วเปลี่ยนสถานะเป็นปิดคดี', refs: ['34-case-closing-report'] },
+    ],
+    lanes: [
+      { label: 'สถานะคดี (ติดตามที่บอร์ดคดี)', states: ['คดีใหม่', 'ร่างคำฟ้อง', 'ยื่นฟ้องแล้ว', 'นัดศาล', 'รอคำพิพากษา', 'ปิดคดี', 'เก็บเข้าคลัง'], refs: ['04-cases-board'] },
+    ],
+  },
+  {
+    id: 'flow-task',
+    title: 'การไล่งาน — งานหนึ่งชิ้นเดินจากมอบหมายจนเสร็จ',
+    intro: 'งานทุกชิ้นมีผู้รับผิดชอบและกำหนดส่ง หัวหน้าไล่งานได้จากสถานะ ไม่ต้องถามทีละคน',
+    steps: [
+      { name: 'มอบหมาย', who: 'หัวหน้า / ทนายผู้รับผิดชอบ', what: 'สร้างงานในคดีหรือผ่าน LINE ("เพิ่ม Task") ระบุผู้รับและกำหนดส่ง', refs: ['08-case-tasks'] },
+      { name: 'เริ่มวันใหม่', who: 'ผู้รับงาน', what: 'เปิดสรุปประจำวัน / วันของฉัน ดูงานที่ครบกำหนดและนัดวันนี้', refs: ['53-brief', '26-my-day'] },
+      { name: 'ลงมือทำ', who: 'ผู้รับงาน', what: 'ย้ายงานเป็น "กำลังทำ" ที่กล่องงาน แนบเอกสารหรือบันทึกเวลาได้', refs: ['27-work'] },
+      { name: 'ส่งตรวจ', who: 'ผู้รับงาน', what: 'เสร็จแล้วย้ายเป็น "รอตรวจ" ให้หัวหน้าเห็น', refs: ['27-work'] },
+      { name: 'ตรวจงาน', who: 'หัวหน้า', what: 'ผ่าน → "เสร็จแล้ว" ไม่ผ่าน → "ต้องแก้ไข" ส่งกลับไปทำต่อ', refs: ['27-work', '57-workflows'] },
+    ],
+    lanes: [
+      { label: 'สถานะงาน', states: ['ยังไม่เริ่ม', 'กำลังทำ', 'รอตรวจ', 'เสร็จแล้ว'], loop: 'ต้องแก้ไข → กลับไป กำลังทำ', refs: ['27-work'] },
+      { label: 'งานส่วนตัว (ไม่ผูกคดี)', states: ['สร้าง Todo', 'ทำ', 'ติ๊กเสร็จ'], refs: ['28-todos'] },
+    ],
+  },
+  {
+    id: 'flow-money',
+    title: 'การไล่เงิน — ค่าใช้จ่ายและใบแจ้งหนี้',
+    intro: 'ค่าใช้จ่ายที่พนักงานจ่ายไปก่อนต้องผ่านการอนุมัติของเจ้าของสำนักงาน ส่วนใบแจ้งหนี้ติดตามจนลูกค้าชำระ',
+    steps: [
+      { name: 'บันทึกค่าใช้จ่าย', who: 'พนักงาน', what: 'กรอกเองหรือส่งรูปใบเสร็จผ่าน LINE ผูกกับคดีได้ รายการเป็น "ร่าง"', refs: ['41-expenses-new', '15-expenses'] },
+      { name: 'ส่งขอเบิก', who: 'พนักงาน', what: 'รวมรายการแล้วส่งขออนุมัติ สถานะเป็น "รออนุมัติ"', refs: ['42-expenses-claim'] },
+      { name: 'อนุมัติ', who: 'เจ้าของสำนักงาน', what: 'อนุมัติหรือไม่อนุมัติทั้งชุด แล้วบันทึกว่าจ่ายเงินคืนแล้ว', refs: ['20-reimbursements'] },
+      { name: 'ออกใบแจ้งหนี้', who: 'บัญชี / ทนาย', what: 'รวมเวลาและค่าใช้จ่ายของคดี ออกใบแจ้งหนี้ให้ลูกค้า', refs: ['10-case-billing', '30-invoices'] },
+      { name: 'ติดตามการชำระ', who: 'บัญชี', what: 'ส่งแล้ว → ชำระแล้ว ดูยอดค้างได้ที่หน้าใบแจ้งหนี้', refs: ['30-invoices'] },
+    ],
+    lanes: [
+      { label: 'สถานะค่าใช้จ่าย', states: ['ร่าง', 'รออนุมัติ', 'อนุมัติแล้ว', 'จ่ายแล้ว'], loop: 'หรือ ปฏิเสธ', refs: ['20-reimbursements'] },
+      { label: 'สถานะใบแจ้งหนี้', states: ['ร่าง', 'ส่งแล้ว', 'ชำระแล้ว'], refs: ['30-invoices'] },
+    ],
+  },
+];
+const refText = (refs) => {
+  const known = refs.filter((r) => slides.some((s) => s.id === r));
+  return known.length ? `ดูหน้า ${known.map((r) => `@@P:slide-${r}@@`).join(', ')}` : '';
+};
+const flowHtml = (f) => `
+  <section class="slide flow-page" id="${f.id}">
+    <header><span class="num">ภาพรวม</span><h2>${esc(f.title)}</h2></header>
+    <p class="desc">${esc(f.intro)}</p>
+    <ol class="flow" style="grid-template-columns:repeat(${f.steps.length <= 5 ? f.steps.length : 4},1fr)">${f.steps
+      .map((st, i) => `<li${(i + 1) % (f.steps.length <= 5 ? f.steps.length : 4) === 0 ? ' class="row-end"' : ''}><span class="pin">${i + 1}</span><b>${esc(st.name)}</b><i>${esc(st.who)}</i><p>${esc(st.what)}</p><small>${refText(st.refs)}</small></li>`)
+      .join('')}</ol>
+    ${f.lanes
+      .map((l) => `<div class="lane"><b>${esc(l.label)}</b><div>${l.states.map((x) => `<span>${esc(x)}</span>`).join('<em>→</em>')}${l.loop ? `<span class="loop">${esc(l.loop)}</span>` : ''}</div><small>${refText(l.refs)}</small></div>`)
+      .join('')}
+  </section>`;
+
 const groups = [
   ['เริ่มต้น', 'เริ่มใช้งาน เข้าสู่ระบบ และดูภาพรวมของสำนักงาน'],
   ['คดี', 'ค้นหา เปิด และติดตามข้อมูลคดีตั้งแต่เริ่มจนปิดคดี'],
@@ -183,6 +257,8 @@ const slideHtml = (s, i) => `
 const mobileHtml = (s) => `<section class="slide mobile-slide" id="mobile-${esc(s.id)}"><header><span class="num">มือถือ</span><h2>${esc(s.title)}</h2></header><div class="mobile-layout"><figure><img src="shots/mobile/${esc(s.file)}" alt="${esc(s.title)}" /></figure><div><p class="desc">${esc(s.description)}</p><ol>${s.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol></div></div></section>`;
 const mobileGroupId = (g) => `mobile-group-${mobileGroups.indexOf(g)}`;
 const tocEntries = [
+  { title: 'ภาพรวมการไล่งาน', href: 'flow-part', level: 0 },
+  ...FLOWS.map((f) => ({ title: f.title, href: f.id, level: 1 })),
   { title: 'ส่วนที่ 1 เว็บ (สำหรับสำนักงาน)', href: 'web-part', level: 0 },
   ...grouped.flatMap((g) => [
     { title: g.name, href: `group-${groups.findIndex(([name]) => name === g.name)}`, level: 1 },
@@ -256,6 +332,19 @@ const html = `<!doctype html>
   .mobile-layout { display:grid; grid-template-columns:32% 1fr; gap:28px; align-items:start }
   .mobile-layout figure { border:8px solid #1e293b; border-radius:26px; max-width:280px; margin:auto }
   .mobile-layout ol { padding-left:24px }
+  .flow { list-style:none; margin:0 0 14px; padding:0; display:grid; grid-template-columns:repeat(4,1fr); gap:22px 26px; counter-reset:f }
+  .flow li { position:relative; background:var(--bg); border:1px solid var(--line); border-top:4px solid var(--red); border-radius:10px; padding:10px 12px }
+  .flow li:not(:last-child):not(.row-end)::after { content:'➜'; position:absolute; right:-21px; top:38%; color:var(--red); font-size:16px }
+  .flow li b { display:block; font-size:14px; margin:4px 0 0 }
+  .flow li i { display:block; font-style:normal; font-size:12px; color:var(--red) }
+  .flow li p { margin:4px 0; font-size:12.5px; color:#334155; line-height:1.45 }
+  .flow li small, .lane small { font-size:11px; color:var(--muted) }
+  .flow .pin { position:absolute; top:-12px; left:10px }
+  .lane { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px dashed var(--line); border-radius:10px; padding:8px 12px; margin-bottom:8px; font-size:13px }
+  .lane > b { min-width:190px }
+  .lane span { background:#fff1f2; border:1px solid #fecdd3; border-radius:999px; padding:2px 10px }
+  .lane span.loop { background:#fff; border-style:dashed; margin-left:10px }
+  .lane em { font-style:normal; color:var(--red); margin:0 5px }
   @media (max-width:700px) { .line-grid{grid-template-columns:1fr} }
   @media print {
     body { background:#fff }
@@ -286,6 +375,8 @@ const html = `<!doctype html>
     <p>คู่มือทีละขั้นตอนสำหรับสำนักงานและลูกค้า กรอบสีแดงแสดงจุดสำคัญบนหน้าจอ</p>
   </div>
   @@TOC@@
+  <section class="slide part" id="flow-part"><h1>ภาพรวมการไล่งาน</h1><p>งานในสำนักงานเดินจากขั้นไหนไปขั้นไหน ใครเป็นคนทำ และเปิดดูวิธีทำได้ที่หน้าไหนในคู่มือ</p></section>
+  ${FLOWS.map(flowHtml).join('')}
   <section class="slide part" id="web-part"><h1>ส่วนที่ 1 เว็บ (สำหรับสำนักงาน)</h1><p>เลือกหัวข้อที่ต้องการจากสารบัญ แล้วทำตามคำแนะนำในแต่ละหน้า</p></section>
   ${grouped.map((g) => `<section class="slide part" id="group-${groups.findIndex(([name]) => name === g.name)}"><h2>${esc(g.name)}</h2><p>${esc(g.intro)}</p></section>${g.slides.map((s) => slideHtml(s, slides.indexOf(s))).join('')}`).join('')}
   <section class="slide part" id="mobile-part"><h1>ส่วนที่ 2 แอปมือถือ</h1><p>${mobileSlides.length ? 'ดูขั้นตอนการใช้งานแอปมือถือแยกตามหัวข้อ' : 'ส่วนแอปมือถือ (กำลังจัดทำ)'}</p></section>
@@ -302,5 +393,5 @@ const pageOf = (id) => {
   const i = sectionIds.indexOf(id);
   return i < 0 ? null : 1 + tocPages.length + i + 1;
 };
-fs.writeFileSync(path.join(GUIDE, 'index.html'), html.replace('@@TOC@@', tocHtml(pageOf)).replace(/[ \t]+$/gm, ''));
+fs.writeFileSync(path.join(GUIDE, 'index.html'), html.replace('@@TOC@@', tocHtml(pageOf)).replace(/@@P:([^@]+)@@/g, (_, id) => pageOf(id) ?? '?').replace(/[ \t]+$/gm, ''));
 console.log(`built ${path.join(GUIDE, 'index.html')} — ${slides.length} slides`);
