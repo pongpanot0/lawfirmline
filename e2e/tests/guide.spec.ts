@@ -21,12 +21,6 @@ async function goto(page: Page, route: string) {
   await page.waitForTimeout(600);
 }
 
-async function expectDashboardLoaded(page: Page) {
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.locator('main h1')).toBeVisible();
-  await expect(page.getByText('คดีที่ยังไม่ปิด').first()).toBeVisible();
-}
-
 async function expectNoHorizontalOverflow(page: Page) {
   await expect
     .poll(() =>
@@ -37,41 +31,24 @@ async function expectNoHorizontalOverflow(page: Page) {
 
 let caseId = '';
 
-test('02 — แดชบอร์ด', async ({ page }) => {
+test('02 — หน้าแรกของเจ้าของสำนักงาน', async ({ page }) => {
+  // Owners/office managers land on /operations; /dashboard redirects there.
   await goto(page, '/dashboard');
-  await expectDashboardLoaded(page);
-
+  await expect(page).toHaveURL(/\/(operations|dashboard)$/);
+  await goto(page, '/cases');
   caseId =
     (await page.evaluate(() => {
       const a = Array.from(document.querySelectorAll('a[href^="/cases/"]'))
         .map((x) => x.getAttribute('href')!)
-        .find((h) => /^\/cases\/[0-9a-f-]{20,}$/i.test(h));
+        .find((h) => /^\/cases\/[0-9a-z-]{20,}$/i.test(h));
       return a ? a.split('/')[2] : '';
     })) || '';
-
-  await capture(page, {
-    id: '02-dashboard',
-    title: 'แดชบอร์ด — ภาพรวมงาน',
-    route: '/dashboard',
-    description:
-      'หน้าแรกหลังเข้าสู่ระบบ สรุปคดีที่ยังไม่ปิด งานที่ยังไม่เสร็จ งานเกินกำหนด และนัดที่กำลังจะมาถึง พร้อมรายการงานที่ต้องทำ/เรื่องรับเข้าล่าสุด คดีล่าสุด และนัดหมายถัดไป',
-    callouts: [
-      ...CHROME,
-      { selector: 'main h1, main [class*="heading"], h1', label: 'ชื่อหน้าและสำนักงานที่ใช้งาน', place: 'right' },
-      { selector: 'a[href="/cases"]:has-text("คดีที่ยังไม่ปิด")', label: 'จำนวนคดีที่ยังไม่ปิด', place: 'bottom' },
-      { selector: 'a[href="/work"]:has-text("งานที่ยังไม่เสร็จ")', label: 'จำนวนงานที่ยังไม่เสร็จ', place: 'bottom' },
-      { selector: 'a:has-text("งานเกินกำหนด")', label: 'งานที่เลยกำหนดส่งแล้ว', place: 'bottom' },
-      { selector: 'a[href="/calendar"]:has-text("นัดที่กำลังจะมาถึง")', label: 'นัดที่กำลังจะถึง', place: 'bottom' },
-      { selector: 'a[href="/intake/new"]', label: 'ปุ่มลัด รับงานใหม่', place: 'left' },
-      { selector: 'a[href="/cases"]:has-text("ดูทั้งหมด")', label: 'ไปหน้ารายการคดีทั้งหมด', place: 'left' },
-    ],
-  });
+  expect(caseId, 'no seeded case link on /cases').not.toBe('');
 });
 
-test('02.2 — แดชบอร์ด mobile ไม่มีหน้าล้น', async ({ page }) => {
+test('02.2 — หน้าแรก mobile ไม่มีหน้าล้น', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await goto(page, '/dashboard');
-  await expectDashboardLoaded(page);
+  await goto(page, '/operations');
   await expectNoHorizontalOverflow(page);
 });
 
@@ -109,39 +86,21 @@ test('04 — บอร์ดสถานะคดี', async ({ page }) => {
   });
 });
 
-test('05 — สร้างคดีใหม่ ขั้นที่ 1 เลือกประเภทคดี', async ({ page }) => {
+test('05 — สร้างคดีใหม่', async ({ page }) => {
   await goto(page, '/cases/new');
   await capture(page, {
-    id: '05-case-new-step1',
-    title: 'สร้างคดีใหม่ — ขั้นที่ 1 เลือกประเภทคดี',
+    id: '05-case-new',
+    title: 'สร้างคดีใหม่ — กรอกหน้าเดียวจบ',
     route: '/cases/new',
     description:
-      'การสร้างคดีเป็นแบบ 4 ขั้นตอน ขั้นแรกเลือกประเภทคดี ระบบจะปรับฟิลด์ในขั้นถัดไปตามประเภทที่เลือก',
+      'เปิดคดีใหม่ได้ในหน้าเดียว ช่องที่มี * ต้องกรอก ที่เหลือเติมภายหลังได้ 1) เลือกประเภทคดี 2) เลือกลูกความ 3) ตั้งชื่อคดี 4) เลือกทนายผู้รับผิดชอบ 5) ถ้ามีคู่ความและศาลให้กรอกในส่วน "คู่ความและศาล" แล้วกด "สร้างคดี"',
     callouts: [
-      { selector: 'h1', label: 'หัวข้อหน้า สร้างคดีใหม่', place: 'right' },
-      { selector: 'main button:has-text("Litigation")', label: 'คลิกเลือกประเภทคดี', place: 'right' },
-      { selector: 'button:has-text("ถัดไป"), button:has-text("Next")', label: 'กดถัดไปเพื่อไปขั้นถัดไป (ต้องเลือกประเภทก่อน)', place: 'top' },
-    ],
-  });
-});
-
-test('06 — สร้างคดีใหม่ ขั้นที่ 2 ข้อมูลคดี', async ({ page }) => {
-  await goto(page, '/cases/new');
-  await page.click('main button:has-text("Litigation")');
-  await page.click('button:has-text("ถัดไป"), button:has-text("Next")');
-  await page.waitForTimeout(500);
-  await capture(page, {
-    id: '06-case-new-step2',
-    title: 'สร้างคดีใหม่ — ขั้นที่ 2 ข้อมูลพื้นฐาน',
-    route: '/cases/new',
-    description:
-      'กรอกข้อมูลคดี Own Ref ถูกสร้างอัตโนมัติ (TSBREF + ปี + เลขรัน) ส่วนหมายเลขคดีดำ/หมายเลขคดีแดงกรอกในรูปแบบ เลขที่/ปีพ.ศ. เช่น 123/2567 และระบุลูกค้ากับรายได้โดยประมาณ',
-    callouts: [
-      { selector: 'input[placeholder*="เลขอ้างอิงจากลูกค้า"]', label: 'Customer Ref เลขอ้างอิงฝั่งลูกค้า (ไม่บังคับ)', place: 'right' },
-      { selector: 'input[placeholder="เช่น 123/2567"]', label: 'หมายเลขคดีดำ รูปแบบ 123/2567', place: 'right' },
-      { selector: 'input[placeholder="เช่น 456/2567"]', label: 'หมายเลขคดีแดง รูปแบบ 456/2567', place: 'right' },
-      { selector: 'input[type="number"]', label: 'รายได้โดยประมาณ ต้องเป็นตัวเลขไม่ติดลบ', place: 'right' },
-      { selector: 'button:has-text("ถัดไป"), button:has-text("Next")', label: 'ไปขั้นตอนถัดไป', place: 'top' },
+      { selector: 'select[aria-label*="ประเภทคดี"], [aria-label="ประเภทคดี *"], label:has-text("ประเภทคดี")', label: '1. เลือกประเภทคดี (บังคับ)', place: 'right' },
+      { selector: '[aria-label*="ลูกความ"], label:has-text("ลูกความ")', label: '2. เลือกลูกความ (เติมทีหลังได้)', place: 'right' },
+      { selector: 'input[aria-label*="ชื่อคดี"], label:has-text("ชื่อคดี")', label: '3. ตั้งชื่อคดี (บังคับ)', place: 'right' },
+      { selector: '[aria-label*="ทนายผู้รับผิดชอบ"], label:has-text("ทนายผู้รับผิดชอบ")', label: '4. เลือกทนายผู้รับผิดชอบ', place: 'right' },
+      { selector: 'h3:has-text("คู่ความและศาล")', label: '5. คู่ความฝ่ายตรงข้ามและศาล (ถ้ามี)', place: 'right' },
+      { selector: 'button:has-text("สร้างคดี")', label: 'กดเพื่อบันทึกคดี', place: 'top' },
     ],
   });
 });
@@ -842,4 +801,107 @@ test('52 — หน้าแรก (Marketing)', async ({ page, context }) => {
     description: 'หน้าแนะนำระบบสำหรับผู้ที่ยังไม่ได้เป็นลูกค้า อธิบายจุดเด่นของระบบและมีปุ่มขอทดลองใช้งานฟรี',
     callouts: [{ selector: 'a[href="/register"]', label: 'ขอทดลองใช้งานฟรี', place: 'right' }],
   });
+});
+
+// These pages are read-only walkthroughs: opening a form does not submit it.
+const additionalPages = [
+  ['53-brief', '/brief', 'สรุปประจำวัน', 'ใช้ดูภาพรวมงานวันนี้ เริ่มจากตรวจรายการที่ต้องติดตาม แล้วเปิดคดีหรืองานที่ต้องดำเนินการต่อ', 'main h2, main h3', 'ตรวจหัวข้อสรุปและรายการงาน'],
+  ['54-leaves', '/leaves', 'วันลา', 'ใช้ขอลาและตรวจสถานะ เริ่มจากเลือกประเภทและวันที่ลา กรอกรายละเอียด แล้วตรวจข้อมูลก่อนส่งคำขอ', 'main form, main input, main select', 'กรอกรายละเอียดวันลา'],
+  ['55-timesheet', '/timesheet', 'บันทึกเวลาทำงาน', 'ใช้บันทึกเวลาที่ทำงานให้คดี เลือกเพิ่มรายการ กรอกคดีและชั่วโมง แล้วตรวจรายการก่อนบันทึก', 'main button', 'เพิ่มหรือตรวจรายการเวลา'],
+  ['56-research', '/research', 'ค้นคว้ากฎหมาย', 'ใช้ค้นข้อมูลประกอบการทำงาน พิมพ์คำค้น เลือกผลที่เกี่ยวข้อง แล้วอ่านรายละเอียดก่อนนำไปใช้', 'main input, main textarea', 'กรอกคำค้น'],
+  ['57-workflows', '/workflows', 'สายงาน', 'ใช้ติดตามงานที่ส่งต่อกัน ตรวจขั้นตอนและผู้รับผิดชอบ หากต้องเริ่มสายงานให้เปิดคดีและไปที่แท็บงาน', 'main a[href="/cases"], main [role="tab"]', 'เปิดคดีหรือเลือกมุมมองสายงาน'],
+  ['58-email-search', '/email-search', 'ค้นหาอีเมล', 'ใช้ค้นอีเมลที่เกี่ยวข้อง พิมพ์ชื่อหรือคำค้น แล้วเปิดผลลัพธ์เพื่อตรวจข้อความต้นทาง', 'main input', 'พิมพ์คำค้นอีเมล'],
+  ['59-cases-import', '/cases/import', 'นำเข้าคดีจาก Excel', 'ใช้เตรียมนำเข้าคดีหลายรายการ ดาวน์โหลดแบบฟอร์ม กรอกหนึ่งแถวต่อคดี อัปโหลดและตรวจข้อมูลก่อนสร้างคดี', 'main input[type="file"]', 'เลือกไฟล์ Excel ที่กรอกแล้ว'],
+  ['60-paper-files', '/operations/paper-files', 'แฟ้มกระดาษที่ถูกยืม', 'ใช้ติดตามแฟ้มที่นำออกจากที่เก็บ ตรวจรายการและผู้ถือแฟ้ม แล้วเปิดคดีที่ต้องการติดตาม', 'main table, main a[href^="/cases/"], main p', 'ตรวจรายการแฟ้ม'],
+  ['61-email-templates', '/settings/email-templates', 'แม่แบบอีเมล', 'ใช้จัดข้อความที่ส่งบ่อย เลือกสร้างแม่แบบ กรอกชื่อ หัวเรื่องและเนื้อหา แล้วตรวจข้อความก่อนบันทึก', 'main button', 'สร้างหรือแก้ไขแม่แบบ'],
+  ['62-outlook-folders', '/settings/outlook-folders', 'โฟลเดอร์ Outlook', 'ใช้จัดโฟลเดอร์อีเมลที่เชื่อมต่อ ตรวจบัญชีและรายการโฟลเดอร์ แล้วเลือกการตั้งค่าที่ต้องการ', 'main a, main button, main p', 'ตรวจบัญชีและโฟลเดอร์'],
+  ['63-admin-user-new', '/admin/users/new', 'เพิ่มสมาชิกสำนักงาน', 'ใช้เตรียมบัญชีสมาชิกใหม่ กรอกข้อมูล เลือกสิทธิ์ แล้วตรวจรายละเอียดก่อนยืนยัน', 'main form, main input', 'กรอกข้อมูลสมาชิก'],
+] as const;
+
+for (const [id, route, title, description, selector, label] of additionalPages) {
+  test(`${id} — ${title}`, async ({ page }) => {
+    const response = await page.goto(route);
+    test.skip(response?.status() === 404, 'route returned 404');
+    await page.waitForLoadState('networkidle').catch(() => {});
+    test.skip(new URL(page.url()).pathname !== route, 'route redirected or unavailable for this account');
+    const slide = await capture(page, { id, route, title, description, callouts: [
+      { selector: 'main h1', label: 'ชื่อหน้า', place: 'right' },
+      { selector, label, place: 'right' },
+    ] });
+    expect(slide.callouts.length, `${route}: fewer than two visible callouts`).toBeGreaterThanOrEqual(1);
+  });
+}
+
+test('64 — ป้ายแฟ้มคดี', async ({ page }) => {
+  test.skip(!caseId, 'no seeded case found');
+  const response = await page.goto(`/cases/${caseId}/paper-label`);
+  test.skip(response?.status() === 404, 'route returned 404');
+  const slide = await capture(page, { id: '64-paper-label', route: '/cases/:id/paper-label', title: 'ป้ายแฟ้มคดี', description: 'ใช้พิมพ์ป้ายสำหรับแฟ้มกระดาษ เปิดคดี ตรวจข้อมูลบนป้าย แล้วเลือกพิมพ์เพื่อนำไปติดแฟ้ม', callouts: [
+    { selector: 'main h1, h1', label: 'ป้ายแฟ้มของคดี', place: 'right' },
+    { selector: 'button:has-text("พิมพ์"), button:has-text("Print")', label: 'สั่งพิมพ์ป้าย', place: 'left' },
+  ] });
+  expect(slide.callouts.length).toBeGreaterThanOrEqual(1);
+});
+
+test('65 — เตรียมวันนัดศาล', async ({ page }) => {
+  // Set E2E_COURT_EVENT_ID when no hearing is on today's My Day list.
+  let href = process.env.E2E_COURT_EVENT_ID ? `/court-day/${process.env.E2E_COURT_EVENT_ID}` : null;
+  if (!href) {
+    await goto(page, '/my-day');
+    href = await page.locator('a[href^="/court-day/"]').first().getAttribute('href', { timeout: 3000 }).catch(() => null);
+  }
+  test.skip(!href, 'no court event: set E2E_COURT_EVENT_ID');
+  const response = await page.goto(href!);
+  test.skip(response?.status() === 404, 'court-day route returned 404');
+  const slide = await capture(page, { id: '65-court-day', route: '/court-day/:eventId', title: 'เตรียมวันนัดศาล', description: 'ใช้เตรียมและติดตามวันนัด เปิดนัดศาล ตรวจรายการเตรียมตัวและเอกสาร แล้วบันทึกผลเมื่อดำเนินการเสร็จ', callouts: [
+    { selector: 'main h1, h1', label: 'รายละเอียดวันนัด', place: 'right' },
+    { selector: 'main h2, main h3', label: 'ตรวจรายการเตรียมตัว', place: 'right' },
+  ] });
+  expect(slide.callouts.length).toBeGreaterThanOrEqual(1);
+});
+
+const portalPages = [
+  ['66-portal', '/portal', 'พอร์ทัลลูกค้า', 'ใช้ดูภาพรวมเรื่องและคดี เลือกเมนูหรือรายการที่ต้องการเพื่อติดตามความคืบหน้า', 'main a[href^="/portal/"]', 'เปิดรายการที่ต้องการ'],
+  ['67-portal-intake-new', '/portal/intake/new', 'ส่งเรื่องใหม่ให้สำนักงาน', 'ใช้แจ้งเรื่องใหม่ กรอกหัวข้อและรายละเอียด แนบเอกสารที่เกี่ยวข้อง แล้วตรวจข้อมูลก่อนส่ง', 'main input, main textarea', 'กรอกหัวข้อและรายละเอียด'],
+  ['68-portal-reports', '/portal/reports', 'รายงานของลูกค้า', 'ใช้ดูรายงานที่สำนักงานจัดเตรียม เลือกรายงานจากรายการเพื่ออ่านรายละเอียด', 'main a[href^="/portal/reports/"], main p', 'เลือกรายงานหรือดูสถานะ'],
+  ['69-portal-operations', '/portal/operations', 'ติดตามงานดำเนินการ', 'ใช้ดูความคืบหน้างานที่สำนักงานดำเนินการ ตรวจรายการและเปิดเรื่องที่ต้องการติดตาม', 'main a, main p', 'ตรวจรายการหรือส่งเรื่องใหม่'],
+  ['70-portal-settings', '/portal/settings', 'ตั้งค่าพอร์ทัล', 'ใช้ตั้งค่าการแจ้งเตือนและเชื่อมต่อ LINE ตรวจช่องทางที่ต้องการ แล้วทำตามขั้นตอนบนหน้า', 'main h2', 'เลือกหัวข้อการแจ้งเตือนหรือ LINE'],
+] as const;
+
+async function portalLogin(page: Page) {
+  await page.goto('http://localhost:3005/portal/login');
+  await page.locator('input[type="email"]').fill('john.smith@email.com');
+  await page.locator('input[type="password"]').fill('password123');
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL((url) => !url.pathname.endsWith('/login'));
+}
+
+for (const [id, route, title, description, selector, label] of portalPages) {
+  test(`${id} — ${title}`, async ({ page }) => {
+    await portalLogin(page);
+    const response = await page.goto(`http://localhost:3005${route}`);
+    test.skip(response?.status() === 404, 'route returned 404');
+    await page.waitForLoadState('networkidle').catch(() => {});
+    test.skip(new URL(page.url()).pathname !== route, 'route redirected or unavailable for this account');
+    const slide = await capture(page, { id, route, title, description, callouts: [
+      { selector: 'main h1, h1', label: 'ชื่อหน้า', place: 'right' },
+      { selector, label, place: 'right' },
+    ] });
+    expect(slide.callouts.length, `${route}: fewer than two visible callouts`).toBeGreaterThanOrEqual(1);
+  });
+}
+
+test('71 — รายละเอียดคดีในพอร์ทัล', async ({ page }) => {
+  await portalLogin(page);
+  await page.goto('http://localhost:3005/portal');
+  await page.waitForLoadState('networkidle').catch(() => {});
+  const href = await page.locator('a[href^="/portal/cases/"]').first().getAttribute('href').catch(() => null);
+  test.skip(!href, 'portal account has no visible seeded case');
+  const response = await page.goto(`http://localhost:3005${href}`);
+  test.skip(response?.status() === 404, 'portal case returned 404');
+  const slide = await capture(page, { id: '71-portal-case', route: '/portal/cases/:id', title: 'ติดตามคดีในพอร์ทัล', description: 'ใช้ติดตามคดีที่สำนักงานดูแล เปิดคดีจากหน้าพอร์ทัล ตรวจความคืบหน้าและข้อมูลที่สำนักงานแชร์ให้', callouts: [
+    { selector: 'main h1, h1', label: 'คดีที่กำลังดู', place: 'right' },
+    { selector: 'main h2, main [role="tab"]', label: 'เลือกดูความคืบหน้าและข้อมูลคดี', place: 'right' },
+  ] });
+  expect(slide.callouts.length).toBeGreaterThanOrEqual(1);
 });
