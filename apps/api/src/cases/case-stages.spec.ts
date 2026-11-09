@@ -26,6 +26,7 @@ describe('case stages', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }),
         findUnique: jest.fn().mockResolvedValue(base),
         update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...base, ...data })),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       caseProceeding: {
         upsert: jest.fn().mockResolvedValue({}),
@@ -34,6 +35,7 @@ describe('case stages', () => {
       },
       caseStatusLog: { findFirst: jest.fn().mockResolvedValue(null) },
       task: { findMany: jest.fn().mockResolvedValue([]) },
+      appliedPlaybook: { findMany: jest.fn().mockResolvedValue([]) },
       calendarEvent: { findMany: jest.fn().mockResolvedValue([]) },
       document: { findMany: jest.fn().mockResolvedValue([]) },
       timeEntry: { findMany: jest.fn().mockResolvedValue([]) },
@@ -43,6 +45,7 @@ describe('case stages', () => {
       caseType: { count: jest.fn().mockResolvedValue(0) },
       clientContact: { count: jest.fn().mockResolvedValue(0) },
     };
+    prisma.case.findFirst.mockImplementation(() => prisma.case.findUnique());
     prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma));
     const module = await Test.createTestingModule({
       providers: [
@@ -91,6 +94,13 @@ describe('case stages', () => {
     expect(feed.log).toHaveBeenCalledWith(
       expect.objectContaining({ stageTransition: expect.objectContaining({ note: 'ศาลให้แก้คำฟ้อง' }) }),
     );
+  });
+
+  it('allows a backward correction with a note despite outstanding stage tasks', async () => {
+    prisma.task.findMany.mockResolvedValue([{ id: 't', title: 'สืบพยาน', status: 'TODO', parentId: null, labels: ['stage:HEARING'], assignee: null, dueDate: null, skippedReason: null }]);
+    await service.update(user, 'case-1', { stage: 'FILING', stageNote: 'ศาลให้แก้คำฟ้อง' } as any);
+    expect(prisma.case.update).toHaveBeenCalled();
+    expect(feed.log).toHaveBeenCalledWith(expect.objectContaining({ stageTransition: { from: 'HEARING', to: 'FILING', note: 'ศาลให้แก้คำฟ้อง', status: 'IN_PROGRESS' } }));
   });
 
   it.each(['CLOSED', 'ARCHIVED'])('PATCH cannot set status %s', async (status) => {

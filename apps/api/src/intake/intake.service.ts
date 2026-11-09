@@ -1,3 +1,4 @@
+import { intakeJourney } from './intake-journey';
 import { assertFirmRefs } from '../common/firm-refs';
 import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
@@ -222,6 +223,15 @@ export class IntakeService {
     });
     if (!intake) throw new NotFoundException('Intake not found');
     return intake;
+  }
+
+  async journey(user: AuthUser, id: string) {
+    const intake = await this.findOne(user, id);
+    const [conflict, requests] = await Promise.all([
+      this.conflictCheck.latestForIntake(id),
+      this.prisma.intakeDocumentRequest.findMany({ where: { intakeId: id }, select: { required: true, status: true } }),
+    ]);
+    return intakeJourney(intake, conflict, requests);
   }
 
   private unlinkedWhere(user: AuthUser) {
@@ -679,7 +689,7 @@ export class IntakeService {
       where: { intakeId, labels: { hasSome: [`playbook:${releaseId}`] } },
     });
     if (existing > 0) return;
-    const steps = (release.steps as unknown as Array<{ title: string; instructions?: string }>) ?? [];
+    const steps = (release.steps as unknown as Array<{ title: string; instructions?: string; stage?: string }>) ?? [];
     for (const step of steps) {
       if (!step?.title?.trim()) continue;
       await this.prisma.task.create({
@@ -690,7 +700,7 @@ export class IntakeService {
           // ponytail: มอบให้คนรับเรื่องไปก่อน — role-based assignment ทำตอนเป็นคดี
           assigneeId: user.id,
           createdById: user.id,
-          labels: [`playbook:${releaseId}`],
+          labels: [`playbook:${releaseId}`, ...(step.stage ? [`stage:${step.stage}`] : [])],
         },
       });
     }

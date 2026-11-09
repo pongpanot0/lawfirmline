@@ -233,7 +233,7 @@ export default function SopsPage() {
       )}
 
       {loading && view !== 'handoff' ? (
-        <PageLoading title="กำลังโหลด SOP" lines={3} />
+        <PageLoading variant="list" title="กำลังโหลด SOP" lines={3} />
       ) : !loadError && (view === 'all' || view === 'manual') && manualItems.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">คู่มือให้อ่าน</h2>

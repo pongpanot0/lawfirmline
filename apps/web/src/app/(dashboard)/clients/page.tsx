@@ -657,7 +657,7 @@ export default function ClientsPage() {
       {loadError ? (
         <LoadFailed onRetry={load} />
       ) : loading ? (
-        <PageLoading title={d.clients.loading} lines={3} />
+        <PageLoading variant="list" title={d.clients.loading} lines={3} />
       ) : clients.length === 0 ? (
         <EmptyState
           icon={Briefcase}

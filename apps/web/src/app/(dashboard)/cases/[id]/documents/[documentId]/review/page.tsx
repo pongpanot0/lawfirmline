@@ -177,7 +177,7 @@ export default function DocumentReviewPage() {
   };
 
   if (loadError) return <LoadFailed onRetry={load} />;
-  if (loading) return <PageLoading title="กำลังโหลดหน้าตรวจเอกสาร" lines={3} />;
+  if (loading) return <PageLoading variant="detail" title="กำลังโหลดหน้าตรวจเอกสาร" lines={3} />;
   if (!document) {
     return (
       <div className="space-y-3">

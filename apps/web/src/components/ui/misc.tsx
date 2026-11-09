@@ -18,14 +18,18 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn('animate-pulse rounded-md bg-muted', className)} />;
 }
 
+/** Loading placeholder shaped like the page it stands in for, so the layout doesn't jump. */
 export function PageLoading({
   title = 'กำลังโหลดข้อมูล',
   description = 'กำลังเตรียมข้อมูลล่าสุดให้พร้อมใช้งาน',
   lines = 4,
+  variant = 'cards',
 }: {
   title?: string;
   description?: string;
   lines?: number;
+  /** cards = stat tiles (dashboards) · list = rows (lists, inbox) · detail = header + main + side column. */
+  variant?: 'cards' | 'list' | 'detail';
 }) {
   return (
     <div role="status" className="space-y-6" aria-live="polite">
@@ -33,15 +37,49 @@ export function PageLoading({
         <Skeleton className="h-8 w-56" />
         <Skeleton className="mt-2 h-4 w-80 max-w-full" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: lines }).map((_, index) => (
-          <div key={index} className="rounded-xl border bg-card p-5">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="mt-4 h-8 w-20" />
-            <Skeleton className="mt-3 h-3 w-32" />
+      {variant === 'list' && (
+        <div className="divide-y rounded-xl border bg-card">
+          {Array.from({ length: Math.max(lines, 5) }).map((_, index) => (
+            <div key={index} className="flex items-start gap-3 px-4 py-3">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex justify-between gap-4"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-12" /></div>
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {variant === 'detail' && (
+        <>
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-4 rounded-xl border bg-card p-5">
+              <Skeleton className="h-5 w-48" />
+              {Array.from({ length: Math.max(lines, 4) }).map((_, index) => <Skeleton key={index} className="h-4 w-full" />)}
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+            <div className="space-y-3 rounded-xl border bg-card p-5">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
           </div>
-        ))}
-      </div>
+        </>
+      )}
+      {variant === 'cards' && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: lines }).map((_, index) => (
+            <div key={index} className="rounded-xl border bg-card p-5">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="mt-4 h-8 w-20" />
+              <Skeleton className="mt-3 h-3 w-32" />
+            </div>
+          ))}
+        </div>
+      )}
       <p className="sr-only">
         {title}
         {description ? `: ${description}` : ''}

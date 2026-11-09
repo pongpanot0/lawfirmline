@@ -10,7 +10,7 @@ import { DriveCaseImportTable } from '@/components/settings/DriveCaseImportTable
 
 type Suggestions = Awaited<ReturnType<typeof api.getDriveFolderSuggestions>>;
 
-// "89. …" — a case folder itself, not a parent holding case folders (same rule as the import pre-tick).
+// "89. …" — numbered like a case folder (same rule as the import pre-tick).
 const CASE_FOLDER = /^\d+\./;
 
 /**
@@ -36,12 +36,16 @@ export function DriveFolderMatchingTab() {
       if (!token) return;
       setLoading(true);
       try {
-        // Picked a case folder itself: show just that folder, from its parent's listing.
-        if (CASE_FOLDER.test(folder.name.trim()) && folder.parentId) {
+        // What's inside decides, not the name: "11111. บาร์ริสเตอร์" is numbered yet holds the case
+        // folders. Only a numbered folder with no case folders inside is a single case — then show
+        // just that folder, from its parent's listing.
+        const children = await api.getDriveFolderSuggestions(token, folder.driveId, folder.id);
+        const holdsCases = children.some((r) => CASE_FOLDER.test(r.folder.name.trim()));
+        if (!holdsCases && CASE_FOLDER.test(folder.name.trim()) && folder.parentId) {
           const siblings = await api.getDriveFolderSuggestions(token, folder.driveId, folder.parentId);
           setItems(siblings.filter((r) => r.folder.id === folder.id));
         } else {
-          setItems(await api.getDriveFolderSuggestions(token, folder.driveId, folder.id));
+          setItems(children);
         }
       } catch (e) {
         setMessage(e instanceof ApiError ? e.message : 'โหลด folder ไม่สำเร็จ');

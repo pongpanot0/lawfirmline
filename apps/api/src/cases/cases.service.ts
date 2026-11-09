@@ -1,3 +1,5 @@
+import { assertJourneyAdvance, caseJourney, journeyStage, nextJourneyStage } from './case-journey';
+import { AdvanceJourneyDto } from './dto/advance-journey.dto';
 import { assertFirmRefs } from '../common/firm-refs';
 import { syncLimitationReminder } from '../common/limitation-reminder';
 import { addOpponents, ensureOurClientParticipant } from './party-sync';
@@ -270,6 +272,40 @@ export class CasesService {
     });
     if (!legalCase) throw new NotFoundException('Case not found');
     return legalCase;
+  }
+
+  async journey(user: AuthUser, id: string) {
+    if (!await this.caseAccess.canAccessCase(user, id)) throw new NotFoundException('Case not found');
+    return (await this.journeyState(user, id)).journey;
+  }
+
+  private async journeyState(user: AuthUser, id: string, db: Prisma.TransactionClient = this.prisma) {
+    const legalCase = await db.case.findFirst({
+      where: { id, firmId: user.firmId, deletedAt: null },
+      select: { stage: true, partyRole: true },
+    });
+    if (!legalCase) throw new NotFoundException('Case not found');
+    const [tasks, applied] = await Promise.all([
+      db.task.findMany({
+        where: { caseId: id },
+        select: { id: true, title: true, status: true, parentId: true, labels: true, dueDate: true, skippedReason: true, assignee: { select: { firstName: true, lastName: true } } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      }),
+      db.appliedPlaybook.findMany({
+        where: { caseId: id, release: { firmId: user.firmId } },
+        select: { taskIds: true, release: { select: { steps: true } } },
+      }),
+    ]);
+    return { legalCase, journey: caseJourney(legalCase, tasks, applied) };
+  }
+
+  async advanceJourney(user: AuthUser, id: string, dto: AdvanceJourneyDto) {
+    if (!await this.caseAccess.canAccessCase(user, id)) throw new NotFoundException('Case not found');
+    const { legalCase, journey } = await this.journeyState(user, id);
+    const stage = nextJourneyStage(legalCase.stage, dto.toStage);
+    assertJourneyAdvance(legalCase.stage, stage, journey);
+    await this.update(user, id, { stage }, legalCase.stage);
+    return this.journey(user, id);
   }
 
   private generateFolderId(): string {
@@ -630,8 +666,11 @@ export class CasesService {
     return created;
   }
 
-  async update(user: AuthUser, id: string, dto: UpdateCaseDto) {
+  async update(user: AuthUser, id: string, dto: UpdateCaseDto, fromStage?: string) {
     const before = await this.findOne(user, id);
+    if (fromStage !== undefined && before.stage !== fromStage) {
+      throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า');
+    }
 
     if (dto.status === CaseStatus.CLOSED || dto.status === CaseStatus.ARCHIVED) {
       throw new BadRequestException('ใช้ปุ่มปิดคดี');
@@ -687,7 +726,7 @@ export class CasesService {
     }
 
     const { customFields, customers, clients, stageNote: _stageNote, ...rest } = dto;
-    const updated = await this.prisma.case.update({
+    const write = (db: Prisma.TransactionClient) => db.case.update({
       where: { id },
       data: {
         ...rest,
@@ -710,6 +749,20 @@ export class CasesService {
       },
       include: this.caseInclude,
     });
+    const updated = dto.stage !== undefined ? await this.prisma.$transaction(async (tx) => {
+      const { legalCase, journey } = await this.journeyState(user, id, tx);
+      if (legalCase.stage !== before.stage) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า');
+      if (stageChanged && !isBackwardStage(before.stage, dto.stage!) && journeyStage(before.stage) !== journeyStage(dto.stage!)) {
+        assertJourneyAdvance(before.stage, dto.stage!, journey);
+      }
+      // Lock the validated stage while writing the remaining case fields in this transaction.
+      const result = await tx.case.updateMany({
+        where: { id, stage: before.stage },
+        data: { stage: dto.stage!, stageChangedAt: stageChanged ? new Date() : undefined },
+      });
+      if (result.count === 0) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า');
+      return write(tx);
+    }) : await write(this.prisma);
     // The overview form always sends both, so only an actual change re-syncs our client's row.
     const clientChanged = dto.clientId !== undefined && (dto.clientId || null) !== (before.clientId ?? null);
     const partyRoleChanged = dto.partyRole !== undefined && (dto.partyRole || null) !== (before.partyRole ?? null);

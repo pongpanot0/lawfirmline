@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, type ImportCaseResult, type ImportClosedOutcome, type ParsedCaseFolder, type UserItem } from '@/lib/api';
 import { draftFromSuggestion, draftProblem, toImportRow, type ImportCaseDraft } from '@/lib/drive-case-import';
 import { Button } from '@/components/ui/button';
+import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 
 // Same wording as the close-case dialog.
 const OUTCOME_OPTIONS: [ImportClosedOutcome, string][] = [
@@ -152,26 +153,17 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
                       {lawyers.map((l) => <option key={l.id} value={l.id}>{lawyerName.get(l.id)}</option>)}
                     </select>
                   </label>
-                  <fieldset className="text-xs sm:col-span-2">
-                    <legend>ทีม {d.teamHint && <span className="text-muted-foreground">(ใน folder: {d.teamHint})</span>}</legend>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                      {lawyers.filter((l) => l.id !== d.leadLawyerId).map((l) => (
-                        <label key={l.id} className="flex min-h-8 items-center gap-1">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4"
-                            checked={d.buddyIds?.includes(l.id) ?? false}
-                            onChange={(e) =>
-                              update(d.itemId, {
-                                buddyIds: e.target.checked ? [...(d.buddyIds ?? []), l.id] : (d.buddyIds ?? []).filter((x) => x !== l.id),
-                              })
-                            }
-                          />
-                          {lawyerName.get(l.id)}
-                        </label>
-                      ))}
+                  <div className="text-xs sm:col-span-2">
+                    <span>ทีม {d.teamHint && <span className="text-muted-foreground">(ใน folder: {d.teamHint})</span>}</span>
+                    <div className="mt-1">
+                      <MultiUserSelect
+                        users={lawyers.filter((l) => l.id !== d.leadLawyerId)}
+                        value={d.buddyIds ?? []}
+                        onChange={(ids) => update(d.itemId, { buddyIds: ids })}
+                        placeholder="เลือกทีม (ไม่บังคับ)"
+                      />
                     </div>
-                  </fieldset>
+                  </div>
                   <label className="flex min-h-10 items-center gap-2 text-xs sm:col-span-2">
                     <input type="checkbox" className="h-4 w-4" checked={d.closed} onChange={(e) => update(d.itemId, { closed: e.target.checked })} />
                     ปิดคดีแล้ว

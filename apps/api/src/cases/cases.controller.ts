@@ -1,3 +1,4 @@
+import { AdvanceJourneyDto } from './dto/advance-journey.dto';
 import {
   Controller,
   Get,
@@ -48,6 +49,16 @@ export class CasesController {
   @UseGuards(CaseAccessGuard)
   findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.casesService.findOne(user, id);
+  }
+
+  @Get(':id/journey')
+  journey(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.casesService.journey(user, id);
+  }
+
+  @Post(':id/journey/advance')
+  advanceJourney(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AdvanceJourneyDto) {
+    return this.casesService.advanceJourney(user, id, dto);
   }
 
   @Get(':id/precedent-analysis')

@@ -93,7 +93,7 @@ export default function KnowledgePage() {
       {loadError ? (
         <LoadFailed onRetry={() => setReloadKey((k) => k + 1)} />
       ) : loading ? (
-        <PageLoading title={d.knowledge.loading} lines={3} />
+        <PageLoading variant="list" title={d.knowledge.loading} lines={3} />
       ) : items.length === 0 ? (
         <EmptyState icon={BookOpen} title={d.knowledge.empty} description={d.knowledge.emptyHint} />
       ) : (

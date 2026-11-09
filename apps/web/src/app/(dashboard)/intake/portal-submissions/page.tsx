@@ -72,7 +72,7 @@ export default function PortalSubmissionsPage() {
             </div>
           ) : loading ? (
             <div className="p-4">
-              <PageLoading title="กำลังโหลดเรื่องจากพอร์ทัล" lines={3} />
+              <PageLoading variant="list" title="กำลังโหลดเรื่องจากพอร์ทัล" lines={3} />
             </div>
           ) : items.length === 0 ? (
             <EmptyState

@@ -1840,7 +1840,16 @@ export interface AddinCaseSuggestion {
   reasons: string[];
 }
 
+export type JourneyStep = { key: string; label: string; state: 'done' | 'current' | 'locked'; summary?: string | null; unlockHint?: string | null };
+export type Journey = { steps: JourneyStep[]; next: { text: string; done: number; total: number } | null; canAdvance: boolean; blockers: string[] };
+export type CaseJourney = Journey & { currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] };
+export type SkippedTask = { id: string; status: string; skippedReason: string; skippedAt: string; skippedById: string };
+
 export const api = {
+  getIntakeJourney: (token: string, id: string) => request<Journey>(`/intake/${id}/journey`, { token }),
+  getCaseJourney: (token: string, id: string) => request<CaseJourney>(`/cases/${id}/journey`, { token }),
+  advanceCaseJourney: (token: string, id: string, toStage?: 'APPEAL' | 'SUPREME' | 'CLOSING') => request<CaseJourney>(`/cases/${id}/journey/advance`, { token, method: 'POST', body: JSON.stringify(toStage ? { toStage } : {}) }),
+  skipJourneyTask: (token: string, id: string, reason: string) => request<SkippedTask>(`/tasks/${id}/skip`, { token, method: 'POST', body: JSON.stringify({ reason }) }),
   login: (email: string, password: string) =>
     request<import('@lawfirm/shared').LoginResult>('/auth/login', {
       method: 'POST',

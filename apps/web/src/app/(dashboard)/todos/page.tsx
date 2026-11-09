@@ -253,7 +253,7 @@ function TodosPageContent() {
     }
   };
 
-  if (loading) return <PageLoading title={d.todos.loading} lines={4} />;
+  if (loading) return <PageLoading variant="list" title={d.todos.loading} lines={4} />;
 
   /** Switch scope labels on only when this list includes another assignee. */
   const seesOthers = tasks.some((t) => t.assignee && t.assignee.id !== user?.id);
@@ -668,7 +668,7 @@ export default function TodosPage() {
   const { locale } = useLocale();
   const text = (th: string, en: string) => locale === 'th' ? th : en;
   return (
-    <Suspense fallback={<PageLoading title={d.todos.loading} lines={4} />}>
+    <Suspense fallback={<PageLoading variant="list" title={d.todos.loading} lines={4} />}>
       <TodosPageContent />
     </Suspense>
   );
