@@ -51,7 +51,7 @@ describe('DocumentsService', () => {
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockFileStorage },
-        { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
+        { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}), getIntakeFilterForUser: jest.fn().mockResolvedValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
         { provide: DocumentPublicationService, useValue: mockPublications },
       ],
@@ -216,7 +216,7 @@ describe('DocumentsService — intake-scoped methods', () => {
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockFileStorage },
-        { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
+        { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}), getIntakeFilterForUser: jest.fn().mockResolvedValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
         { provide: DocumentPublicationService, useValue: mockPublications },
       ],
@@ -313,7 +313,7 @@ describe('DocumentsService.adoptIntakeAttachments', () => {
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockFileStorage },
-        { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
+        { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}), getIntakeFilterForUser: jest.fn().mockResolvedValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
         { provide: DocumentPublicationService, useValue: mockPublications },
       ],
@@ -380,6 +380,7 @@ describe('DocumentsService.removeFromIntake', () => {
     },
     documentVersion: { findMany: jest.fn(), count: jest.fn() },
     intakeAttachment: { deleteMany: jest.fn() },
+    emailAttachment: { count: jest.fn() },
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
@@ -399,12 +400,13 @@ describe('DocumentsService.removeFromIntake', () => {
     mockPrisma.documentVersion.findMany.mockResolvedValue([]);
     mockPrisma.document.count.mockResolvedValue(0);
     mockPrisma.documentVersion.count.mockResolvedValue(0);
+    mockPrisma.emailAttachment.count.mockResolvedValue(0);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockFileStorage },
-        { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
+        { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}), getIntakeFilterForUser: jest.fn().mockResolvedValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
         { provide: DocumentPublicationService, useValue: mockPublications },
       ],
@@ -426,6 +428,14 @@ describe('DocumentsService.removeFromIntake', () => {
 
   it('leaves the file alone while another document still points at it', async () => {
     mockPrisma.document.count.mockResolvedValue(1);
+
+    await service.removeFromIntake(user, 'intake-1', 'doc-1');
+
+    expect(mockFileStorage.delete).not.toHaveBeenCalled();
+  });
+
+  it('keeps the bytes of an adopted e-mail attachment, which the mailbox copy still uses', async () => {
+    mockPrisma.emailAttachment.count.mockResolvedValue(1);
 
     await service.removeFromIntake(user, 'intake-1', 'doc-1');
 

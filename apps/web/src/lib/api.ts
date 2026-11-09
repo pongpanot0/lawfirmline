@@ -1237,6 +1237,8 @@ export interface IntakeItem {
   incidentDate?: string | null;
   description?: string | null;
   estimatedDamage?: number | null;
+  insurerPaidAmount?: number | null;
+  otherAmounts?: { label: string; amount: number }[] | null;
   requestedResponseDate?: string | null;
   assignedUserIds?: string[];
   deadlineDate?: string | null;
@@ -1298,6 +1300,8 @@ export interface IntakeFieldProposalItem {
   previousValue: string | null;
   sourceType: 'EMAIL_BODY' | 'ATTACHMENT' | 'EXISTING_CLIENT' | 'MANUAL';
   sourceDetail: string | null;
+  matterLabel: string | null;
+  sourceDocumentId: string | null;
   status: 'SUGGESTED' | 'REQUIRES_CONFIRMATION' | 'CONFIRMED' | 'REJECTED' | 'CONFLICT';
   confirmedById: string | null;
   confirmedAt: string | null;
@@ -1315,6 +1319,7 @@ export interface EmailThreadListItem {
   attachmentCount: number;
   bodyExcerpt: string;
   linkedIntake: { id: string; status: string } | null;
+  suggestedIntake: { id: string; title: string | null } | null;
   caseId?: string | null;
   mailboxAddress?: string | null;
 }
@@ -1355,6 +1360,8 @@ export interface EmailMessageItem {
   attachments: EmailAttachmentItem[];
 }
 
+export type EmailIntakeStep = { key: 'ACCEPT' | 'AI_READ' | 'CONFIRM' | 'DOCUMENTS' | 'SUBMIT'; label: string; state: 'done' | 'current' | 'locked' };
+
 export interface EmailThreadDetail {
   thread: EmailThreadListItem & {
     messages: EmailMessageItem[];
@@ -1362,6 +1369,8 @@ export interface EmailThreadDetail {
     case?: { id: string; ownRef: string; title: string } | null;
   };
   proposals: IntakeFieldProposalItem[];
+  documents: { id: string; filename: string; mimeType: string; category: string }[];
+  progress: { steps: EmailIntakeStep[]; next: { text: string; done: number; total: number } | null };
 }
 
 export type CaseMatchReason = 'OWN_REF' | 'CASE_NUMBER' | 'CLIENT_NAME';

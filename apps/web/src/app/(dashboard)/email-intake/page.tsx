@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Mail, Paperclip } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, EmailThreadListItem } from '@/lib/api';
+import { api, ApiError, EmailThreadListItem } from '@/lib/api';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -39,6 +40,19 @@ export default function EmailIntakePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState('');
+  const attach = async (threadId: string, intakeId: string) => {
+    if (!token) return;
+    setLinkingId(threadId);
+    setLinkError('');
+    try {
+      await api.attachThreadToIntake(token, threadId, intakeId);
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      setLinkError(error instanceof ApiError ? error.message : 'รวมเข้าเรื่องเดิมไม่สำเร็จ');
+    } finally { setLinkingId(null); }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -55,6 +69,7 @@ export default function EmailIntakePage() {
     <div>
       <PageHeader title="รับเรื่องจากอีเมล" description="อีเมลจากลูกค้าที่รอทนายตรวจและรับเรื่อง" />
 
+      {linkError && <p role="alert" className="mb-4 text-sm text-destructive">{linkError}</p>}
       <Card>
         <CardContent className="p-0">
           {loadError ? (
@@ -70,11 +85,8 @@ export default function EmailIntakePage() {
           ) : (
             <div className="divide-y">
               {threads.map((thread) => (
-                <Link
-                  key={thread.id}
-                  href={`/email-intake/${thread.id}`}
-                  className="flex items-start gap-4 px-4 py-3 hover:bg-muted/50"
-                >
+                <div key={thread.id} className="px-4 py-3 hover:bg-muted/50">
+                <Link href={`/email-intake/${thread.id}`} className="flex items-start gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">{thread.subject}</p>
@@ -94,6 +106,11 @@ export default function EmailIntakePage() {
                     {STATUS_LABELS[thread.status] ?? thread.status}
                   </Badge>
                 </Link>
+                {thread.suggestedIntake && <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge variant="muted" className="max-w-full whitespace-normal break-words">น่าจะเป็นเรื่องเดิม: {thread.suggestedIntake.title ?? 'ไม่มีชื่อเรื่อง'}</Badge>
+                  <Button size="sm" variant="outline" disabled={linkingId !== null} onClick={() => attach(thread.id, thread.suggestedIntake!.id)}>{linkingId === thread.id ? 'กำลังรวม…' : 'รวม'}</Button>
+                </div>}
+                </div>
               ))}
             </div>
           )}

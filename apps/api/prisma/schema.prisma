@@ -1163,6 +1163,8 @@ model Intake {
   claimNumber           String?
   description           String?             @db.Text
   estimatedDamage       Float?
+  insurerPaidAmount     Float?
+  otherAmounts          Json?
   contactName           String?
   requestedResponseDate DateTime?
   assignedUserIds       String[]            @default([])
@@ -1636,6 +1638,7 @@ model Document {
   publications       DocumentPublication[]
   officeLink         DocumentOfficeLink?
   chunks             DocumentChunk[]
+  fieldProposals     IntakeFieldProposal[]
   intakeRequests     IntakeDocumentRequest[]
   cargoRequirements  CargoDocumentRequirement[]
 
@@ -2718,6 +2721,8 @@ model IntakeFieldProposal {
   sourceType           FieldProposalSourceType @default(EMAIL_BODY)
   sourceDetail         String?
   sourceEmailMessageId String?
+  sourceDocumentId     String?
+  matterLabel          String?
   status               FieldProposalStatus     @default(SUGGESTED)
   confirmedById        String?
   confirmedAt          DateTime?
@@ -2726,9 +2731,11 @@ model IntakeFieldProposal {
 
   intake             Intake        @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   sourceEmailMessage EmailMessage? @relation(fields: [sourceEmailMessageId], references: [id], onDelete: SetNull)
+  sourceDocument     Document?     @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
 
   @@index([intakeId])
   @@index([sourceEmailMessageId])
+  @@index([sourceDocumentId])
 }
 
 // --- Document review rounds ---

@@ -1,11 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Paperclip, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Paperclip, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, EmailThreadDetail, IntakeFieldProposalItem } from '@/lib/api';
+import { api, ApiError, EmailThreadDetail, IntakeDocumentRequestItem } from '@/lib/api';
+import { groupProposals, isPending, parseDocument, submitHelper } from '@/lib/email-intake';
+import { Stepper } from '@/components/email-intake/Stepper';
+import { NextStepBanner } from '@/components/email-intake/NextStepBanner';
+import { ProposalGroup } from '@/components/email-intake/ProposalGroup';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,136 +19,6 @@ import { LinkThreadToCaseCard } from '@/components/email/LinkThreadToCaseCard';
 import { EmailMessageCard } from '@/components/email/EmailMessageCard';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageLoading } from '@/components/ui/misc';
-
-const FIELD_LABELS: Record<string, string> = {
-  title: 'ชื่อเรื่อง',
-  clientName: 'ชื่อลูกค้า',
-  contactName: 'ผู้ติดต่อ',
-  opposingParty: 'คู่กรณี',
-  description: 'สรุปคำขอของลูกค้า',
-  estimatedDamage: 'ยอดเรียกร้อง / ค่าเสียหาย (บาท)',
-  insurerPaidAmount: 'ประกันจ่ายไปแล้ว (บาท)',
-  otherAmount: 'จำนวนเงินอื่นในอีเมล (บาท)',
-  requestedResponseDate: 'วันที่ลูกค้าขอให้ตอบ (ไม่ใช่กำหนดตามกฎหมาย)',
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  EMAIL_BODY: 'พบในเนื้อหาอีเมล',
-  ATTACHMENT: 'พบในไฟล์แนบ',
-  EXISTING_CLIENT: 'ระบบจับคู่จากข้อมูลลูกค้าเดิม',
-  MANUAL: 'กรอกเอง',
-};
-
-function formatValue(field: string, value: string | null) {
-  if (value == null || value === '') return '(ยังไม่พบข้อมูล)';
-  if (field === 'estimatedDamage' || field === 'insurerPaidAmount' || field === 'otherAmount') {
-    const n = Number(value);
-    return Number.isNaN(n) ? value : `${n.toLocaleString('th-TH')} บาท`;
-  }
-  if (field === 'requestedResponseDate') {
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-  }
-  return value;
-}
-
-function ProposalRow({
-  proposal,
-  onResolve,
-  resolving,
-}: {
-  proposal: IntakeFieldProposalItem;
-  onResolve: (proposalId: string, action: 'confirm' | 'reject', overrideValue?: string) => void;
-  resolving: boolean;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draftValue, setDraftValue] = useState(proposal.proposedValue ?? '');
-
-  const isPending = proposal.status === 'REQUIRES_CONFIRMATION' || proposal.status === 'SUGGESTED';
-  const isConfirmed = proposal.status === 'CONFIRMED';
-  const isRejected = proposal.status === 'REJECTED';
-
-  return (
-    <div className="rounded-lg border p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-muted-foreground">{FIELD_LABELS[proposal.field] ?? proposal.field}</p>
-          {proposal.previousValue != null && (
-            <p className="text-xs text-muted-foreground line-through">
-              เดิม: {formatValue(proposal.field, proposal.previousValue)}
-            </p>
-          )}
-          {editing ? (
-            <textarea
-              aria-label={FIELD_LABELS[proposal.field] ?? proposal.field}
-              className="mt-1 w-full rounded border px-2 py-1 text-sm"
-              rows={proposal.field === 'description' ? 4 : 1}
-              value={draftValue}
-              onChange={(e) => setDraftValue(e.target.value)}
-            />
-          ) : (
-            <p className="mt-0.5 whitespace-pre-wrap text-sm font-medium">{formatValue(proposal.field, proposal.proposedValue)}</p>
-          )}
-          <p className="mt-1 text-xs text-muted-foreground">
-            {SOURCE_LABELS[proposal.sourceType] ?? proposal.sourceType}
-            {proposal.sourceDetail ? ` — ${proposal.sourceDetail}` : ''}
-          </p>
-        </div>
-        <div className="shrink-0">
-          {isConfirmed && (
-            <Badge variant="success" className="gap-1">
-              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> ยืนยันแล้ว
-            </Badge>
-          )}
-          {isRejected && (
-            <Badge variant="muted" className="gap-1">
-              <XCircle className="h-3.5 w-3.5" aria-hidden /> ไม่ใช้ข้อมูลนี้
-            </Badge>
-          )}
-          {isPending && (
-            <Badge variant="warning" className="gap-1">
-              <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> ต้องยืนยัน
-            </Badge>
-          )}
-        </div>
-      </div>
-      {isPending && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {editing ? (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={resolving}
-                onClick={() => {
-                  onResolve(proposal.id, 'confirm', draftValue);
-                  setEditing(false);
-                }}
-              >
-                ยืนยันค่าที่แก้ไข
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
-                ยกเลิก
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button size="sm" variant="outline" disabled={resolving} onClick={() => onResolve(proposal.id, 'confirm')}>
-                ยืนยันค่านี้
-              </Button>
-              <Button size="sm" variant="outline" disabled={resolving} onClick={() => setEditing(true)}>
-                แก้ไขก่อนยืนยัน
-              </Button>
-              <Button size="sm" variant="outline" disabled={resolving} onClick={() => onResolve(proposal.id, 'reject')}>
-                ไม่ใช้ข้อมูลนี้
-              </Button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function EmailThreadDetailPage() {
   const { threadId } = useParams<{ threadId: string }>();
@@ -163,6 +37,8 @@ export default function EmailThreadDetailPage() {
   const [error, setError] = useState('');
   const [replyBody, setReplyBody] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [requests, setRequests] = useState<IntakeDocumentRequestItem[]>([]);
+  const [showRejectedDocuments, setShowRejectedDocuments] = useState(false);
   const [composer, setComposer] = useState<CaseEmailComposerMode | null>(null);
 
   const load = useCallback(async () => {
@@ -198,6 +74,11 @@ export default function EmailThreadDetailPage() {
     if (!token || !unaccepted) return setIntakeSuggestions([]);
     api.getThreadIntakeSuggestions(token, threadId).then(setIntakeSuggestions).catch(() => setIntakeSuggestions([]));
   }, [token, threadId, unaccepted]);
+
+  useEffect(() => {
+    if (!token || !data?.thread.intake?.id) { setRequests([]); return; }
+    api.getIntake(token, data.thread.intake.id).then((intake) => setRequests(intake.documentRequests ?? [])).catch(() => setRequests([]));
+  }, [token, data?.thread.intake?.id]);
 
   const handleAttachIntake = async (intakeId: string) => {
     if (!token) return;
@@ -261,11 +142,6 @@ export default function EmailThreadDetailPage() {
     }
   };
 
-  const outstandingCount = useMemo(
-    () => (data?.proposals ?? []).filter((p) => p.status === 'REQUIRES_CONFIRMATION' || p.status === 'SUGGESTED').length,
-    [data],
-  );
-
   // Runs on "รับเป็นเรื่อง" or the button; its values land as proposals that still need "ยืนยันค่านี้".
   async function handleAiExtract() {
     if (!token) return;
@@ -320,10 +196,19 @@ export default function EmailThreadDetailPage() {
     return <PageLoading title="กำลังโหลดอีเมล" lines={3} />;
   }
 
-  const { thread, proposals } = data;
+  const { thread, proposals, documents, progress } = data;
+  const documentProposals = proposals.filter((p) => p.field === 'document');
+  const rejectedDocuments = documentProposals.filter((p) => p.status === 'REJECTED');
+  const documentLocked = progress.steps.find((step) => step.key === 'DOCUMENTS')?.state === 'locked';
+  const canSubmit = ['CONFIRM', 'DOCUMENTS'].every((key) => progress.steps.some((step) => step.key === key && step.state === 'done'));
+  const currentStep = progress.steps.find((step) => step.state === 'current');
+  const scrollToPending = () => {
+    const target = document.querySelector('[data-pending="true"]') ?? document.getElementById(currentStep?.key === 'ACCEPT' ? 'accept-intake' : currentStep?.key === 'AI_READ' ? 'ai-read' : currentStep?.key === 'DOCUMENTS' ? 'documents' : 'submit-intake');
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   return (
-    <div>
+    <div className="pb-32">
       <Link href="/email-intake" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
         <ArrowLeft className="h-4 w-4" aria-hidden /> คิวอีเมล
       </Link>
@@ -336,6 +221,9 @@ export default function EmailThreadDetailPage() {
 
       {error && <p role="alert" className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
+      <Stepper steps={progress.steps} />
+      {progress.next && <NextStepBanner next={progress.next} onGo={scrollToPending} />}
+
       <LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} />
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -344,7 +232,7 @@ export default function EmailThreadDetailPage() {
           <CardContent className="p-4">
             <h2 className="mb-3 font-semibold">อีเมลต้นทาง</h2>
             {!thread.intake && !thread.caseId && (
-              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
+              <div id="accept-intake" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
                 <p className="text-sm">อีเมลนี้ยังไม่ได้รับเป็นเรื่องใหม่</p>
                 <Button size="sm" disabled={linking} onClick={handleCreateIntake}>
                   {linking ? 'กำลังสร้าง...' : 'รับเป็นเรื่องใหม่'}
@@ -429,42 +317,47 @@ export default function EmailThreadDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Proposed fields */}
-        <Card>
-          <CardContent className="p-4">
+        <div className="min-w-0 space-y-6">
+          <Card><CardContent className="p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold">ข้อมูลที่ระบบเตรียมให้</h2>
-              {thread.intake && (
-                <Button size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>
-                  {aiReading ? 'AI กำลังอ่าน…' : 'ให้ AI ช่วยอ่าน (1 เครดิต)'}
-                </Button>
-              )}
+              {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>{aiReading ? 'AI กำลังอ่าน…' : 'อ่านใหม่ (1 เครดิต)'}</Button>}
             </div>
             {aiNote && <p role="status" className="mb-2 text-xs text-muted-foreground">{aiNote}</p>}
-            <div className="space-y-2">
-              {proposals.map((proposal) => (
-                <ProposalRow
-                  key={proposal.id}
-                  proposal={proposal}
-                  onResolve={handleResolve}
-                  resolving={resolvingId === proposal.id}
-                />
-              ))}
-              {proposals.length === 0 && <p className="text-sm text-muted-foreground">ไม่พบข้อมูลที่ต้องยืนยัน</p>}
+            <div className="space-y-3">
+              {groupProposals(proposals.filter((p) => p.field !== 'document')).sort(([a], [b]) => Number(a === null) - Number(b === null)).map(([label, items], index) => <ProposalGroup key={label ?? ''} title={label ? `เรื่องที่ ${index + 1} · ${label}` : 'ข้อมูลทั่วไป'} items={items} proposals={proposals} onResolve={handleResolve} resolvingId={resolvingId} />)}
+              {!proposals.some((p) => p.field !== 'document') && <p className="text-sm text-muted-foreground">ไม่พบข้อมูลที่ต้องยืนยัน</p>}
             </div>
-
-            <div className="mt-4 border-t pt-4">
-              {outstandingCount > 0 && (
-                <p className="mb-2 text-xs text-amber-700">
-                  รอยืนยัน {outstandingCount} รายการ (ยืนยันภายหลังได้)
-                </p>
-              )}
-              <Button className="w-full" disabled={accepting || !thread.intake} onClick={handleAccept}>
-                {accepting ? 'กำลังบันทึก...' : 'ยืนยันข้อมูลและรับเข้าพิจารณา'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          </CardContent></Card>
+          <Card id="documents" className={documentLocked ? 'bg-muted/50 text-muted-foreground' : ''}><CardContent className="space-y-3 p-4">
+            <h2 className="flex items-center gap-2 font-semibold">{documentLocked && <Lock className="h-4 w-4" />}จัดเอกสาร</h2>
+            {documentLocked && <p className="text-sm">ปลดล็อกเมื่อยืนยันข้อมูลครบ</p>}
+            {documents.map((doc) => {
+              const suggestions = documentProposals.filter((p) => parseDocument(p.proposedValue)?.documentId === doc.id && (showRejectedDocuments || p.status !== 'REJECTED'));
+              return <div key={doc.id} className="space-y-2 rounded-md border bg-card p-3 text-sm">
+                <p className="break-all font-medium">{doc.filename}</p>
+                {suggestions.map((proposal) => {
+                  const suggestion = parseDocument(proposal.proposedValue)!;
+                  const request = requests.find((item) => item.id === suggestion.docRequestId);
+                  return <div key={proposal.id} data-pending={!documentLocked && isPending(proposal) ? 'true' : undefined} className="space-y-2">
+                    <p className="break-all">→ {suggestion.filename}</p><Badge variant="muted">{suggestion.docTypeLabel}</Badge>
+                    {suggestion.docRequestId && <p className="text-xs text-muted-foreground">เอกสารที่ขอ: {request?.name ?? suggestion.docRequestId}</p>}
+                    {proposal.sourceDetail && <p className="text-xs text-muted-foreground">“{proposal.sourceDetail}”</p>}
+                    {proposal.status === 'CONFIRMED' && <Badge variant="success">✓ ยืนยันแล้ว</Badge>}
+                    {proposal.status === 'REJECTED' && <Badge variant="muted">ตัดออกแล้ว</Badge>}
+                    {isPending(proposal) && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={documentLocked || resolvingId === proposal.id} onClick={() => handleResolve(proposal.id, 'reject')}>ไม่ใช่</Button><Button size="sm" disabled={documentLocked || resolvingId === proposal.id} onClick={() => handleResolve(proposal.id, 'confirm')}>ยืนยัน</Button></div>}
+                  </div>;
+                })}
+              </div>;
+            })}
+            {documents.length === 0 && <p className="text-sm text-muted-foreground">ไม่มีไฟล์แนบ</p>}
+            {rejectedDocuments.length > 0 && <button type="button" disabled={documentLocked} className="text-xs text-primary underline" onClick={() => setShowRejectedDocuments(!showRejectedDocuments)}>{showRejectedDocuments ? 'ซ่อนที่ตัดออก' : `แสดงที่ตัดออก (${rejectedDocuments.length})`}</button>}
+          </CardContent></Card>
+        </div>
+      </div>
+      <div id="submit-intake" className="fixed inset-x-0 bottom-0 z-30 flex flex-wrap items-center justify-end gap-3 border-t bg-card p-4 pr-44 shadow-lg pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <p className="text-sm text-muted-foreground">{submitHelper(progress.steps)}</p>
+        <Button disabled={accepting || !thread.intake || !canSubmit} onClick={handleAccept}>{accepting ? 'กำลังบันทึก...' : 'ส่งประเมิน'}</Button>
       </div>
       {thread.caseId && (
         <CaseEmailComposer caseId={thread.caseId} mode={composer} onClose={() => setComposer(null)} onSent={() => void refresh()} />

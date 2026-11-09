@@ -1117,3 +1117,5 @@ export * from './office-routines';
 export * from './email-quote';
 export * from './office-operations';
 export * from './secretary';
+
+export * from './strip-email-signature';
