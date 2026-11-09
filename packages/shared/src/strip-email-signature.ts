@@ -29,10 +29,23 @@ export function stripEmailSignature(text: string): string {
 // Signature containers Outlook (web/desktop/mobile) and Gmail put around the sender's signature.
 const HTML_SIGNATURE_START = /<(?:div|table|p)\b[^>]*\b(?:id\s*=\s*["']?(?:Signature|ms-outlook-mobile-signature|signature)\b|class\s*=\s*["'][^"']*\bgmail_signature\b)[^>]*>/i;
 
-/** Cut an HTML body at its marked signature block; bodies without a marker come back unchanged. */
+// A sign-off alone in its element ("Best regards," / "ขอแสดงความนับถือ") starts an unmarked signature.
+const HTML_SIGN_OFF = />(?:\s|&nbsp;)*(?:best regards|kind regards|warm regards|regards|sincerely|thanks & regards|ขอแสดงความนับถือ|ด้วยความเคารพ|ด้วยความนับถือ)[\s,.!]*(?:&nbsp;)*\s*</gi;
+const MAX_SIGNATURE_TEXT = 1500;
+const visibleText = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+
+/**
+ * Cut an HTML body at its signature: the block Outlook/Gmail mark, else the first sign-off line
+ * that is followed only by a signature-sized tail. Bodies without either come back unchanged.
+ */
 export function stripHtmlSignature(html: string): string {
-  const match = HTML_SIGNATURE_START.exec(html);
-  if (!match || match.index === 0) return html;
-  const head = html.slice(0, match.index);
-  return head.replace(/<[^>]+>/g, '').trim() ? head : html;
+  const marked = HTML_SIGNATURE_START.exec(html);
+  if (marked && marked.index > 0 && visibleText(html.slice(0, marked.index))) return html.slice(0, marked.index);
+  for (const match of html.matchAll(HTML_SIGN_OFF)) {
+    const start = html.lastIndexOf('<', match.index);
+    if (start <= 0) continue;
+    const head = html.slice(0, start);
+    if (visibleText(head) && visibleText(html.slice(start)).length <= MAX_SIGNATURE_TEXT) return head;
+  }
+  return html;
 }

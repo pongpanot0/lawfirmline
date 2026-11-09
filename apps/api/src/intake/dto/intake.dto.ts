@@ -1,20 +1,5 @@
 import { DocRequestStatus, IntakeStage } from '@lawfirm/shared';
-import {
-  IsArray,
-  IsBoolean,
-  IsDateString,
-  IsEnum,
-  IsIn,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Max,
-  MaxLength,
-  Min,
-  ValidateIf,
-  ValidateNested,
-} from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { UpsertCargoClaimDto } from '../../cargo-claims/dto/cargo-claim.dto';
 
@@ -498,6 +483,13 @@ export class AssessIntakeDto {
   @IsOptional()
   @IsUUID()
   assessorId?: string;
+
+  /** Several assessors: the first leads (assessorId), all join the intake team. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsUUID('all', { each: true })
+  assessorIds?: string[];
 }
 
 export class DecideIntakeDto {

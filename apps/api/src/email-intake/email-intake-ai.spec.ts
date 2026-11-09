@@ -156,6 +156,10 @@ describe('parseIntakeAiSummary', () => {
     expect(parseIntakeAiSummary('nope')).toBeNull();
     const cited = JSON.stringify({ summary: { overview: ['ยอด 250,000 บาท (แหล่งอ้างอิง: 83e6b7d6-1cac-4320-b51c-0a9834a26d56)'], clientRequest: null, urgency: 'LOW', urgencyReason: null, nextActions: [], missingDocuments: [] } });
     expect(parseIntakeAiSummary(cited)?.overview).toEqual(['ยอด 250,000 บาท']);
+    const leaked = JSON.stringify({ summary: { overview: [], clientRequest: null, urgency: 'LOW', urgencyReason: null, nextActions: ['ยืนยันผู้ว่าจ้างก่อนกำหนด partyRole หรือ caseType'], missingDocuments: [] } });
+    const quoted = JSON.stringify({ summary: { overview: [], clientRequest: null, urgency: 'LOW', urgencyReason: null, nextActions: ['ตรวจสอบผล peer review (ข้อความต้นทาง: “Peer review 7. เอกสารประกอบ”; sourceMessageId: )'], missingDocuments: [] } });
+    expect(parseIntakeAiSummary(quoted)?.nextActions).toEqual(['ตรวจสอบผล peer review']);
+    expect(parseIntakeAiSummary(leaked)?.nextActions).toEqual(['ยืนยันผู้ว่าจ้างก่อนกำหนด บทบาทลูกความ หรือ ประเภทคดี']);
   });
 });
 

@@ -15,6 +15,7 @@ export function MultiUserSelect({
   placeholder,
   renderExtra,
   disabled,
+  dropUp,
 }: {
   users: UserItem[];
   value: string[];
@@ -23,6 +24,8 @@ export function MultiUserSelect({
   /** Optional per-user note (e.g. workload) shown under the name. */
   renderExtra?: (u: UserItem) => string;
   disabled?: boolean;
+  /** Open the list above the button (for controls in a bottom bar). */
+  dropUp?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -59,14 +62,14 @@ export function MultiUserSelect({
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 py-2 text-left text-sm disabled:opacity-50"
       >
-        <span className={selected.length === 0 ? 'text-muted-foreground' : undefined}>{label}</span>
+        <span className={`min-w-0 truncate ${selected.length === 0 ? 'text-muted-foreground' : ''}`} title={label}>{label}</span>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
       </button>
       {open && (
         <div
           role="listbox"
           aria-multiselectable="true"
-          className="absolute z-40 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg"
+          className={`absolute z-40 max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg ${dropUp ? 'bottom-full mb-1' : 'mt-1'}`}
         >
           {users.length === 0 && (
             <p className="px-3 py-2 text-sm text-muted-foreground">{placeholder}</p>

@@ -18,6 +18,7 @@ import { ClientMatchCard } from '@/components/email-intake/ClientMatchCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseEmailComposer, type CaseEmailComposerMode } from '@/components/cases/CaseEmailComposer';
 import { LinkThreadToCaseCard } from '@/components/email/LinkThreadToCaseCard';
@@ -36,7 +37,7 @@ export default function EmailThreadDetailPage() {
   const { token, user } = useAuth();
   const router = useRouter();
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
-  const [assessorId, setAssessorId] = useState('');
+  const [assessorIds, setAssessorIds] = useState<string[]>([]);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
 
   useEffect(() => {
@@ -220,7 +221,7 @@ export default function EmailThreadDetailPage() {
     setAccepting(true);
     setError('');
     try {
-      await api.assessIntake(token, data.thread.intake.id, assessorId ? { assessorId } : {});
+      await api.assessIntake(token, data.thread.intake.id, { assessorIds: assessorIds.length ? assessorIds : user ? [user.id] : [] });
       window.dispatchEvent(new Event('email-intake-changed'));
       router.push(`/intake/${data.thread.intake.id}`);
     } catch (e) {
@@ -266,7 +267,7 @@ export default function EmailThreadDetailPage() {
 
   return (
     <div className="min-w-0 pb-32">
-      <div className="sticky top-0 z-20 mb-3 flex flex-wrap gap-2 border-b bg-background p-2">
+      <div className="mb-3 flex flex-wrap gap-2 border-b pb-3">
         <Button size="sm" disabled={!unaccepted || linking} onClick={handleCreateIntake}>รับเป็นเรื่องใหม่</Button>
         <Button size="sm" variant="outline" disabled={!unaccepted || !intakeSuggestions.length} onClick={() => document.getElementById('accept-intake')?.scrollIntoView({ behavior: 'smooth' })}>รวมเข้าเรื่องเดิม</Button>
         <Button size="sm" variant="outline" onClick={() => document.getElementById('link-case')?.scrollIntoView({ behavior: 'smooth' })}>ผูกกับคดี</Button>
@@ -300,7 +301,7 @@ export default function EmailThreadDetailPage() {
 
       <div id="link-case"><LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} /></div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 2xl:grid-cols-2">
         {/* Source email */}
         <Card>
           <CardContent className="p-4">
@@ -433,13 +434,18 @@ export default function EmailThreadDetailPage() {
       </div>
       <div id="submit-intake" className="fixed inset-x-0 bottom-0 z-30 flex flex-wrap items-center justify-end gap-3 border-t bg-card p-4 pr-44 shadow-lg pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p className="text-sm text-muted-foreground">{submitHelper(progress.steps)}</p>
-        <label className="flex items-center gap-2 text-sm">
+        <div className="flex min-w-0 items-center gap-2 text-sm">
           <span className="text-muted-foreground">ผู้ประเมิน</span>
-          <select aria-label="ส่งให้ใครประเมิน" className="h-9 rounded-md border bg-background px-2 text-sm" value={assessorId || user?.id || ''} onChange={(e) => setAssessorId(e.target.value)}>
-            {user && !lawyers.some((l) => l.id === user.id) && <option value={user.id}>{user.firstName} {user.lastName} (ฉัน)</option>}
-            <AssigneeOptions users={lawyers} flags={NO_LEAVE_FLAGS} nameOf={(u) => (u.id === user?.id ? `${u.firstName} ${u.lastName ?? ''} (ฉัน)` : `${u.firstName} ${u.lastName ?? ''}`)} />
-          </select>
-        </label>
+          <div className="w-64 max-w-full">
+            <MultiUserSelect
+              users={user && !lawyers.some((l) => l.id === user.id) ? [user as unknown as UserItem, ...lawyers] : lawyers}
+              value={assessorIds.length ? assessorIds : user ? [user.id] : []}
+              onChange={setAssessorIds}
+              placeholder="เลือกผู้ประเมิน (ได้หลายคน)"
+              dropUp
+            />
+          </div>
+        </div>
         <Button disabled={accepting || !thread.intake || !canSubmit} onClick={handleAccept}>{accepting ? 'กำลังบันทึก...' : 'ส่งประเมิน'}</Button>
       </div>
       {preview && <DocumentPreviewModal filename={preview.filename} mimeType={preview.mimeType} url={preview.url} onClose={() => setPreview(null)} />}
