@@ -483,8 +483,9 @@ describe('EmailIntakeService', () => {
   describe('explicit AI reading', () => {
     afterEach(() => jest.restoreAllMocks());
 
-    it('reads at most five files serially, caps and redacts all text, creates only pending proposals', async () => {
-      const files = Array.from({ length: 6 }, (_, i) => ({ id: `d${i}`, filename: `patient@example.com-${i}.pdf`, mimeType: 'application/pdf', storagePath: `email/${i}.pdf`, category: 'OTHER' }));
+    it('reads up to twelve files three at a time, skips signature images, caps and redacts all text, creates only pending proposals', async () => {
+      const files = [{ id: 'logo', filename: 'image001.png', mimeType: 'image/png', storagePath: 'email/logo.png', category: 'OTHER' },
+        ...Array.from({ length: 13 }, (_, i) => ({ id: `d${i}`, filename: `patient@example.com-${i}.pdf`, mimeType: 'application/pdf', storagePath: `email/${i}.pdf`, category: 'OTHER' }))];
       mockConfig.get.mockReturnValue('fake-key');
       mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', subject: 'patient@example.com', intake: { id: 'intake-1' }, messages: [
         { id: 'm1', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: 'กรุณาตรวจ patient@example.com 0812345678', attachments: [{ id: 'a' }] },
@@ -494,12 +495,13 @@ describe('EmailIntakeService', () => {
       mockPrisma.intakeDocumentRequest.findMany.mockResolvedValue([{ id: 'r1', name: 'เวชระเบียน patient@example.com' }]);
       mockStorage.getBuffer.mockResolvedValue(Buffer.from('file'));
       let active = 0;
+      let peak = 0;
       mockIntelligence.extractTextWithOcr.mockImplementation(async () => {
         active++;
-        expect(active).toBe(1);
+        peak = Math.max(peak, active);
         await Promise.resolve();
         active--;
-        return 'จ่าย 82,400 บาท patient@example.com 0812345678 ' + 'ก'.repeat(4000) + 'AFTER_CAP';
+        return 'จ่าย 82,400 บาท patient@example.com 0812345678 ' + 'ก'.repeat(7000) + 'AFTER_CAP';
       });
       const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ matters: [{ label: 'เรื่อง', insurerPaidAmount: { amount: 82400, quote: 'จ่าย 82,400 บาท', sourceDocumentId: 'd0', sourceMessageId: null } }], documents: [{ documentId: 'd0', category: 'MEDICAL', docTypeLabel: 'เวชระเบียน', suggestedFilename: 'เวชระเบียน.pdf', docRequestName: 'เวชระเบียน [อีเมล]' }] }) } }] })));
       await expect(service.aiExtract(user, 't')).resolves.toEqual({ proposals: 2, cached: false });
@@ -507,14 +509,16 @@ describe('EmailIntakeService', () => {
       expect(mockPrisma.intakeFieldProposal.deleteMany).toHaveBeenCalledWith({ where: expect.objectContaining({
         status: { in: ['SUGGESTED', 'REQUIRES_CONFIRMATION'] },
       }) });
-      expect(mockStorage.getBuffer).toHaveBeenCalledTimes(5);
+      expect(mockStorage.getBuffer).toHaveBeenCalledTimes(12);
+      expect(mockStorage.getBuffer).not.toHaveBeenCalledWith('email/logo.png');
+      expect(peak).toBe(3);
       expect(mockIntelligence.extractTextWithOcr).toHaveBeenCalledWith(Buffer.from('file'), 'application/pdf', { documentId: 'd0', firmId: 'firm-1' });
       const request = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
       expect(request.model).toBe('gpt-6-luna');
       expect(request).not.toHaveProperty('temperature');
       expect(request.response_format.json_schema.strict).toBe(true);
       const payload = JSON.parse(request.messages[1].content);
-      expect(payload.documents).toHaveLength(5);
+      expect(payload.documents).toHaveLength(12);
       expect(payload.messages).toHaveLength(1);
       expect(request.messages[1].content).not.toMatch(/patient@example.com|0812345678|AFTER_CAP|private outbound/);
       expect(request.messages[1].content).toContain('[อีเมล]');

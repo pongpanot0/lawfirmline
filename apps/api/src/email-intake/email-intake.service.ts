@@ -85,7 +85,15 @@ const THREAD_LIST_LIMIT = 200;
 const INTAKE_AI_MODEL = 'gpt-6-luna';
 // Inbound messages read for proposals when a thread is accepted — the opening request often
 // holds the amounts while the newest reply is just "ขอบคุณค่ะ".
-const ACCEPT_MESSAGES_LIMIT = 10;
+const ACCEPT_MESSAGES_LIMIT = 20;
+// A claim thread carries 8-10 files (report, claim form, medical records): read them all, with
+// enough of each to reach past the cover page.
+const AI_FILES_LIMIT = 12;
+const AI_FILE_CHARS = 6000;
+const OCR_CONCURRENCY = 3;
+// ponytail: Outlook names pasted signature logos image001.png… — skipped by name; a real photo
+// with that name is skipped too. Check size/content-id if that bites.
+const INLINE_IMAGE = /^image\d{3}\.(png|jpe?g|gif)$/i;
 
 @Injectable()
 export class EmailIntakeService {
@@ -489,7 +497,7 @@ export class EmailIntakeService {
 
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า AI');
-    const files = (await this.threadDocuments(thread.intake.id, thread.messages)).slice(0, 5);
+    const files = (await this.threadDocuments(thread.intake.id, thread.messages)).filter((f) => !INLINE_IMAGE.test(f.filename)).slice(0, AI_FILES_LIMIT);
     if (!messages.length && !files.length) throw new BadRequestException('ไม่มีเนื้อหาอีเมลหรือไฟล์ให้ AI อ่าน');
     const documentRequests = await this.prisma.intakeDocumentRequest.findMany({ where: { intakeId: thread.intake.id }, select: { id: true, name: true } });
     const redactedRequests = documentRequests.map((request) => ({ id: request.id, name: redactForAi(request.name).text }));
@@ -553,23 +561,27 @@ export class EmailIntakeService {
     redactedRequests: { id: string; name: string }[],
     caseTypes: string[],
   ): Promise<AiReadResult> {
-    const documents: { id: string; filename: string; text: string }[] = [];
-    for (const file of files) {
+    const readFile = async (file: (typeof files)[number]) => {
       try {
         const buffer = await this.fileStorage.getBuffer(file.storagePath);
         const text = await this.documentIntelligence.extractTextWithOcr(buffer, file.mimeType, { documentId: file.id, firmId: user.firmId });
-        documents.push({ id: file.id, filename: redactForAi(file.filename).text, text: redactForAi(text.slice(0, 3000)).text });
+        return { id: file.id, filename: redactForAi(file.filename).text, text: redactForAi(text.slice(0, AI_FILE_CHARS)).text };
       } catch {
         this.logger.warn(`Email intake document extraction failed: ${file.id}`);
-        documents.push({ id: file.id, filename: redactForAi(file.filename).text, text: '' });
+        return { id: file.id, filename: redactForAi(file.filename).text, text: '' };
       }
+    };
+    // A few at a time: twelve scans one by one would outlast the proxy, all at once would flood OCR.
+    const documents: { id: string; filename: string; text: string }[] = [];
+    for (let i = 0; i < files.length; i += OCR_CONCURRENCY) {
+      documents.push(...await Promise.all(files.slice(i, i + OCR_CONCURRENCY).map(readFile)));
     }
     let content: string;
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        // Reading the e-mail plus up to five files and writing a summary takes ~20-40s on luna.
-        signal: AbortSignal.timeout(90000),
+        // Up to twelve files plus the e-mails; a slow read is still stored, so a retry is served from cache.
+        signal: AbortSignal.timeout(120000),
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           // Tried 2026-11-09 on a two-matter Thai e-mail: luna split and labelled every amount as
