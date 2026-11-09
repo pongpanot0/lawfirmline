@@ -1510,6 +1510,19 @@ export interface CaseEmailMessageItem {
   bodyHtml: string | null;
   receivedAt: string;
   attachments: EmailAttachmentItem[];
+  /** "@ชื่อ ทำ X" in this email, matched to firm members — nothing is created until someone confirms. */
+  mentionTasks?: MentionTaskSuggestion[];
+}
+
+export interface MentionTaskSuggestion {
+  assigneeId: string;
+  assigneeName: string;
+  email: string;
+  title: string;
+  text: string;
+  /** YYYY-MM-DD read from the email, or null. */
+  dueDate: string | null;
+  taskId: string | null;
 }
 
 export interface CaseEmailThreadDetail {
@@ -3761,6 +3774,13 @@ export const api = {
       `/cases/${caseId}/email/messages/${messageId}/date-suggestions`,
       { method: 'POST', token },
     ),
+
+  createMentionTask: (token: string, caseId: string, messageId: string, body: { assigneeId: string; title: string; dueDate?: string }) =>
+    request<{ id: string }>(`/cases/${caseId}/email/messages/${messageId}/mention-tasks`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
 
   saveEmailAttachmentToCase: (token: string, caseId: string, attachmentId: string) =>
     request<{ document: { id: string; filename: string }; alreadySaved: boolean }>(

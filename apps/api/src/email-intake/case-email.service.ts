@@ -9,6 +9,7 @@ import { awaitingMessage, loadInternalAddresses, loadLatestMessages } from './aw
 import { MATCHABLE_CASE_SELECT, suggestCaseMatches, toMatchableCase } from '../outlook-integration/case-matching';
 import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
 import { hasCidRefs } from '../outlook-integration/mail/inline-cid-images';
+import { EmailMentionTasksService } from './email-mention-tasks.service';
 
 export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER';
 
@@ -67,6 +68,7 @@ export class CaseEmailService {
     private documents: DocumentsService,
     private fileStorage: FileStorageService,
     @Inject(forwardRef(() => OutlookSyncService)) private outlookSync: OutlookSyncService,
+    private mentionTasks: EmailMentionTasksService,
   ) {}
 
   private async threadWhere(user: AuthUser, extra: Prisma.EmailThreadWhereInput): Promise<Prisma.EmailThreadWhereInput> {
@@ -302,6 +304,7 @@ export class CaseEmailService {
       : [];
     const savedByTag = new Map(saved.flatMap((d) => d.tags.map((tag) => [tag, d.id] as const)));
     const { mailboxConnectionId, ...rest } = thread;
+    const mentionTasks = await this.mentionTasks.suggestionsFor(user.firmId, thread.messages);
     const messages = await Promise.all(
       thread.messages.map(async ({ graphMessageId, ...m }) =>
         hasCidRefs(m.bodyHtml) && graphMessageId && mailboxConnectionId
@@ -313,6 +316,7 @@ export class CaseEmailService {
       ...rest,
       messages: messages.map((m) => ({
         ...m,
+        mentionTasks: mentionTasks.get(m.id) ?? [],
         attachments: m.attachments.map((a) => ({ ...a, savedDocumentId: savedByTag.get(`email-attachment:${a.id}`) ?? null })),
       })),
     };
