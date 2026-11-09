@@ -48,7 +48,7 @@ const threadInclude = {
 };
 
 const THREAD_LIST_LIMIT = 200;
-const INTAKE_AI_MODEL = 'gpt-5.4-nano';
+const INTAKE_AI_MODEL = 'gpt-6-luna';
 // Inbound messages read for proposals when a thread is accepted — the opening request often
 // holds the amounts while the newest reply is just "ขอบคุณค่ะ".
 const ACCEPT_MESSAGES_LIMIT = 10;
@@ -151,18 +151,7 @@ export class EmailIntakeService {
       })
       : [];
 
-    // The page reads the e-mail with AI on its own once per newest client message, not on every open.
-    const latestInbound = thread.messages.find((m) => m.direction === EmailDirection.INBOUND);
-    const lastAiRun = thread.intake && latestInbound
-      ? await this.prisma.auditLog.findFirst({
-        where: { firmId: user.firmId, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { path: ['threadId'], equals: threadId } },
-        orderBy: { createdAt: 'desc' },
-        select: { metadata: true },
-      })
-      : null;
-    const aiReadLatest = !latestInbound || (lastAiRun?.metadata as { latestMessageId?: string } | null)?.latestMessageId === latestInbound.id;
-
-    return { thread, proposals, aiReadLatest };
+    return { thread, proposals };
   }
 
   /**
@@ -311,8 +300,8 @@ export class EmailIntakeService {
         signal: AbortSignal.timeout(30000),
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // Tried 2026-11-09 on a two-matter Thai e-mail: nano split and labelled every amount as
-          // well as 4o-mini/5.4-mini, fastest and cheapest. GPT-5 models take no `temperature`.
+          // Tried 2026-11-09 on a two-matter Thai e-mail: luna split and labelled every amount as
+          // well as 5.4-nano/5.4-mini at half nano's price. No `temperature` (GPT-5+ rejects it).
           model: INTAKE_AI_MODEL,
           response_format: INTAKE_AI_RESPONSE_FORMAT,
           messages: [
@@ -346,7 +335,7 @@ export class EmailIntakeService {
       });
     }
     await this.prisma.auditLog.create({
-      data: { firmId: user.firmId, userId: user.id, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId, intakeId: thread.intake.id, proposals: proposals.length, latestMessageId: thread.messages.find((m) => m.direction === EmailDirection.INBOUND)?.id } },
+      data: { firmId: user.firmId, userId: user.id, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId, intakeId: thread.intake.id, proposals: proposals.length } },
     });
     return { proposals: proposals.length };
   }

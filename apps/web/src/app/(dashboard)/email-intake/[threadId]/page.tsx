@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Paperclip, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
@@ -222,9 +222,12 @@ export default function EmailThreadDetailPage() {
       setData(await api.getEmailThread(token, threadId));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'สร้างเรื่องใหม่ไม่สำเร็จ');
+      return;
     } finally {
       setLinking(false);
     }
+    // Accepting is when the lawyer starts on the e-mail, so AI reads it then — not on every open.
+    await handleAiExtract();
   };
 
   const handleDownload = async (attachmentId: string, filename: string) => {
@@ -263,9 +266,8 @@ export default function EmailThreadDetailPage() {
     [data],
   );
 
-  // AI values land as proposals that still need "ยืนยันค่านี้". It reads on its own once per newest
-  // client message (the server says whether that one was read); the button reads again on demand.
-  const handleAiExtract = useCallback(async () => {
+  // Runs on "รับเป็นเรื่อง" or the button; its values land as proposals that still need "ยืนยันค่านี้".
+  async function handleAiExtract() {
     if (!token) return;
     setAiReading(true);
     setError('');
@@ -279,14 +281,7 @@ export default function EmailThreadDetailPage() {
     } finally {
       setAiReading(false);
     }
-  }, [token, threadId, refresh]);
-
-  const autoReadFor = useRef('');
-  useEffect(() => {
-    if (!data?.thread.intake || data.aiReadLatest !== false || autoReadFor.current === threadId) return;
-    autoReadFor.current = threadId;
-    handleAiExtract();
-  }, [data, threadId, handleAiExtract]);
+  };
 
   const handleAccept = async () => {
     if (!token || !data?.thread.intake) return;

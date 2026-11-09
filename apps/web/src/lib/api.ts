@@ -1362,8 +1362,6 @@ export interface EmailThreadDetail {
     case?: { id: string; ownRef: string; title: string } | null;
   };
   proposals: IntakeFieldProposalItem[];
-  /** false = the newest client message has not been read by AI yet; the page reads it on open. */
-  aiReadLatest?: boolean;
 }
 
 export type CaseMatchReason = 'OWN_REF' | 'CASE_NUMBER' | 'CLIENT_NAME';

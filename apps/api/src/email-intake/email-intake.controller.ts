@@ -43,7 +43,7 @@ export class EmailIntakeController {
     stream.pipe(res);
   }
 
-  /** Run by the page once per newest client message, or by the button; adds proposals the lawyer still confirms one by one. */
+  /** Run when a thread is accepted as an intake, or by the button; adds proposals the lawyer still confirms one by one. */
   @Post('threads/:threadId/ai-extract')
   @RequireCredits(AI_CREDIT_COST.EMAIL_INTAKE_EXTRACTION)
   @UseInterceptors(AiCreditsInterceptor)
