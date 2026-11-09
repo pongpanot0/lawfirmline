@@ -1252,7 +1252,7 @@ export class IntakeService {
       data: { caseId: newCase.id },
     });
 
-    await this.carryFilesOntoCase(intake.id, newCase.id);
+    await this.carryIntakeOntoCase(intake.id, newCase.id);
 
     // งาน/checklist ที่ตั้งไว้ตั้งแต่รับเรื่อง ตามไปเป็นงานคดี
     await this.prisma.task.updateMany({
@@ -1418,7 +1418,7 @@ export class IntakeService {
       data: { caseId: relatedCase.id },
     });
 
-    await this.carryFilesOntoCase(intake.id, relatedCase.id);
+    await this.carryIntakeOntoCase(intake.id, relatedCase.id);
 
     await this.prisma.task.updateMany({
       where: { intakeId: intake.id },
@@ -1480,11 +1480,16 @@ export class IntakeService {
    * disappear from view the moment the intake became one. They are adopted as
    * documents first, then every document is re-pointed at the case.
    */
-  private async carryFilesOntoCase(intakeId: string, caseId: string) {
+  /** Files and e-mails gathered while taking the matter in follow it onto the case. */
+  private async carryIntakeOntoCase(intakeId: string, caseId: string) {
     await this.documentsService.adoptIntakeAttachments(intakeId, caseId);
     await this.prisma.document.updateMany({
       where: { intakeId },
       data: { caseId, intakeId: null },
+    });
+    await this.prisma.emailThread.updateMany({
+      where: { intakeId, caseId: null },
+      data: { caseId, status: 'LINKED', caseUnlinkedAt: null },
     });
   }
 

@@ -1,4 +1,17 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDateString, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, Length, MaxLength } from 'class-validator';
+
+export class CreateMentionTaskDto {
+  @IsUUID()
+  assigneeId!: string;
+
+  @IsString()
+  @Length(1, 200)
+  title!: string;
+
+  @IsOptional()
+  @IsDateString()
+  dueDate?: string;
+}
 
 export class AcceptIntakeFromThreadDto {
   @IsOptional()

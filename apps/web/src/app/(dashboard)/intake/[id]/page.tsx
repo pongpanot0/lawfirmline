@@ -290,6 +290,7 @@ export default function IntakeDetailPage() {
   // Assess form
   const [assessNotes, setAssessNotes] = useState('');
   const [caseStrength, setCaseStrength] = useState('กลาง');
+  const [assessorId, setAssessorId] = useState('');
 
   // Decide form
   const [decision, setDecision] = useState('PENDING');
@@ -554,7 +555,7 @@ export default function IntakeDetailPage() {
     setSubmitting(true);
     setError('');
     try {
-      await api.assessIntake(token, id, { assessmentNotes: assessNotes, caseStrength });
+      await api.assessIntake(token, id, { assessmentNotes: assessNotes, caseStrength, ...(assessorId ? { assessorId } : {}) });
       await reload();
       setModal(null);
       setAssessNotes('');
@@ -1723,6 +1724,20 @@ export default function IntakeDetailPage() {
               <>
                 <h2 className="mb-4 text-lg font-semibold">บันทึกผลการประเมิน</h2>
                 <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium" htmlFor="assessor">ผู้ประเมิน</label>
+                    <select
+                      id="assessor"
+                      value={assessorId || user?.id || ''}
+                      onChange={(e) => setAssessorId(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      {user && !lawyers.some((u) => u.id === user.id) && <option value={user.id}>{user.firstName} {user.lastName} (ฉัน)</option>}
+                      {lawyers.map((u) => (
+                        <option key={u.id} value={u.id}>{u.firstName} {u.lastName}{u.id === user?.id ? ' (ฉัน)' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium">ความแข็งแกร่งของคดี</label>
                     <select

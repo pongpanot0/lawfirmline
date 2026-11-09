@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
 import { CaseEmailService, excerptAround } from './case-email.service';
+import { EmailMentionTasksService } from './email-mention-tasks.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -18,7 +19,7 @@ describe('CaseEmailService', () => {
     $queryRaw: jest.fn(),
     firmMember: { findMany: jest.fn() },
     mailboxConnection: { findMany: jest.fn() },
-    emailAttachment: { findFirst: jest.fn() },
+    emailAttachment: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     document: { findFirst: jest.fn(), findMany: jest.fn() },
     auditLog: { create: jest.fn() },
   };
@@ -49,6 +50,7 @@ describe('CaseEmailService', () => {
         { provide: DocumentsService, useValue: mockDocuments },
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: OutlookSyncService, useValue: mockOutlookSync },
+        { provide: EmailMentionTasksService, useValue: { suggestionsFor: jest.fn().mockResolvedValue(new Map()) } },
       ],
     }).compile();
     service = module.get(CaseEmailService);
@@ -147,7 +149,8 @@ describe('CaseEmailService', () => {
         .mockResolvedValueOnce([
           { id: 'case-1', ownRef: 'TSBREF20250001', title: 'ผิดสัญญา', clientName: null, blackCaseNumber: null, redCaseNumber: null, client: null, proceedings: [] },
           { id: 'case-2', ownRef: 'TSBREF20250002', title: 'ค่าเสียหาย', clientName: 'นายสมชาย ใจดี', blackCaseNumber: null, redCaseNumber: null, client: null, proceedings: [] },
-        ]);
+        ])
+        .mockResolvedValueOnce([]);
 
       const result = await service.suggestCasesForThread(user, 'thread-1');
 

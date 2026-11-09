@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Paperclip, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, EmailThreadDetail, IntakeDocumentRequestItem } from '@/lib/api';
+import { api, ApiError, EmailThreadDetail, IntakeDocumentRequestItem, UserItem } from '@/lib/api';
+import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
+import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
 import { groupProposals, isPending, parseDocument, submitHelper } from '@/lib/email-intake';
 import { documentCategoryLabel } from '@/lib/stage-labels';
 import { JourneyStepper } from '@/components/journey/JourneyStepper';
@@ -23,10 +25,24 @@ import { EmailMessageCard } from '@/components/email/EmailMessageCard';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageLoading } from '@/components/ui/misc';
 
+const INTAKE_STATUS: Record<string, string> = {
+  NO_RESPONSE: 'ไม่ได้รับการตอบกลับ', RECEIVED: 'รับเรื่องแล้ว', ASSESSING: 'กำลังประเมิน', ACCEPTED: 'รับทำ',
+  REJECTED: 'ไม่รับ', CONVERTED: 'เปิดคดีแล้ว', CONSULTED: 'ให้คำปรึกษาแล้ว',
+};
+const NO_LEAVE_FLAGS = new Map();
+
 export default function EmailThreadDetailPage() {
   const { threadId } = useParams<{ threadId: string }>();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
+  const [lawyers, setLawyers] = useState<UserItem[]>([]);
+  const [assessorId, setAssessorId] = useState('');
+  const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
+
+  useEffect(() => {
+    if (token) api.getLawyers(token).then(setLawyers).catch(() => setLawyers([]));
+  }, [token]);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
 
   const [data, setData] = useState<EmailThreadDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,6 +171,17 @@ export default function EmailThreadDetailPage() {
     }
   };
 
+  const handlePreview = async (doc: { id: string; filename: string; mimeType: string }) => {
+    if (!token || !data?.thread.intake) return;
+    setError('');
+    try {
+      const blob = await api.downloadIntakeDocument(token, data.thread.intake.id, doc.id);
+      setPreview({ filename: doc.filename, mimeType: doc.mimeType, url: URL.createObjectURL(blob) });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'เปิดไฟล์ไม่สำเร็จ');
+    }
+  };
+
   const handleResolve = async (proposalId: string, action: 'confirm' | 'reject', overrideValue?: string) => {
     if (!token || !data?.thread.intake) return;
     setResolvingId(proposalId);
@@ -192,7 +219,7 @@ export default function EmailThreadDetailPage() {
     setAccepting(true);
     setError('');
     try {
-      await api.assessIntake(token, data.thread.intake.id, {});
+      await api.assessIntake(token, data.thread.intake.id, assessorId ? { assessorId } : {});
       window.dispatchEvent(new Event('email-intake-changed'));
       router.push(`/intake/${data.thread.intake.id}`);
     } catch (e) {
@@ -258,6 +285,17 @@ export default function EmailThreadDetailPage() {
 
       <JourneyStepper steps={progress.steps} />
       {progress.next && <NextStepBanner next={progress.next} onGo={scrollToPending} />}
+
+      {thread.intake && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 text-sm">
+          <span className="text-muted-foreground">เรื่องรับใหม่:</span>
+          <Link href={`/intake/${thread.intake.id}`} className="font-medium text-primary hover:underline">{thread.intake.title ?? 'เปิดเรื่อง'}</Link>
+          <Badge variant="outline">{INTAKE_STATUS[thread.intake.status] ?? thread.intake.status}</Badge>
+          {thread.intake.case
+            ? <><span className="text-muted-foreground">· คดี:</span><Link href={`/cases/${thread.intake.case.id}`} className="font-medium text-primary hover:underline">{thread.intake.case.ownRef} {thread.intake.case.title}</Link></>
+            : thread.intake.status !== 'RECEIVED' && <span className="text-xs text-muted-foreground">ยังไม่เปิดคดี — เปิดคดีได้ที่หน้าเรื่องรับใหม่หลังประเมิน</span>}
+        </div>
+      )}
 
       <div id="link-case"><LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} /></div>
 
@@ -372,7 +410,7 @@ export default function EmailThreadDetailPage() {
             {documents.map((doc) => {
               const suggestions = documentProposals.filter((p) => parseDocument(p.proposedValue)?.documentId === doc.id && (showRejectedDocuments || p.status !== 'REJECTED'));
               return <div key={doc.id} className="space-y-2 rounded-md border bg-card p-3 text-sm">
-                <p className="break-all font-medium">{doc.filename}</p>
+                <button type="button" className="break-all text-left font-medium text-primary hover:underline" onClick={() => handlePreview(doc)}>{doc.filename}</button>
                 {suggestions.map((proposal) => {
                   const suggestion = parseDocument(proposal.proposedValue)!;
                   const request = requests.find((item) => item.id === suggestion.docRequestId);
@@ -394,8 +432,16 @@ export default function EmailThreadDetailPage() {
       </div>
       <div id="submit-intake" className="fixed inset-x-0 bottom-0 z-30 flex flex-wrap items-center justify-end gap-3 border-t bg-card p-4 pr-44 shadow-lg pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p className="text-sm text-muted-foreground">{submitHelper(progress.steps)}</p>
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">ผู้ประเมิน</span>
+          <select aria-label="ส่งให้ใครประเมิน" className="h-9 rounded-md border bg-background px-2 text-sm" value={assessorId || user?.id || ''} onChange={(e) => setAssessorId(e.target.value)}>
+            {user && !lawyers.some((l) => l.id === user.id) && <option value={user.id}>{user.firstName} {user.lastName} (ฉัน)</option>}
+            <AssigneeOptions users={lawyers} flags={NO_LEAVE_FLAGS} nameOf={(u) => (u.id === user?.id ? `${u.firstName} ${u.lastName ?? ''} (ฉัน)` : `${u.firstName} ${u.lastName ?? ''}`)} />
+          </select>
+        </label>
         <Button disabled={accepting || !thread.intake || !canSubmit} onClick={handleAccept}>{accepting ? 'กำลังบันทึก...' : 'ส่งประเมิน'}</Button>
       </div>
+      {preview && <DocumentPreviewModal filename={preview.filename} mimeType={preview.mimeType} url={preview.url} onClose={() => setPreview(null)} />}
       {thread.caseId && (
         <CaseEmailComposer caseId={thread.caseId} mode={composer} onClose={() => setComposer(null)} onSent={() => void refresh()} />
       )}

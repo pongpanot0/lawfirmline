@@ -20,6 +20,7 @@ describe('IntakeService assignment notifications', () => {
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    emailThread: { updateMany: jest.fn() },
     insuranceClaim: { create: jest.fn() },
     document: { updateMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },

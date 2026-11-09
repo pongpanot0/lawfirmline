@@ -7,7 +7,8 @@ import { RequireCredits } from '../common/decorators/require-credits.decorator';
 import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { CaseEmailService } from './case-email.service';
 import { EmailDateSuggestionsService } from './email-date-suggestions.service';
-import { LinkThreadToCaseDto } from './dto/email-intake.dto';
+import { EmailMentionTasksService } from './email-mention-tasks.service';
+import { CreateMentionTaskDto, LinkThreadToCaseDto } from './dto/email-intake.dto';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -15,6 +16,7 @@ export class CaseEmailController {
   constructor(
     private service: CaseEmailService,
     private dateSuggestions: EmailDateSuggestionsService,
+    private mentionTasks: EmailMentionTasksService,
   ) {}
 
   @Get('email-intake/threads/:threadId/case-suggestions')
@@ -73,6 +75,18 @@ export class CaseEmailController {
   @UseInterceptors(AiCreditsInterceptor)
   suggestDatesFromMessage(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('messageId') messageId: string) {
     return this.dateSuggestions.suggestFromMessage(user, caseId, messageId);
+  }
+
+  /** สร้างงานจาก "@ชื่อ" ในอีเมล — the suggestion itself comes with the thread; this only runs on a person's confirm. */
+  @Post('cases/:caseId/email/messages/:messageId/mention-tasks')
+  @UseGuards(CaseAccessGuard)
+  createMentionTask(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('messageId') messageId: string,
+    @Body() dto: CreateMentionTaskDto,
+  ) {
+    return this.mentionTasks.createTask(user, caseId, messageId, dto);
   }
 
   @Post('cases/:caseId/email/attachments/:attachmentId/save-to-documents')

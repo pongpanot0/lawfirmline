@@ -252,6 +252,7 @@ describe('IntakeService convertToCase', () => {
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    emailThread: { updateMany: jest.fn() },
     insuranceClaim: { create: jest.fn() },
     document: {
       updateMany: jest.fn(),
@@ -442,6 +443,7 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    emailThread: { updateMany: jest.fn() },
     insuranceClaim: { create: jest.fn() },
     document: { updateMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
@@ -603,6 +605,7 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
       update: jest.fn(),
     },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    emailThread: { updateMany: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     document: {
@@ -824,6 +827,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
     },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    emailThread: { updateMany: jest.fn() },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
@@ -1015,6 +1019,7 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    emailThread: { updateMany: jest.fn() },
     insuranceClaim: { create: jest.fn() },
     document: { updateMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },

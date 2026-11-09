@@ -157,7 +157,10 @@ export class CaseAccessService {
     return { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: user.id } } };
   }
 
-  /** Clients visible when the user owns the firm or has a visible case in any client role. */
+  /**
+   * Clients visible when the user owns the firm, has a visible case in any client role, or is on an
+   * intake for them — a client made while taking in an e-mail has no case until it is converted.
+   */
   getClientFilterForUser(user: AuthUser): Prisma.ClientWhereInput {
     if (hasFirmCapability(user.firmRole, 'viewAllCases')) {
       return { firmId: user.firmId };
@@ -169,6 +172,9 @@ export class CaseAccessService {
         { cases: { some: this.getCaseFilterForUser(user) } },
         { additionalCaseRoles: { some: { case: this.getCaseFilterForUser(user) } } },
         { caseCustomerRoles: { some: { case: this.getCaseFilterForUser(user) } } },
+        ...(user.firmRole === FirmRole.EXTERNAL
+          ? []
+          : [{ intakes: { some: { OR: [{ receivedById: user.id }, { assignedUserIds: { has: user.id } }, { assessorId: user.id }] } } }]),
       ],
     };
   }
