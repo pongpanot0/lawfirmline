@@ -19,13 +19,13 @@ export function intakeProgress(
     !!thread.case || !!thread.intake && ['ASSESSING', 'ACCEPTED', 'REJECTED', 'CONVERTED', 'CONSULTED'].includes(thread.intake.status),
   ];
   const keys = ['ACCEPT', 'AI_READ', 'CONFIRM', 'DOCUMENTS', 'SUBMIT'] as const;
-  const labels = ['รับเป็นเรื่อง', 'AI อ่านอีเมลและไฟล์', 'ตรวจและยืนยันข้อมูล', 'จัดเอกสาร', 'ส่งประเมิน / เปิดคดี'];
+  const labels = ['รับเป็นเรื่อง', 'AI อ่านอีเมลและไฟล์', 'ตรวจและยืนยันข้อมูล', 'จัดเอกสาร', 'ส่งประเมิน'];
   const current = completed.indexOf(false);
   const steps = keys.map((key, i) => ({ key, label: labels[i], state: (current < 0 || i < current ? 'done' : i === current ? 'current' : 'locked') as 'done' | 'current' | 'locked' }));
   const next = current < 0 ? null : current === 2
     ? { text: `ยืนยันข้อมูลอีก ${unresolvedFields} รายการ แล้วไปขั้นจัดเอกสาร`, done: fields.length - unresolvedFields, total: fields.length }
     : current === 3
-      ? { text: `จัดเอกสารอีก ${unresolvedDocuments} รายการ แล้วส่งประเมิน / เปิดคดี`, done: documents.length - unresolvedDocuments, total: documents.length }
-      : { text: ['รับอีเมลเป็นเรื่องเพื่อเริ่มตรวจข้อมูล', 'ให้ AI อ่านอีเมลและไฟล์แนบ', '', '', 'ส่งเรื่องประเมิน / เปิดคดี'][current], done: 0, total: 1 };
+      ? { text: `จัดเอกสารอีก ${unresolvedDocuments} รายการ แล้วส่งประเมิน`, done: documents.length - unresolvedDocuments, total: documents.length }
+      : { text: ['รับอีเมลเป็นเรื่องเพื่อเริ่มตรวจข้อมูล', 'ให้ AI อ่านอีเมลและไฟล์แนบ', '', '', 'ส่งเรื่องประเมิน — เปิดคดีที่หน้าเรื่องรับใหม่หลังประเมิน'][current], done: 0, total: 1 };
   return { steps, next };
 }

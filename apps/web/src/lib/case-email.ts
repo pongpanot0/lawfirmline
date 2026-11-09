@@ -12,6 +12,7 @@ export const THREAD_REASON_LABELS: Record<ThreadMatchReason, string> = {
   CONTACT_EMAIL: 'อีเมลตรงกับลูกความ/ผู้ติดต่อในคดี',
   OWN_REF: 'หัวเรื่องมีเลขอ้างอิง',
   CASE_NUMBER: 'หัวเรื่องมีเลขคดี',
+  SAME_REFERENCE: 'เลขเคลม/กรมธรรม์ตรงกับอีเมลหรือเรื่องในคดี',
 };
 
 export interface EmailTimelineItem {

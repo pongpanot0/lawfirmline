@@ -55,6 +55,7 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
       },
       intakeFollowUp: { create: jest.fn() },
       intakeFieldProposal: { updateMany: jest.fn() },
+      emailThread: { updateMany: jest.fn() },
       case: { findFirst: jest.fn(), findUnique: jest.fn() },
       firm: { findUnique: jest.fn().mockResolvedValue({ ownRefPrefix: 'REF' }) },
     };
