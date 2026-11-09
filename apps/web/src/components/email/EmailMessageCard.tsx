@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { EmailHtmlFrame } from './EmailHtmlFrame';
-import { emailPreview, senderInitials, splitQuotedHtml, splitQuotedText } from '@lawfirm/shared';
+import { emailPreview, senderInitials, splitQuotedHtml, splitQuotedText, stripEmailSignature, stripHtmlSignature } from '@lawfirm/shared';
 import { formatDateTime } from '@/lib/utils';
 
 export interface EmailMessageView {
@@ -37,6 +37,10 @@ export function EmailMessageCard({
   const sender = message.fromName ?? message.fromAddress ?? 'ไม่ทราบผู้ส่ง';
   const html = useMemo(() => (message.bodyHtml ? splitQuotedHtml(message.bodyHtml) : null), [message.bodyHtml]);
   const text = useMemo(() => splitQuotedText(message.bodyText ?? ''), [message.bodyText]);
+  // Signature (name, title, phone, logo) hides with the quoted history: the header already names the sender.
+  const htmlMain = useMemo(() => (html ? stripHtmlSignature(html.main) : ''), [html]);
+  const textMain = useMemo(() => stripEmailSignature(text.main), [text.main]);
+  const hasSignature = html ? htmlMain !== html.main : textMain !== text.main;
   const quoted = html ? html.quoted : text.quoted;
 
   const avatar = (
@@ -98,15 +102,15 @@ export function EmailMessageCard({
       </header>
 
       {html ? (
-        <EmailHtmlFrame html={showQuoted ? message.bodyHtml! : html.main} title={`เนื้อหาอีเมล: ${subject} — ${sender} ${formatDateTime(message.receivedAt)}`} />
+        <EmailHtmlFrame html={showQuoted ? message.bodyHtml! : htmlMain} title={`เนื้อหาอีเมล: ${subject} — ${sender} ${formatDateTime(message.receivedAt)}`} />
       ) : (
         <div className="whitespace-pre-wrap break-words text-sm">
-          {text.main}
+          {showQuoted ? text.main : textMain}
           {showQuoted && text.quoted && <div className="mt-3 border-l-2 pl-3 text-muted-foreground">{text.quoted}</div>}
         </div>
       )}
 
-      {quoted && (
+      {(quoted || hasSignature) && (
         <button
           type="button"
           onClick={() => setShowQuoted((v) => !v)}
@@ -114,7 +118,7 @@ export function EmailMessageCard({
           className="inline-flex min-h-11 items-center gap-1 rounded-md border px-2.5 text-xs text-muted-foreground hover:bg-muted sm:min-h-8"
         >
           {showQuoted ? <ChevronUp className="h-3.5 w-3.5" aria-hidden /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden />}
-          {showQuoted ? 'ซ่อนข้อความก่อนหน้า' : 'แสดงข้อความก่อนหน้า'}
+          {showQuoted ? (quoted ? 'ซ่อนข้อความก่อนหน้า' : 'ซ่อนลายเซ็น') : quoted ? 'แสดงข้อความก่อนหน้า' : 'แสดงลายเซ็น'}
         </button>
       )}
 

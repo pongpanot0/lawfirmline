@@ -12,14 +12,21 @@ export interface ImportCaseDraft extends ImportCaseRow {
 // Numbered folders ("89. คำให้การ …") are case folders; templates and group folders ("B. …") are not.
 const NUMBERED = /^\d+\./;
 
-export function draftFromSuggestion(row: {
-  folder: { id: string; name: string };
-  parsed: ParsedCaseFolder;
-  suggestions: unknown[];
-}): ImportCaseDraft {
+/**
+ * Numbered folders are ticked unless a case already matches by ref or case number — a client-name
+ * hit alone is too weak to stop a new case (a client has many cases).
+ */
+export function draftFromSuggestion(
+  row: {
+    folder: { id: string; name: string };
+    parsed: ParsedCaseFolder;
+    suggestions: { reason?: string }[];
+  },
+  leadLawyerId = '',
+): ImportCaseDraft {
   const { folder, parsed } = row;
   return {
-    selected: NUMBERED.test(folder.name.trim()) && row.suggestions.length === 0,
+    selected: NUMBERED.test(folder.name.trim()) && !row.suggestions.some((s) => s.reason !== 'CLIENT_NAME'),
     folderName: folder.name,
     caseNumberRaw: parsed.caseNumberRaw,
     teamHint: parsed.teamHint,
@@ -28,7 +35,7 @@ export function draftFromSuggestion(row: {
     blackCaseNumber: parsed.blackCaseNumber ?? '',
     courtName: parsed.courtName ?? '',
     courtLevel: parsed.courtLevel,
-    leadLawyerId: '',
+    leadLawyerId,
     buddyIds: [],
     closed: parsed.closed,
     outcome: parsed.outcome ?? undefined,

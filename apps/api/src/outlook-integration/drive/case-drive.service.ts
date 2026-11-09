@@ -39,6 +39,8 @@ export interface DrivePickerItem {
   driveId: string;
   name: string;
   webUrl: string;
+  /** Lets the web treat a picked case folder as itself, by loading it from its parent's listing. */
+  parentId?: string;
 }
 
 export type CaseDriveState = 'NO_LINK' | 'OK' | 'DISCONNECTED' | 'ERROR';
@@ -74,7 +76,8 @@ export function toPickerItem(item: DriveItem): DrivePickerItem | null {
   const target = item.remoteItem ?? item;
   const driveId = target.parentReference?.driveId;
   if (!target.folder || !driveId) return null;
-  return { id: target.id, driveId, name: item.name, webUrl: target.webUrl ?? item.webUrl };
+  const parentId = target.parentReference?.id;
+  return { id: target.id, driveId, name: item.name, webUrl: target.webUrl ?? item.webUrl, ...(parentId && { parentId }) };
 }
 
 const DRIVE_FOLDER = CaseExternalLinkKind.DRIVE_FOLDER;

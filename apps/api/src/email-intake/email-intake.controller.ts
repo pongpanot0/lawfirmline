@@ -1,5 +1,7 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Res, UseGuards } from '@nestjs/common';
-import { AuthUser } from '@lawfirm/shared';
+import { Body, Controller, Get, NotFoundException, Param, Post, Res, UseGuards, UseInterceptors } from '@nestjs/common';
+import { AI_CREDIT_COST, AuthUser, Role } from '@lawfirm/shared';
+import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
+import { RequireCredits } from '../common/decorators/require-credits.decorator';
 import { Response } from 'express';
 import { EmailIntakeService } from './email-intake.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -7,7 +9,9 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
 import { FileStorageService } from '../common/services/file-storage.service';
-import { AcceptIntakeFromThreadDto, ResolveFieldProposalDto, SeedMockReplyDto } from './dto/email-intake.dto';
+import { AcceptIntakeFromThreadDto, AttachThreadToIntakeDto, LinkIntakeClientDto, ResolveFieldProposalDto, SeedMockReplyDto } from './dto/email-intake.dto';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('email-intake')
 @UseGuards(JwtAuthGuard)
@@ -39,6 +43,33 @@ export class EmailIntakeController {
     res.setHeader('Content-Disposition', buildContentDispositionHeader(a.filename));
     const stream = await this.fileStorage.openDownloadStream(a.storagePath);
     stream.pipe(res);
+  }
+
+  /** Run when a thread is accepted as an intake, or by the button; adds proposals the lawyer still confirms one by one. */
+  @Post('threads/:threadId/ai-extract')
+  @RequireCredits(AI_CREDIT_COST.EMAIL_INTAKE_EXTRACTION)
+  @UseInterceptors(AiCreditsInterceptor)
+  aiExtract(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string) {
+    return this.service.aiExtract(user, threadId);
+  }
+
+  /** Open intakes this sender's other threads belong to — for a client who wrote a new e-mail instead of replying. */
+  @Get('threads/:threadId/intake-suggestions')
+  suggestIntakes(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string) {
+    return this.service.suggestIntakesForThread(user, threadId);
+  }
+
+  @Post('threads/:threadId/intake-link')
+  attachToIntake(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string, @Body() dto: AttachThreadToIntakeDto) {
+    return this.service.attachThreadToIntake(user, threadId, dto.intakeId);
+  }
+
+  /** Link the intake to an existing client or create one — same roles as creating a client. */
+  @Post('threads/:threadId/client')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  linkClient(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string, @Body() dto: LinkIntakeClientDto) {
+    return this.service.linkClientForThread(user, threadId, dto);
   }
 
   @Post('threads/:threadId/accept')

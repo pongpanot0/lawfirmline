@@ -1237,6 +1237,8 @@ export interface IntakeItem {
   incidentDate?: string | null;
   description?: string | null;
   estimatedDamage?: number | null;
+  insurerPaidAmount?: number | null;
+  otherAmounts?: { label: string; amount: number }[] | null;
   requestedResponseDate?: string | null;
   assignedUserIds?: string[];
   deadlineDate?: string | null;
@@ -1298,6 +1300,8 @@ export interface IntakeFieldProposalItem {
   previousValue: string | null;
   sourceType: 'EMAIL_BODY' | 'ATTACHMENT' | 'EXISTING_CLIENT' | 'MANUAL';
   sourceDetail: string | null;
+  matterLabel: string | null;
+  sourceDocumentId: string | null;
   status: 'SUGGESTED' | 'REQUIRES_CONFIRMATION' | 'CONFIRMED' | 'REJECTED' | 'CONFLICT';
   confirmedById: string | null;
   confirmedAt: string | null;
@@ -1315,6 +1319,7 @@ export interface EmailThreadListItem {
   attachmentCount: number;
   bodyExcerpt: string;
   linkedIntake: { id: string; status: string } | null;
+  suggestedIntake: { id: string; title: string | null } | null;
   caseId?: string | null;
   mailboxAddress?: string | null;
 }
@@ -1355,6 +1360,8 @@ export interface EmailMessageItem {
   attachments: EmailAttachmentItem[];
 }
 
+export type EmailIntakeStep = { key: 'ACCEPT' | 'AI_READ' | 'CONFIRM' | 'DOCUMENTS' | 'SUBMIT'; label: string; state: 'done' | 'current' | 'locked' };
+
 export interface EmailThreadDetail {
   thread: EmailThreadListItem & {
     messages: EmailMessageItem[];
@@ -1362,6 +1369,25 @@ export interface EmailThreadDetail {
     case?: { id: string; ownRef: string; title: string } | null;
   };
   proposals: IntakeFieldProposalItem[];
+  documents: { id: string; filename: string; mimeType: string; category: string }[];
+  progress: { steps: EmailIntakeStep[]; next: { text: string; done: number; total: number } | null };
+  /** AI's reading notes from the latest read — display only. */
+  aiSummary?: EmailIntakeAiSummary | null;
+  /** Linked client, or existing clients matching the sender, and a name to offer for a new one. */
+  clientMatch?: {
+    linked: { id: string; name: string } | null;
+    candidates: { id: string; name: string; reason: 'EMAIL' | 'DOMAIN' | 'NAME' }[];
+    suggestedName: string;
+  } | null;
+}
+
+export interface EmailIntakeAiSummary {
+  overview: string[];
+  clientRequest: string | null;
+  urgency: 'HIGH' | 'NORMAL' | 'LOW';
+  urgencyReason: string | null;
+  nextActions: string[];
+  missingDocuments: string[];
 }
 
 export type CaseMatchReason = 'OWN_REF' | 'CASE_NUMBER' | 'CLIENT_NAME';
@@ -3742,6 +3768,25 @@ export const api = {
       { method: 'POST', token },
     ),
 
+  getThreadIntakeSuggestions: (token: string, threadId: string) =>
+    request<Array<{ id: string; title: string | null; clientName: string | null; status: string; receivedDate: string }>>(
+      `/email-intake/threads/${threadId}/intake-suggestions`,
+      { token },
+    ),
+
+  attachThreadToIntake: (token: string, threadId: string, intakeId: string) =>
+    request<{ threadId: string; intakeId: string }>(`/email-intake/threads/${threadId}/intake-link`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ intakeId }),
+    }),
+
+  linkEmailIntakeClient: (token: string, threadId: string, data: { clientId: string } | { name: string }) =>
+    request<{ id: string; name: string }>(`/email-intake/threads/${threadId}/client`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  aiExtractEmailThread: (token: string, threadId: string) =>
+    request<{ proposals: number }>(`/email-intake/threads/${threadId}/ai-extract`, { method: 'POST', token }),
+
   acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
     request<IntakeItem>(`/email-intake/threads/${threadId}/accept`, {
       method: 'POST',
@@ -4261,6 +4306,7 @@ export interface DrivePickerItem {
   driveId: string;
   name: string;
   webUrl: string;
+  parentId?: string;
 }
 
 export interface DriveSiteItem {

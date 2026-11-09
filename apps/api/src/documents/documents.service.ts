@@ -138,8 +138,10 @@ export class DocumentsService {
   }
 
   private async verifyIntake(user: AuthUser, intakeId: string) {
+    // Same rule as opening the intake: intake files include adopted e-mail attachments.
+    const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
     const intake = await this.prisma.intake.findFirst({
-      where: { id: intakeId, firmId: user.firmId },
+      where: { id: intakeId, firmId: user.firmId, ...intakeFilter },
     });
     if (!intake) throw new NotFoundException('Intake not found');
     return intake;
@@ -604,11 +606,13 @@ export class DocumentsService {
     });
 
     for (const storagePath of paths) {
-      const [stillDocumented, stillVersioned] = await Promise.all([
+      // An e-mail attachment adopted into the intake shares its bytes with the mailbox copy.
+      const [stillDocumented, stillVersioned, stillEmailed] = await Promise.all([
         this.prisma.document.count({ where: { storagePath } }),
         this.prisma.documentVersion.count({ where: { storagePath } }),
+        this.prisma.emailAttachment.count({ where: { storagePath } }),
       ]);
-      if (stillDocumented > 0 || stillVersioned > 0) continue;
+      if (stillDocumented > 0 || stillVersioned > 0 || stillEmailed > 0) continue;
       await this.fileStorage.delete(storagePath);
     }
 

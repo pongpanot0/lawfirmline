@@ -1508,6 +1508,8 @@ export default function IntakeDetailPage() {
             <InfoRow label="คู่กรณี" value={intake.opposingParty} />
             <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
             <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
+            {intake.insurerPaidAmount != null && <InfoRow label="ประกันจ่ายไปแล้ว (บาท)" value={intake.insurerPaidAmount.toLocaleString('th-TH')} />}
+            {intake.otherAmounts?.map((item, index) => <InfoRow key={index} label={item.label + ' (บาท)'} value={item.amount.toLocaleString('th-TH')} />)}
             <InfoRow label="รายละเอียด" value={intake.description} />
             {intake.isOngoingElsewhere && (
               <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
