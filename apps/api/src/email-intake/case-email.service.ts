@@ -236,7 +236,7 @@ export class CaseEmailService {
   /** A linked thread's inbound files become case documents; already-saved ones are skipped, a failed one is left for the manual save. */
   private async saveThreadAttachments(user: AuthUser, caseId: string, threadId: string) {
     const attachments = await this.prisma.emailAttachment.findMany({
-      where: { message: { threadId, direction: EmailDirection.INBOUND } },
+      where: { message: { threadId, direction: EmailDirection.INBOUND }, isInline: false },
       select: { id: true },
       orderBy: { createdAt: 'asc' },
     });
@@ -278,7 +278,7 @@ export class CaseEmailService {
         fromAddress: true,
         lastMessageAt: true,
         replyDismissedAt: true,
-        messages: { select: { _count: { select: { attachments: true } } } },
+        messages: { select: { _count: { select: { attachments: { where: { isInline: false } } } } } },
       },
       orderBy: { lastMessageAt: 'desc' },
       take: MAX_CASE_THREADS,
@@ -334,6 +334,7 @@ export class CaseEmailService {
             bodyHtml: true,
             receivedAt: true,
             attachments: {
+              where: { isInline: false }, // logos are already shown inside the body
               orderBy: { createdAt: 'asc' },
               select: { id: true, filename: true, mimeType: true, createdAt: true },
             },
@@ -407,7 +408,7 @@ export class CaseEmailService {
         status: true,
         intakeId: true,
         case: { select: { id: true, ownRef: true, title: true } },
-        messages: { select: { _count: { select: { attachments: true } } } },
+        messages: { select: { _count: { select: { attachments: { where: { isInline: false } } } } } },
       },
       orderBy: { lastMessageAt: 'desc' },
       take: MAX_SEARCH_RESULTS,

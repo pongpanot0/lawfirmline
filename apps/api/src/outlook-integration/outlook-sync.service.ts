@@ -241,6 +241,7 @@ export class OutlookSyncService {
           filename: attachment.name,
           storagePath,
           mimeType: attachment.contentType,
+          isInline: !!attachment.isInline,
         },
       });
     }

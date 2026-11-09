@@ -372,14 +372,19 @@ describe('OutlookSyncService', () => {
     mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
     mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'm-existing' });
     mockPrisma.emailAttachment.count.mockResolvedValue(0);
-    mockGraph.getAttachments.mockResolvedValue([{ name: 'a.pdf', contentType: 'application/pdf', contentBytes: Buffer.from('x').toString('base64') }]);
+    mockGraph.getAttachments.mockResolvedValue([
+      { name: 'a.pdf', contentType: 'application/pdf', contentBytes: Buffer.from('x').toString('base64') },
+      { name: 'image001.png', contentType: 'image/png', contentBytes: Buffer.from('x').toString('base64'), isInline: true, contentId: 'image001.png@01DB' },
+    ]);
     await service.upsertGraphMessage({
       firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: { ...htmlMessage, hasAttachments: true } as any,
       direction: 'INBOUND', createThreadIfMissing: true,
     });
     expect(mockPrisma.emailAttachment.count).toHaveBeenCalledWith({ where: { messageId: 'm-existing' } });
     expect(mockGraph.getAttachments).toHaveBeenCalledWith('tok', 'g1');
-    expect(mockPrisma.emailAttachment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ messageId: 'm-existing', filename: 'a.pdf' }) });
+    expect(mockPrisma.emailAttachment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ messageId: 'm-existing', filename: 'a.pdf', isInline: false }) });
+    // Outlook's own flag tells a signature logo from a real file.
+    expect(mockPrisma.emailAttachment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ filename: 'image001.png', isInline: true }) });
   });
 
   it('inlines cid: images even when Graph reports hasAttachments=false (inline-only mail), without storing them', async () => {
