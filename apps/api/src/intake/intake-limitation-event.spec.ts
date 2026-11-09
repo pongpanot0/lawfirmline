@@ -22,6 +22,7 @@ describe('IntakeService conversion — limitation event vs legacy deadline event
     firm: { findUnique: jest.fn() },
     case: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    emailThread: { updateMany: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     document: { updateMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },

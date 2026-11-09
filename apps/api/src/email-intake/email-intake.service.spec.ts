@@ -28,6 +28,8 @@ describe('EmailIntakeService', () => {
     intakeDocumentRequest: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
     caseType: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
     auditLog: { findFirst: jest.fn(), create: jest.fn() },
+    firmMember: { findMany: jest.fn().mockResolvedValue([]) },
+    mailboxConnection: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn(),
     $queryRaw: jest.fn().mockResolvedValue([]),
   };
@@ -49,6 +51,8 @@ describe('EmailIntakeService', () => {
     mockPrisma.emailThread.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.caseType.findMany.mockResolvedValue([]);
     mockPrisma.$queryRaw.mockResolvedValue([]);
+    mockPrisma.firmMember.findMany.mockResolvedValue([]);
+    mockPrisma.mailboxConnection.findMany.mockResolvedValue([]);
     mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1' });
     mockPrisma.intake.findMany.mockResolvedValue([]);
     mockPrisma.document.findMany.mockResolvedValue([]);
@@ -123,7 +127,7 @@ describe('EmailIntakeService', () => {
   });
 
   describe('attachThreadToIntake (client sent a new e-mail instead of replying)', () => {
-    const thread = { id: 'thread-2', intake: null, messages: [{ id: 'in', direction: 'INBOUND', bodyText: 'เรียกร้อง 200,000 บาท', attachments: [] }] };
+    const thread = { id: 'thread-2', intake: null, messages: [{ id: 'in', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: 'เรียกร้อง 200,000 บาท', attachments: [] }] };
 
     it('joins the thread and proposes from its messages', async () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue(thread);
@@ -163,8 +167,8 @@ describe('EmailIntakeService', () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue({
         id: 'thread-1', intake: null, fromName: 'S', fromAddress: 's@example.com', subject: 'x', lastMessageAt: new Date(),
         messages: [
-          { id: 'out', direction: 'OUTBOUND', bodyText: 'ตอบกลับจากทนาย', attachments: [] },
-          { id: 'in', direction: 'INBOUND', bodyText: 'ข้อความจากลูกความ', attachments: [] },
+          { id: 'out', direction: 'OUTBOUND', toAddresses: [], ccAddresses: [], bodyText: 'ตอบกลับจากทนาย', attachments: [] },
+          { id: 'in', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: 'ข้อความจากลูกความ', attachments: [] },
         ],
       });
       mockPrisma.client.findMany.mockResolvedValue([]);
@@ -177,7 +181,7 @@ describe('EmailIntakeService', () => {
     it('falls back to the latest message when a thread has no INBOUND message', async () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue({
         id: 'thread-1', intake: null, fromName: 'S', fromAddress: 's@example.com', subject: 'x', lastMessageAt: new Date(),
-        messages: [{ id: 'out', direction: 'OUTBOUND', bodyText: 'ตอบกลับจากทนาย', attachments: [] }],
+        messages: [{ id: 'out', direction: 'OUTBOUND', toAddresses: [], ccAddresses: [], bodyText: 'ตอบกลับจากทนาย', attachments: [] }],
       });
       mockPrisma.client.findMany.mockResolvedValue([]);
       mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
@@ -438,8 +442,8 @@ describe('EmailIntakeService', () => {
   it('copies inbound attachments once when the thread is accepted, and never again on a repeat', async () => {
     const attachment = { id: 'a1', filename: 'scan.pdf', mimeType: 'application/pdf', storagePath: 'email/a1.pdf' };
     mockPrisma.emailThread.findFirst.mockResolvedValueOnce({ id: 't', intake: null, subject: 's', fromName: 'A', fromAddress: 'a@x.test', messages: [
-      { id: 'm', direction: 'INBOUND', bodyText: '', attachments: [attachment] },
-      { id: 'o', direction: 'OUTBOUND', bodyText: '', attachments: [{ ...attachment, id: 'out' }] },
+      { id: 'm', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: '', attachments: [attachment] },
+      { id: 'o', direction: 'OUTBOUND', toAddresses: [], ccAddresses: [], bodyText: '', attachments: [{ ...attachment, id: 'out' }] },
     ] });
     mockPrisma.client.findMany.mockResolvedValue([]);
     mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
@@ -450,7 +454,7 @@ describe('EmailIntakeService', () => {
 
     // A file the lawyer then removed must not come back on a repeated accept or link.
     mockPrisma.document.createMany.mockClear();
-    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', intake: { id: 'intake-1' }, messages: [{ direction: 'INBOUND', attachments: [attachment] }] });
+    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', intake: { id: 'intake-1' }, messages: [{ direction: 'INBOUND', toAddresses: [], ccAddresses: [], attachments: [attachment] }] });
     await service.acceptIntakeFromThread(user, 't', {});
     await service.attachThreadToIntake(user, 't', 'intake-1');
     expect(mockPrisma.document.createMany).not.toHaveBeenCalled();
@@ -458,7 +462,7 @@ describe('EmailIntakeService', () => {
 
   it('strips quoted history and signature on accept and retains only sender attribution', async () => {
     mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', fromName: 'Thread sender', fromAddress: 'thread@example.com', subject: 'x', messages: [
-      { id: 'm', direction: 'INBOUND', fromName: 'Nathamon Chanitaphat', fromAddress: 'risk@example.com', attachments: [], bodyText: 'กรุณาตรวจยอด\n\nNathamon Chanitaphat\nRisk management Manager\nKasemrad Ramkhamhaeng Hospital\n02-339-0000 ต่อ 4006\n\nFrom: Old <old@example.com>\nSent: Tuesday\nold history' },
+      { id: 'm', direction: 'INBOUND', toAddresses: [], ccAddresses: [], fromName: 'Nathamon Chanitaphat', fromAddress: 'risk@example.com', attachments: [], bodyText: 'กรุณาตรวจยอด\n\nNathamon Chanitaphat\nRisk management Manager\nKasemrad Ramkhamhaeng Hospital\n02-339-0000 ต่อ 4006\n\nFrom: Old <old@example.com>\nSent: Tuesday\nold history' },
     ] });
     mockPrisma.client.findMany.mockResolvedValue([]);
     mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
@@ -467,7 +471,7 @@ describe('EmailIntakeService', () => {
   });
 
   it("returns progress plus only this thread's intake document summaries without storage paths", async () => {
-    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', intake: { id: 'intake-1', status: 'RECEIVED' }, messages: [{ direction: 'INBOUND', attachments: [{ id: 'a1' }] }] });
+    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', intake: { id: 'intake-1', status: 'RECEIVED' }, messages: [{ direction: 'INBOUND', toAddresses: [], ccAddresses: [], attachments: [{ id: 'a1' }] }] });
     mockPrisma.document.findMany.mockResolvedValue([{ id: 'd1', filename: 'scan.pdf', mimeType: 'application/pdf', category: 'OTHER', storagePath: 'private' }]);
     mockPrisma.auditLog.findFirst.mockResolvedValue({ id: 'audit' });
     const result = await service.getThread(user, 't');
@@ -483,8 +487,8 @@ describe('EmailIntakeService', () => {
       const files = Array.from({ length: 6 }, (_, i) => ({ id: `d${i}`, filename: `patient@example.com-${i}.pdf`, mimeType: 'application/pdf', storagePath: `email/${i}.pdf`, category: 'OTHER' }));
       mockConfig.get.mockReturnValue('fake-key');
       mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', subject: 'patient@example.com', intake: { id: 'intake-1' }, messages: [
-        { id: 'm1', direction: 'INBOUND', bodyText: 'กรุณาตรวจ patient@example.com 0812345678', attachments: [{ id: 'a' }] },
-        { id: 'out', direction: 'OUTBOUND', bodyText: 'private outbound', attachments: [] },
+        { id: 'm1', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: 'กรุณาตรวจ patient@example.com 0812345678', attachments: [{ id: 'a' }] },
+        { id: 'out', direction: 'OUTBOUND', toAddresses: [], ccAddresses: [], bodyText: 'private outbound', attachments: [] },
       ] });
       mockPrisma.document.findMany.mockResolvedValue(files);
       mockPrisma.intakeDocumentRequest.findMany.mockResolvedValue([{ id: 'r1', name: 'เวชระเบียน patient@example.com' }]);
@@ -526,7 +530,7 @@ describe('EmailIntakeService', () => {
 
     it('can classify a file-only thread when OCR fails without inventing field values', async () => {
       mockConfig.get.mockReturnValue('fake-key');
-      mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', subject: 'file only', intake: { id: 'intake-1' }, messages: [{ id: 'm', direction: 'INBOUND', bodyText: null, attachments: [{ id: 'a' }] }] });
+      mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', subject: 'file only', intake: { id: 'intake-1' }, messages: [{ id: 'm', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: null, attachments: [{ id: 'a' }] }] });
       mockPrisma.document.findMany.mockResolvedValue([{ id: 'd', filename: 'scan.pdf', mimeType: 'application/pdf', storagePath: 'email/a.pdf' }]);
       mockStorage.getBuffer.mockRejectedValue(new Error('unavailable'));
       jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ matters: [], documents: [{ documentId: 'd', category: 'OTHER', docTypeLabel: 'เอกสารแนบ', suggestedFilename: 'เอกสารแนบ.pdf', docRequestName: null }] }) } }] })));
@@ -547,7 +551,7 @@ describe('EmailIntakeService', () => {
 
   describe('client for the intake', () => {
     const body = 'กรุณาตรวจยอด\n\nNathamon Chanitaphat\nRisk management Manager\nKasemrad Ramkhamhaeng Hospital\n02-339-0000 ต่อ 4006';
-    const thread = { id: 't', fromName: 'Nathamon', fromAddress: 'Nathamon.Cha@kasemrad.co.th', intake: { id: 'intake-1' }, messages: [{ direction: 'INBOUND', bodyText: body, attachments: [] }] };
+    const thread = { id: 't', fromName: 'Nathamon', fromAddress: 'Nathamon.Cha@kasemrad.co.th', intake: { id: 'intake-1' }, messages: [{ direction: 'INBOUND', bodyText: body, attachments: [], fromName: 'Nathamon', fromAddress: 'Nathamon.Cha@kasemrad.co.th', toAddresses: ['me@firm.test'], ccAddresses: [] }] };
 
     it('offers the signature organisation as the new client name and finds clients by sender e-mail then domain', async () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue(thread);
@@ -591,8 +595,8 @@ describe('EmailIntakeService', () => {
 
   it('repairs cid: images of an older synced message when the thread is opened', async () => {
     mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', mailboxConnectionId: 'mb', intake: null, messages: [
-      { id: 'm1', graphMessageId: 'g1', direction: 'INBOUND', bodyHtml: '<img src="cid:logo">', attachments: [] },
-      { id: 'm2', graphMessageId: 'g2', direction: 'INBOUND', bodyHtml: '<p>no images</p>', attachments: [] },
+      { id: 'm1', graphMessageId: 'g1', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyHtml: '<img src="cid:logo">', attachments: [] },
+      { id: 'm2', graphMessageId: 'g2', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyHtml: '<p>no images</p>', attachments: [] },
     ] });
     mockPrisma.auditLog.findFirst.mockResolvedValue(null);
     mockOutlookSync.inlineStoredImages.mockImplementation(async (m: { bodyHtml: string }) => m.bodyHtml.replace('cid:logo', 'data:image/png;base64,AA=='));

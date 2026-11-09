@@ -18,7 +18,7 @@ describe('CaseEmailService', () => {
     $queryRaw: jest.fn(),
     firmMember: { findMany: jest.fn() },
     mailboxConnection: { findMany: jest.fn() },
-    emailAttachment: { findFirst: jest.fn() },
+    emailAttachment: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     document: { findFirst: jest.fn(), findMany: jest.fn() },
     auditLog: { create: jest.fn() },
   };
@@ -147,7 +147,8 @@ describe('CaseEmailService', () => {
         .mockResolvedValueOnce([
           { id: 'case-1', ownRef: 'TSBREF20250001', title: 'ผิดสัญญา', clientName: null, blackCaseNumber: null, redCaseNumber: null, client: null, proceedings: [] },
           { id: 'case-2', ownRef: 'TSBREF20250002', title: 'ค่าเสียหาย', clientName: 'นายสมชาย ใจดี', blackCaseNumber: null, redCaseNumber: null, client: null, proceedings: [] },
-        ]);
+        ])
+        .mockResolvedValueOnce([]);
 
       const result = await service.suggestCasesForThread(user, 'thread-1');
 

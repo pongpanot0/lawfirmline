@@ -21,10 +21,36 @@ import {
 } from '../generated/prisma';
 import { extractFieldsFromEmailBody, parseIntakeDate } from './field-extraction.util';
 import { AcceptIntakeFromThreadDto, LinkIntakeClientDto, ResolveFieldProposalDto, SeedMockReplyDto } from './dto/email-intake.dto';
+import { loadInternalAddresses } from './awaiting-reply';
+import { subjectRefs } from './case-email.service';
 
 // Personal mailboxes say nothing about which organisation the sender belongs to.
 const PUBLIC_MAIL_DOMAINS = new Set(['gmail.com', 'hotmail.com', 'outlook.com', 'live.com', 'yahoo.com', 'icloud.com', 'msn.com', 'hotmail.co.th', 'yahoo.co.th']);
 const ORGANISATION_LINE = /hospital|clinic|company|co\.,?\s*ltd|limited|corporation|group|bank|insurance|บริษัท|โรงพยาบาล|คลินิก|ธนาคาร|ประกันภัย|ประกันชีวิต|สำนักงาน|มูลนิธิ|ห้างหุ้นส่วน/i;
+
+const domainOf = (address: string) => address.split('@')[1] ?? '';
+
+/** Firm staff — a member, a connected mailbox, or anyone on the firm's own mail domain — are never the client. */
+export function internalMatcher(internal: Set<string>) {
+  const domains = new Set([...internal].map(domainOf).filter((d) => d && !PUBLIC_MAIL_DOMAINS.has(d)));
+  return (address: string) => {
+    const a = address.trim().toLowerCase();
+    return internal.has(a) || domains.has(domainOf(a));
+  };
+}
+
+type PartyMessage = { fromName: string | null; fromAddress: string | null; toAddresses: string[]; ccAddresses: string[]; bodyText: string | null };
+
+/**
+ * Who outside the firm the thread is with: the newest outside sender (their signature names the
+ * organisation), else the first outside recipient — a lawyer forwarding or replying is not the client.
+ */
+export function externalParty<M extends PartyMessage>(messages: M[], isInternal: (address: string) => boolean) {
+  const sender = messages.find((m) => m.fromAddress && !isInternal(m.fromAddress));
+  if (sender) return { address: sender.fromAddress!.trim(), name: sender.fromName, message: sender as M | null };
+  const recipient = messages.flatMap((m) => [...m.toAddresses, ...m.ccAddresses]).find((a) => !isInternal(a));
+  return recipient ? { address: recipient.trim(), name: null, message: null as M | null } : null;
+}
 
 /** Another request linked the thread while this one was creating its intake. */
 const LINKED_MEANWHILE = new Error('thread linked meanwhile');
@@ -39,7 +65,7 @@ const INTAKE_FIELD_MAP: Record<string, string> = {
 
 const threadInclude = {
   intake: {
-    select: { id: true, status: true, title: true, clientName: true },
+    select: { id: true, status: true, title: true, clientName: true, case: { select: { id: true, ownRef: true, title: true } } },
   },
   case: {
     select: { id: true, ownRef: true, title: true },
@@ -206,16 +232,20 @@ export class EmailIntakeService {
    * (same e-mail on a contact, then same company domain, then a similar name), plus a name to
    * offer when none fits — the organisation line of the sender's signature, else the domain.
    */
-  private async clientMatchForThread(user: AuthUser, thread: { fromName: string | null; fromAddress: string | null; intake: { id: string } | null; messages: { direction: EmailDirection; bodyText: string | null }[] }) {
+  private async externalPartyOf<M extends PartyMessage>(user: AuthUser, messages: M[]) {
+    return externalParty(messages, internalMatcher(await loadInternalAddresses(this.prisma, user.firmId)));
+  }
+
+  private async clientMatchForThread(user: AuthUser, thread: { intake: { id: string } | null; messages: PartyMessage[] }) {
     const intake = await this.prisma.intake.findUnique({ where: { id: thread.intake!.id }, select: { client: { select: { id: true, name: true } } } });
-    const address = thread.fromAddress?.trim().toLowerCase() ?? '';
-    const domain = address.includes('@') && !PUBLIC_MAIL_DOMAINS.has(address.split('@')[1]) ? address.split('@')[1] : null;
-    const latest = thread.messages.find((m) => m.direction === EmailDirection.INBOUND);
-    const main = splitQuotedText(latest?.bodyText ?? '').main;
+    const party = await this.externalPartyOf(user, thread.messages);
+    const address = party?.address.toLowerCase() ?? '';
+    const domain = address.includes('@') && !PUBLIC_MAIL_DOMAINS.has(domainOf(address)) ? domainOf(address) : null;
+    const main = splitQuotedText(party?.message?.bodyText ?? '').main;
     const signature = main.slice(stripEmailSignature(main).length).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const organisation = [...signature].reverse().find((l) => ORGANISATION_LINE.test(l) && l.length <= 120);
     const domainWord = domain ? domain.split('.')[0] : null;
-    const suggestedName = organisation ?? (domainWord ? domainWord.charAt(0).toUpperCase() + domainWord.slice(1) : thread.fromName ?? '');
+    const suggestedName = organisation ?? (domainWord ? domainWord.charAt(0).toUpperCase() + domainWord.slice(1) : party?.name ?? '');
 
     const candidates = new Map<string, { id: string; name: string; reason: 'EMAIL' | 'DOMAIN' | 'NAME' }>();
     const add = (rows: { id: string; name: string }[], reason: 'EMAIL' | 'DOMAIN' | 'NAME') => rows.forEach((c) => !candidates.has(c.id) && candidates.set(c.id, { ...c, reason }));
@@ -233,7 +263,8 @@ export class EmailIntakeService {
     const thread = await this.getThreadOrThrow(user, threadId);
     if (!thread.intake) throw new BadRequestException('รับอีเมลนี้เป็นเรื่องก่อน');
     if (!dto.clientId === !dto.name) throw new BadRequestException('เลือกลูกค้าเดิม หรือใส่ชื่อลูกค้าใหม่ อย่างใดอย่างหนึ่ง');
-    const contact = thread.fromAddress ? { name: thread.fromName?.trim() || thread.fromAddress, email: thread.fromAddress, isPrimary: true } : null;
+    const party = await this.externalPartyOf(user, thread.messages);
+    const contact = party ? { name: party.name?.trim() || party.address, email: party.address, isPrimary: true } : null;
     const client = dto.clientId
       ? await this.prisma.client.findFirst({ where: { id: dto.clientId, firmId: user.firmId }, select: { id: true, name: true } })
       : await this.prisma.client.create({
@@ -292,9 +323,10 @@ export class EmailIntakeService {
 
     // Newest INBOUND message (the client's words); fall back to the newest of any direction.
     const latestMessage = thread.messages.find((m) => m.direction === EmailDirection.INBOUND) ?? thread.messages[0];
+    const party = await this.externalPartyOf(user, thread.messages);
     const clientMatch = dto.clientId
       ? await this.prisma.client.findFirst({ where: { id: dto.clientId, firmId: user.firmId } })
-      : await this.suggestClientMatch(user, thread.fromName);
+      : await this.suggestClientMatch(user, party?.name);
 
     // Create and link in one step, linking only if nobody else did meanwhile (double click,
     // two lawyers): the loser's intake rolls back instead of becoming an orphan.
@@ -307,8 +339,8 @@ export class EmailIntakeService {
         title: thread.subject,
         referralChannel: 'EMAIL',
         clientId: clientMatch?.id,
-        clientName: clientMatch?.name ?? thread.fromName,
-        contactName: thread.fromName,
+        clientName: clientMatch?.name ?? party?.name ?? null,
+        contactName: party?.name ?? null,
         description: `${stripEmailSignature(splitQuotedText(latestMessage?.bodyText ?? '').main)}\n\n— ${latestMessage?.fromName ?? thread.fromName ?? ''} <${latestMessage?.fromAddress ?? thread.fromAddress ?? ''}>`.trim(),
         status: IntakeStatus.RECEIVED,
         relatedCaseId: dto.relatedCaseId,
@@ -354,14 +386,23 @@ export class EmailIntakeService {
    */
   async suggestIntakesForThread(user: AuthUser, threadId: string) {
     const thread = await this.getThreadOrThrow(user, threadId);
-    if (!thread.fromAddress) return [];
+    // Same matter = same sender, or the same claim/policy reference in another thread's subject or on the intake.
+    const refs = subjectRefs(thread.subject);
+    const sameMatter = [
+      ...(thread.fromAddress ? [{ emailThreads: { some: { id: { not: thread.id }, fromAddress: { equals: thread.fromAddress, mode: 'insensitive' as const } } } }] : []),
+      ...(refs.length ? [
+        { emailThreads: { some: { id: { not: thread.id }, OR: refs.map((r) => ({ subject: { contains: r, mode: 'insensitive' as const } })) } } },
+        { claimNumber: { in: refs } }, { policyNumber: { in: refs } },
+      ] : []),
+    ];
+    if (!sameMatter.length) return [];
     const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
     return this.prisma.intake.findMany({
       where: {
         AND: [
           intakeFilter,
           { status: { notIn: [IntakeStatus.REJECTED, IntakeStatus.CONVERTED] } },
-          { emailThreads: { some: { id: { not: thread.id }, fromAddress: { equals: thread.fromAddress, mode: 'insensitive' } } } },
+          { OR: sameMatter },
         ],
       },
       select: { id: true, title: true, clientName: true, status: true, receivedDate: true },
@@ -426,11 +467,21 @@ export class EmailIntakeService {
   async aiExtract(user: AuthUser, threadId: string) {
     const thread = await this.getThreadOrThrow(user, threadId);
     if (!thread.intake) throw new BadRequestException('รับอีเมลนี้เข้าพิจารณาก่อน แล้วจึงให้ AI ช่วยอ่าน');
-    const messages = thread.messages
-      .filter((m) => m.direction === EmailDirection.INBOUND)
-      .slice(0, ACCEPT_MESSAGES_LIMIT)
-      .reverse()
-      .map((m) => ({ id: m.id, text: redactForAi(stripEmailSignature(splitQuotedText(m.bodyText ?? '').main).slice(0, 4000)).text }))
+    const isInternal = internalMatcher(await loadInternalAddresses(this.prisma, user.firmId));
+    const inbound = thread.messages.filter((m) => m.direction === EmailDirection.INBOUND).slice(0, ACCEPT_MESSAGES_LIMIT).reverse();
+    const messages = inbound
+      .map((m, i) => {
+        const { main, quoted } = splitQuotedText(m.bodyText ?? '');
+        const fromFirm = !!m.fromAddress && isInternal(m.fromAddress);
+        // A forward's real content — and who the client is — sits in the quoted part: read it for the
+        // oldest message and for the firm's own forwards (later replies only repeat it).
+        const previous = (i === 0 || fromFirm) && quoted ? `\n\n[ข้อความก่อนหน้า]\n${quoted.slice(0, 4000)}` : '';
+        return {
+          id: m.id,
+          fromFirm,
+          text: redactForAi(`${stripEmailSignature(main).slice(0, 4000)}${previous}`).text,
+        };
+      })
       .filter((m) => m.text.trim());
 
     const apiKey = this.config.get<string>('OPENAI_API_KEY');

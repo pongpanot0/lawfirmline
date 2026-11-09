@@ -1365,7 +1365,7 @@ export type EmailIntakeStep = { key: 'ACCEPT' | 'AI_READ' | 'CONFIRM' | 'DOCUMEN
 export interface EmailThreadDetail {
   thread: EmailThreadListItem & {
     messages: EmailMessageItem[];
-    intake: { id: string; status: string; title: string | null } | null;
+    intake: { id: string; status: string; title: string | null; case?: { id: string; ownRef: string; title: string } | null } | null;
     case?: { id: string; ownRef: string; title: string } | null;
   };
   proposals: IntakeFieldProposalItem[];
@@ -1525,7 +1525,7 @@ export interface CaseUnknownAddressItem {
   name: string | null;
 }
 
-export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER';
+export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER' | 'SAME_REFERENCE';
 
 export interface ThreadCaseSuggestion {
   caseId: string;

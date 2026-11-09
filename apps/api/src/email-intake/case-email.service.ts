@@ -1,16 +1,27 @@
-import { ConflictException, ForbiddenException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuthUser, DocumentCategory } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { DocumentsService } from '../documents/documents.service';
-import { EmailThreadStatus, Prisma } from '../generated/prisma';
+import { EmailDirection, EmailThreadStatus, Prisma } from '../generated/prisma';
 import { awaitingMessage, loadInternalAddresses, loadLatestMessages } from './awaiting-reply';
 import { MATCHABLE_CASE_SELECT, suggestCaseMatches, toMatchableCase } from '../outlook-integration/case-matching';
 import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
 import { hasCidRefs } from '../outlook-integration/mail/inline-cid-images';
 
-export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER';
+export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER' | 'SAME_REFERENCE';
+
+const THAI_OR_SLASH_DATE = /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/;
+
+/**
+ * Claim / policy / file references in a subject ("Claim no. PFI-26-C-F9434", "14030-108-250070146"):
+ * 8+ characters mixing digits with letters or separators. Dates are left out — they would tie unrelated mail.
+ */
+export function subjectRefs(subject: string | null): string[] {
+  const tokens = (subject ?? '').match(/[A-Za-z0-9][A-Za-z0-9/.-]{6,}[A-Za-z0-9]/g) ?? [];
+  return [...new Set(tokens.filter((t) => /\d/.test(t) && /[A-Za-z/-]/.test(t) && !THAI_OR_SLASH_DATE.test(t)))].slice(0, 5);
+}
 
 export interface ThreadCaseSuggestion {
   caseId: string;
@@ -35,7 +46,7 @@ export function threadAddresses(thread: {
   ];
 }
 
-const THREAD_REASON_RANK: Record<ThreadMatchReason, number> = { OWN_REF: 0, CASE_NUMBER: 1, CONTACT_EMAIL: 2 };
+const THREAD_REASON_RANK: Record<ThreadMatchReason, number> = { OWN_REF: 0, CASE_NUMBER: 1, SAME_REFERENCE: 2, CONTACT_EMAIL: 3 };
 const MAX_SUGGESTIONS = 10;
 const MAX_ADDRESSES = 20;
 const MAX_CASE_THREADS = 200;
@@ -61,6 +72,8 @@ export function excerptAround(text: string, q: string): string {
  */
 @Injectable()
 export class CaseEmailService {
+  private readonly logger = new Logger(CaseEmailService.name);
+
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
@@ -90,10 +103,11 @@ export class CaseEmailService {
     if (!thread) throw new NotFoundException('ไม่พบอีเมลนี้');
 
     const addresses = threadAddresses(thread).slice(0, MAX_ADDRESSES);
+    const refs = subjectRefs(thread.subject);
 
     const caseFilter = this.caseAccess.getCaseFilterForUser(user);
     const emailIs = addresses.map((address) => ({ email: { equals: address, mode: 'insensitive' as const } }));
-    const [contactCases, allCases] = await Promise.all([
+    const [contactCases, allCases, refCases] = await Promise.all([
       addresses.length
         ? this.prisma.case.findMany({
             where: {
@@ -113,6 +127,25 @@ export class CaseEmailService {
           })
         : Promise.resolve([] as { id: string; ownRef: string; title: string }[]),
       this.prisma.case.findMany({ where: caseFilter, select: MATCHABLE_CASE_SELECT }),
+      // Same claim/policy reference: another e-mail of this case, the intake it came from, or the client's ref.
+      refs.length
+        ? this.prisma.case.findMany({
+            where: {
+              AND: [
+                caseFilter,
+                {
+                  OR: [
+                    { emailThreads: { some: { id: { not: threadId }, OR: refs.map((r) => ({ subject: { contains: r, mode: 'insensitive' as const } })) } } },
+                    { intake: { OR: [{ claimNumber: { in: refs } }, { policyNumber: { in: refs } }] } },
+                    { customerRef: { in: refs } },
+                  ],
+                },
+              ],
+            },
+            select: { id: true, ownRef: true, title: true },
+            take: MAX_SUGGESTIONS,
+          })
+        : Promise.resolve([] as { id: string; ownRef: string; title: string }[]),
     ]);
 
     const byCase = new Map<string, ThreadCaseSuggestion>();
@@ -126,6 +159,7 @@ export class CaseEmailService {
       add({ id: match.caseId, ownRef: match.ownRef, title: match.title }, match.reason);
     }
     for (const c of contactCases) add(c, 'CONTACT_EMAIL');
+    for (const c of refCases) add(c, 'SAME_REFERENCE');
 
     const best = (s: ThreadCaseSuggestion) => Math.min(...s.reasons.map((r) => THREAD_REASON_RANK[r]));
     return [...byCase.values()]
@@ -193,7 +227,20 @@ export class CaseEmailService {
     });
     if (count === 0) throw new ConflictException('อีเมลนี้ผูกกับคดีอื่นอยู่แล้ว — ยกเลิกการผูกเดิมก่อน');
     await this.audit(user, 'EMAIL_THREAD_LINKED', { threadId: thread.id, caseId });
+    await this.saveThreadAttachments(user, caseId, thread.id);
     return { threadId: thread.id, caseId };
+  }
+
+  /** A linked thread's inbound files become case documents; already-saved ones are skipped, a failed one is left for the manual save. */
+  private async saveThreadAttachments(user: AuthUser, caseId: string, threadId: string) {
+    const attachments = await this.prisma.emailAttachment.findMany({
+      where: { message: { threadId, direction: EmailDirection.INBOUND } },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const { id } of attachments) {
+      await this.saveAttachmentToCase(user, caseId, id).catch((e) => this.logger.warn(`Saving email attachment ${id} to case ${caseId} failed: ${e}`));
+    }
   }
 
   async unlinkThread(user: AuthUser, threadId: string): Promise<{ unlinked: boolean }> {
