@@ -7,7 +7,7 @@ import { FileStorageService } from '../common/services/file-storage.service';
 import { intakeProgress } from './email-intake-progress';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser, redactForAi, splitQuotedText, stripEmailSignature } from '@lawfirm/shared';
-import { INTAKE_AI_RESPONSE_FORMAT, INTAKE_AI_SYSTEM_PROMPT, parseIntakeAiResult, parseIntakeAiSummary } from './email-intake-ai';
+import { cleanIntakeAiSummary, INTAKE_AI_RESPONSE_FORMAT, INTAKE_AI_SYSTEM_PROMPT, parseIntakeAiResult, parseIntakeAiSummary } from './email-intake-ai';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import {
@@ -165,7 +165,8 @@ export class EmailIntakeService {
         status: thread.status,
         messageCount: thread._count.messages,
         attachmentCount: excerpt ? attachmentsByMessage.get(excerpt.id) ?? 0 : 0,
-        bodyExcerpt: excerpt?.excerpt ?? '',
+        // The preview line shows what was written, not the quoted history or the signature.
+        bodyExcerpt: excerpt?.excerpt ? stripEmailSignature(splitQuotedText(excerpt.excerpt).main) : '',
         linkedIntake: thread.intake,
         suggestedIntake: !thread.intake && !thread.caseId && matches?.size === 1 ? [...matches.values()][0] : null,
         caseId: thread.caseId,
@@ -221,7 +222,7 @@ export class EmailIntakeService {
       orderBy: { createdAt: 'desc' },
       select: { metadata: true },
     });
-    const aiSummary = (aiRead?.metadata as { summary?: unknown } | null)?.summary ?? null;
+    const aiSummary = cleanIntakeAiSummary((aiRead?.metadata as { summary?: unknown } | null)?.summary);
     const clientMatch = thread.intake ? await this.clientMatchForThread(user, thread) : null;
     return { thread, proposals, aiSummary, clientMatch, documents: documents.map(({ id, filename, mimeType, category }) => ({ id, filename, mimeType, category })),
       progress: intakeProgress(thread, proposals, thread.messages.some((m) => m.direction === EmailDirection.INBOUND && m.attachments.length > 0), !!aiRead) };
@@ -258,6 +259,14 @@ export class EmailIntakeService {
     return { linked: intake?.client ?? null, candidates: [...candidates.values()].filter((c) => c.id !== intake?.client?.id).slice(0, 5), suggestedName };
   }
 
+  /** Add a named contact to a client unless one with that name (any case) is already there. */
+  private async addClientContact(db: Pick<PrismaService, 'clientContact'>, clientId: string, rawName: string) {
+    const name = rawName.trim().slice(0, 200);
+    if (!name) return;
+    const exists = await db.clientContact.count({ where: { clientId, name: { equals: name, mode: 'insensitive' } } });
+    if (!exists) await db.clientContact.create({ data: { clientId, name, isPrimary: false } });
+  }
+
   /** Link the intake to an existing client, or create the client (sender as its contact) and link it. */
   async linkClientForThread(user: AuthUser, threadId: string, dto: LinkIntakeClientDto) {
     const thread = await this.getThreadOrThrow(user, threadId);
@@ -277,7 +286,9 @@ export class EmailIntakeService {
       const known = await this.prisma.clientContact.count({ where: { clientId: client.id, email: { equals: contact.email, mode: 'insensitive' } } });
       if (!known) await this.prisma.clientContact.create({ data: { clientId: client.id, name: contact.name, email: contact.email, isPrimary: false } });
     }
-    await this.prisma.intake.update({ where: { id: thread.intake.id }, data: { clientId: client.id, clientName: client.name } });
+    const linked = await this.prisma.intake.update({ where: { id: thread.intake.id }, data: { clientId: client.id, clientName: client.name }, select: { contactName: true } });
+    // A contact person confirmed before the customer was chosen joins it now.
+    if (linked.contactName) await this.addClientContact(this.prisma, client.id, linked.contactName);
     await this.prisma.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: dto.clientId ? 'EMAIL_INTAKE_CLIENT_LINKED' : 'EMAIL_INTAKE_CLIENT_CREATED', metadata: { threadId, intakeId: thread.intake.id, clientId: client.id } } });
     return client;
   }
@@ -693,6 +704,8 @@ export class EmailIntakeService {
         } else data[column] = finalValue;
       } else throw new BadRequestException('ไม่รองรับข้อมูลที่เสนอนี้');
       if (Object.keys(data).length) await tx.intake.update({ where: { id: intakeId }, data });
+      // A confirmed contact person belongs on the customer too, so the next matter finds them.
+      if (proposal.field === 'contactName' && intake.clientId) await this.addClientContact(tx, intake.clientId, finalValue);
       return tx.intakeFieldProposal.update({
         where: { id: proposalId },
         data: { status: FieldProposalStatus.CONFIRMED, proposedValue: finalValue, confirmedById: user.id, confirmedAt: new Date() },

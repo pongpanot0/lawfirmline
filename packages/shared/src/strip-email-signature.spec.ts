@@ -39,6 +39,16 @@ describe('stripHtmlSignature', () => {
   it('cuts at a Gmail signature block', () => {
     expect(stripHtmlSignature('<p>hi</p><div class="gmail_signature">Bob</div>')).toBe('<p>hi</p>');
   });
+  it('cuts an unmarked Outlook signature at its sign-off line', () => {
+    const html = '<div><p>เรียนคุณจิรญาดา</p><p>บริษัทฯ ขอนำส่งรายงานข้อเท็จจริงและความเห็นตามแนบเพื่อพิจารณาครับ</p><p>Best regards,</p><p>Mr. Weerayuth Sakuntaprasert</p><p>Managing Director &amp; Senior Lawyer</p><p>THE SIAM BARRISTERS COMPANY LIMITED</p></div>';
+    expect(stripHtmlSignature(html)).toBe('<div><p>เรียนคุณจิรญาดา</p><p>บริษัทฯ ขอนำส่งรายงานข้อเท็จจริงและความเห็นตามแนบเพื่อพิจารณาครับ</p>');
+  });
+  it('keeps "regards" that is part of a sentence, and a long tail after a sign-off', () => {
+    const inSentence = '<p>With regards to the claim, please see attached.</p>';
+    expect(stripHtmlSignature(inSentence)).toBe(inSentence);
+    const longTail = '<p>hi</p><p>Regards,</p><p>' + 'x'.repeat(2000) + '</p>';
+    expect(stripHtmlSignature(longTail)).toBe(longTail);
+  });
   it('leaves a body without a marker, or one that is only a signature', () => {
     expect(stripHtmlSignature('<p>hi</p><p>Bob</p>')).toBe('<p>hi</p><p>Bob</p>');
     expect(stripHtmlSignature('<div id="Signature">Bob</div>')).toBe('<div id="Signature">Bob</div>');

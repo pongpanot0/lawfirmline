@@ -14,7 +14,7 @@ export const INTAKE_AI_SYSTEM_PROMPT = [
   'summary เป็นสรุปคำขอ 1-3 ประโยค ส่วน description ใช้เมื่อมีรายละเอียดเพิ่มเติม ไม่เสนอซ้ำ',
   'documents เสนอหมวด ชื่อประเภทภาษาไทย ชื่อไฟล์ที่อ่านง่ายโดยคงนามสกุลเดิม และ docRequestName ที่ตรงกับชื่อใน documentRequests เท่านั้น',
   'เสนอให้ได้มากที่สุดเท่าที่มีหลักฐาน: matterType ประเภทเรื่องสั้นๆ เช่น ละเมิดทางการแพทย์, customerRef เลขอ้างอิงของผู้ส่ง, externalCaseNumber เลขคดีศาล, deadlineDate วันครบกำหนดตามกฎหมายหรือโนติส, partyRole บทบาทของลูกความ (PLAINTIFF DEFENDANT PETITIONER RESPONDENT) เช่น โรงพยาบาลที่ถูกเรียกร้องคือ DEFENDANT, caseType ต้องเป็นชื่อหนึ่งใน caseTypes เท่านั้น',
-  'overview คือสรุปทั้งอีเมลและไฟล์เป็นข้อๆ 3-6 ข้อ clientRequest คือสิ่งที่ผู้ส่งขอให้สำนักงานทำ urgency HIGH NORMAL LOW พร้อมเหตุผล nextActions คือสิ่งที่ทนายควรทำต่อ ไม่เกิน 5 ข้อ missingDocuments คือชื่อเอกสารสั้นๆ ที่เรื่องนี้ควรมีหรือที่อีเมลอ้างถึงแต่ยังไม่ได้แนบ ไม่เกิน 8 ข้อ ส่วน summary เขียนเป็นภาษาคนอ่าน ห้ามใส่ id หรือ "แหล่งอ้างอิง"',
+  'overview คือสรุปทั้งอีเมลและไฟล์เป็นข้อๆ 3-6 ข้อ clientRequest คือสิ่งที่ผู้ส่งขอให้สำนักงานทำ urgency HIGH NORMAL LOW พร้อมเหตุผล nextActions คือสิ่งที่ทนายควรทำต่อ ไม่เกิน 5 ข้อ missingDocuments คือชื่อเอกสารสั้นๆ ที่เรื่องนี้ควรมีหรือที่อีเมลอ้างถึงแต่ยังไม่ได้แนบ ไม่เกิน 8 ข้อ ส่วน summary เขียนเป็นภาษาคนอ่าน ห้ามใส่ id หรือ "แหล่งอ้างอิง" และห้ามใช้ชื่อฟิลด์ภาษาอังกฤษ เช่น partyRole caseType claimedAmount และห้ามใส่ quote หรือ sourceMessageId ในข้อความสรุป',
   'ไม่พบให้เป็น null หรือ array ว่าง ทุกข้อเสนอรอทนายยืนยัน',
 ].join(' ');
 
@@ -159,6 +159,15 @@ export function parseIntakeAiResult(
   return out;
 }
 
+// Field names the model sometimes echoes from the schema, shown to lawyers in Thai instead.
+const FIELD_WORDS: Record<string, string> = {
+  partyRole: 'บทบาทลูกความ', caseType: 'ประเภทคดี', matterType: 'ประเภทเรื่อง', claimedAmount: 'ยอดเรียกร้อง',
+  insurerPaidAmount: 'ยอดที่ประกันจ่าย', settlementOfferAmount: 'ข้อเสนอไกล่เกลี่ย', otherAmounts: 'ยอดเงินอื่น',
+  opposingParty: 'คู่กรณี', insurerName: 'บริษัทประกัน', policyNumber: 'เลขกรมธรรม์', claimNumber: 'เลขเคลม',
+  incidentDate: 'วันที่เกิดเหตุ', deadlineDate: 'วันครบกำหนด', requestedResponseDate: 'วันครบกำหนดตอบ',
+  customerRef: 'เลขอ้างอิงของผู้ส่ง', externalCaseNumber: 'เลขคดีศาล', clientName: 'ชื่อลูกความ', contactName: 'ผู้ติดต่อ',
+};
+
 export interface IntakeAiSummary {
   overview: string[];
   clientRequest: string | null;
@@ -173,11 +182,23 @@ export interface IntakeAiSummary {
  * only ever displayed (labelled as AI's summary) — never written into the intake by themselves.
  */
 export function parseIntakeAiSummary(raw: string): IntakeAiSummary | null {
-  let summary: Record<string, unknown> | null;
-  try { summary = record(record(JSON.parse(raw))?.summary); } catch { return null; }
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { return null; }
+  return cleanIntakeAiSummary(record(parsed)?.summary);
+}
+
+/**
+ * Models sometimes cite sources in prose — "(ข้อความต้นทาง: “…”; sourceMessageId: )", raw ids,
+ * schema field names. Those mean nothing to a lawyer, so they go; also applied to summaries
+ * stored before this cleaning existed.
+ */
+export function cleanIntakeAiSummary(value: unknown): IntakeAiSummary | null {
+  const summary = record(value);
   if (!summary) return null;
-  // Models sometimes cite their source ids in prose; those mean nothing to a lawyer.
-  const clean = (value: string) => squash(value.replace(/\s*\((?:แหล่งอ้างอิง|อ้างอิง|source)[^)]*\)/gi, '').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ''));
+  const clean = (text: string) => squash(Object.entries(FIELD_WORDS).reduce((out, [key, th]) => out.replace(new RegExp(`\\b${key}\\b`, 'g'), th), text)
+    .replace(/\s*\((?:[^()]*?(?:แหล่งอ้างอิง|อ้างอิง|ข้อความต้นทาง|source(?:Message|Document)?Id|source)[^()]*)\)/gi, '')
+    .replace(/;?\s*source(?:Message|Document)Id\s*:\s*[^\s;)]*/gi, '')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ''));
   const list = (value: unknown, max: number) => (Array.isArray(value) ? value : [])
     .filter((item): item is string => typeof item === 'string' && !!clean(item)).map((item) => clean(item).slice(0, 300)).slice(0, max);
   const text = (value: unknown) => (typeof value === 'string' && clean(value) ? clean(value).slice(0, 500) : null);

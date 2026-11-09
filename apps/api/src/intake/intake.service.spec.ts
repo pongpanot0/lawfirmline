@@ -1211,3 +1211,45 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     expect(mockConflict.latestForIntake).not.toHaveBeenCalled();
   });
 });
+
+describe('IntakeService assess with several assessors', () => {
+  let service: IntakeService;
+  const mockPrisma = {
+    intake: { findFirst: jest.fn(), update: jest.fn() },
+    firmMember: { count: jest.fn() },
+  };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IntakeService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn(), gateNewCase: jest.fn(), recordForCase: jest.fn() } },
+        { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
+        { provide: TasksService, useValue: { create: jest.fn() } },
+        { provide: IntakePrecedentAnalysisService, useValue: { getOne: jest.fn() } },
+        { provide: DocumentsService, useValue: {} },
+        { provide: FileStorageService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(IntakeService);
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'i1', firmId: 'firm-1', assignedUserIds: ['u-old'] });
+  });
+
+  it('makes the first pick the lead and adds everyone to the team', async () => {
+    mockPrisma.firmMember.count.mockResolvedValue(2);
+    await service.assess(user, 'i1', { assessorIds: ['u-a', 'u-b'] } as any);
+    expect(mockPrisma.intake.update.mock.calls[0][0].data).toMatchObject({ assessorId: 'u-a', assignedUserIds: ['u-old', 'u-a', 'u-b'] });
+  });
+
+  it('refuses an assessor from another firm', async () => {
+    mockPrisma.firmMember.count.mockResolvedValue(1);
+    await expect(service.assess(user, 'i1', { assessorIds: ['u-a', 'outsider'] } as any)).rejects.toThrow(BadRequestException);
+    expect(mockPrisma.intake.update).not.toHaveBeenCalled();
+  });
+});

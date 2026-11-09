@@ -231,7 +231,7 @@ export class IntakeService {
       this.conflictCheck.latestForIntake(id),
       this.prisma.intakeDocumentRequest.findMany({ where: { intakeId: id }, select: { required: true, status: true } }),
     ]);
-    return intakeJourney(intake, conflict, requests);
+    return intakeJourney({ ...intake, hasCase: !!(intake as { case?: unknown }).case }, conflict, requests);
   }
 
   private unlinkedWhere(user: AuthUser) {
@@ -877,12 +877,15 @@ export class IntakeService {
    * the lawyer from proceeding.
    */
   async assess(user: AuthUser, id: string, dto: AssessIntakeDto) {
-    await assertFirmRefs(this.prisma, user.firmId, { userIds: [dto.assessorId] });
-    await this.findOne(user, id);
+    const assessorIds = [...new Set(dto.assessorIds?.length ? dto.assessorIds : [dto.assessorId ?? user.id])];
+    await assertFirmRefs(this.prisma, user.firmId, { userIds: assessorIds });
+    const intake = await this.findOne(user, id);
     return this.prisma.intake.update({
       where: { id },
       data: {
-        assessorId: dto.assessorId ?? user.id,
+        // First picked leads the assessment; everyone picked joins the intake team.
+        assessorId: assessorIds[0],
+        assignedUserIds: [...new Set([...(intake.assignedUserIds ?? []), ...assessorIds])],
         assessedAt: new Date(),
         status: 'ASSESSING' as any,
         statusChangedAt: new Date(),

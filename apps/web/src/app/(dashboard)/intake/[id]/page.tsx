@@ -1475,8 +1475,15 @@ export default function IntakeDetailPage() {
           </Card>
         )}
 </div>,
-    CLOSE: <div className="space-y-3"><p className="text-sm">{STATUS_LABELS[intake.status] ?? intake.status}</p>{intake.status === 'ACCEPTED' && <Button onClick={() => setConverting(true)} disabled={submitting}>{intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}</Button>}<p className="text-sm text-muted-foreground">การปฏิเสธเรื่องทำได้จากการตัดสินใจแนวทาง</p></div>,
+    CASE: <div className="space-y-3"><p className="text-sm">{STATUS_LABELS[intake.status] ?? intake.status}</p>{intake.status === 'ACCEPTED' && <Button onClick={() => setConverting(true)} disabled={submitting}>{intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}</Button>}<p className="text-sm text-muted-foreground">การปฏิเสธเรื่องทำได้จากการตัดสินใจแนวทาง</p></div>,
   };
+  // Notice and negotiation are now case work at its "ก่อนฟ้อง" stage; an older matter that still
+  // has them on the intake keeps them reachable under the last step.
+  sections.CASE = <div className="space-y-4">
+    {intake.case && <Link href={`/cases/${intake.case.id}`}><Button>ไปที่คดีก่อนฟ้อง {intake.case.ownRef}</Button></Link>}
+    {sections.CASE}
+    {(intake.noticeIssuedAt || intake.preLitigationStatus !== 'NOT_STARTED') && sections.ACTION}
+  </div>;
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-clip">
@@ -1491,7 +1498,7 @@ export default function IntakeDetailPage() {
             <Badge variant={STATUS_VARIANT[intake.status] ?? 'muted'}>
               {STATUS_LABELS[intake.status] ?? intake.status}
             </Badge>
-            <Button variant="outline" disabled={stepLocked('ACTION')} title={stepLocked('ACTION') ? hint('ACTION') : undefined} onClick={() => openNoticeModal()}>ออก Notice</Button>
+            <Button variant="outline" disabled={stepLocked('CASE')} title={stepLocked('CASE') ? hint('CASE') : undefined} onClick={() => openNoticeModal()}>ออก Notice</Button>
           </>
         }
       />
@@ -1500,7 +1507,7 @@ export default function IntakeDetailPage() {
       {journey && <section className="min-w-0 space-y-3" aria-label="ขั้นตอนรับเรื่อง">
         <JourneyStepper steps={journey.steps} />
         {journey.next && <NextStepBanner next={journey.next} onGo={() => document.getElementById('intake-journey-focus')?.scrollIntoView({ behavior: 'smooth' })} />}
-        {(['current', 'locked', 'done'] as const).flatMap((state) => journey.steps.filter((step) => step.state === state).map((step) => <JourneySection key={step.key} step={step} readOnly={['CONVERTED', 'REJECTED', 'CONSULTED'].includes(intake.status) && ['DECISION', 'ACTION', 'CLOSE'].includes(step.key)}>{sections[step.key]}</JourneySection>))}
+        {(['current', 'locked', 'done'] as const).flatMap((state) => journey.steps.filter((step) => step.state === state).map((step) => <JourneySection key={step.key} step={step} readOnly={['CONVERTED', 'REJECTED', 'CONSULTED'].includes(intake.status) && ['DECISION', 'CASE'].includes(step.key)}>{sections[step.key]}</JourneySection>))}
         {journey.steps.some((step) => step.state === 'current') && <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border bg-background p-3 pr-44 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg"><span className="text-sm">ขั้นที่ {journey.steps.findIndex((step) => step.state === 'current') + 1} จาก {journey.steps.length}</span><Button onClick={() => document.getElementById('intake-journey-focus')?.scrollIntoView({ behavior: 'smooth' })}>ไปยังขั้นตอนปัจจุบัน</Button></div>}
       </section>}
 
@@ -1537,7 +1544,7 @@ export default function IntakeDetailPage() {
           ) : (
             <>
               <p className="mt-0.5 text-sm font-bold">ยังไม่ออก Notice</p>
-              <button type="button" className="inline-flex min-h-[44px] items-center gap-0.5 text-xs font-medium text-primary hover:underline disabled:opacity-50 sm:min-h-0" disabled={stepLocked('ACTION')} title={stepLocked('ACTION') ? hint('ACTION') : undefined} onClick={() => openNoticeModal()}>
+              <button type="button" className="inline-flex min-h-[44px] items-center gap-0.5 text-xs font-medium text-primary hover:underline disabled:opacity-50 sm:min-h-0" disabled={stepLocked('CASE')} title={stepLocked('CASE') ? hint('CASE') : undefined} onClick={() => openNoticeModal()}>
                 ออก Notice
                 <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </button>
@@ -1590,7 +1597,7 @@ export default function IntakeDetailPage() {
         <div className="space-y-4 lg:col-span-3">
           {token && (
             <>
-              <div inert={stepLocked('CLOSE')} aria-disabled={stepLocked('CLOSE')} title={stepLocked('CLOSE') ? hint('CLOSE') : undefined}><IntakeStageBar intake={intake} token={token} onChanged={reload} /></div>
+              <div inert={stepLocked('CASE')} aria-disabled={stepLocked('CASE')} title={stepLocked('CASE') ? hint('CASE') : undefined}><IntakeStageBar intake={intake} token={token} onChanged={reload} /></div>
               {/* key: เปลี่ยน playbook แล้วให้โหลดงานชุดใหม่ทันที */}
               <IntakeTasksPanel key={intake.preferredPlaybookId ?? 'none'} intakeId={intake.id} lawyers={lawyers} onCountsChange={(counts) => { setTaskCounts(counts); void reloadJourney(); }} />
             </>
