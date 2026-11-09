@@ -1,7 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TasksService } from './tasks.service';
-import { TasksController } from './tasks.controller';
+import { TasksController, TaskSkipController } from './tasks.controller';
 import { TodosController } from './todos.controller';
 import { IntakeTasksController } from './intake-tasks.controller';
 import { TaskDetailController } from './task-detail.controller';
@@ -10,7 +10,7 @@ import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.intercep
 
 @Module({
   imports: [forwardRef(() => NotificationsModule)],
-  controllers: [TasksController, TodosController, IntakeTasksController, TaskDetailController],
+  controllers: [TasksController, TaskSkipController, TodosController, IntakeTasksController, TaskDetailController],
   providers: [TasksService, TaskDetailService, AiCreditsInterceptor],
   exports: [TasksService],
 })

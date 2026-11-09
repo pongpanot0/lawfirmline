@@ -193,7 +193,7 @@ export default function EmailTemplatesPage() {
       {loadError ? (
         <LoadFailed message={loadError} onRetry={() => void load()} />
       ) : !templates ? (
-        <PageLoading lines={2} />
+        <PageLoading variant="list" lines={2} />
       ) : templates.length === 0 ? (
         <EmptyState
           title="ยังไม่มีเทมเพลต"

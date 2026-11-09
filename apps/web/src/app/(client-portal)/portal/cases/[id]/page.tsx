@@ -175,7 +175,7 @@ export default function PortalCaseDetailPage() {
         {detailFailed ? (
           <LoadFailed message="เปิดคดีนี้ไม่สำเร็จ" onRetry={() => { setDetailFailed(false); loadDetail(); }} />
         ) : (
-          <PageLoading title="กำลังโหลดคดี" lines={2} />
+          <PageLoading variant="detail" title="กำลังโหลดคดี" lines={2} />
         )}
       </PortalShell>
     );

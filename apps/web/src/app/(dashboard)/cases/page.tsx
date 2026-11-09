@@ -44,7 +44,7 @@ function firstIntakeId(legalCase: CaseListItem) {
 export default function CasesPage() {
   const d = useDashboardT();
   return (
-    <Suspense fallback={<PageLoading title={d.cases.loading} lines={3} />}>
+    <Suspense fallback={<PageLoading variant="list" title={d.cases.loading} lines={3} />}>
       <CasesPageContent />
     </Suspense>
   );
@@ -407,7 +407,7 @@ function CasesPageContent() {
           {loadError ? (
             <div className="p-4"><LoadFailed onRetry={() => setReloadKey((k) => k + 1)} /></div>
           ) : loading ? (
-            <div className="p-4"><PageLoading title={d.cases.loading} lines={3} /></div>
+            <div className="p-4"><PageLoading variant="list" title={d.cases.loading} lines={3} /></div>
           ) : paginated.length === 0 ? (
             <EmptyState
               icon={Briefcase}

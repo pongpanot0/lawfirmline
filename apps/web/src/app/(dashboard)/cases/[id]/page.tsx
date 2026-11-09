@@ -1,5 +1,8 @@
 'use client';
 
+import { CaseJourneyPanel } from '@/components/journey/CaseJourneyPanel';
+import { allowedStageChange } from '@/components/journey/allowed-stage-change';
+
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CasePrintForms } from '@/components/cases/CasePrintForms';
 import { CaseOverviewForm, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
@@ -494,6 +497,7 @@ export default function CaseDetailPage() {
   const handleStageChange = async (stage: string) => {
     if (!token || !id || stage === legalCase?.stage) return;
     setSavingStage(true);
+    setStageTaskError('');
     try {
       let proposals: StageTaskProposal[] = [];
       try {
@@ -512,7 +516,7 @@ export default function CaseDetailPage() {
       setStageTaskProposals(proposals);
       setPendingStage(stage);
     } catch (err) {
-      console.error(err);
+      setStageTaskError(err instanceof ApiError ? err.message : 'ย้ายขั้นไม่สำเร็จ');
     } finally {
       setSavingStage(false);
     }
@@ -534,7 +538,8 @@ export default function CaseDetailPage() {
       closeStageTaskDialog();
     } catch (err) {
       console.error(err);
-      setStageTaskError('ย้ายขั้นไม่สำเร็จ');
+      setPendingStage(null);
+      setStageTaskError(err instanceof ApiError ? err.message : 'ย้ายขั้นไม่สำเร็จ');
     } finally {
       setSavingStage(false);
     }
@@ -558,7 +563,8 @@ export default function CaseDetailPage() {
       closeStageTaskDialog();
     } catch (err) {
       console.error(err);
-      setStageTaskError('ย้ายขั้นไม่สำเร็จ');
+      setPendingStage(null);
+      setStageTaskError(err instanceof ApiError ? err.message : 'ย้ายขั้นไม่สำเร็จ');
     } finally {
       setSavingStage(false);
     }
@@ -765,7 +771,7 @@ export default function CaseDetailPage() {
     }
   };
 
-  if (loading) return <PageLoading title={d.common.loading} lines={5} />;
+  if (loading) return <PageLoading variant="detail" title={d.common.loading} lines={5} />;
   if (!legalCase) {
     return (
       <div className="space-y-3">
@@ -940,6 +946,8 @@ export default function CaseDetailPage() {
         </div>
       </header>
 
+      {token && <CaseJourneyPanel token={token} caseId={id} stage={legalCase.stage ?? null} tasksVersion={tasks} onChanged={loadCase} />}
+
       {bannerProposals.length > 0 && pendingStage === null && legalCase.stage && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
           <span className="flex items-center gap-2">
@@ -995,7 +1003,7 @@ export default function CaseDetailPage() {
               <button
                 key={option.value}
                 type="button"
-                disabled={savingStage}
+                disabled={savingStage || !allowedStageChange(legalCase.stage, option.value)}
                 aria-current={isCurrent ? 'step' : undefined}
                 onClick={() => handleStageChange(option.value)}
                 className={stageClass}

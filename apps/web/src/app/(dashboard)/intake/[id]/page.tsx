@@ -1,5 +1,10 @@
 'use client';
 
+import { JourneyStepper } from '@/components/journey/JourneyStepper';
+import { NextStepBanner } from '@/components/journey/NextStepBanner';
+import type { Journey, JourneyStep } from '@/lib/api';
+import type { ReactNode } from 'react';
+
 import { ResearchWorkspace } from '@/components/research/ResearchWorkspace';
 
 import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
@@ -32,7 +37,7 @@ import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { PageHeader } from '@/components/samnuan/PageHeader';
-import { AlertCircle, Check, ChevronRight, Circle, HelpCircle, Plus, Sparkles, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, Circle, HelpCircle, Lock, Plus, Sparkles, X } from 'lucide-react';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
@@ -138,8 +143,8 @@ function isChecklistDocId(value: string | undefined): value is string {
 function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div className="flex gap-2 py-1.5 border-b last:border-0">
-      <span className="w-40 shrink-0 text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm">{value ?? '—'}</span>
+      <span className="w-28 shrink-0 text-sm text-muted-foreground sm:w-40">{label}</span>
+      <span className="min-w-0 break-words text-sm">{value ?? '—'}</span>
     </div>
   );
 }
@@ -258,6 +263,12 @@ function IntakeAssignees({
   );
 }
 
+function JourneySection({ step, children, readOnly }: { step: JourneyStep; children: ReactNode; readOnly: boolean }) {
+  if (step.state === 'current') return <section id="intake-journey-focus" className="min-w-0 space-y-3 rounded-lg border border-primary bg-card p-4"><h2 className="font-semibold">{step.label}</h2>{children}</section>;
+  if (step.state === 'done') return <details className="min-w-0 rounded-lg border bg-card p-4"><summary className="cursor-pointer text-sm font-medium">{step.label} · {step.summary}</summary><div inert={readOnly} aria-disabled={readOnly} className="mt-4 min-w-0 space-y-4">{children}</div></details>;
+  return <details className="min-w-0 rounded-lg border border-dashed bg-muted/50 p-4 text-muted-foreground"><summary className="cursor-pointer"><span className="inline-flex items-center gap-2 font-medium"><Lock className="h-4 w-4" aria-hidden />{step.label}</span><span className="block text-sm">{step.unlockHint}</span><span className="text-sm underline">ดูรายละเอียด</span></summary><div inert aria-disabled="true" className="mt-4 min-w-0 space-y-4 opacity-60">{children}</div></details>;
+}
+
 type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | 'details' | 'quote' | null;
 
 export default function IntakeDetailPage() {
@@ -265,6 +276,8 @@ export default function IntakeDetailPage() {
   const { token, user } = useAuth();
   const router = useRouter();
   const [intake, setIntake] = useState<IntakeItem | null>(null);
+  const [journey, setJourney] = useState<Journey | null>(null);
+  const [journeyError, setJourneyError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -333,9 +346,9 @@ export default function IntakeDetailPage() {
 
   // Document facts analysis (summary + facts from selected files)
   const workspaceParams = useSearchParams();
-  const [workspaceTab, setWorkspaceTab] = useState<'overview' | 'research' | 'documents'>(() => {
+  const [workspaceTab, setWorkspaceTab] = useState<'overview' | 'research'>(() => {
     const tab = workspaceParams.get('tab');
-    return tab === 'research' || tab === 'documents' ? tab : 'overview';
+    return tab === 'research' ? tab : 'overview';
   });
 
   // Precedent analysis
@@ -432,6 +445,18 @@ export default function IntakeDetailPage() {
     setClassifyError(null);
   }, [id, token]);
 
+  const reloadJourney = useCallback(async () => {
+    if (!token || !id) return;
+    try {
+      setJourney(await api.getIntakeJourney(token, id));
+      setJourneyError(false);
+    } catch {
+      setJourney(null);
+      setJourneyError(true);
+    }
+  }, [token, id]);
+
+
   /** Persist one checklist mark server-side; fire-and-forget. */
   const persistChecklistItem = useCallback(
     (label: string, documentId: string | null) => {
@@ -439,10 +464,10 @@ export default function IntakeDetailPage() {
       api
         .setIntakeChecklistItem(token, id, label, documentId)
         // ด่านก่อนออกหนังสืออ่านจากตารางเดียวกัน จำนวนที่ขาดต้องตามทันที
-        .then(() => loadDocumentRequests())
+        .then(async () => { await loadDocumentRequests(); await reloadJourney(); })
         .catch(console.error);
     },
-    [token, id, loadDocumentRequests],
+    [token, id, loadDocumentRequests, reloadJourney],
   );
 
   useEffect(() => {
@@ -476,9 +501,12 @@ export default function IntakeDetailPage() {
       .finally(() => setLoading(false));
   }, [token, id, loadAttempt]);
 
+
+  useEffect(() => { void reloadJourney(); }, [reloadJourney]);
+
   const reload = async () => {
     if (!token || !id) return;
-    const updated = await api.getIntake(token, id);
+    const [updated] = await Promise.all([api.getIntake(token, id), reloadJourney()]);
     setIntake(updated);
   };
 
@@ -497,6 +525,7 @@ export default function IntakeDetailPage() {
     setCaseLeadId(userId);
     try {
       await api.updateCase(token, caseId, { leadLawyerId: userId });
+      await reload();
     } catch {
       setCaseLeadId(previous);
       setError('เปลี่ยนทนายหลักไม่สำเร็จ');
@@ -556,6 +585,7 @@ export default function IntakeDetailPage() {
             }
           : {}),
       })) as IntakeItem;
+      await reload();
       // รับดำเนินการ = คดีเปิดแล้ว — พาไปที่งานเลย
       const caseId = result.case?.id ?? result.relatedCase?.id;
       if (accepted && caseId) {
@@ -786,6 +816,7 @@ export default function IntakeDetailPage() {
     }
     try {
       await loadDocuments();
+      await reload();
       setSelectedAttachmentIds((previous) => [...new Set([...previous, ...uploadedIds])].slice(0, 10));
     } catch { failures.push('โหลดรายการล่าสุดไม่สำเร็จ กรุณาโหลดหน้าใหม่ก่อนอัปโหลดซ้ำ'); }
     if (failures.length) setFileError(`ไฟล์ที่ไม่สำเร็จ: ${failures.join(', ')} · รองรับ PDF ไม่เกิน 30MB ต่อไฟล์`);
@@ -834,6 +865,7 @@ export default function IntakeDetailPage() {
       setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== suggestion.documentId));
       setSuggestionRequestIds((previous) => { const next = { ...previous }; delete next[suggestion.documentId]; return next; });
       await loadDocumentRequests();
+      await reload();
     } catch (err) {
       setClassifyError(err instanceof ApiError ? err.message : 'ยืนยันเอกสารไม่สำเร็จ');
     }
@@ -890,6 +922,7 @@ export default function IntakeDetailPage() {
         });
       }
       await loadDocuments();
+      await reload();
     } catch (err) {
       setFileError(err instanceof ApiError ? err.message : 'ลบไฟล์ไม่สำเร็จ');
     }
@@ -927,6 +960,7 @@ export default function IntakeDetailPage() {
         claimedAmount: payload.claimedAmount,
         ...(conflictOverrideReason ? { conflictOverrideReason } : {}),
       })) as { id?: string; ownRef?: string } & IntakeItem;
+      await reload();
       // A new case comes back as the case itself; attaching to an existing one
       // returns that case. Either way the lawyer lands where the work now is.
       const caseId = result.case?.id ?? result.id ?? intake?.relatedCase?.id;
@@ -948,7 +982,7 @@ export default function IntakeDetailPage() {
     }
   };
 
-  if (loading) return <PageLoading title="กำลังโหลดเรื่องรับเข้า" lines={4} />;
+  if (loading) return <PageLoading variant="detail" title="กำลังโหลดเรื่องรับเข้า" lines={4} />;
   if (!intake && loadFailed) return <LoadFailed onRetry={() => setLoadAttempt((n) => n + 1)} />;
   if (!intake) return <EmptyState title="ไม่พบข้อมูล" description="เรื่องรับเข้านี้อาจถูกลบหรือแปลงเป็นคดีไปแล้ว" />;
 
@@ -983,141 +1017,77 @@ export default function IntakeDetailPage() {
       !Object.values(confirmedChecklist).filter(isChecklistDocId).includes(suggestion.documentId),
   );
 
-  return (
-    <div className="w-full space-y-6">
-      <PageHeader
-        title={intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
-        description={`${intake.referralName || intake.clientName || intake.client?.name || '—'} · รับเมื่อ ${formatDateOrDash(intake.receivedDate)}`}
-        actions={
-          <>
-            {intake.partyRole && (
-              <Badge variant="warning">{intake.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}</Badge>
+  const stepLocked = (key: string) => journey?.steps.find((step) => step.key === key)?.state !== 'current' && journey?.steps.find((step) => step.key === key)?.state !== 'done';
+  const hint = (key: string) => journey?.steps.find((step) => step.key === key)?.unlockHint ?? 'กำลังโหลดขั้นตอน';
+  const showDocuments = () => {
+    const section = document.getElementById('intake-documents');
+    const details = section?.closest('details');
+    if (details) details.open = true;
+    section?.scrollIntoView({ behavior: 'smooth' });
+  };
+  const sections: Record<string, ReactNode> = {
+    INFO: <div className="space-y-4">          <Card>
+            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">รายละเอียด</CardTitle>
+              {intake.status !== 'CONVERTED' && (
+                <Button variant="outline" size="sm" onClick={openDetailsModal}>แก้ไข</Button>
+              )}
+            </CardHeader>
+          <CardContent className="space-y-0">
+            <InfoRow label="ประเภทเรื่อง" value={intake.matterType ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType) : undefined} />
+            <InfoRow label="เลขอ้างอิงลูกค้า" value={intake.customerRef} />
+            <InfoRow label="เลขกรมธรรม์" value={intake.policyNumber} />
+            <InfoRow label="เลขเคลม" value={intake.claimNumber} />
+            <InfoRow
+              label="ฝ่ายเรา"
+              value={intake.partyRole === 'PLAINTIFF' ? 'โจทก์' : intake.partyRole === 'DEFENDANT' ? 'จำเลย' : undefined}
+            />
+            <InfoRow label="คู่กรณี" value={intake.opposingParty} />
+            <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
+            <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
+            {intake.insurerPaidAmount != null && <InfoRow label="ประกันจ่ายไปแล้ว (บาท)" value={intake.insurerPaidAmount.toLocaleString('th-TH')} />}
+            {intake.otherAmounts?.map((item, index) => <InfoRow key={index} label={item.label + ' (บาท)'} value={item.amount.toLocaleString('th-TH')} />)}
+            <InfoRow label="รายละเอียด" value={intake.description} />
+            {intake.isOngoingElsewhere && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <p className="font-medium text-amber-900">คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน</p>
+                {intake.externalCaseNumber && <p className="mt-1 text-amber-800">หมายเลขคดีดำ: {intake.externalCaseNumber}</p>}
+                {intake.currentStageNote && <p className="mt-1 text-amber-800">สถานะปัจจุบัน: {intake.currentStageNote}</p>}
+              </div>
             )}
-            <Badge variant={STATUS_VARIANT[intake.status] ?? 'muted'}>
-              {STATUS_LABELS[intake.status] ?? intake.status}
-            </Badge>
-            <Button variant="outline" onClick={() => openNoticeModal()}>ออก Notice</Button>
-          </>
-        }
-      />
+          </CardContent>
+        </Card>
 
-      {/* Summary strip — ตัวเลขที่ทนายเปิดหน้านี้มาดูก่อนอย่างอื่น */}
-      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
-        <button type="button" onClick={() => setWorkspaceTab('overview')} className="bg-card p-3 text-left hover:bg-muted/40">
-          <p className="text-xs text-muted-foreground">งานที่ต้องทำ</p>
-          <p className="mt-0.5 text-xl font-bold tabular-nums">{taskCounts.done}/{taskCounts.total}</p>
-          <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-            <div className="h-1.5 rounded-full bg-primary" style={{ width: taskCounts.total ? `${Math.round((taskCounts.done / taskCounts.total) * 100)}%` : '0%' }} />
-          </div>
-        </button>
-        <button type="button" onClick={() => setWorkspaceTab('documents')} className="bg-card p-3 text-left hover:bg-muted/40">
-          <p className="text-xs text-muted-foreground">เอกสารที่ต้องมี</p>
-          <p className="mt-0.5 text-xl font-bold tabular-nums">
-            {matchedExpectedDocuments.length}/{expectedDocuments.length}
-            {missingExpectedDocuments > 0 && (
-              <span className="ml-2 text-xs font-medium text-destructive">ขาด {missingExpectedDocuments} รายการ</span>
-            )}
-          </p>
-          <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-            <div className="h-1.5 rounded-full bg-success" style={{ width: expectedDocuments.length ? `${Math.round((matchedExpectedDocuments.length / expectedDocuments.length) * 100)}%` : '0%' }} />
-          </div>
-        </button>
-        <div className="bg-card p-3">
-          <p className="text-xs text-muted-foreground">Notice / เจรจา</p>
-          {intake.noticeIssuedAt ? (
-            <>
-              <p className="mt-0.5 text-sm font-bold">
-                {intake.noticeDeadline ? `ครบกำหนด ${formatDateOrDash(intake.noticeDeadline)}` : `ออกแล้ว ${formatDateOrDash(intake.noticeIssuedAt)}`}
-              </p>
-              <p className="text-xs text-muted-foreground">ถึง {intake.noticeRecipient ?? '—'}</p>
-            </>
-          ) : (
-            <>
-              <p className="mt-0.5 text-sm font-bold">ยังไม่ออก Notice</p>
-              <button type="button" className="inline-flex min-h-[44px] items-center gap-0.5 text-xs font-medium text-primary hover:underline sm:min-h-0" onClick={() => openNoticeModal()}>
-                ออก Notice
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-              </button>
-            </>
-          )}
-        </div>
-        <div className="bg-card p-3">
-          <p className="text-xs text-muted-foreground">กำหนด/อายุความ</p>
-          {intake.deadlineDate ? (
-            <>
-              <p className="mt-0.5 text-sm font-bold text-amber-700">
-                อีก {Math.max(0, Math.ceil((new Date(intake.deadlineDate).getTime() - Date.now()) / 86400000))} วัน
-              </p>
-              <p className="text-xs text-muted-foreground">ครบ {formatDateOrDash(intake.deadlineDate)}</p>
-            </>
-          ) : (
-            <p className="mt-0.5 text-sm font-bold text-muted-foreground">ยังไม่ระบุ</p>
-          )}
-        </div>
-      </div>
+        <Card>
+          <CardHeader><CardTitle className="text-base">ผู้ส่งเรื่อง</CardTitle></CardHeader>
+          <CardContent className="space-y-0">
+            <InfoRow label="ประเภท" value={REFERRAL_TYPE_LABELS[intake.referralType] ?? intake.referralType} />
+            <InfoRow label="ช่องทาง" value={REFERRAL_CHANNEL_LABELS[intake.referralChannel] ?? intake.referralChannel} />
+            <InfoRow label="ชื่อ" value={intake.referralName} />
+            <InfoRow label="รับโดย" value={intake.receivedBy ? `${intake.receivedBy.firstName} ${intake.receivedBy.lastName}` : undefined} />
+          </CardContent>
+        </Card>
 
-      <div role="tablist" aria-label="พื้นที่ทำงานของเรื่อง" className="flex flex-wrap gap-2 border-b border-border pb-3">
-        {([['overview', 'ข้อมูลและติดตาม'], ['research', 'ข้อเท็จจริงและฎีกา'], ['documents', `เอกสาร (${documents.length})`]] as const).map(([value, label]) => <button key={value} role="tab" tabIndex={workspaceTab === value ? 0 : -1} onKeyDown={(event) => {
-          const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
-          if (!keys.includes(event.key)) return;
-          event.preventDefault();
-          const tabs = Array.from(event.currentTarget.parentElement!.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
-          const index = tabs.indexOf(event.currentTarget);
-          const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-          tabs[next].click(); tabs[next].focus();
-        }} aria-selected={workspaceTab === value} aria-controls={`intake-${value}`} type="button" onClick={() => setWorkspaceTab(value)} className={`rounded-lg px-3 py-2 text-sm ${workspaceTab === value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{label}</button>)}
-      </div>
-      <div id="intake-research" role="tabpanel" aria-label="ข้อเท็จจริงและฎีกา" hidden={workspaceTab !== 'research'}>
-        <ResearchWorkspace intakeId={id} initialText={intake.description ?? ''} documents={documents} onUploaded={() => void loadDocuments()} onResult={(row) => { setAnalyses((prev) => [row, ...prev.filter((a) => a.id !== row.id)]); setSelectedAnalysisId(row.id); }} />
-      </div>
-      <div id="intake-overview" role="tabpanel" aria-label="ข้อมูลและติดตาม" hidden={workspaceTab !== 'overview'} className="space-y-4">
-      {/* ขั้นตอนมีที่เดียว: แถบ "ขั้นตอนงานรับเรื่อง" ในคอลัมน์ซ้ายด้านล่าง */}
-      {error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
-      )}
+        <Card>
+          <CardHeader><CardTitle className="text-base">ลูกความ / ลูกค้า</CardTitle></CardHeader>
+          <CardContent className="space-y-0">
+            <InfoRow label="ลูกความ" value={intake.client?.name ?? intake.clientName} />
+            {intake.additionalClients && intake.additionalClients.length > 0 && (
+              <InfoRow
+                label="ลูกความคนอื่น"
+                value={intake.additionalClients.map((ac) => ac.client.name).join(', ')}
+              />
+            )}
+            {/* ลูกค้า = ผู้ว่าจ้างที่เราวางบิล ซ่อนไว้เมื่อเป็นคนเดียวกับลูกความ */}
+            {!customersSameAsClient(intake.customers, intake.clientId) && (
+              <InfoRow label="ลูกค้า (ผู้ว่าจ้าง)" value={formatCustomers(intake.customers)} />
+            )}
+          </CardContent>
+        </Card>
 
-      {intake.preLitigationType === 'TRANSPORT' && <CargoClaimPanel intakeId={id} />}
-
-      <Card>
-        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle className="text-base">สถานะรับเรื่องก่อนฟ้อง</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {PRE_LITIGATION_STATUS_LABELS[intake.preLitigationStatus] ?? intake.preLitigationStatus}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 sm:justify-end">
-            {intake.status === 'RECEIVED' && (
-              <Button onClick={() => setModal('assess')}>บันทึกผลประเมิน</Button>
-            )}
-            {intake.status === 'ASSESSING' && (
-              <Button onClick={() => setModal('decide')}>ตัดสินใจแนวทาง</Button>
-            )}
-            <Button variant="outline" onClick={handleQuotePdfExport}>
-              Export ใบเสนอราคา PDF
-            </Button>
-            <Button variant="outline" onClick={openPreLitigationModal}>อัปเดต</Button>
-            {intake.status === 'ACCEPTED' && (
-              <Button onClick={() => setConverting(true)} disabled={submitting}>
-                {intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}
-              </Button>
-            )}
-            {intake.status === 'CONVERTED' && intake.case && (
-              <Link href={`/cases/${intake.case.id}`}>
-                <Button variant="outline">ดูคดี {intake.case.ownRef}</Button>
-              </Link>
-            )}
-            {!intake.case && intake.relatedCase && (
-              <Link href={`/cases/${intake.relatedCase.id}`}>
-                <Button variant="outline">ดูคดีที่เกี่ยวข้อง</Button>
-              </Link>
-            )}
-          </div>
-        </CardHeader>
-      </Card>
-
-      </div>
-      <div id="intake-documents" role="tabpanel" aria-label="เอกสาร" hidden={workspaceTab !== 'documents'}>
+</div>,
+    CONFLICT: token && <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />,
+    DOCUMENTS: <div id="intake-documents" className="min-w-0 space-y-4">
       <Button variant="outline" onClick={() => setWorkspaceTab('research')}>
         จัดข้อเท็จจริงและค้นฎีกา
         <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
@@ -1168,6 +1138,7 @@ export default function IntakeDetailPage() {
                   </Button>
                 )}
             </div>
+            {documentRequests.length > 0 && <ul className="mt-3 space-y-2">{documentRequests.map((request) => <li key={request.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{request.name} {request.required ? '· จำเป็น' : '· เสริม'}</span><select aria-label={`สถานะ ${request.name}`} value={request.status} className="max-w-full rounded-md border bg-background px-2 py-1" onChange={async (event) => { if (!token) return; try { await api.updateIntakeDocumentRequest(token, id, request.id, { status: event.target.value }); await loadDocumentRequests(); await reload(); } catch (err) { setFileError(err instanceof ApiError ? err.message : 'บันทึกสถานะเอกสารไม่สำเร็จ'); } }}><option value="REQUESTED">ขอแล้ว</option><option value="MISSING">ยังขาด</option><option value="RECEIVED">ได้รับแล้ว</option><option value="NOT_APPLICABLE">ไม่จำเป็น</option></select></li>)}</ul>}
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {expectedDocuments.map((item) => {
                 const matched = isChecklistMatched(item);
@@ -1406,56 +1377,56 @@ export default function IntakeDetailPage() {
         </CardContent>
       </Card>
 
-      </div>
-      <div hidden={workspaceTab !== 'overview'} className="space-y-4">
-      {/* Info cards */}
-      {/* Workspace 2 คอลัมน์ตามแบบ: ซ้าย = งาน/เอกสาร/Notice, ขวา = รายละเอียด/ทีม/Playbook/ติดตาม */}
-      <div className="grid items-start gap-4 lg:grid-cols-5">
-        <div className="space-y-4 lg:col-span-3">
-          {token && (
-            <>
-              <IntakeStageBar intake={intake} token={token} onChanged={reload} />
-              {/* key: เปลี่ยน playbook แล้วให้โหลดงานชุดใหม่ทันที */}
-              <IntakeTasksPanel key={intake.preferredPlaybookId ?? 'none'} intakeId={intake.id} lawyers={lawyers} onCountsChange={setTaskCounts} />
-            </>
-          )}
-
-          {/* เอกสารที่ต้องมี — สรุป checklist, งานเต็มอยู่ tab เอกสาร */}
+      </div>,
+    DECISION: <div className="space-y-4"><div className="flex flex-wrap gap-2">{intake.status === 'RECEIVED' && <Button onClick={() => setModal('assess')}>บันทึกผลประเมิน</Button>}{intake.status === 'ASSESSING' && <Button variant="outline" onClick={() => setModal('decide')}>ตัดสินใจแนวทาง</Button>}</div>        {(intake.assessmentNotes || intake.caseStrength || intake.assessor) && (
           <Card>
-            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-base">
-                เอกสารที่ต้องมี{' '}
-                {missingExpectedDocuments > 0 ? (
-                  <Badge variant="destructive" className="ml-1">ขาด {missingExpectedDocuments} รายการ</Badge>
-                ) : (
-                  <Badge variant="success" className="ml-1">ครบ</Badge>
-                )}
-              </CardTitle>
-              <Button variant="outline" size="sm" onClick={() => setWorkspaceTab('documents')}>
-                จัดการไฟล์
-                <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-1.5 sm:grid-cols-2">
-                {expectedDocuments.map((item) => {
-                  const ok = isChecklistMatched(item);
-                  return (
-                    <div key={item.label} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${ok ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/60'}`}>
-                      {ok ? (
-                        <Check className="h-4 w-4 shrink-0 text-success" aria-label="มีแล้ว" />
-                      ) : (
-                        <AlertCircle className="h-4 w-4 shrink-0 text-destructive" aria-label="ยังขาด" />
-                      )}
-                      <span className="min-w-0 break-words">{item.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
+            <CardHeader><CardTitle className="text-base">ผลการประเมิน</CardTitle></CardHeader>
+            <CardContent className="space-y-0">
+              <InfoRow label="ความแข็งแกร่งของคดี" value={intake.caseStrength} />
+              <InfoRow label="หมายเหตุ" value={intake.assessmentNotes} />
+              <InfoRow label="ผู้ประเมิน" value={intake.assessor ? `${intake.assessor.firstName} ${intake.assessor.lastName}` : undefined} />
             </CardContent>
           </Card>
+        )}
 
-          {/* หนังสือทวงถาม (Notice) — ออกตอนไหนก็ได้ */}
+        {(intake.decision !== 'PENDING' || intake.decisionNotes) && (
+          <Card>
+            <CardHeader><CardTitle className="text-base">การตัดสินใจ</CardTitle></CardHeader>
+            <CardContent className="space-y-0">
+              <InfoRow label="การตัดสินใจ" value={DECISION_LABELS[intake.decision] ?? intake.decision} />
+              <InfoRow label="หมายเหตุ" value={intake.decisionNotes} />
+            </CardContent>
+          </Card>
+        )}
+
+</div>,
+    ACTION: <div className="space-y-4">      <Card>
+        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-base">สถานะรับเรื่องก่อนฟ้อง</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {PRE_LITIGATION_STATUS_LABELS[intake.preLitigationStatus] ?? intake.preLitigationStatus}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            <Button variant="outline" onClick={handleQuotePdfExport}>
+              Export ใบเสนอราคา PDF
+            </Button>
+            <Button variant="outline" onClick={openPreLitigationModal}>อัปเดต</Button>
+            {intake.status === 'CONVERTED' && intake.case && (
+              <Link href={`/cases/${intake.case.id}`}>
+                <Button variant="outline">ดูคดี {intake.case.ownRef}</Button>
+              </Link>
+            )}
+            {!intake.case && intake.relatedCase && (
+              <Link href={`/cases/${intake.relatedCase.id}`}>
+                <Button variant="outline">ดูคดีที่เกี่ยวข้อง</Button>
+              </Link>
+            )}
+          </div>
+        </CardHeader>
+      </Card>
+           {/* หนังสือทวงถาม (Notice) — ออกตอนไหนก็ได้ */}
           <Card>
             <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-base">หนังสือทวงถาม (Notice)</CardTitle>
@@ -1480,74 +1451,189 @@ export default function IntakeDetailPage() {
                   {intake.noticeResult && <span className="text-muted-foreground">· ผล: {intake.noticeResult}</span>}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">ยังไม่ออก Notice — ออกได้ทุกขั้น ทุกฉบับเก็บประวัติไว้ที่นี่</p>
+                <p className="text-sm text-muted-foreground">ยังไม่ออก Notice — ทุกฉบับเก็บประวัติไว้ที่นี่</p>
               )}
             </CardContent>
           </Card>
 
-          <InvoicePanel target={{ intakeId: intake.id }} customers={intake.customers ?? []} />
+         {intake.noticeIssuedAt && (
+          <Card>
+            <CardHeader><CardTitle className="text-base">หนังสือแจ้ง</CardTitle></CardHeader>
+            <CardContent className="space-y-0">
+              <InfoRow label="ออกเมื่อ" value={formatDateOrDash(intake.noticeIssuedAt)} />
+              <InfoRow label="ผู้รับ" value={intake.noticeRecipient} />
+              <InfoRow label="กำหนดตอบ" value={formatDateOrDash(intake.noticeDeadline)} />
+              <InfoRow label="ผล" value={intake.noticeResult} />
+              {intake.noticeContent && (
+                <div className="pt-2">
+                  <p className="text-sm text-muted-foreground">เนื้อหาหนังสือ</p>
+                  <p className="whitespace-pre-wrap text-sm">{intake.noticeContent}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+</div>,
+    CLOSE: <div className="space-y-3"><p className="text-sm">{STATUS_LABELS[intake.status] ?? intake.status}</p>{intake.status === 'ACCEPTED' && <Button onClick={() => setConverting(true)} disabled={submitting}>{intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}</Button>}<p className="text-sm text-muted-foreground">การปฏิเสธเรื่องทำได้จากการตัดสินใจแนวทาง</p></div>,
+  };
+
+  return (
+    <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-clip">
+      <PageHeader
+        title={intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
+        description={`${intake.referralName || intake.clientName || intake.client?.name || '—'} · รับเมื่อ ${formatDateOrDash(intake.receivedDate)}`}
+        actions={
+          <>
+            {intake.partyRole && (
+              <Badge variant="warning">{intake.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}</Badge>
+            )}
+            <Badge variant={STATUS_VARIANT[intake.status] ?? 'muted'}>
+              {STATUS_LABELS[intake.status] ?? intake.status}
+            </Badge>
+            <Button variant="outline" disabled={stepLocked('ACTION')} title={stepLocked('ACTION') ? hint('ACTION') : undefined} onClick={() => openNoticeModal()}>ออก Notice</Button>
+          </>
+        }
+      />
+
+      {journeyError && <div role="alert" className="flex flex-wrap items-center gap-2 text-destructive">โหลดขั้นตอนรับเรื่องไม่สำเร็จ <Button variant="outline" onClick={() => void reloadJourney()}>ลองใหม่</Button></div>}
+      {journey && <section className="min-w-0 space-y-3" aria-label="ขั้นตอนรับเรื่อง">
+        <JourneyStepper steps={journey.steps} />
+        {journey.next && <NextStepBanner next={journey.next} onGo={() => document.getElementById('intake-journey-focus')?.scrollIntoView({ behavior: 'smooth' })} />}
+        {(['current', 'locked', 'done'] as const).flatMap((state) => journey.steps.filter((step) => step.state === state).map((step) => <JourneySection key={step.key} step={step} readOnly={['CONVERTED', 'REJECTED', 'CONSULTED'].includes(intake.status) && ['DECISION', 'ACTION', 'CLOSE'].includes(step.key)}>{sections[step.key]}</JourneySection>))}
+        {journey.steps.some((step) => step.state === 'current') && <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border bg-background p-3 pr-44 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg"><span className="text-sm">ขั้นที่ {journey.steps.findIndex((step) => step.state === 'current') + 1} จาก {journey.steps.length}</span><Button onClick={() => document.getElementById('intake-journey-focus')?.scrollIntoView({ behavior: 'smooth' })}>ไปยังขั้นตอนปัจจุบัน</Button></div>}
+      </section>}
+
+      {/* Summary strip — ตัวเลขที่ทนายเปิดหน้านี้มาดูก่อนอย่างอื่น */}
+      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <button type="button" onClick={() => setWorkspaceTab('overview')} className="bg-card p-3 text-left hover:bg-muted/40">
+          <p className="text-xs text-muted-foreground">งานที่ต้องทำ</p>
+          <p className="mt-0.5 text-xl font-bold tabular-nums">{taskCounts.done}/{taskCounts.total}</p>
+          <div className="mt-1.5 h-1.5 rounded-full bg-muted">
+            <div className="h-1.5 rounded-full bg-primary" style={{ width: taskCounts.total ? `${Math.round((taskCounts.done / taskCounts.total) * 100)}%` : '0%' }} />
+          </div>
+        </button>
+        <button type="button" disabled={stepLocked('DOCUMENTS')} title={stepLocked('DOCUMENTS') ? hint('DOCUMENTS') : undefined} onClick={showDocuments} className="bg-card p-3 text-left hover:bg-muted/40">
+          <p className="text-xs text-muted-foreground">เอกสารที่ต้องมี</p>
+          <p className="mt-0.5 text-xl font-bold tabular-nums">
+            {matchedExpectedDocuments.length}/{expectedDocuments.length}
+            {missingExpectedDocuments > 0 && (
+              <span className="ml-2 text-xs font-medium text-destructive">ขาด {missingExpectedDocuments} รายการ</span>
+            )}
+          </p>
+          <div className="mt-1.5 h-1.5 rounded-full bg-muted">
+            <div className="h-1.5 rounded-full bg-success" style={{ width: expectedDocuments.length ? `${Math.round((matchedExpectedDocuments.length / expectedDocuments.length) * 100)}%` : '0%' }} />
+          </div>
+        </button>
+        <div className="bg-card p-3">
+          <p className="text-xs text-muted-foreground">Notice / เจรจา</p>
+          {intake.noticeIssuedAt ? (
+            <>
+              <p className="mt-0.5 text-sm font-bold">
+                {intake.noticeDeadline ? `ครบกำหนด ${formatDateOrDash(intake.noticeDeadline)}` : `ออกแล้ว ${formatDateOrDash(intake.noticeIssuedAt)}`}
+              </p>
+              <p className="text-xs text-muted-foreground">ถึง {intake.noticeRecipient ?? '—'}</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-0.5 text-sm font-bold">ยังไม่ออก Notice</p>
+              <button type="button" className="inline-flex min-h-[44px] items-center gap-0.5 text-xs font-medium text-primary hover:underline disabled:opacity-50 sm:min-h-0" disabled={stepLocked('ACTION')} title={stepLocked('ACTION') ? hint('ACTION') : undefined} onClick={() => openNoticeModal()}>
+                ออก Notice
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            </>
+          )}
+        </div>
+        <div className="bg-card p-3">
+          <p className="text-xs text-muted-foreground">กำหนด/อายุความ</p>
+          {intake.deadlineDate ? (
+            <>
+              <p className="mt-0.5 text-sm font-bold text-amber-700">
+                อีก {Math.max(0, Math.ceil((new Date(intake.deadlineDate).getTime() - Date.now()) / 86400000))} วัน
+              </p>
+              <p className="text-xs text-muted-foreground">ครบ {formatDateOrDash(intake.deadlineDate)}</p>
+            </>
+          ) : (
+            <p className="mt-0.5 text-sm font-bold text-muted-foreground">ยังไม่ระบุ</p>
+          )}
+        </div>
+      </div>
+
+      <div role="tablist" aria-label="พื้นที่ทำงานของเรื่อง" className="flex flex-wrap gap-2 border-b border-border pb-3">
+        {([['overview', 'ข้อมูลและติดตาม'], ['research', 'ข้อเท็จจริงและฎีกา']] as const).map(([value, label]) => <button key={value} role="tab" tabIndex={workspaceTab === value ? 0 : -1} onKeyDown={(event) => {
+          const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+          if (!keys.includes(event.key)) return;
+          event.preventDefault();
+          const tabs = Array.from(event.currentTarget.parentElement!.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+          const index = tabs.indexOf(event.currentTarget);
+          const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+          tabs[next].click(); tabs[next].focus();
+        }} aria-selected={workspaceTab === value} aria-controls={`intake-${value}`} type="button" onClick={() => setWorkspaceTab(value)} className={`rounded-lg px-3 py-2 text-sm ${workspaceTab === value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{label}</button>)}
+      </div>
+      <div id="intake-research" role="tabpanel" aria-label="ข้อเท็จจริงและฎีกา" hidden={workspaceTab !== 'research'} inert={stepLocked('DOCUMENTS')} aria-disabled={stepLocked('DOCUMENTS')} title={stepLocked('DOCUMENTS') ? hint('DOCUMENTS') : undefined}>
+        <ResearchWorkspace intakeId={id} initialText={intake.description ?? ''} documents={documents} onUploaded={() => { void loadDocuments(); void reload(); }} onResult={(row) => { setAnalyses((prev) => [row, ...prev.filter((a) => a.id !== row.id)]); setSelectedAnalysisId(row.id); void reload(); }} />
+      </div>
+      <div id="intake-overview" role="tabpanel" aria-label="ข้อมูลและติดตาม" hidden={workspaceTab !== 'overview'} className="space-y-4">
+      {/* ขั้นตอนมีที่เดียว: แถบ "ขั้นตอนงานรับเรื่อง" ในคอลัมน์ซ้ายด้านล่าง */}
+      {error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+      )}
+
+      {intake.preLitigationType === 'TRANSPORT' && <CargoClaimPanel intakeId={id} />}
+
+
+      </div>
+      <div hidden={workspaceTab !== 'overview'} className="space-y-4">
+      {/* Info cards */}
+      {/* Workspace 2 คอลัมน์ตามแบบ: ซ้าย = งาน/เอกสาร/Notice, ขวา = รายละเอียด/ทีม/Playbook/ติดตาม */}
+      <div className="grid items-start gap-4 lg:grid-cols-5">
+        <div className="space-y-4 lg:col-span-3">
+          {token && (
+            <>
+              <div inert={stepLocked('CLOSE')} aria-disabled={stepLocked('CLOSE')} title={stepLocked('CLOSE') ? hint('CLOSE') : undefined}><IntakeStageBar intake={intake} token={token} onChanged={reload} /></div>
+              {/* key: เปลี่ยน playbook แล้วให้โหลดงานชุดใหม่ทันที */}
+              <IntakeTasksPanel key={intake.preferredPlaybookId ?? 'none'} intakeId={intake.id} lawyers={lawyers} onCountsChange={(counts) => { setTaskCounts(counts); void reloadJourney(); }} />
+            </>
+          )}
+
+          {/* เอกสารที่ต้องมี — สรุป checklist, งานเต็มอยู่ tab เอกสาร */}
+          <Card>
+            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">
+                เอกสารที่ต้องมี{' '}
+                {missingExpectedDocuments > 0 ? (
+                  <Badge variant="destructive" className="ml-1">ขาด {missingExpectedDocuments} รายการ</Badge>
+                ) : (
+                  <Badge variant="success" className="ml-1">ครบ</Badge>
+                )}
+              </CardTitle>
+              <Button variant="outline" size="sm" disabled={stepLocked('DOCUMENTS')} title={stepLocked('DOCUMENTS') ? hint('DOCUMENTS') : undefined} onClick={showDocuments}>
+                จัดการไฟล์
+                <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {expectedDocuments.map((item) => {
+                  const ok = isChecklistMatched(item);
+                  return (
+                    <div key={item.label} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${ok ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/60'}`}>
+                      {ok ? (
+                        <Check className="h-4 w-4 shrink-0 text-success" aria-label="มีแล้ว" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 shrink-0 text-destructive" aria-label="ยังขาด" />
+                      )}
+                      <span className="min-w-0 break-words">{item.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <InvoicePanel target={{ intakeId: intake.id }} customers={intake.customers ?? []} onChanged={reload} />
         </div>
 
         <div className="space-y-4 lg:col-span-2">
-          <Card>
-            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-base">รายละเอียด</CardTitle>
-              {intake.status !== 'CONVERTED' && (
-                <Button variant="outline" size="sm" onClick={openDetailsModal}>แก้ไข</Button>
-              )}
-            </CardHeader>
-          <CardContent className="space-y-0">
-            <InfoRow label="ประเภทเรื่อง" value={intake.matterType ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType) : undefined} />
-            <InfoRow label="เลขอ้างอิงลูกค้า" value={intake.customerRef} />
-            <InfoRow label="เลขกรมธรรม์" value={intake.policyNumber} />
-            <InfoRow label="เลขเคลม" value={intake.claimNumber} />
-            <InfoRow
-              label="ฝ่ายเรา"
-              value={intake.partyRole === 'PLAINTIFF' ? 'โจทก์' : intake.partyRole === 'DEFENDANT' ? 'จำเลย' : undefined}
-            />
-            <InfoRow label="คู่กรณี" value={intake.opposingParty} />
-            <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
-            <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
-            {intake.insurerPaidAmount != null && <InfoRow label="ประกันจ่ายไปแล้ว (บาท)" value={intake.insurerPaidAmount.toLocaleString('th-TH')} />}
-            {intake.otherAmounts?.map((item, index) => <InfoRow key={index} label={item.label + ' (บาท)'} value={item.amount.toLocaleString('th-TH')} />)}
-            <InfoRow label="รายละเอียด" value={intake.description} />
-            {intake.isOngoingElsewhere && (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                <p className="font-medium text-amber-900">คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน</p>
-                {intake.externalCaseNumber && <p className="mt-1 text-amber-800">หมายเลขคดีดำ: {intake.externalCaseNumber}</p>}
-                {intake.currentStageNote && <p className="mt-1 text-amber-800">สถานะปัจจุบัน: {intake.currentStageNote}</p>}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">ผู้ส่งเรื่อง</CardTitle></CardHeader>
-          <CardContent className="space-y-0">
-            <InfoRow label="ประเภท" value={REFERRAL_TYPE_LABELS[intake.referralType] ?? intake.referralType} />
-            <InfoRow label="ช่องทาง" value={REFERRAL_CHANNEL_LABELS[intake.referralChannel] ?? intake.referralChannel} />
-            <InfoRow label="ชื่อ" value={intake.referralName} />
-            <InfoRow label="รับโดย" value={intake.receivedBy ? `${intake.receivedBy.firstName} ${intake.receivedBy.lastName}` : undefined} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">ลูกความ / ลูกค้า</CardTitle></CardHeader>
-          <CardContent className="space-y-0">
-            <InfoRow label="ลูกความ" value={intake.client?.name ?? intake.clientName} />
-            {intake.additionalClients && intake.additionalClients.length > 0 && (
-              <InfoRow
-                label="ลูกความคนอื่น"
-                value={intake.additionalClients.map((ac) => ac.client.name).join(', ')}
-              />
-            )}
-            {/* ลูกค้า = ผู้ว่าจ้างที่เราวางบิล ซ่อนไว้เมื่อเป็นคนเดียวกับลูกความ */}
-            {!customersSameAsClient(intake.customers, intake.clientId) && (
-              <InfoRow label="ลูกค้า (ผู้ว่าจ้าง)" value={formatCustomers(intake.customers)} />
-            )}
-          </CardContent>
-        </Card>
-
         {/* ทีมทำงาน — ทนายหลักเปลี่ยนได้ + ผู้ช่วย */}
         <Card>
           <CardHeader><CardTitle className="text-base">ทีมทำงาน</CardTitle></CardHeader>
@@ -1621,57 +1707,18 @@ export default function IntakeDetailPage() {
 
         {token && (
           <>
-            <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />
             <IntakeFollowUpPanel intake={intake} token={token} lawyers={lawyers} onChanged={reload} />
           </>
         )}
 
-        {(intake.assessmentNotes || intake.caseStrength || intake.assessor) && (
-          <Card>
-            <CardHeader><CardTitle className="text-base">ผลการประเมิน</CardTitle></CardHeader>
-            <CardContent className="space-y-0">
-              <InfoRow label="ความแข็งแกร่งของคดี" value={intake.caseStrength} />
-              <InfoRow label="หมายเหตุ" value={intake.assessmentNotes} />
-              <InfoRow label="ผู้ประเมิน" value={intake.assessor ? `${intake.assessor.firstName} ${intake.assessor.lastName}` : undefined} />
-            </CardContent>
-          </Card>
-        )}
-
-        {(intake.decision !== 'PENDING' || intake.decisionNotes) && (
-          <Card>
-            <CardHeader><CardTitle className="text-base">การตัดสินใจ</CardTitle></CardHeader>
-            <CardContent className="space-y-0">
-              <InfoRow label="การตัดสินใจ" value={DECISION_LABELS[intake.decision] ?? intake.decision} />
-              <InfoRow label="หมายเหตุ" value={intake.decisionNotes} />
-            </CardContent>
-          </Card>
-        )}
-
-        {intake.noticeIssuedAt && (
-          <Card>
-            <CardHeader><CardTitle className="text-base">หนังสือแจ้ง</CardTitle></CardHeader>
-            <CardContent className="space-y-0">
-              <InfoRow label="ออกเมื่อ" value={formatDateOrDash(intake.noticeIssuedAt)} />
-              <InfoRow label="ผู้รับ" value={intake.noticeRecipient} />
-              <InfoRow label="กำหนดตอบ" value={formatDateOrDash(intake.noticeDeadline)} />
-              <InfoRow label="ผล" value={intake.noticeResult} />
-              {intake.noticeContent && (
-                <div className="pt-2">
-                  <p className="text-sm text-muted-foreground">เนื้อหาหนังสือ</p>
-                  <p className="whitespace-pre-wrap text-sm">{intake.noticeContent}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
         </div>
       </div>
       </div>
 
       {/* Modals */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className={`w-full rounded-xl bg-background p-6 shadow-xl ${modal === 'details' || modal === 'quote' ? 'max-w-lg' : 'max-w-md'}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
+          <div className={`max-h-[90dvh] w-full overflow-y-auto rounded-xl bg-background p-6 shadow-xl ${modal === 'details' || modal === 'quote' ? 'max-w-lg' : 'max-w-md'}`}>
             {modal === 'assess' && (
               <>
                 <h2 className="mb-4 text-lg font-semibold">บันทึกผลการประเมิน</h2>

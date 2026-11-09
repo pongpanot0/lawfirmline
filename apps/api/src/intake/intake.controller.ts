@@ -103,6 +103,11 @@ export class IntakeController {
     return this.precedentAnalysisService.reviewFact(user, id, index, dto);
   }
 
+  @Get(':id/journey')
+  journey(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.intakeService.journey(user, id);
+  }
+
   @Get(':id/checklist')
   getChecklist(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.intakeService.getChecklist(user, id);
@@ -300,5 +305,17 @@ export class IntakeController {
     @Param('analysisId') analysisId: string,
   ) {
     return this.precedentAnalysisService.getOne(user, id, analysisId);
+  }
+}
+
+// Contract alias; existing /intake consumers keep their routes.
+@Controller('intakes')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class IntakeJourneyController {
+  constructor(private intakeService: IntakeService) {}
+
+  @Get(':id/journey')
+  journey(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.intakeService.journey(user, id);
   }
 }

@@ -39,7 +39,7 @@ export default function CheckedOutPaperFilesPage() {
         actions={<Link href="/operations" className={buttonVariants({ variant: 'outline' })}>งานดำเนินการ</Link>} />
       {!canRunOps ? <p role="alert" className="text-sm text-destructive">ไม่มีสิทธิ์ดูรายการสำนวน</p> :
         error ? <LoadFailed message={error} onRetry={() => setRevision((value) => value + 1)} /> :
-        !data ? <PageLoading title="กำลังโหลดรายการสำนวน" lines={2} /> : <>
+        !data ? <PageLoading variant="list" title="กำลังโหลดรายการสำนวน" lines={2} /> : <>
           <Card>
             <CardContent className="p-0">
               <Table>

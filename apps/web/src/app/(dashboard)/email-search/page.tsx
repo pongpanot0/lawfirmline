@@ -86,7 +86,7 @@ export default function EmailSearchPage() {
             </div>
           ) : loading && results === null ? (
             <div className="p-4">
-              <PageLoading title="กำลังค้นหา" lines={3} />
+              <PageLoading variant="list" title="กำลังค้นหา" lines={3} />
             </div>
           ) : results && results.length === 0 ? (
             <EmptyState icon={Mail} title={`ไม่พบอีเมลที่มีคำว่า "${q}"`} description="ลองคำอื่น เช่น ชื่อบริษัท หรือส่วนหนึ่งของอีเมลผู้ส่ง" />

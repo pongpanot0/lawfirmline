@@ -1487,6 +1487,9 @@ model Task {
   blockedById             String?
   /// Set on the transition to DONE; legacy tasks remain null.
   completedAt             DateTime?
+  skippedReason           String?
+  skippedAt               DateTime?
+  skippedById             String?
   /// Explicit tenant for new tasks; older case/intake tasks retain their existing scope.
   firmId                  String?
   workType                TaskWorkType?

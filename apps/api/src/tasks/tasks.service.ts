@@ -1,3 +1,4 @@
+import { length as isLength } from 'class-validator';
 import { ModuleRef } from '@nestjs/core';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { assertFirmRefs } from '../common/firm-refs';
@@ -41,6 +42,7 @@ import {
   formatIntakeNotificationReference,
 } from '../notifications/reference-label';
 import { reviewQueueWhere } from './review-queue';
+import { SkipTaskDto } from './dto/skip-task.dto';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
 import {
@@ -482,6 +484,39 @@ export class TasksService {
     }
   }
 
+  private async assertCanChangeStatus(task: Pick<Task, 'assigneeId' | 'caseId'>, user: AuthUser) {
+    if (!task.assigneeId || task.assigneeId === user.id) return;
+    const legalCase = task.caseId
+      ? await this.prisma.case.findUnique({ where: { id: task.caseId } })
+      : null;
+    if (!legalCase && !hasFirmCapability(user.firmRole, 'runOperations')) {
+      throw new ForbiddenException('เปลี่ยนสถานะได้เฉพาะงานของตัวเอง');
+    }
+    if (legalCase) this.assertLeadOrOwner(user, legalCase);
+  }
+
+  async skip(taskId: string, user: AuthUser, dto: SkipTaskDto) {
+    let task: Task;
+    try {
+      task = await this.assertAccess(taskId, user);
+    } catch (error) {
+      if (error instanceof ForbiddenException) throw new NotFoundException('Task not found');
+      throw error;
+    }
+    if (task.caseId && !await this.caseAccess.canAccessCase(user, task.caseId)) throw new NotFoundException('Task not found');
+    await this.assertCanChangeStatus(task, user);
+    if (![TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.NEEDS_REVISION].includes(task.status as TaskStatus) || task.skippedReason || task.skippedAt) {
+      throw new BadRequestException('ข้ามได้เฉพาะงานที่ยังไม่เสร็จและยังไม่เคยข้าม');
+    }
+    const reason = typeof dto.reason === 'string' ? dto.reason.trim() : '';
+    if (!isLength(reason, 3, 500)) throw new BadRequestException('ระบุเหตุผลที่ข้ามงาน 3–500 ตัวอักษร');
+    return this.prisma.task.update({
+      where: { id: taskId },
+      data: { skippedReason: reason, skippedAt: new Date(), skippedById: user.id },
+      select: { id: true, status: true, skippedReason: true, skippedAt: true, skippedById: true },
+    });
+  }
+
   async findOne(id: string) {
     const task = await this.prisma.task.findUnique({
       where: { id },
@@ -746,15 +781,7 @@ export class TasksService {
     // anyone with access to the case could close another lawyer's work.
     // The rule matches what the board offers: your own, or nobody's — and the
     // lead lawyer or owner, who may reassign it in the first place.
-    if (dto.status !== undefined && task.assigneeId && task.assigneeId !== user.id) {
-      const legalCase = task.caseId
-        ? await this.prisma.case.findUnique({ where: { id: task.caseId } })
-        : null;
-      if (!legalCase && !hasFirmCapability(user.firmRole, 'runOperations')) {
-        throw new ForbiddenException('เปลี่ยนสถานะได้เฉพาะงานของตัวเอง');
-      }
-      if (legalCase) this.assertLeadOrOwner(user, legalCase);
-    }
+    if (dto.status !== undefined) await this.assertCanChangeStatus(task, user);
     if (dto.status === TaskStatus.DONE && task.blockedById) await this.assertRoutineReady(task);
 
     if (dto.assigneeId && !task.caseId && dto.assigneeId !== task.assigneeId) {

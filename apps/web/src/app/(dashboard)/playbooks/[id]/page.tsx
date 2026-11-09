@@ -174,7 +174,7 @@ export default function SopFlowEditor() {
   const canPublish = hasChanges && !busy;
 
   const backTo = (href: string, label: string) => <Link href={href} className="inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden />{label}</Link>;
-  if (loading) return <PageLoading title={th ? 'กำลังโหลด SOP' : 'Loading SOP'} lines={2} />;
+  if (loading) return <PageLoading variant="detail" title={th ? 'กำลังโหลด SOP' : 'Loading SOP'} lines={2} />;
   if (user && !hasFirmCapability(user.firmRole, 'manageFirmContent')) return <div className="space-y-3"><p>{th ? 'เฉพาะเจ้าของสำนักงานหรือผู้จัดการสำนักงานแก้ไข SOP อัตโนมัติได้' : 'Only the firm owner or office manager can edit automated SOPs.'}</p>{backTo('/sops', th ? 'คู่มือการทำงาน' : 'SOP library')}</div>;
   if (loadError) return <div className="space-y-3">{backTo('/playbooks', th ? 'รายการ SOP' : 'SOP list')}<LoadFailed message={loadError} onRetry={() => setReload(value => value + 1)} /></div>;
   if (!isNew && !source) return <div className="space-y-3"><p role="alert">{th ? 'ไม่พบ SOP นี้' : 'SOP not found'}</p>{backTo('/playbooks', th ? 'รายการ SOP' : 'SOP list')}</div>;

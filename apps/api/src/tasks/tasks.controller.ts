@@ -1,3 +1,4 @@
+import { SkipTaskDto } from './dto/skip-task.dto';
 import {
   Controller,
   Get,
@@ -122,5 +123,16 @@ export class TasksController {
   ) {
     await this.tasksService.assertCanDelete(taskId, user, caseId);
     return this.tasksService.remove(taskId);
+  }
+}
+
+@Controller('tasks')
+@UseGuards(JwtAuthGuard)
+export class TaskSkipController {
+  constructor(private tasksService: TasksService) {}
+
+  @Post(':id/skip')
+  skip(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SkipTaskDto) {
+    return this.tasksService.skip(id, user, dto);
   }
 }

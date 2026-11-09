@@ -8,8 +8,8 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, EmailThreadDetail, IntakeDocumentRequestItem } from '@/lib/api';
 import { groupProposals, isPending, parseDocument, submitHelper } from '@/lib/email-intake';
 import { documentCategoryLabel } from '@/lib/stage-labels';
-import { Stepper } from '@/components/email-intake/Stepper';
-import { NextStepBanner } from '@/components/email-intake/NextStepBanner';
+import { JourneyStepper } from '@/components/journey/JourneyStepper';
+import { NextStepBanner } from '@/components/journey/NextStepBanner';
 import { ProposalGroup } from '@/components/email-intake/ProposalGroup';
 import { AiSummaryCard } from '@/components/email-intake/AiSummaryCard';
 import { ClientMatchCard } from '@/components/email-intake/ClientMatchCard';
@@ -64,12 +64,21 @@ export default function EmailThreadDetailPage() {
   // Refetch without the skeleton: keeps unsaved edits, and a failure leaves the current data in place.
   const refresh = useCallback(async () => {
     if (!token || !threadId) return;
+    window.dispatchEvent(new Event('email-intake-changed'));
     try {
       setData(await api.getEmailThread(token, threadId));
     } catch {
       setError('รีเฟรชข้อมูลไม่สำเร็จ — แสดงข้อมูลล่าสุดที่โหลดได้');
     }
   }, [token, threadId]);
+
+  useEffect(() => {
+    const onThreadChanged = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === threadId) void refresh();
+    };
+    window.addEventListener('email-intake-thread-changed', onThreadChanged);
+    return () => window.removeEventListener('email-intake-thread-changed', onThreadChanged);
+  }, [refresh, threadId]);
 
   const unaccepted = !!data && !data.thread.intake && !data.thread.caseId;
   // A client who wrote a new e-mail instead of replying: offer the sender's open intakes to join.
@@ -118,7 +127,8 @@ export default function EmailThreadDetailPage() {
     setError('');
     try {
       await api.acceptEmailThread(token, threadId);
-      setData(await api.getEmailThread(token, threadId));
+      window.dispatchEvent(new Event('email-intake-changed'));
+      await refresh();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'สร้างเรื่องใหม่ไม่สำเร็จ');
       return;
@@ -183,6 +193,7 @@ export default function EmailThreadDetailPage() {
     setError('');
     try {
       await api.assessIntake(token, data.thread.intake.id, {});
+      window.dispatchEvent(new Event('email-intake-changed'));
       router.push(`/intake/${data.thread.intake.id}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'ยืนยันไม่สำเร็จ');
@@ -211,7 +222,7 @@ export default function EmailThreadDetailPage() {
     return <LoadFailed onRetry={load} />;
   }
   if (loading || !data) {
-    return <PageLoading title="กำลังโหลดอีเมล" lines={3} />;
+    return <PageLoading variant="detail" title="กำลังโหลดอีเมล" lines={3} />;
   }
 
   const { thread, proposals, documents, progress } = data;
@@ -226,7 +237,13 @@ export default function EmailThreadDetailPage() {
   };
 
   return (
-    <div className="pb-32">
+    <div className="min-w-0 pb-32">
+      <div className="sticky top-0 z-20 mb-3 flex flex-wrap gap-2 border-b bg-background p-2">
+        <Button size="sm" disabled={!unaccepted || linking} onClick={handleCreateIntake}>รับเป็นเรื่องใหม่</Button>
+        <Button size="sm" variant="outline" disabled={!unaccepted || !intakeSuggestions.length} onClick={() => document.getElementById('accept-intake')?.scrollIntoView({ behavior: 'smooth' })}>รวมเข้าเรื่องเดิม</Button>
+        <Button size="sm" variant="outline" onClick={() => document.getElementById('link-case')?.scrollIntoView({ behavior: 'smooth' })}>ผูกกับคดี</Button>
+        <Button size="sm" variant="outline" disabled={!thread.caseId || !thread.messages.length} onClick={() => { const message = thread.messages[0]; if (message) setComposer({ kind: 'reply', replyAll: false, threadSubject: thread.subject, message }); }}>ตอบกลับ</Button>
+      </div>
       <Link href="/email-intake" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
         <ArrowLeft className="h-4 w-4" aria-hidden /> คิวอีเมล
       </Link>
@@ -239,10 +256,10 @@ export default function EmailThreadDetailPage() {
 
       {error && <p role="alert" className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
-      <Stepper steps={progress.steps} />
+      <JourneyStepper steps={progress.steps} />
       {progress.next && <NextStepBanner next={progress.next} onGo={scrollToPending} />}
 
-      <LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} />
+      <div id="link-case"><LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} /></div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Source email */}
