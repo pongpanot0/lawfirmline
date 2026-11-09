@@ -115,6 +115,17 @@ jobs:
             grep -qE "^ +MS_CLIENT_ID: [\"']?[^\"' ]" <<<"$resolved" \
               || echo "::warning::MS_CLIENT_ID not set in .env; Outlook connect stays disabled"
             unset resolved
+            # After the EBS volume is enlarged in AWS, let / use all of it (no-op when it
+            # already does). The 8 GB root filled up with images on 2026-11-09.
+            root_dev="$(findmnt -no SOURCE /)"
+            root_disk="/dev/$(lsblk -no PKNAME "$root_dev")"
+            if sudo growpart "$root_disk" "${root_dev##*[!0-9]}" >/dev/null 2>&1; then
+              case "$(findmnt -no FSTYPE /)" in
+                xfs) sudo xfs_growfs -d / ;;
+                ext4) sudo resize2fs "$root_dev" ;;
+              esac
+              echo "root filesystem grown"
+            fi
             # Free disk before pulling — old tagged images accumulate and the
             # t4g volume fills up (deploys were failing with ENOSPC). -a removes
             # every image not used by a running container; safe mid-deploy.
