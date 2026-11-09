@@ -483,9 +483,8 @@ describe('EmailIntakeService', () => {
   describe('explicit AI reading', () => {
     afterEach(() => jest.restoreAllMocks());
 
-    it('reads up to twelve files three at a time, skips signature images, caps and redacts all text, creates only pending proposals', async () => {
-      const files = [{ id: 'logo', filename: 'image001.png', mimeType: 'image/png', storagePath: 'email/logo.png', category: 'OTHER' },
-        ...Array.from({ length: 13 }, (_, i) => ({ id: `d${i}`, filename: `patient@example.com-${i}.pdf`, mimeType: 'application/pdf', storagePath: `email/${i}.pdf`, category: 'OTHER' }))];
+    it('reads up to twelve files three at a time, never inline pictures, caps and redacts all text, creates only pending proposals', async () => {
+      const files = Array.from({ length: 13 }, (_, i) => ({ id: `d${i}`, filename: `patient@example.com-${i}.pdf`, mimeType: 'application/pdf', storagePath: `email/${i}.pdf`, category: 'OTHER' }));
       mockConfig.get.mockReturnValue('fake-key');
       mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', subject: 'patient@example.com', intake: { id: 'intake-1' }, messages: [
         { id: 'm1', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: 'กรุณาตรวจ patient@example.com 0812345678', attachments: [{ id: 'a' }] },
@@ -510,7 +509,8 @@ describe('EmailIntakeService', () => {
         status: { in: ['SUGGESTED', 'REQUIRES_CONFIRMATION'] },
       }) });
       expect(mockStorage.getBuffer).toHaveBeenCalledTimes(12);
-      expect(mockStorage.getBuffer).not.toHaveBeenCalledWith('email/logo.png');
+      // Logos/pasted pictures (Outlook isInline) never load with the thread, so they never become files.
+      expect(mockPrisma.emailThread.findFirst.mock.calls[0][0].include.messages.include.attachments).toEqual({ where: { isInline: false } });
       expect(peak).toBe(3);
       expect(mockIntelligence.extractTextWithOcr).toHaveBeenCalledWith(Buffer.from('file'), 'application/pdf', { documentId: 'd0', firmId: 'firm-1' });
       const request = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);

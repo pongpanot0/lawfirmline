@@ -75,8 +75,9 @@ const threadInclude = {
   },
   messages: {
     orderBy: { receivedAt: 'desc' as const },
+    // Logos and pasted pictures are already shown inside the body; they are not files of the matter.
     include: {
-      attachments: true,
+      attachments: { where: { isInline: false } },
     },
   },
 };
@@ -91,9 +92,6 @@ const ACCEPT_MESSAGES_LIMIT = 20;
 const AI_FILES_LIMIT = 12;
 const AI_FILE_CHARS = 6000;
 const OCR_CONCURRENCY = 3;
-// ponytail: Outlook names pasted signature logos image001.png… — skipped by name; a real photo
-// with that name is skipped too. Check size/content-id if that bites.
-const INLINE_IMAGE = /^image\d{3}\.(png|jpe?g|gif)$/i;
 
 @Injectable()
 export class EmailIntakeService {
@@ -142,7 +140,7 @@ export class EmailIntakeService {
       JOIN "EmailMessage" m ON m."id" = latest."id"`;
     const attachmentCounts = await this.prisma.emailAttachment.groupBy({
       by: ['messageId'],
-      where: { messageId: { in: excerpts.map((e) => e.id) } },
+      where: { messageId: { in: excerpts.map((e) => e.id) }, isInline: false },
       _count: { _all: true },
     });
     const excerptByThread = new Map(excerpts.map((e) => [e.threadId, e]));
@@ -497,7 +495,7 @@ export class EmailIntakeService {
 
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า AI');
-    const files = (await this.threadDocuments(thread.intake.id, thread.messages)).filter((f) => !INLINE_IMAGE.test(f.filename)).slice(0, AI_FILES_LIMIT);
+    const files = (await this.threadDocuments(thread.intake.id, thread.messages)).slice(0, AI_FILES_LIMIT);
     if (!messages.length && !files.length) throw new BadRequestException('ไม่มีเนื้อหาอีเมลหรือไฟล์ให้ AI อ่าน');
     const documentRequests = await this.prisma.intakeDocumentRequest.findMany({ where: { intakeId: thread.intake.id }, select: { id: true, name: true } });
     const redactedRequests = documentRequests.map((request) => ({ id: request.id, name: redactForAi(request.name).text }));

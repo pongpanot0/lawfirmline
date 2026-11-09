@@ -2705,6 +2705,9 @@ model EmailAttachment {
   storagePath String
   mimeType    String
   contentHash String?
+  /// Outlook's flag for a picture embedded in the body or signature (logos). Shown inside the
+  /// message; never copied into documents, read by AI, or counted as a file.
+  isInline    Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   message EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
