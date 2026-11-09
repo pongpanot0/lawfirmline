@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EmailIntakeService } from './email-intake.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -7,7 +8,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 describe('EmailIntakeService', () => {
   let service: EmailIntakeService;
   const mockPrisma = {
-    emailThread: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    emailThread: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     emailMessage: { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     intake: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
     intakeFieldProposal: {
@@ -37,6 +38,7 @@ describe('EmailIntakeService', () => {
         EmailIntakeService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
       ],
     }).compile();
     service = module.get(EmailIntakeService);
@@ -76,6 +78,42 @@ describe('EmailIntakeService', () => {
     it('throws when the thread does not exist for this firm', async () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue(null);
       await expect(service.acceptIntakeFromThread(user, 'missing', {})).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('attachThreadToIntake (client sent a new e-mail instead of replying)', () => {
+    const thread = { id: 'thread-2', intake: null, messages: [{ id: 'in', direction: 'INBOUND', bodyText: 'เรียกร้อง 200,000 บาท', attachments: [] }] };
+
+    it('joins the thread and proposes from its messages', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue(thread);
+      mockCaseAccess.getIntakeFilterForUser.mockResolvedValue({ firmId: 'firm-1' });
+      mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1' });
+      mockPrisma.emailThread.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.attachThreadToIntake(user, 'thread-2', 'intake-1');
+
+      expect(mockPrisma.emailThread.updateMany).toHaveBeenCalledWith({
+        where: { id: 'thread-2', intakeId: null },
+        data: { intakeId: 'intake-1', status: 'LINKED' },
+      });
+      const created = mockPrisma.intakeFieldProposal.createMany.mock.calls[0][0].data;
+      expect(created).toEqual(expect.arrayContaining([expect.objectContaining({ intakeId: 'intake-1', field: 'estimatedDamage', proposedValue: '200000' })]));
+    });
+
+    it('refuses an intake this person cannot open', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue(thread);
+      mockCaseAccess.getIntakeFilterForUser.mockResolvedValue({ firmId: 'firm-1', marker: 'x' });
+      mockPrisma.intake.findFirst.mockResolvedValue(null);
+
+      await expect(service.attachThreadToIntake(user, 'thread-2', 'intake-9')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.intake.findFirst).toHaveBeenCalledWith({ where: { id: 'intake-9', firmId: 'firm-1', marker: 'x' }, select: { id: true } });
+      expect(mockPrisma.emailThread.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('will not move a thread that already belongs to another intake', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({ ...thread, intake: { id: 'intake-other' } });
+      await expect(service.attachThreadToIntake(user, 'thread-2', 'intake-1')).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.emailThread.updateMany).not.toHaveBeenCalled();
     });
   });
 

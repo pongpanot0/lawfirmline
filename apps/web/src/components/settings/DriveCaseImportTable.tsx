@@ -21,7 +21,7 @@ const field = 'min-h-10 w-full rounded-md border bg-background px-2 py-1.5 text-
 export interface DriveImportItem {
   folder: { id: string; name: string };
   parsed: ParsedCaseFolder;
-  suggestions: unknown[];
+  suggestions: { reason?: string }[];
 }
 
 /**
@@ -29,7 +29,7 @@ export interface DriveImportItem {
  * "สร้าง N คดี"; files stay in OneDrive and the folder is linked with the importer's own account.
  */
 export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: string; items: DriveImportItem[]; onDone: () => void }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [drafts, setDrafts] = useState<ImportCaseDraft[]>([]);
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [bulkLead, setBulkLead] = useState('');
@@ -37,14 +37,17 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
   const [results, setResults] = useState<(ImportCaseResult & { name: string })[]>([]);
   const [error, setError] = useState('');
 
+  // The importer is the default lead, so a fresh pick is ready to create in one click.
+  const defaultLead = user && lawyers.some((l) => l.id === user.id) ? user.id : '';
   // A fresh `items` array means the parent reloaded — restart from the parsed defaults.
-  useEffect(() => setDrafts(items.map(draftFromSuggestion)), [items]);
+  useEffect(() => setDrafts(items.map((item) => draftFromSuggestion(item, defaultLead))), [items, defaultLead]);
   useEffect(() => {
     if (token) api.getLawyers(token).then(setLawyers).catch(() => setLawyers([]));
   }, [token]);
 
   const selected = drafts.filter((d) => d.selected);
-  const blocked = selected.some((d) => draftProblem(d));
+  // A row still missing something (e.g. a closed case without an outcome) is skipped, not blocking the rest.
+  const ready = selected.filter((d) => !draftProblem(d));
   const lawyerName = useMemo(() => new Map(lawyers.map((l) => [l.id, `${l.firstName} ${l.lastName}`])), [lawyers]);
 
   const update = (itemId: string, patch: Partial<ImportCaseDraft>) =>
@@ -56,12 +59,12 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
   };
 
   const create = async () => {
-    if (!token || selected.length === 0 || blocked) return;
+    if (!token || ready.length === 0) return;
     setSaving(true);
     setError('');
     try {
-      const { results: done } = await api.importDriveCases(token, { driveId, rows: selected.map(toImportRow) });
-      const names = new Map(selected.map((d) => [d.itemId, d.folderName]));
+      const { results: done } = await api.importDriveCases(token, { driveId, rows: ready.map(toImportRow) });
+      const names = new Map(ready.map((d) => [d.itemId, d.folderName]));
       setResults(done.map((r) => ({ ...r, name: names.get(r.itemId) ?? r.itemId })));
       onDone();
     } catch (e) {
@@ -195,9 +198,14 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
       </ul>
 
       {drafts.length > 0 && (
-        <Button disabled={saving || selected.length === 0 || blocked} onClick={create}>
-          {saving ? 'กำลังสร้าง…' : `สร้าง ${selected.length} คดี`}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button disabled={saving || ready.length === 0} onClick={create}>
+            {saving ? 'กำลังสร้าง…' : `สร้าง ${ready.length} คดี`}
+          </Button>
+          {selected.length > ready.length && (
+            <span className="text-xs text-muted-foreground">อีก {selected.length - ready.length} folder ยังกรอกไม่ครบ — ข้ามไว้ก่อน</span>
+          )}
+        </div>
       )}
     </section>
   );

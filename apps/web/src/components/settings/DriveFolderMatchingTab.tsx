@@ -10,6 +10,9 @@ import { DriveCaseImportTable } from '@/components/settings/DriveCaseImportTable
 
 type Suggestions = Awaited<ReturnType<typeof api.getDriveFolderSuggestions>>;
 
+// "89. …" — a case folder itself, not a parent holding case folders (same rule as the import pre-tick).
+const CASE_FOLDER = /^\d+\./;
+
 /**
  * OneDrive/SharePoint tab of "จับคู่ folder": choose the parent folder that holds one folder per case,
  * review suggested cases (same matcher and table as Outlook), confirm — nothing is linked before "ยืนยัน".
@@ -33,7 +36,13 @@ export function DriveFolderMatchingTab() {
       if (!token) return;
       setLoading(true);
       try {
-        setItems(await api.getDriveFolderSuggestions(token, folder.driveId, folder.id));
+        // Picked a case folder itself: show just that folder, from its parent's listing.
+        if (CASE_FOLDER.test(folder.name.trim()) && folder.parentId) {
+          const siblings = await api.getDriveFolderSuggestions(token, folder.driveId, folder.parentId);
+          setItems(siblings.filter((r) => r.folder.id === folder.id));
+        } else {
+          setItems(await api.getDriveFolderSuggestions(token, folder.driveId, folder.id));
+        }
       } catch (e) {
         setMessage(e instanceof ApiError ? e.message : 'โหลด folder ไม่สำเร็จ');
       } finally {
@@ -115,14 +124,14 @@ export function DriveFolderMatchingTab() {
       {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
       {loading && <div role="status" aria-label="กำลังจับคู่" className="h-40 animate-pulse rounded-xl bg-muted" />}
       {!loading && parent && (
-        <FolderMatchTable rows={rows} cases={cases} saving={saving} onConfirm={confirm} onUnlink={unlink} />
+        <DriveCaseImportTable driveId={parent.driveId} items={importItems} onDone={() => load(parent)} />
       )}
       {!loading && parent && (
-        <DriveCaseImportTable driveId={parent.driveId} items={importItems} onDone={() => load(parent)} />
+        <FolderMatchTable rows={rows} cases={cases} saving={saving} onConfirm={confirm} onUnlink={unlink} />
       )}
       <DriveFolderPicker
         open={pickerOpen}
-        title="เลือก folder หลัก (ที่มี folder ย่อยแยกตามคดี)"
+        title="เลือก folder หลัก (ที่มี folder ย่อยแยกตามคดี) หรือ folder คดีเดียว"
         onClose={closePicker}
         onPick={choose}
       />

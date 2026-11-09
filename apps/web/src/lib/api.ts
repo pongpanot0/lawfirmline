@@ -3742,6 +3742,22 @@ export const api = {
       { method: 'POST', token },
     ),
 
+  getThreadIntakeSuggestions: (token: string, threadId: string) =>
+    request<Array<{ id: string; title: string | null; clientName: string | null; status: string; receivedDate: string }>>(
+      `/email-intake/threads/${threadId}/intake-suggestions`,
+      { token },
+    ),
+
+  attachThreadToIntake: (token: string, threadId: string, intakeId: string) =>
+    request<{ threadId: string; intakeId: string }>(`/email-intake/threads/${threadId}/intake-link`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ intakeId }),
+    }),
+
+  aiExtractEmailThread: (token: string, threadId: string) =>
+    request<{ proposals: number }>(`/email-intake/threads/${threadId}/ai-extract`, { method: 'POST', token }),
+
   acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
     request<IntakeItem>(`/email-intake/threads/${threadId}/accept`, {
       method: 'POST',
@@ -4261,6 +4277,7 @@ export interface DrivePickerItem {
   driveId: string;
   name: string;
   webUrl: string;
+  parentId?: string;
 }
 
 export interface DriveSiteItem {

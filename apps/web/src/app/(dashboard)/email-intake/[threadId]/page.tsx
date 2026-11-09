@@ -22,7 +22,9 @@ const FIELD_LABELS: Record<string, string> = {
   contactName: 'ผู้ติดต่อ',
   opposingParty: 'คู่กรณี',
   description: 'สรุปคำขอของลูกค้า',
-  estimatedDamage: 'จำนวนเงิน (บาท)',
+  estimatedDamage: 'ยอดเรียกร้อง / ค่าเสียหาย (บาท)',
+  insurerPaidAmount: 'ประกันจ่ายไปแล้ว (บาท)',
+  otherAmount: 'จำนวนเงินอื่นในอีเมล (บาท)',
   requestedResponseDate: 'วันที่ลูกค้าขอให้ตอบ (ไม่ใช่กำหนดตามกฎหมาย)',
 };
 
@@ -35,7 +37,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 function formatValue(field: string, value: string | null) {
   if (value == null || value === '') return '(ยังไม่พบข้อมูล)';
-  if (field === 'estimatedDamage') {
+  if (field === 'estimatedDamage' || field === 'insurerPaidAmount' || field === 'otherAmount') {
     const n = Number(value);
     return Number.isNaN(n) ? value : `${n.toLocaleString('th-TH')} บาท`;
   }
@@ -155,6 +157,9 @@ export default function EmailThreadDetailPage() {
   const [linking, setLinking] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
+  const [aiReading, setAiReading] = useState(false);
+  const [aiNote, setAiNote] = useState('');
+  const [intakeSuggestions, setIntakeSuggestions] = useState<Awaited<ReturnType<typeof api.getThreadIntakeSuggestions>>>([]);
   const [error, setError] = useState('');
   const [replyBody, setReplyBody] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
@@ -186,6 +191,27 @@ export default function EmailThreadDetailPage() {
       setError('รีเฟรชข้อมูลไม่สำเร็จ — แสดงข้อมูลล่าสุดที่โหลดได้');
     }
   }, [token, threadId]);
+
+  const unaccepted = !!data && !data.thread.intake && !data.thread.caseId;
+  // A client who wrote a new e-mail instead of replying: offer the sender's open intakes to join.
+  useEffect(() => {
+    if (!token || !unaccepted) return setIntakeSuggestions([]);
+    api.getThreadIntakeSuggestions(token, threadId).then(setIntakeSuggestions).catch(() => setIntakeSuggestions([]));
+  }, [token, threadId, unaccepted]);
+
+  const handleAttachIntake = async (intakeId: string) => {
+    if (!token) return;
+    setLinking(true);
+    setError('');
+    try {
+      await api.attachThreadToIntake(token, threadId, intakeId);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'รวมเข้าเรื่องเดิมไม่สำเร็จ');
+    } finally {
+      setLinking(false);
+    }
+  };
 
   const handleCreateIntake = async () => {
     if (!token) return;
@@ -236,6 +262,23 @@ export default function EmailThreadDetailPage() {
     () => (data?.proposals ?? []).filter((p) => p.status === 'REQUIRES_CONFIRMATION' || p.status === 'SUGGESTED').length,
     [data],
   );
+
+  // AI runs only when pressed; its values land as proposals that still need "ยืนยันค่านี้".
+  const handleAiExtract = async () => {
+    if (!token) return;
+    setAiReading(true);
+    setError('');
+    setAiNote('');
+    try {
+      const { proposals: added } = await api.aiExtractEmailThread(token, threadId);
+      setAiNote(added ? `AI เสนอเพิ่ม ${added} รายการ — ตรวจและยืนยันทีละรายการ` : 'AI ไม่พบข้อมูลเพิ่มเติมในอีเมลนี้');
+      await refresh();
+    } catch (e) {
+      setError(e instanceof ApiError ? (e.status === 402 ? 'เครดิต AI ไม่พอ' : e.message) : 'AI อ่านอีเมลไม่สำเร็จ');
+    } finally {
+      setAiReading(false);
+    }
+  };
 
   const handleAccept = async () => {
     if (!token || !data?.thread.intake) return;
@@ -303,6 +346,22 @@ export default function EmailThreadDetailPage() {
                 <Button size="sm" disabled={linking} onClick={handleCreateIntake}>
                   {linking ? 'กำลังสร้าง...' : 'รับเป็นเรื่องใหม่'}
                 </Button>
+                {intakeSuggestions.length > 0 && (
+                  <div className="w-full space-y-1.5 border-t pt-2">
+                    <p className="text-xs text-muted-foreground">ผู้ส่งนี้มีเรื่องที่เปิดอยู่ — ถ้าเป็นเรื่องเดียวกัน (ลูกค้าส่งเมลใหม่แทนการตอบกลับ) ให้รวมเข้าเรื่องเดิม</p>
+                    {intakeSuggestions.map((s) => (
+                      <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span className="min-w-0 break-words">
+                          {s.title ?? 'ไม่มีชื่อเรื่อง'}
+                          <span className="text-xs text-muted-foreground"> · {new Date(s.receivedDate).toLocaleDateString('th-TH')}</span>
+                        </span>
+                        <Button size="sm" variant="outline" disabled={linking} onClick={() => handleAttachIntake(s.id)}>
+                          รวมเข้าเรื่องนี้
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <p className="text-sm text-muted-foreground">
@@ -370,7 +429,15 @@ export default function EmailThreadDetailPage() {
         {/* Proposed fields */}
         <Card>
           <CardContent className="p-4">
-            <h2 className="mb-3 font-semibold">ข้อมูลที่ระบบเตรียมให้</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold">ข้อมูลที่ระบบเตรียมให้</h2>
+              {thread.intake && (
+                <Button size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>
+                  {aiReading ? 'AI กำลังอ่าน…' : 'ให้ AI ช่วยอ่าน (1 เครดิต)'}
+                </Button>
+              )}
+            </div>
+            {aiNote && <p role="status" className="mb-2 text-xs text-muted-foreground">{aiNote}</p>}
             <div className="space-y-2">
               {proposals.map((proposal) => (
                 <ProposalRow

@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser } from '@lawfirm/shared';
+import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AuthUser, redactForAi, splitQuotedText } from '@lawfirm/shared';
+import { INTAKE_AI_RESPONSE_FORMAT, INTAKE_AI_SYSTEM_PROMPT, parseIntakeAiResult } from './email-intake-ai';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import {
@@ -24,6 +26,9 @@ const INTAKE_FIELD_MAP: Record<string, string | null> = {
   opposingParty: 'opposingParty',
   description: 'description',
   estimatedDamage: 'estimatedDamage',
+  // Display-only until Intake has columns for them; the lawyer still sees each amount and its wording.
+  insurerPaidAmount: null,
+  otherAmount: null,
   requestedResponseDate: 'requestedResponseDate',
 };
 
@@ -43,12 +48,19 @@ const threadInclude = {
 };
 
 const THREAD_LIST_LIMIT = 200;
+const INTAKE_AI_MODEL = 'gpt-5.4-nano';
+// Inbound messages read for proposals when a thread is accepted — the opening request often
+// holds the amounts while the newest reply is just "ขอบคุณค่ะ".
+const ACCEPT_MESSAGES_LIMIT = 10;
 
 @Injectable()
 export class EmailIntakeService {
+  private readonly logger = new Logger(EmailIntakeService.name);
+
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
+    private config: ConfigService,
   ) {}
 
   async listThreads(user: AuthUser) {
@@ -196,7 +208,7 @@ export class EmailIntakeService {
         clientId: clientMatch?.id,
         clientName: clientMatch?.name ?? thread.fromName,
         contactName: thread.fromName,
-        description: latestMessage?.bodyText?.slice(0, 2000),
+        description: latestMessage?.bodyText ? splitQuotedText(latestMessage.bodyText).main.slice(0, 2000) : undefined,
         status: IntakeStatus.RECEIVED,
         relatedCaseId: dto.relatedCaseId,
       },
@@ -207,11 +219,125 @@ export class EmailIntakeService {
       data: { intakeId: intake.id, status: EmailThreadStatus.LINKED },
     });
 
-    if (latestMessage) {
-      await this.generateProposalsForMessage(intake.id, latestMessage.id, latestMessage.bodyText ?? '');
+    await this.proposeFromThread(intake.id, thread.messages);
+    return this.prisma.intake.findUnique({ where: { id: intake.id } });
+  }
+
+  /**
+   * Every inbound message, oldest first — one thread can hold more than one matter, and each
+   * message's amounts are proposed with that message as their source.
+   */
+  private async proposeFromThread(intakeId: string, messages: { id: string; direction: EmailDirection; bodyText: string | null }[]) {
+    const inbound = messages.filter((m) => m.direction === EmailDirection.INBOUND).slice(0, ACCEPT_MESSAGES_LIMIT);
+    for (const message of (inbound.length ? inbound : messages.slice(0, 1)).reverse()) {
+      await this.generateProposalsForMessage(intakeId, message.id, message.bodyText ?? '');
+    }
+  }
+
+  /**
+   * Clients often write a fresh e-mail instead of replying, which lands as a new thread. Offer the
+   * open intakes this sender's other threads already belong to, so it joins that matter instead of
+   * starting a duplicate. Only intakes this person can open; a converted one is a case — link that instead.
+   */
+  async suggestIntakesForThread(user: AuthUser, threadId: string) {
+    const thread = await this.getThreadOrThrow(user, threadId);
+    if (!thread.fromAddress) return [];
+    const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
+    return this.prisma.intake.findMany({
+      where: {
+        AND: [
+          intakeFilter,
+          { status: { notIn: [IntakeStatus.REJECTED, IntakeStatus.CONVERTED] } },
+          { emailThreads: { some: { id: { not: thread.id }, fromAddress: { equals: thread.fromAddress, mode: 'insensitive' } } } },
+        ],
+      },
+      select: { id: true, title: true, clientName: true, status: true, receivedDate: true },
+      orderBy: { receivedDate: 'desc' },
+      take: 5,
+    });
+  }
+
+  /** Joins this thread to an existing intake; its messages are proposed like a reply would be. */
+  async attachThreadToIntake(user: AuthUser, threadId: string, intakeId: string) {
+    const thread = await this.getThreadOrThrow(user, threadId);
+    if (thread.intake?.id === intakeId) return { threadId, intakeId };
+    if (thread.intake) throw new BadRequestException('อีเมลนี้อยู่ในเรื่องอื่นแล้ว');
+    const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
+    const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, ...intakeFilter }, select: { id: true } });
+    if (!intake) throw new NotFoundException('ไม่พบเรื่องนี้');
+    // Conditional update: a concurrent accept on the same thread must not be overwritten.
+    const { count } = await this.prisma.emailThread.updateMany({
+      where: { id: thread.id, intakeId: null },
+      data: { intakeId, status: EmailThreadStatus.LINKED },
+    });
+    if (!count) throw new BadRequestException('อีเมลนี้อยู่ในเรื่องอื่นแล้ว');
+    await this.proposeFromThread(intakeId, thread.messages);
+    return { threadId, intakeId };
+  }
+
+  /**
+   * "ให้ AI ช่วยอ่าน" — pressed by a person, never automatic. Reads the new text of each inbound
+   * message (quotes stripped, identifiers redacted per ADR 0002) and adds proposals per matter;
+   * the lawyer still confirms each one. Open proposals from an earlier pass are left as they are.
+   */
+  async aiExtract(user: AuthUser, threadId: string) {
+    const thread = await this.getThreadOrThrow(user, threadId);
+    if (!thread.intake) throw new BadRequestException('รับอีเมลนี้เข้าพิจารณาก่อน แล้วจึงให้ AI ช่วยอ่าน');
+    const messages = thread.messages
+      .filter((m) => m.direction === EmailDirection.INBOUND)
+      .slice(0, ACCEPT_MESSAGES_LIMIT)
+      .reverse()
+      .map((m) => ({ id: m.id, text: redactForAi(splitQuotedText(m.bodyText ?? '').main.slice(0, 4000)).text }))
+      .filter((m) => m.text.trim());
+    if (!messages.length) throw new BadRequestException('ไม่มีเนื้อหาอีเมลให้ AI อ่าน');
+
+    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า AI');
+    let content: string;
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        signal: AbortSignal.timeout(30000),
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // Tried 2026-11-09 on a two-matter Thai e-mail: nano split and labelled every amount as
+          // well as 4o-mini/5.4-mini, fastest and cheapest. GPT-5 models take no `temperature`.
+          model: INTAKE_AI_MODEL,
+          response_format: INTAKE_AI_RESPONSE_FORMAT,
+          messages: [
+            { role: 'system', content: INTAKE_AI_SYSTEM_PROMPT },
+            { role: 'user', content: JSON.stringify({ subject: redactForAi(thread.subject).text, messages }) },
+          ],
+        }),
+      });
+      if (!response.ok) throw new Error(`provider ${response.status}`);
+      const data = (await response.json()) as { choices?: Array<{ finish_reason?: string; message?: { content?: string; refusal?: string } }> };
+      const choice = data.choices?.[0];
+      if (choice?.message?.refusal || choice?.finish_reason === 'length' || !choice?.message?.content) throw new Error('incomplete');
+      content = choice.message.content;
+    } catch (err) {
+      this.logger.warn(`Email intake AI failed: ${err instanceof Error ? err.message : err}`);
+      throw new ServiceUnavailableException('AI อ่านอีเมลไม่สำเร็จ ลองใหม่ได้');
     }
 
-    return this.prisma.intake.findUnique({ where: { id: intake.id } });
+    const proposals = parseIntakeAiResult(content, messages);
+    if (proposals.length) {
+      await this.prisma.intakeFieldProposal.createMany({
+        data: proposals.map((p) => ({
+          intakeId: thread.intake!.id,
+          field: p.field,
+          proposedValue: p.value,
+          sourceType: FieldProposalSourceType.EMAIL_BODY,
+          sourceDetail: p.sourceDetail,
+          sourceEmailMessageId: p.sourceMessageId,
+          status: FieldProposalStatus.REQUIRES_CONFIRMATION,
+        })),
+      });
+    }
+    await this.prisma.auditLog.create({
+      data: { firmId: user.firmId, userId: user.id, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId, intakeId: thread.intake.id, proposals: proposals.length } },
+    });
+    return { proposals: proposals.length };
   }
 
   private async generateProposalsForMessage(intakeId: string, messageId: string, bodyText: string) {

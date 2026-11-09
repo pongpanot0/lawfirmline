@@ -8,32 +8,58 @@
  * invents a value it cannot find text for.
  */
 
+import { splitQuotedText } from '@lawfirm/shared';
+
 export interface ExtractedField {
   field: string;
   value: string;
   sourceDetail: string;
 }
 
-const AMOUNT_PATTERN = /(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*บาท/;
+const AMOUNT_PATTERN = /(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*บาท/g;
+// How far back from an amount to look for what it is — roughly one clause.
+const AMOUNT_CONTEXT_CHARS = 80;
+const MAX_AMOUNTS = 10;
+
+/**
+ * What a baht amount is, read from the words just before it. Insurer first: "ประกันจ่ายค่าเสียหาย"
+ * is money paid, not money claimed. Anything unrecognised stays display-only (`otherAmount`).
+ */
+function amountField(context: string): string {
+  if (/ประกัน/.test(context) && /จ่าย|ชดใช้|ชำระ|โอน/.test(context)) return 'insurerPaidAmount';
+  if (/เรียกร้อง|ฟ้อง|ทุนทรัพย์|ค่าเสียหาย|ค่าสินไหม/.test(context)) return 'estimatedDamage';
+  return 'otherAmount';
+}
+
+function extractAmounts(text: string): ExtractedField[] {
+  const results: ExtractedField[] = [];
+  for (const match of text.matchAll(AMOUNT_PATTERN)) {
+    if (results.length >= MAX_AMOUNTS) break;
+    const numeric = Number(match[1].replace(/,/g, ''));
+    if (Number.isNaN(numeric)) continue;
+    const start = match.index ?? 0;
+    // The clause before the amount, cut at the previous line break so a heading above doesn't leak in.
+    const before = text.slice(Math.max(0, start - AMOUNT_CONTEXT_CHARS), start);
+    const context = before.slice(before.lastIndexOf('\n') + 1);
+    const quote = `${context}${match[0]}`.replace(/\s+/g, ' ').trim();
+    results.push({ field: amountField(context), value: String(numeric), sourceDetail: `พบข้อความ "${quote}" ในเนื้อหาอีเมล` });
+  }
+  return results;
+}
 const RELATIVE_DEADLINE_PATTERN = /ภายใน\s*(\d{1,3})\s*วัน/;
 const ABSOLUTE_DATE_PATTERN = /(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/;
 const OPPOSING_PARTY_PATTERN = /(?:คู่กรณี|จำเลย|ฝ่ายตรงข้าม)[:\s]+([^\n,]{2,60}?)(?=\s+(?:กรุณา|ขอบคุณ)|[.\n]|$)/;
 
-export function extractFieldsFromEmailBody(bodyText: string): ExtractedField[] {
+/**
+ * Reads only the new part of the message — the quoted history below "From: … Sent: …" is an
+ * older message of the thread and gets its own pass, so its values carry the right source.
+ */
+export function extractFieldsFromEmailBody(rawBody: string): ExtractedField[] {
+  const bodyText = splitQuotedText(rawBody ?? '').main;
   const results: ExtractedField[] = [];
   if (!bodyText) return results;
 
-  const amountMatch = bodyText.match(AMOUNT_PATTERN);
-  if (amountMatch) {
-    const numeric = Number(amountMatch[1].replace(/,/g, ''));
-    if (!Number.isNaN(numeric)) {
-      results.push({
-        field: 'estimatedDamage',
-        value: String(numeric),
-        sourceDetail: `พบข้อความ "${amountMatch[0]}" ในเนื้อหาอีเมล`,
-      });
-    }
-  }
+  results.push(...extractAmounts(bodyText));
 
   const absoluteDate = bodyText.match(ABSOLUTE_DATE_PATTERN);
   if (absoluteDate) {

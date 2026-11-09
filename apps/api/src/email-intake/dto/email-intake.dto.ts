@@ -10,6 +10,12 @@ export class AcceptIntakeFromThreadDto {
   relatedCaseId?: string;
 }
 
+export class AttachThreadToIntakeDto {
+  @IsString()
+  @IsNotEmpty()
+  intakeId!: string;
+}
+
 export class ResolveFieldProposalDto {
   @IsIn(['confirm', 'reject'])
   action: 'confirm' | 'reject';

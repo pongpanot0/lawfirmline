@@ -14,7 +14,7 @@ const parsed = (extra: Partial<ParsedCaseFolder> = {}): ParsedCaseFolder => ({
   teamHint: 'โบ, พี่ปิง',
   ...extra,
 });
-const suggestion = (name: string, suggestions: unknown[] = [], extra: Partial<ParsedCaseFolder> = {}) => ({
+const suggestion = (name: string, suggestions: { reason?: string }[] = [], extra: Partial<ParsedCaseFolder> = {}) => ({
   folder: { id: 'F1', name },
   parsed: parsed(extra),
   suggestions,
@@ -40,10 +40,16 @@ describe('draftFromSuggestion', () => {
     });
   });
 
-  it('only ticks numbered folders that match no existing case', () => {
+  it('defaults the lead when one is given', () => {
+    assert.equal(draftFromSuggestion(suggestion('89. คำให้การ'), 'me').leadLawyerId, 'me');
+  });
+
+  it('only ticks numbered folders that match no existing case by ref or case number', () => {
+    assert.equal(draftFromSuggestion(suggestion('89. คำให้การ', [{ reason: 'CLIENT_NAME' }])).selected, true);
+    assert.equal(draftFromSuggestion(suggestion('89. คำให้การ', [{ reason: 'OWN_REF' }])).selected, false);
     assert.equal(draftFromSuggestion(suggestion('B. คดีทางการแพทย์')).selected, false);
     assert.equal(draftFromSuggestion(suggestion('แบบฟอร์มศาล')).selected, false);
-    assert.equal(draftFromSuggestion(suggestion('89. คำให้การ', [{ caseId: 'c1' }])).selected, false);
+    assert.equal(draftFromSuggestion(suggestion('89. คำให้การ', [{ reason: 'CASE_NUMBER' }])).selected, false);
   });
 
   it('carries a closed/withdrawn reading through', () => {
