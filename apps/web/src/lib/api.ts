@@ -3785,7 +3785,7 @@ export const api = {
     request<{ id: string; name: string }>(`/email-intake/threads/${threadId}/client`, { method: 'POST', token, body: JSON.stringify(data) }),
 
   aiExtractEmailThread: (token: string, threadId: string) =>
-    request<{ proposals: number }>(`/email-intake/threads/${threadId}/ai-extract`, { method: 'POST', token }),
+    request<{ proposals: number; cached?: boolean }>(`/email-intake/threads/${threadId}/ai-extract`, { method: 'POST', token }),
 
   acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
     request<IntakeItem>(`/email-intake/threads/${threadId}/accept`, {

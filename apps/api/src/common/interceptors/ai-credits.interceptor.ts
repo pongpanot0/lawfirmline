@@ -44,7 +44,8 @@ export class AiCreditsInterceptor implements NestInterceptor {
         }
         return next.handle().pipe(
           switchMap((result) =>
-            from(
+            // A result served from cache made no model call, so it costs nothing.
+            (result as { cached?: unknown } | null)?.cached === true ? from([result]) : from(
               this.prisma.user.update({
                 where: { id: userId },
                 data: { aiCredits: { decrement: cost } },

@@ -194,8 +194,9 @@ export default function EmailThreadDetailPage() {
     setError('');
     setAiNote('');
     try {
-      const { proposals: added } = await api.aiExtractEmailThread(token, threadId);
-      setAiNote(added ? `AI เสนอเพิ่ม ${added} รายการ — ตรวจและยืนยันทีละรายการ` : 'AI ไม่พบข้อมูลเพิ่มเติมในอีเมลนี้');
+      const { proposals: added, cached } = await api.aiExtractEmailThread(token, threadId);
+      const note = added ? `AI เสนอเพิ่ม ${added} รายการ — ตรวจและยืนยันทีละรายการ` : 'AI ไม่พบข้อมูลเพิ่มเติมในอีเมลนี้';
+      setAiNote(cached ? `${note} (อีเมลและไฟล์ไม่เปลี่ยน ใช้ผลอ่านเดิม ไม่เสียเครดิต)` : note);
       await refresh();
     } catch (e) {
       setError(e instanceof ApiError ? (e.status === 402 ? 'เครดิต AI ไม่พอ' : e.message) : 'AI อ่านอีเมลไม่สำเร็จ');

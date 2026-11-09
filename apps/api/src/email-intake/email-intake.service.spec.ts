@@ -502,7 +502,7 @@ describe('EmailIntakeService', () => {
         return 'จ่าย 82,400 บาท patient@example.com 0812345678 ' + 'ก'.repeat(4000) + 'AFTER_CAP';
       });
       const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ matters: [{ label: 'เรื่อง', insurerPaidAmount: { amount: 82400, quote: 'จ่าย 82,400 บาท', sourceDocumentId: 'd0', sourceMessageId: null } }], documents: [{ documentId: 'd0', category: 'MEDICAL', docTypeLabel: 'เวชระเบียน', suggestedFilename: 'เวชระเบียน.pdf', docRequestName: 'เวชระเบียน [อีเมล]' }] }) } }] })));
-      await expect(service.aiExtract(user, 't')).resolves.toEqual({ proposals: 2 });
+      await expect(service.aiExtract(user, 't')).resolves.toEqual({ proposals: 2, cached: false });
       // Unreviewed guesses for the same messages/files are replaced, so amounts don't show twice.
       expect(mockPrisma.intakeFieldProposal.deleteMany).toHaveBeenCalledWith({ where: expect.objectContaining({
         status: { in: ['SUGGESTED', 'REQUIRES_CONFIRMATION'] },
@@ -525,7 +525,17 @@ describe('EmailIntakeService', () => {
       expect(JSON.parse(proposals[1].proposedValue).docRequestId).toBe('r1');
       expect(mockPrisma.intake.update).not.toHaveBeenCalled();
       expect(mockPrisma.document.update).not.toHaveBeenCalled();
-      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({ data: { firmId: 'firm-1', userId: 'user-1', action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId: 't', intakeId: 'intake-1', proposals: 2, summary: null } } });
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({ data: { firmId: 'firm-1', userId: 'user-1', action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: expect.objectContaining({ threadId: 't', intakeId: 'intake-1', proposals: 2, summary: null, cached: false, inputHash: expect.stringMatching(/^[0-9a-f]{64}$/) }) } });
+      const stored = mockPrisma.auditLog.create.mock.calls[0][0].data.metadata;
+
+      // Pressing again with nothing changed: the stored result comes back — no OCR, no model call.
+      mockPrisma.auditLog.findFirst.mockResolvedValue({ metadata: stored });
+      mockIntelligence.extractTextWithOcr.mockClear();
+      fetchMock.mockClear();
+      await expect(service.aiExtract(user, 't')).resolves.toEqual({ proposals: 2, cached: true });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mockIntelligence.extractTextWithOcr).not.toHaveBeenCalled();
+      expect(mockPrisma.auditLog.findFirst.mock.calls.at(-1)[0].where.AND[1]).toEqual({ metadata: { path: ['inputHash'], equals: stored.inputHash } });
     });
 
     it('can classify a file-only thread when OCR fails without inventing field values', async () => {
@@ -534,7 +544,7 @@ describe('EmailIntakeService', () => {
       mockPrisma.document.findMany.mockResolvedValue([{ id: 'd', filename: 'scan.pdf', mimeType: 'application/pdf', storagePath: 'email/a.pdf' }]);
       mockStorage.getBuffer.mockRejectedValue(new Error('unavailable'));
       jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ matters: [], documents: [{ documentId: 'd', category: 'OTHER', docTypeLabel: 'เอกสารแนบ', suggestedFilename: 'เอกสารแนบ.pdf', docRequestName: null }] }) } }] })));
-      await expect(service.aiExtract(user, 't')).resolves.toEqual({ proposals: 1 });
+      await expect(service.aiExtract(user, 't')).resolves.toEqual({ proposals: 1, cached: false });
       expect(mockPrisma.intakeFieldProposal.createMany.mock.calls[0][0].data[0].field).toBe('document');
       expect(mockPrisma.intake.update).not.toHaveBeenCalled();
     });

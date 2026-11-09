@@ -7,7 +7,10 @@ import { FileStorageService } from '../common/services/file-storage.service';
 import { intakeProgress } from './email-intake-progress';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser, redactForAi, splitQuotedText, stripEmailSignature } from '@lawfirm/shared';
-import { INTAKE_AI_RESPONSE_FORMAT, INTAKE_AI_SYSTEM_PROMPT, parseIntakeAiResult, parseIntakeAiSummary } from './email-intake-ai';
+import { AiProposal, INTAKE_AI_RESPONSE_FORMAT, INTAKE_AI_SYSTEM_PROMPT, IntakeAiSummary, parseIntakeAiResult, parseIntakeAiSummary } from './email-intake-ai';
+import { createHash } from 'crypto';
+
+type AiReadResult = { summary: IntakeAiSummary | null; proposals: AiProposal[] };
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import {
@@ -487,6 +490,69 @@ export class EmailIntakeService {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า AI');
     const files = (await this.threadDocuments(thread.intake.id, thread.messages)).slice(0, 5);
+    if (!messages.length && !files.length) throw new BadRequestException('ไม่มีเนื้อหาอีเมลหรือไฟล์ให้ AI อ่าน');
+    const documentRequests = await this.prisma.intakeDocumentRequest.findMany({ where: { intakeId: thread.intake.id }, select: { id: true, name: true } });
+    const redactedRequests = documentRequests.map((request) => ({ id: request.id, name: redactForAi(request.name).text }));
+    const caseTypes = (await this.prisma.caseType.findMany({ where: { firmId: user.firmId, isActive: true }, select: { name: true } })).map((t) => t.name);
+
+    // Same e-mails, files, requests and prompt as an earlier read → reuse its result: no OCR, no model call, no credit.
+    const inputHash = createHash('sha256').update(JSON.stringify({
+      model: INTAKE_AI_MODEL, prompt: INTAKE_AI_SYSTEM_PROMPT, format: INTAKE_AI_RESPONSE_FORMAT,
+      subject: thread.subject, messages, files: files.map((f) => [f.id, f.storagePath]), redactedRequests, caseTypes,
+    })).digest('hex');
+    const earlier = await this.prisma.auditLog.findFirst({
+      where: { firmId: user.firmId, action: 'EMAIL_INTAKE_AI_EXTRACTED', AND: [
+        { metadata: { path: ['threadId'], equals: threadId } },
+        { metadata: { path: ['inputHash'], equals: inputHash } },
+      ] },
+      orderBy: { createdAt: 'desc' },
+      select: { metadata: true },
+    });
+    const cached = (earlier?.metadata as { result?: AiReadResult } | null)?.result ?? null;
+    const { summary, proposals } = cached ?? await this.readWithAi(user, apiKey, thread.subject, messages, files, documentRequests, redactedRequests, caseTypes);
+    if (proposals.length) {
+      await this.prisma.$transaction(async (tx) => {
+      // Two reads finishing together must not both insert: serialize on the intake row.
+      await tx.$queryRaw`SELECT "id" FROM "Intake" WHERE "id" = ${thread.intake!.id} FOR UPDATE`;
+      // A fresh read replaces what is still unreviewed from these messages and files: the keyword
+      // guesses (same amounts, sometimes mislabelled) and any earlier AI read. Decided ones stay.
+      await tx.intakeFieldProposal.deleteMany({
+        where: {
+          intakeId: thread.intake!.id,
+          OR: [{ sourceEmailMessageId: { in: messages.map((m) => m.id) } }, { sourceDocumentId: { in: files.map((f) => f.id) } }],
+          status: { in: [FieldProposalStatus.SUGGESTED, FieldProposalStatus.REQUIRES_CONFIRMATION] },
+        },
+      });
+      await tx.intakeFieldProposal.createMany({
+        data: proposals.map((p) => ({
+          intakeId: thread.intake!.id,
+          field: p.field,
+          proposedValue: p.value,
+          sourceType: p.sourceDocumentId ? FieldProposalSourceType.ATTACHMENT : FieldProposalSourceType.EMAIL_BODY,
+          sourceDetail: p.sourceDetail,
+          sourceEmailMessageId: p.sourceMessageId,
+          sourceDocumentId: p.sourceDocumentId,
+          matterLabel: p.matterLabel,
+          status: FieldProposalStatus.REQUIRES_CONFIRMATION,
+        })),
+      });
+      });
+    }
+    await this.prisma.auditLog.create({
+      data: { firmId: user.firmId, userId: user.id, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: JSON.parse(JSON.stringify({ threadId, intakeId: thread.intake.id, proposals: proposals.length, summary, inputHash, cached: !!cached, result: { summary, proposals } })) },
+    });
+    return { proposals: proposals.length, cached: !!cached };
+  }
+
+  /** OCR the files and ask the model; only evidence quoted from the redacted sources becomes a proposal. */
+  private async readWithAi(
+    user: AuthUser, apiKey: string, subject: string | null,
+    messages: { id: string; fromFirm: boolean; text: string }[],
+    files: { id: string; filename: string; mimeType: string; storagePath: string }[],
+    documentRequests: { id: string; name: string }[],
+    redactedRequests: { id: string; name: string }[],
+    caseTypes: string[],
+  ): Promise<AiReadResult> {
     const documents: { id: string; filename: string; text: string }[] = [];
     for (const file of files) {
       try {
@@ -498,10 +564,6 @@ export class EmailIntakeService {
         documents.push({ id: file.id, filename: redactForAi(file.filename).text, text: '' });
       }
     }
-    if (!messages.length && !documents.length) throw new BadRequestException('ไม่มีเนื้อหาอีเมลหรือไฟล์ให้ AI อ่าน');
-    const documentRequests = await this.prisma.intakeDocumentRequest.findMany({ where: { intakeId: thread.intake.id }, select: { id: true, name: true } });
-    const redactedRequests = documentRequests.map((request) => ({ id: request.id, name: redactForAi(request.name).text }));
-    const caseTypes = (await this.prisma.caseType.findMany({ where: { firmId: user.firmId, isActive: true }, select: { name: true } })).map((t) => t.name);
     let content: string;
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -516,7 +578,7 @@ export class EmailIntakeService {
           response_format: INTAKE_AI_RESPONSE_FORMAT,
           messages: [
             { role: 'system', content: INTAKE_AI_SYSTEM_PROMPT },
-            { role: 'user', content: JSON.stringify({ subject: redactForAi(thread.subject).text, messages, documents, documentRequests: redactedRequests, caseTypes }) },
+            { role: 'user', content: JSON.stringify({ subject: redactForAi(subject).text, messages, documents, documentRequests: redactedRequests, caseTypes }) },
           ],
         }),
       });
@@ -537,39 +599,7 @@ export class EmailIntakeService {
       field: 'docRequest', value: name, sourceMessageId: messages[messages.length - 1]?.id ?? null, sourceDocumentId: null,
       matterLabel: null, sourceDetail: 'AI แนะนำให้ขอเอกสารนี้จากลูกความ',
     }));
-    const proposals = [...parseIntakeAiResult(content, messages, documents, redactedRequests, caseTypes), ...docRequests];
-    if (proposals.length) {
-      await this.prisma.$transaction(async (tx) => {
-      // Two reads finishing together must not both insert: serialize on the intake row.
-      await tx.$queryRaw`SELECT "id" FROM "Intake" WHERE "id" = ${thread.intake!.id} FOR UPDATE`;
-      // A fresh read replaces what is still unreviewed from these messages and files: the keyword
-      // guesses (same amounts, sometimes mislabelled) and any earlier AI read. Decided ones stay.
-      await tx.intakeFieldProposal.deleteMany({
-        where: {
-          intakeId: thread.intake!.id,
-          OR: [{ sourceEmailMessageId: { in: messages.map((m) => m.id) } }, { sourceDocumentId: { in: documents.map((d) => d.id) } }],
-          status: { in: [FieldProposalStatus.SUGGESTED, FieldProposalStatus.REQUIRES_CONFIRMATION] },
-        },
-      });
-      await tx.intakeFieldProposal.createMany({
-        data: proposals.map((p) => ({
-          intakeId: thread.intake!.id,
-          field: p.field,
-          proposedValue: p.value,
-          sourceType: p.sourceDocumentId ? FieldProposalSourceType.ATTACHMENT : FieldProposalSourceType.EMAIL_BODY,
-          sourceDetail: p.sourceDetail,
-          sourceEmailMessageId: p.sourceMessageId,
-          sourceDocumentId: p.sourceDocumentId,
-          matterLabel: p.matterLabel,
-          status: FieldProposalStatus.REQUIRES_CONFIRMATION,
-        })),
-      });
-      });
-    }
-    await this.prisma.auditLog.create({
-      data: { firmId: user.firmId, userId: user.id, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId, intakeId: thread.intake.id, proposals: proposals.length, summary: summary ? { ...summary } : null } },
-    });
-    return { proposals: proposals.length };
+    return { summary, proposals: [...parseIntakeAiResult(content, messages, documents, redactedRequests, caseTypes), ...docRequests] };
   }
 
   private async generateProposalsForMessage(intakeId: string, messageId: string, bodyText: string) {
