@@ -35,6 +35,9 @@ export interface GraphAttachment {
   contentType: string;
   size: number;
   contentBytes?: string;
+  /** Set on inline parts; the body references them as `cid:<contentId>`. */
+  contentId?: string | null;
+  isInline?: boolean;
 }
 
 /** The writable subset of a Graph message that sending needs. */

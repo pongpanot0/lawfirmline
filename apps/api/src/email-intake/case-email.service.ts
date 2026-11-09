@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, DocumentCategory } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -7,6 +7,8 @@ import { DocumentsService } from '../documents/documents.service';
 import { EmailThreadStatus, Prisma } from '../generated/prisma';
 import { awaitingMessage, loadInternalAddresses, loadLatestMessages } from './awaiting-reply';
 import { MATCHABLE_CASE_SELECT, suggestCaseMatches, toMatchableCase } from '../outlook-integration/case-matching';
+import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
+import { hasCidRefs } from '../outlook-integration/mail/inline-cid-images';
 
 export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER';
 
@@ -64,6 +66,7 @@ export class CaseEmailService {
     private caseAccess: CaseAccessService,
     private documents: DocumentsService,
     private fileStorage: FileStorageService,
+    @Inject(forwardRef(() => OutlookSyncService)) private outlookSync: OutlookSyncService,
   ) {}
 
   private async threadWhere(user: AuthUser, extra: Prisma.EmailThreadWhereInput): Promise<Prisma.EmailThreadWhereInput> {
@@ -267,10 +270,12 @@ export class CaseEmailService {
         subject: true,
         caseId: true,
         lastMessageAt: true,
+        mailboxConnectionId: true,
         messages: {
           orderBy: { receivedAt: 'asc' },
           select: {
             id: true,
+            graphMessageId: true,
             direction: true,
             fromName: true,
             fromAddress: true,
@@ -296,9 +301,17 @@ export class CaseEmailService {
         })
       : [];
     const savedByTag = new Map(saved.flatMap((d) => d.tags.map((tag) => [tag, d.id] as const)));
+    const { mailboxConnectionId, ...rest } = thread;
+    const messages = await Promise.all(
+      thread.messages.map(async ({ graphMessageId, ...m }) =>
+        hasCidRefs(m.bodyHtml) && graphMessageId && mailboxConnectionId
+          ? { ...m, bodyHtml: await this.outlookSync.inlineStoredImages({ id: m.id, graphMessageId, bodyHtml: m.bodyHtml }, mailboxConnectionId) }
+          : m,
+      ),
+    );
     return {
-      ...thread,
-      messages: thread.messages.map((m) => ({
+      ...rest,
+      messages: messages.map((m) => ({
         ...m,
         attachments: m.attachments.map((a) => ({ ...a, savedDocumentId: savedByTag.get(`email-attachment:${a.id}`) ?? null })),
       })),

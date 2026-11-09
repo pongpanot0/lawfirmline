@@ -7,6 +7,7 @@ import { ArrowLeft, Paperclip, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, EmailThreadDetail, IntakeDocumentRequestItem } from '@/lib/api';
 import { groupProposals, isPending, parseDocument, submitHelper } from '@/lib/email-intake';
+import { documentCategoryLabel } from '@/lib/stage-labels';
 import { Stepper } from '@/components/email-intake/Stepper';
 import { NextStepBanner } from '@/components/email-intake/NextStepBanner';
 import { ProposalGroup } from '@/components/email-intake/ProposalGroup';
@@ -359,7 +360,7 @@ export default function EmailThreadDetailPage() {
                   const suggestion = parseDocument(proposal.proposedValue)!;
                   const request = requests.find((item) => item.id === suggestion.docRequestId);
                   return <div key={proposal.id} data-pending={!documentLocked && isPending(proposal) ? 'true' : undefined} className="space-y-2">
-                    <p className="break-all">→ {suggestion.filename}</p><Badge variant="muted">{suggestion.docTypeLabel}</Badge>
+                    <p className="break-all">→ {suggestion.filename}</p><div className="flex flex-wrap gap-1.5"><Badge variant="muted">{suggestion.docTypeLabel}</Badge><Badge variant="outline">หมวด: {documentCategoryLabel(suggestion.category)}</Badge></div>
                     {suggestion.docRequestId && <p className="text-xs text-muted-foreground">เอกสารที่ขอ: {request?.name ?? suggestion.docRequestId}</p>}
                     {proposal.sourceDetail && <p className="text-xs text-muted-foreground">“{proposal.sourceDetail}”</p>}
                     {proposal.status === 'CONFIRMED' && <Badge variant="success">✓ ยืนยันแล้ว</Badge>}

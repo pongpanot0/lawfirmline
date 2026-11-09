@@ -11,7 +11,7 @@ test('parses amount and document safely', () => {
   assert.deepEqual(parseOtherAmount('{"label":"ค่ารักษา","amount":0}'), { label: 'ค่ารักษา', amount: 0 });
   assert.equal(parseOtherAmount('{"label":"x","amount":"5"}'), null);
   assert.equal(parseOtherAmount('bad'), null);
-  assert.equal(parseDocument('{"documentId":"d","filename":"a.pdf","docTypeLabel":"เวชระเบียน","docRequestId":null}')?.documentId, 'd');
+  assert.equal(parseDocument('{"documentId":"d","filename":"a.pdf","docTypeLabel":"เวชระเบียน","category":"MEDICAL","docRequestId":null}')?.documentId, 'd');
   assert.equal(parseDocument('{"documentId":5}'), null);
 });
 test('submit helper lists incomplete required steps', () => {

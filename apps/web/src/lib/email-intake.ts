@@ -19,10 +19,10 @@ export function parseOtherAmount(value: string | null): { label: string; amount:
   } catch { return null; }
 }
 
-export function parseDocument(value: string | null): { documentId: string; filename: string; docTypeLabel: string; docRequestId: string | null } | null {
+export function parseDocument(value: string | null): { documentId: string; filename: string; docTypeLabel: string; category: string; docRequestId: string | null } | null {
   try {
     const parsed = JSON.parse(value ?? '');
-    return typeof parsed?.documentId === 'string' && typeof parsed?.filename === 'string' && typeof parsed?.docTypeLabel === 'string' && (parsed.docRequestId == null || typeof parsed.docRequestId === 'string') ? parsed : null;
+    return typeof parsed?.documentId === 'string' && typeof parsed?.filename === 'string' && typeof parsed?.docTypeLabel === 'string' && typeof parsed?.category === 'string' && (parsed.docRequestId == null || typeof parsed.docRequestId === 'string') ? parsed : null;
   } catch { return null; }
 }
 

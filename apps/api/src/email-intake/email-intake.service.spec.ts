@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EmailIntakeService } from './email-intake.service';
+import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
@@ -40,6 +41,7 @@ describe('EmailIntakeService', () => {
   const mockIntelligence = { extractTextWithOcr: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
+  const mockOutlookSync = { inlineStoredImages: jest.fn(async (m: { bodyHtml: string }) => m.bodyHtml.replace('cid:logo', 'data:image/png;base64,AA==')) };
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -64,6 +66,7 @@ describe('EmailIntakeService', () => {
         { provide: ConfigService, useValue: mockConfig },
         { provide: FileStorageService, useValue: mockStorage },
         { provide: DocumentIntelligenceService, useValue: mockIntelligence },
+        { provide: OutlookSyncService, useValue: mockOutlookSync },
       ],
     }).compile();
     service = module.get(EmailIntakeService);
@@ -585,5 +588,17 @@ describe('EmailIntakeService', () => {
       await expect(service.linkClientForThread(user, 't', {})).rejects.toThrow(BadRequestException);
     });
   });
-});
 
+  it('repairs cid: images of an older synced message when the thread is opened', async () => {
+    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', mailboxConnectionId: 'mb', intake: null, messages: [
+      { id: 'm1', graphMessageId: 'g1', direction: 'INBOUND', bodyHtml: '<img src="cid:logo">', attachments: [] },
+      { id: 'm2', graphMessageId: 'g2', direction: 'INBOUND', bodyHtml: '<p>no images</p>', attachments: [] },
+    ] });
+    mockPrisma.auditLog.findFirst.mockResolvedValue(null);
+    mockOutlookSync.inlineStoredImages.mockImplementation(async (m: { bodyHtml: string }) => m.bodyHtml.replace('cid:logo', 'data:image/png;base64,AA=='));
+    const { thread } = await service.getThread(user, 't') as any;
+    expect(thread.messages[0].bodyHtml).toBe('<img src="data:image/png;base64,AA==">');
+    expect(mockOutlookSync.inlineStoredImages).toHaveBeenCalledTimes(1);
+    expect(mockOutlookSync.inlineStoredImages).toHaveBeenCalledWith({ id: 'm1', graphMessageId: 'g1', bodyHtml: '<img src="cid:logo">' }, 'mb');
+  });
+});

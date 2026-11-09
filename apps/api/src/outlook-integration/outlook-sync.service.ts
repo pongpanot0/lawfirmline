@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.module';
 import { EmailDirection, EmailThreadStatus } from '../generated/prisma';
-import { GraphMessage, GraphRecipient, OutlookGraphClient } from './outlook-graph.client';
+import { GraphAttachment, GraphMessage, GraphRecipient, OutlookGraphClient } from './outlook-graph.client';
+import { hasCidRefs, inlineCidImages } from './mail/inline-cid-images';
 import { htmlToText } from './mail/html-to-text';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { CaseEmailNotifier, NewInboundBatch, trackNewInbound } from './case-email-notifier.service';
@@ -157,13 +158,17 @@ export class OutlookSyncService {
     if (existing) {
       // A previous run may have stored the message but failed on its attachments (Graph never redelivers it) — retry once if none were saved.
       if (message.hasAttachments && (await this.prisma.emailAttachment.count({ where: { messageId: existing.id } })) === 0) {
-        await this.syncAttachments(p.firmId, p.accessToken, message.id, existing.id);
+        const attachments = await this.fetchAttachments(p.accessToken, message.id);
+        if (attachments) await this.storeAttachments(p.firmId, existing.id, attachments);
       }
       return { threadId: thread.id, messageId: existing.id, created: false, caseId: thread.caseId };
     }
 
-    const html = message.body?.contentType?.toLowerCase() === 'html' ? message.body.content : null;
-    const bodyText = html ? htmlToText(html) : (message.body?.content ?? message.bodyPreview ?? null);
+    const rawHtml = message.body?.contentType?.toLowerCase() === 'html' ? message.body.content : null;
+    const bodyText = rawHtml ? htmlToText(rawHtml) : (message.body?.content ?? message.bodyPreview ?? null);
+    // Graph reports hasAttachments=false when every part is inline, so a cid: reference alone is reason to fetch.
+    const attachments = message.hasAttachments || hasCidRefs(rawHtml) ? await this.fetchAttachments(p.accessToken, message.id) : null;
+    const html = hasCidRefs(rawHtml) && attachments ? inlineCidImages(rawHtml, attachments) : rawHtml;
     let emailMessage: { id: string };
     try {
       emailMessage = await this.prisma.emailMessage.create({
@@ -189,19 +194,37 @@ export class OutlookSyncService {
       if (!dup) throw error;
       return { threadId: thread.id, messageId: dup.id, created: false, caseId: thread.caseId };
     }
-    if (message.hasAttachments) await this.syncAttachments(p.firmId, p.accessToken, message.id, emailMessage.id);
+    if (message.hasAttachments && attachments) await this.storeAttachments(p.firmId, emailMessage.id, attachments);
     return { threadId: thread.id, messageId: emailMessage.id, created: true, caseId: thread.caseId };
   }
 
-  private async syncAttachments(firmId: string, accessToken: string, graphMessageId: string, emailMessageId: string) {
-    let attachments: Awaited<ReturnType<OutlookGraphClient['getAttachments']>>;
+  /**
+   * Messages stored before sync inlined `cid:` images: fetch the inline parts now and persist the fixed body.
+   * Best-effort — on any failure the stored body is returned unchanged and the next view retries.
+   */
+  // ponytail: a message stored by a colleague's mailbox (shared case thread) 404s against this connection and retries on every view; store the connection per message if that shows up in logs.
+  async inlineStoredImages(m: { id: string; graphMessageId: string; bodyHtml: string }, connectionId: string): Promise<string> {
     try {
-      attachments = await this.graph.getAttachments(accessToken, graphMessageId);
+      const accessToken = await this.connections.getValidAccessToken(connectionId);
+      const bodyHtml = inlineCidImages(m.bodyHtml, await this.graph.getAttachments(accessToken, m.graphMessageId));
+      await this.prisma.emailMessage.update({ where: { id: m.id }, data: { bodyHtml } });
+      return bodyHtml;
+    } catch (error) {
+      this.logger.warn(`Could not inline images for message ${m.id}: ${error}`);
+      return m.bodyHtml;
+    }
+  }
+
+  private async fetchAttachments(accessToken: string, graphMessageId: string): Promise<GraphAttachment[] | null> {
+    try {
+      return await this.graph.getAttachments(accessToken, graphMessageId);
     } catch (error) {
       this.logger.warn(`Failed to fetch attachments for message ${graphMessageId}: ${error}`);
-      return;
+      return null;
     }
+  }
 
+  private async storeAttachments(firmId: string, emailMessageId: string, attachments: GraphAttachment[]) {
     for (const attachment of attachments) {
       if (!attachment.contentBytes) continue; // Large/reference attachments — skip for now, not core path.
       // Sender-chosen name: keep only the last segment so it can never climb out of this message's folder.
