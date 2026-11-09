@@ -1371,6 +1371,23 @@ export interface EmailThreadDetail {
   proposals: IntakeFieldProposalItem[];
   documents: { id: string; filename: string; mimeType: string; category: string }[];
   progress: { steps: EmailIntakeStep[]; next: { text: string; done: number; total: number } | null };
+  /** AI's reading notes from the latest read — display only. */
+  aiSummary?: EmailIntakeAiSummary | null;
+  /** Linked client, or existing clients matching the sender, and a name to offer for a new one. */
+  clientMatch?: {
+    linked: { id: string; name: string } | null;
+    candidates: { id: string; name: string; reason: 'EMAIL' | 'DOMAIN' | 'NAME' }[];
+    suggestedName: string;
+  } | null;
+}
+
+export interface EmailIntakeAiSummary {
+  overview: string[];
+  clientRequest: string | null;
+  urgency: 'HIGH' | 'NORMAL' | 'LOW';
+  urgencyReason: string | null;
+  nextActions: string[];
+  missingDocuments: string[];
 }
 
 export type CaseMatchReason = 'OWN_REF' | 'CASE_NUMBER' | 'CLIENT_NAME';
@@ -3763,6 +3780,9 @@ export const api = {
       token,
       body: JSON.stringify({ intakeId }),
     }),
+
+  linkEmailIntakeClient: (token: string, threadId: string, data: { clientId: string } | { name: string }) =>
+    request<{ id: string; name: string }>(`/email-intake/threads/${threadId}/client`, { method: 'POST', token, body: JSON.stringify(data) }),
 
   aiExtractEmailThread: (token: string, threadId: string) =>
     request<{ proposals: number }>(`/email-intake/threads/${threadId}/ai-extract`, { method: 'POST', token }),

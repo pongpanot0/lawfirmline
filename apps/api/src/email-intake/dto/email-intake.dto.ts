@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class AcceptIntakeFromThreadDto {
   @IsOptional()
@@ -50,4 +50,17 @@ export class LinkThreadToCaseDto {
   @IsNotEmpty()
   @IsString()
   caseId: string;
+}
+
+/** Pick an existing client by id, or create one by name (the sender becomes its contact). */
+export class LinkIntakeClientDto {
+  @IsOptional()
+  @IsString()
+  clientId?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  name?: string;
 }

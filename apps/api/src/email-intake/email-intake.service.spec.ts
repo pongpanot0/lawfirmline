@@ -20,10 +20,12 @@ describe('EmailIntakeService', () => {
       createMany: jest.fn(),
       deleteMany: jest.fn(),
     },
-    client: { findMany: jest.fn(), findFirst: jest.fn() },
+    client: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+    clientContact: { count: jest.fn(), create: jest.fn() },
     emailAttachment: { findFirst: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
     document: { findFirst: jest.fn(), findMany: jest.fn(), createMany: jest.fn(), update: jest.fn() },
-    intakeDocumentRequest: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    intakeDocumentRequest: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
+    caseType: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
     auditLog: { findFirst: jest.fn(), create: jest.fn() },
     $transaction: jest.fn(),
     $queryRaw: jest.fn().mockResolvedValue([]),
@@ -43,6 +45,7 @@ describe('EmailIntakeService', () => {
     jest.resetAllMocks();
     mockPrisma.$transaction.mockImplementation((callback) => callback(mockPrisma));
     mockPrisma.emailThread.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.caseType.findMany.mockResolvedValue([]);
     mockPrisma.$queryRaw.mockResolvedValue([]);
     mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1' });
     mockPrisma.intake.findMany.mockResolvedValue([]);
@@ -311,7 +314,7 @@ describe('EmailIntakeService', () => {
       return service.resolveFieldProposal(user, 'intake-1', 'p', { action: 'confirm' });
     };
 
-    it.each(['title', 'clientName', 'contactName', 'opposingParty', 'description', 'insurerName', 'policyNumber', 'claimNumber'])('persists text %s', async (field) => {
+    it.each(['title', 'clientName', 'contactName', 'opposingParty', 'description', 'insurerName', 'policyNumber', 'claimNumber', 'matterType', 'customerRef', 'externalCaseNumber'])('persists text %s', async (field) => {
       await confirm(field, 'confirmed text');
       expect(mockPrisma.intake.update).toHaveBeenCalledWith({ where: { id: 'intake-1' }, data: { [field]: 'confirmed text' } });
     });
@@ -336,7 +339,32 @@ describe('EmailIntakeService', () => {
       expect(mockPrisma.intake.update).toHaveBeenCalledWith({ where: { id: 'intake-1' }, data: { estimatedDamage: 4500000 } });
     });
 
-    it.each(['incidentDate', 'requestedResponseDate'])('persists %s and converts Buddhist years', async (field) => {
+    it('turns a suggested missing document into a request, once', async () => {
+      mockPrisma.intakeDocumentRequest.findFirst.mockResolvedValueOnce(null);
+      await confirm('docRequest', 'เวชระเบียนฉบับเต็ม');
+      expect(mockPrisma.intakeDocumentRequest.create).toHaveBeenCalledWith({ data: { intakeId: 'intake-1', name: 'เวชระเบียนฉบับเต็ม', createdById: 'user-1' } });
+      mockPrisma.intakeDocumentRequest.create.mockClear();
+      mockPrisma.intakeDocumentRequest.findFirst.mockResolvedValueOnce({ id: 'r1' });
+      await confirm('docRequest', 'เวชระเบียนฉบับเต็ม');
+      expect(mockPrisma.intakeDocumentRequest.create).not.toHaveBeenCalled();
+    });
+
+    it('sets the case type by its name within the firm, and rejects unknown names', async () => {
+      mockPrisma.caseType.findFirst.mockResolvedValueOnce({ id: 'ct-1' });
+      await confirm('caseType', 'ละเมิดทางการแพทย์');
+      expect(mockPrisma.caseType.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ firmId: 'firm-1', name: 'ละเมิดทางการแพทย์' }) }));
+      expect(mockPrisma.intake.update).toHaveBeenCalledWith({ where: { id: 'intake-1' }, data: { caseTypeId: 'ct-1' } });
+      mockPrisma.caseType.findFirst.mockResolvedValueOnce(null);
+      await expect(confirm('caseType', 'อื่นๆ')).rejects.toThrow(BadRequestException);
+    });
+
+    it('accepts only a real party role', async () => {
+      await confirm('partyRole', 'DEFENDANT');
+      expect(mockPrisma.intake.update).toHaveBeenCalledWith({ where: { id: 'intake-1' }, data: { partyRole: 'DEFENDANT' } });
+      await expect(confirm('partyRole', 'จำเลย')).rejects.toThrow(BadRequestException);
+    });
+
+    it.each(['incidentDate', 'requestedResponseDate', 'deadlineDate'])('persists %s and converts Buddhist years', async (field) => {
       await confirm(field, '2569-10-31');
       expect(mockPrisma.intake.update).toHaveBeenCalledWith({ where: { id: 'intake-1' }, data: { [field]: new Date('2026-10-31T00:00:00.000Z') } });
     });
@@ -490,7 +518,7 @@ describe('EmailIntakeService', () => {
       expect(JSON.parse(proposals[1].proposedValue).docRequestId).toBe('r1');
       expect(mockPrisma.intake.update).not.toHaveBeenCalled();
       expect(mockPrisma.document.update).not.toHaveBeenCalled();
-      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({ data: { firmId: 'firm-1', userId: 'user-1', action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId: 't', intakeId: 'intake-1', proposals: 2 } } });
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({ data: { firmId: 'firm-1', userId: 'user-1', action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId: 't', intakeId: 'intake-1', proposals: 2, summary: null } } });
     });
 
     it('can classify a file-only thread when OCR fails without inventing field values', async () => {
@@ -513,4 +541,49 @@ describe('EmailIntakeService', () => {
     });
   });
 
+
+  describe('client for the intake', () => {
+    const body = 'กรุณาตรวจยอด\n\nNathamon Chanitaphat\nRisk management Manager\nKasemrad Ramkhamhaeng Hospital\n02-339-0000 ต่อ 4006';
+    const thread = { id: 't', fromName: 'Nathamon', fromAddress: 'Nathamon.Cha@kasemrad.co.th', intake: { id: 'intake-1' }, messages: [{ direction: 'INBOUND', bodyText: body, attachments: [] }] };
+
+    it('offers the signature organisation as the new client name and finds clients by sender e-mail then domain', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue(thread);
+      mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1' });
+      mockPrisma.intake.findUnique.mockResolvedValue({ client: null });
+      mockPrisma.auditLog.findFirst.mockResolvedValue(null);
+      mockPrisma.client.findMany
+        .mockResolvedValueOnce([{ id: 'c1', name: 'รพ.เกษมราษฎร์ รามคำแหง' }])
+        .mockResolvedValueOnce([{ id: 'c1', name: 'รพ.เกษมราษฎร์ รามคำแหง' }, { id: 'c2', name: 'Kasemrad Group' }])
+        .mockResolvedValueOnce([]);
+      const { clientMatch } = await service.getThread(user, 't') as any;
+      expect(clientMatch).toEqual({ linked: null, suggestedName: 'Kasemrad Ramkhamhaeng Hospital', candidates: [
+        { id: 'c1', name: 'รพ.เกษมราษฎร์ รามคำแหง', reason: 'EMAIL' }, { id: 'c2', name: 'Kasemrad Group', reason: 'DOMAIN' }] });
+      expect(mockPrisma.client.findMany.mock.calls[0][0].where).toMatchObject({ firmId: 'firm-1' });
+    });
+
+    it('creates a new client with the sender as its contact and links the intake', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue(thread);
+      mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1' });
+      mockPrisma.client.create.mockResolvedValue({ id: 'new', name: 'Kasemrad Ramkhamhaeng Hospital' });
+      await service.linkClientForThread(user, 't', { name: ' Kasemrad Ramkhamhaeng Hospital ' });
+      expect(mockPrisma.client.create).toHaveBeenCalledWith({ data: { firmId: 'firm-1', name: 'Kasemrad Ramkhamhaeng Hospital',
+        contacts: { create: [{ name: 'Nathamon', email: 'Nathamon.Cha@kasemrad.co.th', isPrimary: true }] } }, select: { id: true, name: true } });
+      expect(mockPrisma.intake.update).toHaveBeenCalledWith({ where: { id: 'intake-1' }, data: { clientId: 'new', clientName: 'Kasemrad Ramkhamhaeng Hospital' } });
+    });
+
+    it('links an existing client of this firm only, adding the sender as a contact once', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue(thread);
+      mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1' });
+      mockPrisma.client.findFirst.mockResolvedValueOnce({ id: 'c1', name: 'รพ.เกษมราษฎร์' });
+      mockPrisma.clientContact.count.mockResolvedValueOnce(0);
+      await service.linkClientForThread(user, 't', { clientId: 'c1' });
+      expect(mockPrisma.client.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'c1', firmId: 'firm-1' } }));
+      expect(mockPrisma.clientContact.create).toHaveBeenCalledWith({ data: { clientId: 'c1', name: 'Nathamon', email: 'Nathamon.Cha@kasemrad.co.th', isPrimary: false } });
+
+      mockPrisma.client.findFirst.mockResolvedValueOnce(null);
+      await expect(service.linkClientForThread(user, 't', { clientId: 'other-firm' })).rejects.toThrow(NotFoundException);
+      await expect(service.linkClientForThread(user, 't', {})).rejects.toThrow(BadRequestException);
+    });
+  });
 });
+

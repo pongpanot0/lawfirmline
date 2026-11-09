@@ -1,4 +1,4 @@
-import { DocumentCategory } from '../generated/prisma';
+import { DocumentCategory, PartyRole } from '../generated/prisma';
 import type { ExtractedField } from './field-extraction.util';
 import { parseIntakeDate } from './field-extraction.util';
 
@@ -12,6 +12,8 @@ export const INTAKE_AI_SYSTEM_PROMPT = [
   'otherAmounts ใช้ meaning ภาษาไทยบอกว่าเป็นค่าอะไร วันที่ใช้ YYYY-MM-DD และแปลงปี พ.ศ. เป็น ค.ศ. (2569 เป็น 2026)',
   'summary เป็นสรุปคำขอ 1-3 ประโยค ส่วน description ใช้เมื่อมีรายละเอียดเพิ่มเติม ไม่เสนอซ้ำ',
   'documents เสนอหมวด ชื่อประเภทภาษาไทย ชื่อไฟล์ที่อ่านง่ายโดยคงนามสกุลเดิม และ docRequestName ที่ตรงกับชื่อใน documentRequests เท่านั้น',
+  'เสนอให้ได้มากที่สุดเท่าที่มีหลักฐาน: matterType ประเภทเรื่องสั้นๆ เช่น ละเมิดทางการแพทย์, customerRef เลขอ้างอิงของผู้ส่ง, externalCaseNumber เลขคดีศาล, deadlineDate วันครบกำหนดตามกฎหมายหรือโนติส, partyRole บทบาทของลูกความ (PLAINTIFF DEFENDANT PETITIONER RESPONDENT) เช่น โรงพยาบาลที่ถูกเรียกร้องคือ DEFENDANT, caseType ต้องเป็นชื่อหนึ่งใน caseTypes เท่านั้น',
+  'overview คือสรุปทั้งอีเมลและไฟล์เป็นข้อๆ 3-6 ข้อ clientRequest คือสิ่งที่ผู้ส่งขอให้สำนักงานทำ urgency HIGH NORMAL LOW พร้อมเหตุผล nextActions คือสิ่งที่ทนายควรทำต่อ ไม่เกิน 5 ข้อ missingDocuments คือชื่อเอกสารสั้นๆ ที่เรื่องนี้ควรมีหรือที่อีเมลอ้างถึงแต่ยังไม่ได้แนบ ไม่เกิน 8 ข้อ ส่วน summary เขียนเป็นภาษาคนอ่าน ห้ามใส่ id หรือ "แหล่งอ้างอิง"',
   'ไม่พบให้เป็น null หรือ array ว่าง ทุกข้อเสนอรอทนายยืนยัน',
 ].join(' ');
 
@@ -28,7 +30,9 @@ const reference = (key: string, type: string) => ({
 });
 const amountRef = reference('amount', 'number');
 const textRef = reference('value', 'string');
-const textFields = ['title', 'clientName', 'contactName', 'opposingParty', 'description', 'insurerName', 'policyNumber', 'claimNumber', 'incidentDate', 'requestedResponseDate'] as const;
+const textFields = ['title', 'clientName', 'contactName', 'opposingParty', 'description', 'insurerName', 'policyNumber', 'claimNumber', 'incidentDate', 'requestedResponseDate',
+  'matterType', 'customerRef', 'externalCaseNumber', 'deadlineDate', 'partyRole', 'caseType'] as const;
+const DATE_FIELDS = ['incidentDate', 'requestedResponseDate', 'deadlineDate'];
 const matterProperties = {
   label: { type: 'string' },
   summary: nullable(textRef),
@@ -50,6 +54,15 @@ const documentProperties = {
   suggestedFilename: { type: 'string' },
   docRequestName: nullable({ type: 'string' }),
 };
+const stringList = { type: 'array', items: { type: 'string' } };
+const summaryProperties = {
+  overview: stringList,
+  clientRequest: nullable({ type: 'string' }),
+  urgency: { type: 'string', enum: ['HIGH', 'NORMAL', 'LOW'] },
+  urgencyReason: nullable({ type: 'string' }),
+  nextActions: stringList,
+  missingDocuments: stringList,
+};
 export const INTAKE_AI_RESPONSE_FORMAT = {
   type: 'json_schema',
   json_schema: {
@@ -59,8 +72,9 @@ export const INTAKE_AI_RESPONSE_FORMAT = {
       properties: {
         matters: { type: 'array', items: { type: 'object', additionalProperties: false, properties: matterProperties, required: Object.keys(matterProperties) } },
         documents: { type: 'array', items: { type: 'object', additionalProperties: false, properties: documentProperties, required: Object.keys(documentProperties) } },
+        summary: { type: 'object', additionalProperties: false, properties: summaryProperties, required: Object.keys(summaryProperties) },
       },
-      required: ['matters', 'documents'],
+      required: ['matters', 'documents', 'summary'],
     },
   },
 };
@@ -80,6 +94,7 @@ export function parseIntakeAiResult(
   messages: Source[],
   documents: (Source & { filename?: string })[] = [],
   documentRequests: { id: string; name: string }[] = [],
+  caseTypes: string[] = [],
 ): AiProposal[] {
   let result: Record<string, unknown> | null;
   try { result = record(JSON.parse(raw)); } catch { return []; }
@@ -106,7 +121,9 @@ export function parseIntakeAiResult(
     } else {
       if (typeof r.value !== 'string' || !r.value.trim()) return;
       value = r.value.trim().slice(0, field === 'description' ? 2000 : 500);
-      if (field === 'incidentDate' || field === 'requestedResponseDate') {
+      if (field === 'partyRole' && !Object.values(PartyRole).includes(value as PartyRole)) return;
+      if (field === 'caseType' && !caseTypes.includes(value)) return;
+      if (DATE_FIELDS.includes(field)) {
         const date = parseIntakeDate(value);
         if (!date) return;
         value = date.toISOString().slice(0, 10);
@@ -140,3 +157,33 @@ export function parseIntakeAiResult(
   }
   return out;
 }
+
+export interface IntakeAiSummary {
+  overview: string[];
+  clientRequest: string | null;
+  urgency: 'HIGH' | 'NORMAL' | 'LOW';
+  urgencyReason: string | null;
+  nextActions: string[];
+  missingDocuments: string[];
+}
+
+/**
+ * The reading notes shown above the proposals. Not quote-checked like field values, so they are
+ * only ever displayed (labelled as AI's summary) — never written into the intake by themselves.
+ */
+export function parseIntakeAiSummary(raw: string): IntakeAiSummary | null {
+  let summary: Record<string, unknown> | null;
+  try { summary = record(record(JSON.parse(raw))?.summary); } catch { return null; }
+  if (!summary) return null;
+  // Models sometimes cite their source ids in prose; those mean nothing to a lawyer.
+  const clean = (value: string) => squash(value.replace(/\s*\((?:แหล่งอ้างอิง|อ้างอิง|source)[^)]*\)/gi, '').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ''));
+  const list = (value: unknown, max: number) => (Array.isArray(value) ? value : [])
+    .filter((item): item is string => typeof item === 'string' && !!clean(item)).map((item) => clean(item).slice(0, 300)).slice(0, max);
+  const text = (value: unknown) => (typeof value === 'string' && clean(value) ? clean(value).slice(0, 500) : null);
+  const urgency = summary.urgency === 'HIGH' || summary.urgency === 'LOW' ? summary.urgency : 'NORMAL';
+  return {
+    overview: list(summary.overview, 6), clientRequest: text(summary.clientRequest), urgency, urgencyReason: text(summary.urgencyReason),
+    nextActions: list(summary.nextActions, 5), missingDocuments: list(summary.missingDocuments, 8),
+  };
+}
+

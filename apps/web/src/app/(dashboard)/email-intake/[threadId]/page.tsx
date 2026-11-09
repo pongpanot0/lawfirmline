@@ -10,6 +10,8 @@ import { groupProposals, isPending, parseDocument, submitHelper } from '@/lib/em
 import { Stepper } from '@/components/email-intake/Stepper';
 import { NextStepBanner } from '@/components/email-intake/NextStepBanner';
 import { ProposalGroup } from '@/components/email-intake/ProposalGroup';
+import { AiSummaryCard } from '@/components/email-intake/AiSummaryCard';
+import { ClientMatchCard } from '@/components/email-intake/ClientMatchCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -79,6 +81,21 @@ export default function EmailThreadDetailPage() {
     if (!token || !data?.thread.intake?.id) { setRequests([]); return; }
     api.getIntake(token, data.thread.intake.id).then((intake) => setRequests(intake.documentRequests ?? [])).catch(() => setRequests([]));
   }, [token, data?.thread.intake?.id]);
+
+  const [linkingClient, setLinkingClient] = useState(false);
+  const handleLinkClient = async (payload: { clientId: string } | { name: string }) => {
+    if (!token) return;
+    setLinkingClient(true);
+    setError('');
+    try {
+      await api.linkEmailIntakeClient(token, threadId, payload);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'บันทึกลูกค้าไม่สำเร็จ');
+    } finally {
+      setLinkingClient(false);
+    }
+  };
 
   const handleAttachIntake = async (intakeId: string) => {
     if (!token) return;
@@ -318,12 +335,14 @@ export default function EmailThreadDetailPage() {
         </Card>
 
         <div className="min-w-0 space-y-6">
+          {data.clientMatch && <ClientMatchCard key={data.clientMatch.linked?.id ?? 'unlinked'} match={data.clientMatch} busy={linkingClient} onLink={handleLinkClient} />}
           <Card><CardContent className="p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold">ข้อมูลที่ระบบเตรียมให้</h2>
               {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>{aiReading ? 'AI กำลังอ่าน…' : 'อ่านใหม่ (1 เครดิต)'}</Button>}
             </div>
             {aiNote && <p role="status" className="mb-2 text-xs text-muted-foreground">{aiNote}</p>}
+            {data.aiSummary && <AiSummaryCard summary={data.aiSummary} />}
             <div className="space-y-3">
               {groupProposals(proposals.filter((p) => p.field !== 'document')).sort(([a], [b]) => Number(a === null) - Number(b === null)).map(([label, items], index) => <ProposalGroup key={label ?? ''} title={label ? `เรื่องที่ ${index + 1} · ${label}` : 'ข้อมูลทั่วไป'} items={items} proposals={proposals} onResolve={handleResolve} resolvingId={resolvingId} />)}
               {!proposals.some((p) => p.field !== 'document') && <p className="text-sm text-muted-foreground">ไม่พบข้อมูลที่ต้องยืนยัน</p>}

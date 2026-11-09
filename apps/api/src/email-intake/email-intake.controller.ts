@@ -1,5 +1,5 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Res, UseGuards, UseInterceptors } from '@nestjs/common';
-import { AI_CREDIT_COST, AuthUser } from '@lawfirm/shared';
+import { AI_CREDIT_COST, AuthUser, Role } from '@lawfirm/shared';
 import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { RequireCredits } from '../common/decorators/require-credits.decorator';
 import { Response } from 'express';
@@ -9,7 +9,9 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
 import { FileStorageService } from '../common/services/file-storage.service';
-import { AcceptIntakeFromThreadDto, AttachThreadToIntakeDto, ResolveFieldProposalDto, SeedMockReplyDto } from './dto/email-intake.dto';
+import { AcceptIntakeFromThreadDto, AttachThreadToIntakeDto, LinkIntakeClientDto, ResolveFieldProposalDto, SeedMockReplyDto } from './dto/email-intake.dto';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('email-intake')
 @UseGuards(JwtAuthGuard)
@@ -60,6 +62,14 @@ export class EmailIntakeController {
   @Post('threads/:threadId/intake-link')
   attachToIntake(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string, @Body() dto: AttachThreadToIntakeDto) {
     return this.service.attachThreadToIntake(user, threadId, dto.intakeId);
+  }
+
+  /** Link the intake to an existing client or create one — same roles as creating a client. */
+  @Post('threads/:threadId/client')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  linkClient(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string, @Body() dto: LinkIntakeClientDto) {
+    return this.service.linkClientForThread(user, threadId, dto);
   }
 
   @Post('threads/:threadId/accept')

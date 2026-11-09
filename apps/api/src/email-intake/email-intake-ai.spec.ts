@@ -1,4 +1,4 @@
-import { INTAKE_AI_RESPONSE_FORMAT, parseIntakeAiResult } from './email-intake-ai';
+import { INTAKE_AI_RESPONSE_FORMAT, parseIntakeAiResult, parseIntakeAiSummary } from './email-intake-ai';
 import { extractFieldsFromEmailBody } from './field-extraction.util';
 
 const messages = [
@@ -142,6 +142,31 @@ describe('rule-based amount labels use the nearest words', () => {
     const fields = extractFieldsFromEmailBody(body).filter((f) => f.field !== 'description');
     expect(fields.map((f) => f.field)).toEqual(['estimatedDamage', 'otherAmount']);
     expect(JSON.parse(fields[1].value)).toEqual({ label: 'ค่ารักษาพยาบาลค้างชำระ', amount: 82400 });
+  });
+});
+
+describe('parseIntakeAiSummary', () => {
+  it('keeps a bounded, cleaned summary and defaults an unknown urgency to NORMAL', () => {
+    const raw = JSON.stringify({ matters: [], documents: [], summary: {
+      overview: ['ข้อ 1', '  ', 'ข้อ 2', 'ข้อ 3', 'ข้อ 4', 'ข้อ 5', 'ข้อ 6', 'ข้อ 7'], clientRequest: 'ขอให้พิจารณาไกล่เกลี่ย',
+      urgency: 'URGENT!!', urgencyReason: null, nextActions: ['ขอเวชระเบียน'], missingDocuments: ['เวชระเบียนฉบับเต็ม', 3],
+    } });
+    expect(parseIntakeAiSummary(raw)).toEqual({ overview: ['ข้อ 1', 'ข้อ 2', 'ข้อ 3', 'ข้อ 4', 'ข้อ 5', 'ข้อ 6'], clientRequest: 'ขอให้พิจารณาไกล่เกลี่ย',
+      urgency: 'NORMAL', urgencyReason: null, nextActions: ['ขอเวชระเบียน'], missingDocuments: ['เวชระเบียนฉบับเต็ม'] });
+    expect(parseIntakeAiSummary('nope')).toBeNull();
+    const cited = JSON.stringify({ summary: { overview: ['ยอด 250,000 บาท (แหล่งอ้างอิง: 83e6b7d6-1cac-4320-b51c-0a9834a26d56)'], clientRequest: null, urgency: 'LOW', urgencyReason: null, nextActions: [], missingDocuments: [] } });
+    expect(parseIntakeAiSummary(cited)?.overview).toEqual(['ยอด 250,000 บาท']);
+  });
+});
+
+describe('extra fields need evidence and valid values', () => {
+  const messages = [{ id: 'm', text: 'โรงพยาบาลถูกญาติผู้ป่วยเรียกร้องค่าเสียหาย คดีละเมิดทางการแพทย์' }];
+  const ref = (value: string) => ({ value, quote: 'ถูกญาติผู้ป่วยเรียกร้อง', sourceMessageId: 'm', sourceDocumentId: null });
+  it('keeps a known party role and case type, drops unknown ones', () => {
+    const raw = (partyRole: string, caseType: string) => JSON.stringify({ matters: [{ label: 'x', partyRole: ref(partyRole), caseType: ref(caseType) }], documents: [] });
+    expect(parseIntakeAiResult(raw('DEFENDANT', 'ละเมิดทางการแพทย์'), messages, [], [], ['ละเมิดทางการแพทย์']).map((p) => [p.field, p.value]))
+      .toEqual([['partyRole', 'DEFENDANT'], ['caseType', 'ละเมิดทางการแพทย์']]);
+    expect(parseIntakeAiResult(raw('จำเลย', 'คดีแพ่ง'), messages, [], [], ['ละเมิดทางการแพทย์'])).toEqual([]);
   });
 });
 

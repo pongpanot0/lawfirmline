@@ -5,7 +5,7 @@ import { FileStorageService } from '../common/services/file-storage.service';
 import { intakeProgress } from './email-intake-progress';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser, redactForAi, splitQuotedText, stripEmailSignature } from '@lawfirm/shared';
-import { INTAKE_AI_RESPONSE_FORMAT, INTAKE_AI_SYSTEM_PROMPT, parseIntakeAiResult } from './email-intake-ai';
+import { INTAKE_AI_RESPONSE_FORMAT, INTAKE_AI_SYSTEM_PROMPT, parseIntakeAiResult, parseIntakeAiSummary } from './email-intake-ai';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import {
@@ -15,9 +15,14 @@ import {
   FieldProposalSourceType,
   FieldProposalStatus,
   IntakeStatus,
+  PartyRole,
 } from '../generated/prisma';
 import { extractFieldsFromEmailBody, parseIntakeDate } from './field-extraction.util';
-import { AcceptIntakeFromThreadDto, ResolveFieldProposalDto, SeedMockReplyDto } from './dto/email-intake.dto';
+import { AcceptIntakeFromThreadDto, LinkIntakeClientDto, ResolveFieldProposalDto, SeedMockReplyDto } from './dto/email-intake.dto';
+
+// Personal mailboxes say nothing about which organisation the sender belongs to.
+const PUBLIC_MAIL_DOMAINS = new Set(['gmail.com', 'hotmail.com', 'outlook.com', 'live.com', 'yahoo.com', 'icloud.com', 'msn.com', 'hotmail.co.th', 'yahoo.co.th']);
+const ORGANISATION_LINE = /hospital|clinic|company|co\.,?\s*ltd|limited|corporation|group|bank|insurance|บริษัท|โรงพยาบาล|คลินิก|ธนาคาร|ประกันภัย|ประกันชีวิต|สำนักงาน|มูลนิธิ|ห้างหุ้นส่วน/i;
 
 /** Another request linked the thread while this one was creating its intake. */
 const LINKED_MEANWHILE = new Error('thread linked meanwhile');
@@ -26,7 +31,8 @@ const INTAKE_FIELD_MAP: Record<string, string> = {
   title: 'title', clientName: 'clientName', contactName: 'contactName', opposingParty: 'opposingParty',
   description: 'description', insurerName: 'insurerName', policyNumber: 'policyNumber', claimNumber: 'claimNumber',
   estimatedDamage: 'estimatedDamage', insurerPaidAmount: 'insurerPaidAmount', settlementOfferAmount: 'settlementOfferAmount',
-  incidentDate: 'incidentDate', requestedResponseDate: 'requestedResponseDate',
+  incidentDate: 'incidentDate', requestedResponseDate: 'requestedResponseDate', deadlineDate: 'deadlineDate',
+  matterType: 'matterType', customerRef: 'customerRef', externalCaseNumber: 'externalCaseNumber', partyRole: 'partyRole',
 };
 
 const threadInclude = {
@@ -176,10 +182,63 @@ export class EmailIntakeService {
     const documents = thread.intake ? await this.threadDocuments(thread.intake.id, thread.messages) : [];
     const aiRead = await this.prisma.auditLog.findFirst({
       where: { firmId: user.firmId, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { path: ['threadId'], equals: threadId } },
-      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+      select: { metadata: true },
     });
-    return { thread, proposals, documents: documents.map(({ id, filename, mimeType, category }) => ({ id, filename, mimeType, category })),
+    const aiSummary = (aiRead?.metadata as { summary?: unknown } | null)?.summary ?? null;
+    const clientMatch = thread.intake ? await this.clientMatchForThread(user, thread) : null;
+    return { thread, proposals, aiSummary, clientMatch, documents: documents.map(({ id, filename, mimeType, category }) => ({ id, filename, mimeType, category })),
       progress: intakeProgress(thread, proposals, thread.messages.some((m) => m.direction === EmailDirection.INBOUND && m.attachments.length > 0), !!aiRead) };
+  }
+
+  /**
+   * Who the client is: the intake's linked client, or existing clients that match the sender
+   * (same e-mail on a contact, then same company domain, then a similar name), plus a name to
+   * offer when none fits — the organisation line of the sender's signature, else the domain.
+   */
+  private async clientMatchForThread(user: AuthUser, thread: { fromName: string | null; fromAddress: string | null; intake: { id: string } | null; messages: { direction: EmailDirection; bodyText: string | null }[] }) {
+    const intake = await this.prisma.intake.findUnique({ where: { id: thread.intake!.id }, select: { client: { select: { id: true, name: true } } } });
+    const address = thread.fromAddress?.trim().toLowerCase() ?? '';
+    const domain = address.includes('@') && !PUBLIC_MAIL_DOMAINS.has(address.split('@')[1]) ? address.split('@')[1] : null;
+    const latest = thread.messages.find((m) => m.direction === EmailDirection.INBOUND);
+    const main = splitQuotedText(latest?.bodyText ?? '').main;
+    const signature = main.slice(stripEmailSignature(main).length).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const organisation = [...signature].reverse().find((l) => ORGANISATION_LINE.test(l) && l.length <= 120);
+    const domainWord = domain ? domain.split('.')[0] : null;
+    const suggestedName = organisation ?? (domainWord ? domainWord.charAt(0).toUpperCase() + domainWord.slice(1) : thread.fromName ?? '');
+
+    const candidates = new Map<string, { id: string; name: string; reason: 'EMAIL' | 'DOMAIN' | 'NAME' }>();
+    const add = (rows: { id: string; name: string }[], reason: 'EMAIL' | 'DOMAIN' | 'NAME') => rows.forEach((c) => !candidates.has(c.id) && candidates.set(c.id, { ...c, reason }));
+    const select = { id: true, name: true } as const;
+    if (address) add(await this.prisma.client.findMany({ where: { firmId: user.firmId, contacts: { some: { email: { equals: address, mode: 'insensitive' } } } }, select, take: 5 }), 'EMAIL');
+    if (domain) add(await this.prisma.client.findMany({ where: { firmId: user.firmId, OR: [
+      { contacts: { some: { email: { endsWith: `@${domain}`, mode: 'insensitive' } } } }, { billingEmail: { endsWith: `@${domain}`, mode: 'insensitive' } }] }, select, take: 5 }), 'DOMAIN');
+    const names = [organisation, domainWord && domainWord.length >= 4 ? domainWord : null].filter((n): n is string => !!n);
+    if (names.length) add(await this.prisma.client.findMany({ where: { firmId: user.firmId, OR: names.map((n) => ({ name: { contains: n, mode: 'insensitive' as const } })) }, select, take: 5 }), 'NAME');
+    return { linked: intake?.client ?? null, candidates: [...candidates.values()].filter((c) => c.id !== intake?.client?.id).slice(0, 5), suggestedName };
+  }
+
+  /** Link the intake to an existing client, or create the client (sender as its contact) and link it. */
+  async linkClientForThread(user: AuthUser, threadId: string, dto: LinkIntakeClientDto) {
+    const thread = await this.getThreadOrThrow(user, threadId);
+    if (!thread.intake) throw new BadRequestException('รับอีเมลนี้เป็นเรื่องก่อน');
+    if (!dto.clientId === !dto.name) throw new BadRequestException('เลือกลูกค้าเดิม หรือใส่ชื่อลูกค้าใหม่ อย่างใดอย่างหนึ่ง');
+    const contact = thread.fromAddress ? { name: thread.fromName?.trim() || thread.fromAddress, email: thread.fromAddress, isPrimary: true } : null;
+    const client = dto.clientId
+      ? await this.prisma.client.findFirst({ where: { id: dto.clientId, firmId: user.firmId }, select: { id: true, name: true } })
+      : await this.prisma.client.create({
+        data: { firmId: user.firmId, name: dto.name!.trim(), contacts: contact ? { create: [contact] } : undefined },
+        select: { id: true, name: true },
+      });
+    if (!client) throw new NotFoundException('ไม่พบลูกค้านี้');
+    if (dto.clientId && contact) {
+      // An existing client gains the sender as a contact, so the next e-mail from them matches directly.
+      const known = await this.prisma.clientContact.count({ where: { clientId: client.id, email: { equals: contact.email, mode: 'insensitive' } } });
+      if (!known) await this.prisma.clientContact.create({ data: { clientId: client.id, name: contact.name, email: contact.email, isPrimary: false } });
+    }
+    await this.prisma.intake.update({ where: { id: thread.intake.id }, data: { clientId: client.id, clientName: client.name } });
+    await this.prisma.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: dto.clientId ? 'EMAIL_INTAKE_CLIENT_LINKED' : 'EMAIL_INTAKE_CLIENT_CREATED', metadata: { threadId, intakeId: thread.intake.id, clientId: client.id } } });
+    return client;
   }
 
   /**
@@ -381,11 +440,13 @@ export class EmailIntakeService {
     if (!messages.length && !documents.length) throw new BadRequestException('ไม่มีเนื้อหาอีเมลหรือไฟล์ให้ AI อ่าน');
     const documentRequests = await this.prisma.intakeDocumentRequest.findMany({ where: { intakeId: thread.intake.id }, select: { id: true, name: true } });
     const redactedRequests = documentRequests.map((request) => ({ id: request.id, name: redactForAi(request.name).text }));
+    const caseTypes = (await this.prisma.caseType.findMany({ where: { firmId: user.firmId, isActive: true }, select: { name: true } })).map((t) => t.name);
     let content: string;
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        signal: AbortSignal.timeout(30000),
+        // Reading the e-mail plus up to five files and writing a summary takes ~20-40s on luna.
+        signal: AbortSignal.timeout(90000),
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           // Tried 2026-11-09 on a two-matter Thai e-mail: luna split and labelled every amount as
@@ -394,7 +455,7 @@ export class EmailIntakeService {
           response_format: INTAKE_AI_RESPONSE_FORMAT,
           messages: [
             { role: 'system', content: INTAKE_AI_SYSTEM_PROMPT },
-            { role: 'user', content: JSON.stringify({ subject: redactForAi(thread.subject).text, messages, documents, documentRequests: redactedRequests }) },
+            { role: 'user', content: JSON.stringify({ subject: redactForAi(thread.subject).text, messages, documents, documentRequests: redactedRequests, caseTypes }) },
           ],
         }),
       });
@@ -408,7 +469,14 @@ export class EmailIntakeService {
       throw new ServiceUnavailableException('AI อ่านอีเมลไม่สำเร็จ ลองใหม่ได้');
     }
 
-    const proposals = parseIntakeAiResult(content, messages, documents, redactedRequests);
+    const summary = parseIntakeAiSummary(content);
+    const requested = new Set(documentRequests.map((r) => r.name.trim()));
+    // Documents the lawyer should ask for become one-click requests, never created on their own.
+    const docRequests = (summary?.missingDocuments ?? []).filter((name) => !requested.has(name)).map((name) => ({
+      field: 'docRequest', value: name, sourceMessageId: messages[messages.length - 1]?.id ?? null, sourceDocumentId: null,
+      matterLabel: null, sourceDetail: 'AI แนะนำให้ขอเอกสารนี้จากลูกความ',
+    }));
+    const proposals = [...parseIntakeAiResult(content, messages, documents, redactedRequests, caseTypes), ...docRequests];
     if (proposals.length) {
       await this.prisma.$transaction(async (tx) => {
       // A fresh read replaces what is still unreviewed from these messages and files: the keyword
@@ -436,7 +504,7 @@ export class EmailIntakeService {
       });
     }
     await this.prisma.auditLog.create({
-      data: { firmId: user.firmId, userId: user.id, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId, intakeId: thread.intake.id, proposals: proposals.length } },
+      data: { firmId: user.firmId, userId: user.id, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId, intakeId: thread.intake.id, proposals: proposals.length, summary: summary ? { ...summary } : null } },
     });
     return { proposals: proposals.length };
   }
@@ -509,6 +577,15 @@ export class EmailIntakeService {
         if (!amounts.some((a) => a !== null && typeof a === 'object' && !Array.isArray(a) && a.label === entry.label && a.amount === entry.amount)) {
           data.otherAmounts = [...amounts, entry];
         }
+      } else if (proposal.field === 'docRequest') {
+        const name = finalValue.trim().slice(0, 200);
+        if (!name) throw new BadRequestException('ชื่อเอกสารไม่ถูกต้อง');
+        const exists = await tx.intakeDocumentRequest.findFirst({ where: { intakeId, name }, select: { id: true } });
+        if (!exists) await tx.intakeDocumentRequest.create({ data: { intakeId, name, createdById: user.id } });
+      } else if (proposal.field === 'caseType') {
+        const caseType = await tx.caseType.findFirst({ where: { firmId: user.firmId, isActive: true, name: finalValue.trim() }, select: { id: true } });
+        if (!caseType) throw new BadRequestException('ไม่พบประเภทคดีนี้ในสำนักงาน');
+        data.caseTypeId = caseType.id;
       } else if (proposal.field === 'document') {
         let doc: { documentId?: unknown; category?: unknown; filename?: unknown; docRequestId?: unknown; docTypeLabel?: unknown } | null;
         try { doc = JSON.parse(finalValue); } catch { throw new BadRequestException('ข้อมูลเอกสารไม่ถูกต้อง'); }
@@ -543,7 +620,10 @@ export class EmailIntakeService {
         if (['estimatedDamage', 'insurerPaidAmount', 'settlementOfferAmount'].includes(column)) {
           if (!finalValue.trim() || !Number.isFinite(Number(finalValue)) || Number(finalValue) < 0) throw new BadRequestException('จำนวนเงินไม่ถูกต้อง');
           data[column] = Number(finalValue);
-        } else if (column === 'incidentDate' || column === 'requestedResponseDate') {
+        } else if (column === 'partyRole') {
+          if (!Object.values(PartyRole).includes(finalValue as PartyRole)) throw new BadRequestException('บทบาทคู่ความไม่ถูกต้อง');
+          data[column] = finalValue;
+        } else if (column === 'incidentDate' || column === 'requestedResponseDate' || column === 'deadlineDate') {
           const date = parseIntakeDate(finalValue);
           if (!date) throw new BadRequestException('วันที่ไม่ถูกต้อง');
           data[column] = date;
