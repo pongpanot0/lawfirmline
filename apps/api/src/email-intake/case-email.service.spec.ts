@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
 import { CaseEmailService, excerptAround } from './case-email.service';
+import { EmailMentionTasksService } from './email-mention-tasks.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -49,6 +50,7 @@ describe('CaseEmailService', () => {
         { provide: DocumentsService, useValue: mockDocuments },
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: OutlookSyncService, useValue: mockOutlookSync },
+        { provide: EmailMentionTasksService, useValue: { suggestionsFor: jest.fn().mockResolvedValue(new Map()) } },
       ],
     }).compile();
     service = module.get(CaseEmailService);

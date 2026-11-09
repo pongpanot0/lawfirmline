@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmailMessageCard } from '@/components/email/EmailMessageCard';
 import { CaseEmailComposer, type CaseEmailComposerMode } from './CaseEmailComposer';
 import { CaseUnknownAddresses } from './CaseUnknownAddresses';
+import { EmailMentionTasks } from './EmailMentionTasks';
 import { MATCH_REASON_LABELS } from '@/lib/case-email';
 import { formatDateTime } from '@/lib/utils';
 import { awaitingReplyLabel } from '@/lib/email-awaiting';
@@ -441,6 +442,15 @@ export function CaseEmailPanel({
                       subject={detail.subject}
                       defaultExpanded={index === detail.messages.length - 1}
                     >
+                      {message.mentionTasks && message.mentionTasks.length > 0 && (
+                        <EmailMentionTasks
+                          key={message.mentionTasks.map((s) => s.taskId ?? s.assigneeId).join()}
+                          caseId={caseId}
+                          messageId={message.id}
+                          suggestions={message.mentionTasks}
+                          onCreated={() => setDetailTick((n) => n + 1)}
+                        />
+                      )}
                       {message.attachments.length > 0 && (
                         <ul className="space-y-1" aria-label="ไฟล์แนบ">
                           {message.attachments.map((attachment) => (
