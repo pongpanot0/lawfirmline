@@ -382,6 +382,26 @@ describe('OutlookSyncService', () => {
     expect(mockPrisma.emailAttachment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ messageId: 'm-existing', filename: 'a.pdf' }) });
   });
 
+  it('inlines cid: images even when Graph reports hasAttachments=false (inline-only mail), without storing them', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValue(null);
+    mockPrisma.emailThread.create.mockResolvedValue({ id: 't1', caseId: null });
+    mockPrisma.emailMessage.findFirst.mockResolvedValue(null);
+    mockPrisma.emailMessage.create.mockResolvedValue({ id: 'm1' });
+    mockGraph.getAttachments.mockResolvedValue([
+      { name: 'image001.png', contentType: 'image/png', size: 4, contentBytes: 'AAAA', contentId: 'image001.png@01DB', isInline: true },
+    ]);
+    await service.upsertGraphMessage({
+      firmId: 'f1', connectionId: 'c1', accessToken: 'tok',
+      message: { ...htmlMessage, body: { contentType: 'html', content: '<p>ขอบคุณค่ะ</p><img src="cid:image001.png@01DB">' } } as any,
+      direction: 'INBOUND', createThreadIfMissing: true,
+    });
+    expect(mockGraph.getAttachments).toHaveBeenCalledWith('tok', 'g1');
+    expect(mockPrisma.emailMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ bodyHtml: '<p>ขอบคุณค่ะ</p><img src="data:image/png;base64,AAAA">', bodyText: expect.not.stringContaining('base64') }),
+    });
+    expect(mockPrisma.emailAttachment.create).not.toHaveBeenCalled();
+  });
+
   it('does not re-fetch attachments of a stored message that already has them', async () => {
     mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
     mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'm-existing' });

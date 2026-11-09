@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
+import { hasCidRefs } from '../outlook-integration/mail/inline-cid-images';
 import { extname } from 'path';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
 import { FileStorageService } from '../common/services/file-storage.service';
@@ -66,6 +68,7 @@ export class EmailIntakeService {
     private config: ConfigService,
     private fileStorage: FileStorageService,
     private documentIntelligence: DocumentIntelligenceService,
+    @Inject(forwardRef(() => OutlookSyncService)) private outlookSync: OutlookSyncService,
   ) {}
 
   async listThreads(user: AuthUser) {
@@ -172,6 +175,13 @@ export class EmailIntakeService {
 
   async getThread(user: AuthUser, threadId: string) {
     const thread = await this.getThreadOrThrow(user, threadId);
+    // Mail synced before inline images were embedded still points at cid: parts; repair on open.
+    const connectionId = thread.mailboxConnectionId;
+    if (connectionId) {
+      thread.messages = await Promise.all(thread.messages.map(async (m) => (hasCidRefs(m.bodyHtml) && m.graphMessageId
+        ? { ...m, bodyHtml: await this.outlookSync.inlineStoredImages({ id: m.id, graphMessageId: m.graphMessageId, bodyHtml: m.bodyHtml }, connectionId) }
+        : m)));
+    }
     const proposals = thread.intake
       ? await this.prisma.intakeFieldProposal.findMany({
         where: { intakeId: thread.intake.id },
@@ -479,6 +489,8 @@ export class EmailIntakeService {
     const proposals = [...parseIntakeAiResult(content, messages, documents, redactedRequests, caseTypes), ...docRequests];
     if (proposals.length) {
       await this.prisma.$transaction(async (tx) => {
+      // Two reads finishing together must not both insert: serialize on the intake row.
+      await tx.$queryRaw`SELECT "id" FROM "Intake" WHERE "id" = ${thread.intake!.id} FOR UPDATE`;
       // A fresh read replaces what is still unreviewed from these messages and files: the keyword
       // guesses (same amounts, sometimes mislabelled) and any earlier AI read. Decided ones stay.
       await tx.intakeFieldProposal.deleteMany({

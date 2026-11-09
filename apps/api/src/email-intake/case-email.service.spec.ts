@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
 
 describe('CaseEmailService', () => {
   let service: CaseEmailService;
@@ -29,6 +30,7 @@ describe('CaseEmailService', () => {
   };
   const mockDocuments = { createFromBuffer: jest.fn() };
   const mockFileStorage = { getBuffer: jest.fn() };
+  const mockOutlookSync = { inlineStoredImages: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
 
   beforeEach(async () => {
@@ -46,6 +48,7 @@ describe('CaseEmailService', () => {
         { provide: CaseAccessService, useValue: mockCaseAccess },
         { provide: DocumentsService, useValue: mockDocuments },
         { provide: FileStorageService, useValue: mockFileStorage },
+        { provide: OutlookSyncService, useValue: mockOutlookSync },
       ],
     }).compile();
     service = module.get(CaseEmailService);
@@ -249,6 +252,26 @@ describe('CaseEmailService', () => {
         }),
       );
       expect(thread.messages[0].attachments.map((a) => a.savedDocumentId)).toEqual([null, 'doc-9']);
+    });
+
+    it('repairs stored cid: images through the thread mailbox, leaving other messages alone', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({
+        id: 'thread-1', subject: 's', caseId: 'case-1', lastMessageAt: new Date(), mailboxConnectionId: 'conn-1',
+        messages: [
+          { id: 'm1', graphMessageId: 'g1', bodyHtml: '<img src="cid:logo">', attachments: [] },
+          { id: 'm2', graphMessageId: 'g2', bodyHtml: '<p>hi</p>', attachments: [] },
+        ],
+      });
+      mockPrisma.document.findMany.mockResolvedValue([]);
+      mockOutlookSync.inlineStoredImages.mockResolvedValue('<img src="data:image/png;base64,AA==">');
+
+      const thread = await service.getCaseThread(user, 'case-1', 'thread-1');
+
+      expect(mockOutlookSync.inlineStoredImages).toHaveBeenCalledTimes(1);
+      expect(mockOutlookSync.inlineStoredImages).toHaveBeenCalledWith({ id: 'm1', graphMessageId: 'g1', bodyHtml: '<img src="cid:logo">' }, 'conn-1');
+      expect(thread.messages.map((m) => m.bodyHtml)).toEqual(['<img src="data:image/png;base64,AA==">', '<p>hi</p>']);
+      expect(thread).not.toHaveProperty('mailboxConnectionId');
+      expect(thread.messages[0]).not.toHaveProperty('graphMessageId');
     });
   });
 

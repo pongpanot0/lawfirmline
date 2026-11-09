@@ -52,6 +52,6 @@ import { OutlookSendService } from './outlook-send.service';
     EmailReplyReminderService,
     OutlookAdminStatusService,
   ],
-  exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService, GraphDriveClient],
+  exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookSyncService, OutlookCalendarSyncService, GraphDriveClient],
 })
 export class OutlookIntegrationModule {}
