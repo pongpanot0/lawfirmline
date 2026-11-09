@@ -151,7 +151,18 @@ export class EmailIntakeService {
       })
       : [];
 
-    return { thread, proposals };
+    // The page reads the e-mail with AI on its own once per newest client message, not on every open.
+    const latestInbound = thread.messages.find((m) => m.direction === EmailDirection.INBOUND);
+    const lastAiRun = thread.intake && latestInbound
+      ? await this.prisma.auditLog.findFirst({
+        where: { firmId: user.firmId, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { path: ['threadId'], equals: threadId } },
+        orderBy: { createdAt: 'desc' },
+        select: { metadata: true },
+      })
+      : null;
+    const aiReadLatest = !latestInbound || (lastAiRun?.metadata as { latestMessageId?: string } | null)?.latestMessageId === latestInbound.id;
+
+    return { thread, proposals, aiReadLatest };
   }
 
   /**
@@ -335,7 +346,7 @@ export class EmailIntakeService {
       });
     }
     await this.prisma.auditLog.create({
-      data: { firmId: user.firmId, userId: user.id, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId, intakeId: thread.intake.id, proposals: proposals.length } },
+      data: { firmId: user.firmId, userId: user.id, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { threadId, intakeId: thread.intake.id, proposals: proposals.length, latestMessageId: thread.messages.find((m) => m.direction === EmailDirection.INBOUND)?.id } },
     });
     return { proposals: proposals.length };
   }

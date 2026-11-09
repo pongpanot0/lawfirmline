@@ -19,6 +19,7 @@ describe('EmailIntakeService', () => {
     },
     client: { findMany: jest.fn(), findFirst: jest.fn() },
     emailAttachment: { findFirst: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
+    auditLog: { findFirst: jest.fn() },
     $queryRaw: jest.fn().mockResolvedValue([]),
   };
   const mockCaseAccess = {
@@ -268,6 +269,24 @@ describe('EmailIntakeService', () => {
 
       expect(mockPrisma.intakeFieldProposal.createMany).toHaveBeenCalled();
       expect(mockPrisma.intake.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getThread aiReadLatest', () => {
+    const thread = {
+      id: 'thread-1',
+      intake: { id: 'intake-1' },
+      messages: [
+        { id: 'm-new', direction: 'INBOUND' },
+        { id: 'm-old', direction: 'INBOUND' },
+      ],
+    };
+    it('is false until AI has read the newest client message, so the page reads it once', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue(thread);
+      mockPrisma.auditLog.findFirst.mockResolvedValue({ metadata: { latestMessageId: 'm-old' } });
+      expect((await service.getThread(user, 'thread-1')).aiReadLatest).toBe(false);
+      mockPrisma.auditLog.findFirst.mockResolvedValue({ metadata: { latestMessageId: 'm-new' } });
+      expect((await service.getThread(user, 'thread-1')).aiReadLatest).toBe(true);
     });
   });
 });

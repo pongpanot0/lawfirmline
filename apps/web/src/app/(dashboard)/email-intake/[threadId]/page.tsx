@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Paperclip, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
@@ -263,8 +263,9 @@ export default function EmailThreadDetailPage() {
     [data],
   );
 
-  // AI runs only when pressed; its values land as proposals that still need "ยืนยันค่านี้".
-  const handleAiExtract = async () => {
+  // AI values land as proposals that still need "ยืนยันค่านี้". It reads on its own once per newest
+  // client message (the server says whether that one was read); the button reads again on demand.
+  const handleAiExtract = useCallback(async () => {
     if (!token) return;
     setAiReading(true);
     setError('');
@@ -278,7 +279,14 @@ export default function EmailThreadDetailPage() {
     } finally {
       setAiReading(false);
     }
-  };
+  }, [token, threadId, refresh]);
+
+  const autoReadFor = useRef('');
+  useEffect(() => {
+    if (!data?.thread.intake || data.aiReadLatest !== false || autoReadFor.current === threadId) return;
+    autoReadFor.current = threadId;
+    handleAiExtract();
+  }, [data, threadId, handleAiExtract]);
 
   const handleAccept = async () => {
     if (!token || !data?.thread.intake) return;

@@ -43,7 +43,7 @@ export class EmailIntakeController {
     stream.pipe(res);
   }
 
-  /** Person-pressed only; adds proposals the lawyer still confirms one by one. */
+  /** Run by the page once per newest client message, or by the button; adds proposals the lawyer still confirms one by one. */
   @Post('threads/:threadId/ai-extract')
   @RequireCredits(AI_CREDIT_COST.EMAIL_INTAKE_EXTRACTION)
   @UseInterceptors(AiCreditsInterceptor)
