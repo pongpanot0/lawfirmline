@@ -37,7 +37,7 @@ export default function EmailThreadDetailPage() {
   const { token, user } = useAuth();
   const router = useRouter();
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
-  const [assessorIds, setAssessorIds] = useState<string[]>([]);
+  const [teamIds, setTeamIds] = useState<string[]>([]);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
 
   useEffect(() => {
@@ -228,13 +228,17 @@ export default function EmailThreadDetailPage() {
       // Accepted before every intake opened its case at "ก่อนฟ้อง": open it now — accepting again
       // is idempotent and only adds the missing case, so the matter appears in เรื่องและคดี.
       const caseId = data.thread.caseId ?? data.thread.intake.case?.id ?? (await api.acceptEmailThread(token, threadId)).caseId;
-      await api.assessIntake(token, data.thread.intake.id, { assessorIds: assessorIds.length ? assessorIds : user ? [user.id] : [] });
+      // No assessment step: the first person picked owns the case, everyone picked is its team
+      // (the intake's team syncs onto its case).
+      const team = teamIds.length ? teamIds : user ? [user.id] : [];
+      if (team[0]) await api.updateCase(token, caseId, { leadLawyerId: team[0] });
+      if (team.length) await api.updateIntake(token, data.thread.intake.id, { assignedUserIds: team });
       window.dispatchEvent(new Event('email-intake-changed'));
       const path = casePath(caseId);
       if (path) router.push(path);
       else setError('ไม่พบคดีที่เชื่อมโยง');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ยืนยันไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'สร้างคดีก่อนฟ้องไม่สำเร็จ');
     } finally {
       setAccepting(false);
     }
@@ -444,18 +448,18 @@ export default function EmailThreadDetailPage() {
       <div id="submit-intake" className="fixed inset-x-0 bottom-0 z-30 flex flex-wrap items-center justify-end gap-3 border-t bg-card p-4 pr-44 shadow-lg pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p className="text-sm text-muted-foreground">{submitHelper(progress.steps)}</p>
         <div className="flex min-w-0 items-center gap-2 text-sm">
-          <span className="text-muted-foreground">ผู้ประเมิน</span>
+          <span className="text-muted-foreground">ผู้รับผิดชอบคดี</span>
           <div className="w-64 max-w-full">
             <MultiUserSelect
               users={user && !lawyers.some((l) => l.id === user.id) ? [user as unknown as UserItem, ...lawyers] : lawyers}
-              value={assessorIds.length ? assessorIds : user ? [user.id] : []}
-              onChange={setAssessorIds}
-              placeholder="เลือกผู้ประเมิน (ได้หลายคน)"
+              value={teamIds.length ? teamIds : user ? [user.id] : []}
+              onChange={setTeamIds}
+              placeholder="คนแรกเป็นเจ้าของคดี (เลือกได้หลายคน)"
               dropUp
             />
           </div>
         </div>
-        <Button disabled={accepting || !thread.intake || !canSubmit} onClick={handleAccept}>{accepting ? 'กำลังบันทึก...' : 'ส่งประเมิน'}</Button>
+        <Button disabled={accepting || !thread.intake || !canSubmit} onClick={handleAccept}>{accepting ? 'กำลังสร้างคดี...' : 'สร้างคดีก่อนฟ้อง'}</Button>
       </div>
       {preview && <DocumentPreviewModal filename={preview.filename} mimeType={preview.mimeType} url={preview.url} onClose={() => setPreview(null)} />}
       {thread.caseId && (

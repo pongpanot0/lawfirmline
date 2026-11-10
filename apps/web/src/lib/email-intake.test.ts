@@ -18,7 +18,7 @@ test('submit helper lists incomplete required steps', () => {
   const steps = [{ key: 'CONFIRM', label: 'ตรวจข้อมูล', state: 'done' }, { key: 'DOCUMENTS', label: 'จัดเอกสาร', state: 'current' }] as EmailIntakeStep[];
   assert.equal(submitHelper(steps), 'ต้องทำให้ครบก่อน: จัดเอกสาร');
   steps[1].state = 'done';
-  assert.equal(submitHelper(steps), 'พร้อมส่งประเมิน');
+  assert.equal(submitHelper(steps), 'พร้อมสร้างคดีก่อนฟ้อง');
 });
 
 test('links acceptance and assessment to the linked case', () => {

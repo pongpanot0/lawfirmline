@@ -28,7 +28,7 @@ export function parseDocument(value: string | null): { documentId: string; filen
 
 export function submitHelper(steps: EmailIntakeStep[]) {
   const missing = steps.filter((step) => (step.key === 'CONFIRM' || step.key === 'DOCUMENTS') && step.state !== 'done').map((step) => step.label);
-  return missing.length ? 'ต้องทำให้ครบก่อน: ' + missing.join(' และ ') : 'พร้อมส่งประเมิน';
+  return missing.length ? 'ต้องทำให้ครบก่อน: ' + missing.join(' และ ') : 'พร้อมสร้างคดีก่อนฟ้อง';
 }
 
 export function casePath(caseId: string | null | undefined): string | null {
