@@ -422,10 +422,23 @@ function CasesPageContent() {
           ) : (
             <>
               {/* The full case register is too wide for a phone; each case becomes a card there. */}
+              {canCreate && (
+                <label className="flex min-h-11 cursor-pointer items-center gap-3 border-b px-4 text-sm md:hidden">
+                  <Checkbox checked={pageAllSelected} onChange={toggleSelectAllOnPage} />
+                  เลือกทุกคดีในหน้านี้
+                </label>
+              )}
               <ul className="divide-y md:hidden">
                 {paginated.map((c) => (
-                  <li key={c.id}>
-                    <Link href={caseHref(c.id)} className="block space-y-1.5 p-4 hover:bg-muted/50">
+                  <li key={c.id} className="flex items-start">
+                    {/* Selecting sits beside the card link, so a tap on the box never opens the case. */}
+                    {canCreate && (
+                      <label className="flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center pl-2 pt-2">
+                        <Checkbox aria-label={`เลือกคดี ${c.ownRef}`} checked={selected.has(c.id)} onChange={() => toggleSelectOne(c.id)} />
+                      </label>
+                    )}
+                    <div className="min-w-0 flex-1">
+                    <Link href={caseHref(c.id)} className={`block space-y-1.5 py-4 pr-4 hover:bg-muted/50 ${canCreate ? 'pl-1' : 'pl-4'}`}>
                       <div className="flex items-start justify-between gap-3">
                         <span className="font-mono text-sm font-medium text-primary">{c.ownRef}</span>
                         <span className="flex shrink-0 flex-col items-end gap-1">
@@ -454,10 +467,11 @@ function CasesPageContent() {
                       </p>
                     </Link>
                     {firstIntakeId(c) && (
-                      <Link href={`/cases/${c.id}`} className="inline-flex px-4 pb-3 text-xs font-medium text-primary hover:underline">
+                      <Link href={`/cases/${c.id}`} className={`inline-flex pb-3 pr-4 text-xs font-medium text-primary hover:underline ${canCreate ? 'pl-1' : 'pl-4'}`}>
                         {d.cases.intakeDetails}
                       </Link>
                     )}
+                    </div>
                   </li>
                 ))}
               </ul>

@@ -263,6 +263,7 @@ export default function CaseDetailPage() {
   /** ของค้างตอนกดปิดคดี — โหลดตอนเปิดฟอร์ม ไม่ใช่ทุกครั้งที่หน้า render */
   const [outstanding, setOutstanding] = useState<CaseOutstandingResult | null>(null);
   const [ackOutstanding, setAckOutstanding] = useState(false);
+  const [outstandingFailed, setOutstandingFailed] = useState(false);
   const [removeFutureEvents, setRemoveFutureEvents] = useState(false);
   const [savingStage, setSavingStage] = useState(false);
   const [pendingStage, setPendingStage] = useState<string | null>(null);
@@ -461,6 +462,18 @@ export default function CaseDetailPage() {
     setShowActivityForm(true);
   };
 
+  /** A failed check must not trap the case open: the API checks outstanding items again on close. */
+  const loadOutstanding = async () => {
+    setOutstanding(null);
+    setOutstandingFailed(false);
+    if (!token || !id) return;
+    try {
+      setOutstanding(await api.getCaseOutstanding(token, id));
+    } catch {
+      setOutstandingFailed(true);
+    }
+  };
+
   const handleCloseCase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !id) return;
@@ -482,6 +495,9 @@ export default function CaseDetailPage() {
       setRemoveFutureEvents(false);
       loadCase();
     } catch (err) {
+      // The API refuses to close over outstanding items and returns them — show them so the lawyer can acknowledge.
+      const found = err instanceof ApiError ? (err.body as { outstanding?: CaseOutstandingResult } | undefined)?.outstanding : undefined;
+      if (found) { setOutstanding(found); setOutstandingFailed(false); }
       setCloseError(err instanceof ApiError ? err.message : 'ปิดคดีไม่สำเร็จ');
     } finally {
       setClosingCase(false);
@@ -991,18 +1007,10 @@ export default function CaseDetailPage() {
                 setShowCloseForm(true);
                 // The form opens in the page, not in this menu: close the menu and bring the form into view.
                 event.currentTarget.closest('details[data-overflow-menu]')?.removeAttribute('open');
-                requestAnimationFrame(() => document.getElementById('case-close-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                setTimeout(() => document.getElementById('case-close-form')?.scrollIntoView({ block: 'start' }), 50);
                 setAckOutstanding(false);
                 setRemoveFutureEvents(false);
-                setOutstanding(null);
-                if (token && id) {
-                  try {
-                    setOutstanding(await api.getCaseOutstanding(token, id));
-                  } catch {
-                    setOutstanding(null);
-                    setCloseError('ตรวจรายการค้างไม่สำเร็จ กรุณาเปิดฟอร์มอีกครั้ง');
-                  }
-                }
+                await loadOutstanding();
               }}
             >
               <Lock className="h-4 w-4" />ดำเนินการปิดคดี
@@ -1104,6 +1112,12 @@ export default function CaseDetailPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCloseCase} className="space-y-3">
+              {outstandingFailed && (
+                <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
+                  <p>ตรวจรายการค้างไม่สำเร็จ — ปิดคดีต่อได้ ระบบจะตรวจอีกครั้งตอนยืนยัน</p>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void loadOutstanding()}>ลองตรวจอีกครั้ง</Button>
+                </div>
+              )}
               {/* ของค้าง: ปิดคดีทับของค้างเงียบ ๆ คือการซ่อน ไม่ใช่ทำให้เสร็จ */}
               {outstanding && outstanding.total > 0 && (
                 <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
@@ -1182,7 +1196,7 @@ export default function CaseDetailPage() {
               <div className="flex gap-2">
                 <Button
                   type="submit"
-                  disabled={!outstanding || !closingOutcome || closingCase || (outstanding.total > 0 && !ackOutstanding)}
+                  disabled={(!outstanding && !outstandingFailed) || !closingOutcome || closingCase || (!!outstanding && outstanding.total > 0 && !ackOutstanding)}
                 >
                   {closingCase ? 'กำลังปิดคดี...' : 'ยืนยันปิดคดี'}
                 </Button>
