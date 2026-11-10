@@ -13,6 +13,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
   controllers: [BillingController],
   providers: [
     FirmLinkService,BillingService, PettyCashService, CashAdvanceService, CollectionsService, TimeSuggestionsService],
-  exports: [BillingService, CashAdvanceService, TimeSuggestionsService],
+  exports: [BillingService, CashAdvanceService, CollectionsService, TimeSuggestionsService],
 })
 export class BillingModule {}

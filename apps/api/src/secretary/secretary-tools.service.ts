@@ -1,9 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { redactForAi } from '@lawfirm/shared';
-import type { AuthUser, SecretaryCard } from '@lawfirm/shared';
+import { LeaveStatus } from '../generated/prisma';
+import { hasFirmCapability, redactForAi } from '@lawfirm/shared';
+import type { AuthUser, FirmCapability, SecretaryCard } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { RagService } from '../rag/rag.service';
+import { CollectionsService } from '../billing/collections.service';
+import { daysToExpiry } from '../lawyer-license/license-milestones';
 import { MatterBriefService } from './matter-brief.service';
 
 export interface OpenAiToolDef {
@@ -22,6 +25,19 @@ const tool = (name: string, description: string, properties: Record<string, unkn
   function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } },
 });
 
+/** Office tools mirror the capability that guards the same data's page; a tool without one is open to every member. */
+const OFFICE_TOOL_CAPABILITY: Record<string, FirmCapability> = {
+  receivables: 'manageInvoices',
+  petty_cash_balance: 'viewPettyCash',
+};
+const canUse = (user: AuthUser, name: string) => {
+  const cap = OFFICE_TOOL_CAPABILITY[name];
+  return !cap || hasFirmCapability(user.firmRole, cap);
+};
+const DAY_MS = 86_400_000;
+const MAX_LEAVE_RANGE_DAYS = 62;
+const SOP_CONTENT_CHARS = 2000;
+
 /** Read-only, access-filtered tools for the AI secretary. Every query is scoped by the caller's case/intake filters. */
 @Injectable()
 export class SecretaryToolsService {
@@ -32,9 +48,11 @@ export class SecretaryToolsService {
     private readonly access: CaseAccessService,
     private readonly brief: MatterBriefService,
     private readonly rag: RagService,
+    private readonly collections: CollectionsService,
   ) {}
 
-  definitions(): OpenAiToolDef[] {
+  /** Only the tools this user may run — the model never sees an office tool it would be refused. */
+  definitions(user: AuthUser): OpenAiToolDef[] {
     return [
       tool('find_matters', 'Find cases and intakes by title, reference, client, case number or participant name. Max 8.',
         { query: { type: 'string' } }, ['query']),
@@ -46,11 +64,21 @@ export class SecretaryToolsService {
         { documentId: { type: 'string' }, question: { type: 'string' } }, ['documentId', 'question']),
       tool('list_events', 'List calendar events in a date range (ISO dates). Max 50.',
         { from: { type: 'string' }, to: { type: 'string' }, caseId: { type: 'string' }, mineOnly: { type: 'boolean' } }, ['from', 'to']),
-    ];
+      tool('list_leaves', 'List staff leave (pending and approved) overlapping a date range (ISO dates, max 62 days).',
+        { from: { type: 'string' }, to: { type: 'string' } }, ['from', 'to']),
+      tool('search_sops', 'Search the firm\'s SOPs / office procedures by keyword. Returns up to 5 with their content.',
+        { query: { type: 'string' } }, ['query']),
+      tool('lawyer_licenses', 'Lawyer licences expiring within N days (default 90), including recently expired. Office managers see all members; others see their own.',
+        { withinDays: { type: 'number' } }, []),
+      tool('receivables', 'Unpaid sent invoices with aging buckets (0-30, 31-60, 61-90, 90+ days overdue), largest overdue first. Max 20 rows.',
+        { minDaysOverdue: { type: 'number' } }, []),
+      tool('petty_cash_balance', 'Current petty cash fund balance (THB).', {}, []),
+    ].filter((d) => canUse(user, d.function.name));
   }
 
   async run(user: AuthUser, name: string, args: unknown): Promise<ToolResult> {
     const a = (args && typeof args === 'object' ? args : {}) as Record<string, unknown>;
+    if (!canUse(user, name)) return bad('forbidden');
     let result: ToolResult;
     switch (name) {
       case 'find_matters': result = await this.findMatters(user, a); break;
@@ -58,9 +86,100 @@ export class SecretaryToolsService {
       case 'search_documents': result = await this.searchDocuments(user, a); break;
       case 'read_document': result = await this.readDocument(user, a); break;
       case 'list_events': result = await this.listEvents(user, a); break;
+      case 'list_leaves': result = await this.listLeaves(user, a); break;
+      case 'search_sops': result = await this.searchSops(user, a); break;
+      case 'lawyer_licenses': result = await this.lawyerLicenses(user, a); break;
+      case 'receivables': result = await this.receivables(user, a); break;
+      case 'petty_cash_balance': result = await this.pettyCashBalance(user); break;
       default: return bad('unknown_tool');
     }
     return { ...result, content: redactContent(result.content) };
+  }
+
+  /** Same visibility as GET /leaves: every member sees the firm's leave calendar. */
+  private async listLeaves(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+    const from = new Date(String(a.from));
+    const to = new Date(String(a.to));
+    if (isNaN(from.getTime()) || isNaN(to.getTime()) || to < from || to.getTime() - from.getTime() > MAX_LEAVE_RANGE_DAYS * DAY_MS) {
+      return bad('invalid_date_range');
+    }
+    const leaves = await this.prisma.leaveRequest.findMany({
+      where: { firmId: user.firmId, status: { not: LeaveStatus.REJECTED }, startDate: { lte: to }, endDate: { gte: from } },
+      select: { type: true, status: true, startDate: true, endDate: true, user: { select: { firstName: true, lastName: true } } },
+      orderBy: { startDate: 'asc' }, take: 50,
+    });
+    return {
+      content: { leaves: leaves.map((l) => ({
+        name: `${l.user.firstName} ${l.user.lastName}`, type: l.type, status: l.status,
+        startDate: l.startDate.toISOString().slice(0, 10), endDate: l.endDate.toISOString().slice(0, 10),
+      })) },
+      cards: [],
+    };
+  }
+
+  private async searchSops(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+    const q = str(a.query);
+    if (!q) return bad('query_required');
+    const sops = await this.prisma.sop.findMany({
+      where: { firmId: user.firmId, OR: [{ title: contains(q) }, { content: contains(q) }, { category: contains(q) }] },
+      select: { title: true, category: true, content: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' }, take: 5,
+    });
+    return {
+      content: { sops: sops.map((s) => ({
+        title: s.title, category: s.category, updatedAt: s.updatedAt.toISOString().slice(0, 10),
+        content: s.content.length > SOP_CONTENT_CHARS ? `${s.content.slice(0, SOP_CONTENT_CHARS)}…` : s.content,
+      })) },
+      cards: [],
+    };
+  }
+
+  /** Office managers see every member's licence (they renew them); everyone else only their own, like GET users/me/license. */
+  private async lawyerLicenses(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+    const withinDays = typeof a.withinDays === 'number' && a.withinDays > 0 ? Math.min(a.withinDays, 730) : 90;
+    const now = new Date();
+    const users = await this.prisma.user.findMany({
+      where: {
+        firmMembers: { some: { firmId: user.firmId } },
+        ...(hasFirmCapability(user.firmRole, 'runOperations') ? {} : { id: user.id }),
+        // Up to 60 days past expiry: the late-renewal window of the Lawyers Act s.40.
+        lawyerLicenseExpiresAt: { not: null, lte: new Date(now.getTime() + withinDays * DAY_MS), gte: new Date(now.getTime() - 60 * DAY_MS) },
+      },
+      select: { firstName: true, lastName: true, lawyerLicenseType: true, lawyerLicenseExpiresAt: true },
+      orderBy: { lawyerLicenseExpiresAt: 'asc' }, take: 50,
+    });
+    return {
+      content: { licences: users.map((u) => ({
+        name: `${u.firstName} ${u.lastName}`, type: u.lawyerLicenseType,
+        expiresAt: u.lawyerLicenseExpiresAt!.toISOString().slice(0, 10), daysToExpiry: daysToExpiry(u.lawyerLicenseExpiresAt!, now),
+      })) },
+      cards: [],
+    };
+  }
+
+  private async receivables(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+    const minDays = typeof a.minDaysOverdue === 'number' ? a.minDaysOverdue : 0;
+    const { buckets, rows } = await this.collections.getReceivables(user);
+    const picked = rows.filter((r) => r.daysOverdue >= minDays).sort((x, y) => y.daysOverdue - x.daysOverdue);
+    return {
+      content: {
+        buckets,
+        totalOutstanding: Math.round(rows.reduce((s, r) => s + r.outstanding, 0) * 100) / 100,
+        matching: picked.length,
+        invoices: picked.slice(0, 20).map((r) => ({
+          invoiceNumber: r.invoiceNumber, customerName: r.customerName, caseRef: r.caseRef, subject: r.subject,
+          outstanding: r.outstanding, dueAt: r.dueAt?.slice(0, 10) ?? null, daysOverdue: r.daysOverdue,
+          lastReminderAt: r.lastReminderAt?.slice(0, 10) ?? null, collectionOwner: r.collectionOwner, collectionNote: r.collectionNote,
+        })),
+      },
+      cards: [],
+    };
+  }
+
+  /** findUnique, not PettyCashService.getBalance: that upserts, and the secretary never writes. */
+  private async pettyCashBalance(user: AuthUser): Promise<ToolResult> {
+    const fund = await this.prisma.pettyCashFund.findUnique({ where: { firmId: user.firmId }, select: { balance: true, updatedAt: true } });
+    return { content: fund ? { balance: fund.balance, updatedAt: fund.updatedAt.toISOString() } : { notSetUp: true }, cards: [] };
   }
 
   private async findMatters(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
