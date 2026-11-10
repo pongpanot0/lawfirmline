@@ -1,3 +1,4 @@
+import { IntakeService } from '../intake/intake.service';
 import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
 import { hasCidRefs } from '../outlook-integration/mail/inline-cid-images';
@@ -98,6 +99,7 @@ export class EmailIntakeService {
   private readonly logger = new Logger(EmailIntakeService.name);
 
   constructor(
+    @Inject(forwardRef(() => IntakeService)) private intakeService: IntakeService,
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
     private config: ConfigService,
@@ -130,7 +132,7 @@ export class EmailIntakeService {
     // before the sort, which still read every body off disk and took minutes.
     const threadIds = threads.map((t) => t.id);
     const excerpts = await this.prisma.$queryRaw<{ id: string; threadId: string; excerpt: string | null }[]>`
-      SELECT m."id", m."threadId", left(m."bodyText", 200) AS "excerpt"
+      SELECT m."id", m."threadId", left(m."bodyText", 1500) AS "excerpt"
       FROM (
         SELECT DISTINCT ON ("threadId") "id"
         FROM "EmailMessage"
@@ -149,7 +151,7 @@ export class EmailIntakeService {
     const senders = [...new Set(threads.flatMap((t) => !t.intake && !t.caseId && t.fromAddress ? [t.fromAddress.toLowerCase()] : []))];
     const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
     const candidates = senders.length ? await this.prisma.intake.findMany({
-      where: { AND: [intakeFilter, { status: { notIn: [IntakeStatus.REJECTED, IntakeStatus.CONVERTED] } },
+      where: { AND: [intakeFilter, this.openIntakeWhere(),
         { emailThreads: { some: { OR: senders.map((sender) => ({ fromAddress: { equals: sender, mode: 'insensitive' as const } })) } } }] },
       select: { id: true, title: true, emailThreads: { where: { OR: senders.map((sender) => ({ fromAddress: { equals: sender, mode: 'insensitive' as const } })) }, select: { fromAddress: true } } },
     }) : [];
@@ -175,7 +177,9 @@ export class EmailIntakeService {
         messageCount: thread._count.messages,
         attachmentCount: excerpt ? attachmentsByMessage.get(excerpt.id) ?? 0 : 0,
         // The preview line shows what was written, not the quoted history or the signature.
-        bodyExcerpt: excerpt?.excerpt ? stripEmailSignature(splitQuotedText(excerpt.excerpt).main) : '',
+        // Enough text to find where the quoted history starts, then trimmed: a 200-char cut can land
+        // mid "From:" line, hiding the history and leaving the signature in the preview.
+        bodyExcerpt: excerpt?.excerpt ? stripEmailSignature(splitQuotedText(excerpt.excerpt).main).slice(0, 200) : '',
         linkedIntake: thread.intake,
         suggestedIntake: !thread.intake && !thread.caseId && matches?.size === 1 ? [...matches.values()][0] : null,
         caseId: thread.caseId,
@@ -225,7 +229,7 @@ export class EmailIntakeService {
       })
       : [];
 
-    const documents = thread.intake ? await this.threadDocuments(thread.intake.id, thread.messages) : [];
+    const documents = thread.intake ? await this.threadDocuments(thread.intake.id, thread.messages, thread.intake.case?.id) : [];
     const aiRead = await this.prisma.auditLog.findFirst({
       where: { firmId: user.firmId, action: 'EMAIL_INTAKE_AI_EXTRACTED', metadata: { path: ['threadId'], equals: threadId } },
       orderBy: { createdAt: 'desc' },
@@ -332,7 +336,7 @@ export class EmailIntakeService {
       // so a duplicate click (or a duplicate inbound webhook delivery)
       // cannot create a second Intake for the same thread. Files are not re-adopted here: one
       // the lawyer removed from the intake must stay removed.
-      return this.prisma.intake.findUnique({ where: { id: thread.intake.id } });
+      return this.openThreadCase(user, threadId, thread.intake.id);
     }
 
     // A related case must be one this person can open, not just any id.
@@ -380,12 +384,22 @@ export class EmailIntakeService {
     });
     if (!intake) {
       const linked = await this.prisma.emailThread.findUnique({ where: { id: thread.id }, select: { intakeId: true } });
-      return linked?.intakeId ? this.prisma.intake.findUnique({ where: { id: linked.intakeId } }) : null;
+      return linked?.intakeId ? this.openThreadCase(user, threadId, linked.intakeId) : null;
     }
 
     await this.copyThreadAttachments(user, intake.id, thread.messages);
     await this.proposeFromThread(intake.id, thread.messages);
-    return this.prisma.intake.findUnique({ where: { id: intake.id } });
+    return this.openThreadCase(user, threadId, intake.id);
+  }
+
+  private async openThreadCase(user: AuthUser, threadId: string, intakeId: string) {
+    const intake = await this.intakeService.findOne(user, intakeId);
+    const legalCase = intake.relatedCaseId
+      ? await this.intakeService.convertToCase(user, intakeId, {})
+      : await this.intakeService.openPreLitCase(user, intake, {}, { recordOnly: true });
+    if (!legalCase) throw new NotFoundException('ไม่พบคดี');
+    await this.prisma.emailThread.update({ where: { id: threadId }, data: { caseId: legalCase.id, caseUnlinkedAt: null } });
+    return { ...await this.prisma.intake.findUniqueOrThrow({ where: { id: intakeId } }), caseId: legalCase.id };
   }
 
   /**
@@ -402,7 +416,7 @@ export class EmailIntakeService {
   /**
    * Clients often write a fresh e-mail instead of replying, which lands as a new thread. Offer the
    * open intakes this sender's other threads already belong to, so it joins that matter instead of
-   * starting a duplicate. Only intakes this person can open; a converted one is a case — link that instead.
+   * starting a duplicate. Converted intakes remain selectable while their case is open.
    */
   async suggestIntakesForThread(user: AuthUser, threadId: string) {
     const thread = await this.getThreadOrThrow(user, threadId);
@@ -421,7 +435,7 @@ export class EmailIntakeService {
       where: {
         AND: [
           intakeFilter,
-          { status: { notIn: [IntakeStatus.REJECTED, IntakeStatus.CONVERTED] } },
+          this.openIntakeWhere(),
           { OR: sameMatter },
         ],
       },
@@ -431,48 +445,64 @@ export class EmailIntakeService {
     });
   }
 
+  private openIntakeWhere() {
+    return { OR: [
+      { status: { notIn: [IntakeStatus.REJECTED, IntakeStatus.CONVERTED, IntakeStatus.CONSULTED] } },
+      { status: IntakeStatus.CONVERTED, case: { deletedAt: null, status: { notIn: ['CLOSED' as const, 'ARCHIVED' as const] } } },
+    ] };
+  }
+
   /** Joins this thread to an existing intake; its messages are proposed like a reply would be. */
   async attachThreadToIntake(user: AuthUser, threadId: string, intakeId: string) {
     const thread = await this.getThreadOrThrow(user, threadId);
-    if (thread.intake?.id === intakeId) return { threadId, intakeId };
+    if (thread.intake?.id === intakeId) {
+      const result = await this.openThreadCase(user, threadId, intakeId);
+      return { threadId, intakeId, caseId: result.caseId };
+    }
     if (thread.intake) throw new BadRequestException('อีเมลนี้อยู่ในเรื่องอื่นแล้ว');
     const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
-    const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, ...intakeFilter }, select: { id: true } });
+    const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, ...intakeFilter }, select: { id: true, case: { select: { id: true } } } });
     if (!intake) throw new NotFoundException('ไม่พบเรื่องนี้');
     // Conditional update: a concurrent accept on the same thread must not be overwritten.
     const { count } = await this.prisma.emailThread.updateMany({
       where: { id: thread.id, intakeId: null },
-      data: { intakeId, status: EmailThreadStatus.LINKED },
+      data: { intakeId, caseId: intake.case?.id ?? null, status: EmailThreadStatus.LINKED, caseUnlinkedAt: null },
     });
     if (!count) throw new BadRequestException('อีเมลนี้อยู่ในเรื่องอื่นแล้ว');
-    await this.copyThreadAttachments(user, intakeId, thread.messages);
+    await this.copyThreadAttachments(user, intakeId, thread.messages, intake.case?.id);
     await this.proposeFromThread(intakeId, thread.messages);
-    return { threadId, intakeId };
+    const result = await this.openThreadCase(user, threadId, intakeId);
+    return { threadId, intakeId, caseId: result.caseId };
+  }
+
+  private matterWhere(intakeId: string, caseId?: string) {
+    return caseId ? { OR: [{ intakeId }, { caseId }] } : { intakeId };
   }
 
   private attachmentTags(messages: { direction: EmailDirection; attachments: { id: string }[] }[]) {
     return messages.filter((m) => m.direction === EmailDirection.INBOUND).flatMap((m) => m.attachments.map((a) => `email-attachment:${a.id}`));
   }
 
-  private async threadDocuments(intakeId: string, messages: { direction: EmailDirection; attachments: { id: string }[] }[]) {
+  private async threadDocuments(intakeId: string, messages: { direction: EmailDirection; attachments: { id: string }[] }[], caseId?: string) {
     const tags = this.attachmentTags(messages);
     return tags.length ? this.prisma.document.findMany({
-      where: { intakeId, tags: { hasSome: tags } },
+      where: { ...this.matterWhere(intakeId, caseId), tags: { hasSome: tags } },
       select: { id: true, filename: true, mimeType: true, category: true, storagePath: true },
       orderBy: { createdAt: 'asc' },
     }) : [];
   }
 
-  private async copyThreadAttachments(user: AuthUser, intakeId: string, messages: { direction: EmailDirection; attachments: { id: string; filename: string; mimeType: string; storagePath: string }[] }[]) {
+  private async copyThreadAttachments(user: AuthUser, intakeId: string, messages: { direction: EmailDirection; attachments: { id: string; filename: string; mimeType: string; storagePath: string }[] }[], caseId?: string) {
     const attachments = messages.filter((m) => m.direction === EmailDirection.INBOUND).flatMap((m) => m.attachments);
     if (!attachments.length) return;
     await this.prisma.$transaction(async (tx) => {
       // Serialize copies for this intake so concurrent re-links cannot duplicate a tagged file.
       await tx.$queryRaw`SELECT "id" FROM "Intake" WHERE "id" = ${intakeId} FOR UPDATE`;
-      const documents = await tx.document.findMany({ where: { intakeId, tags: { hasSome: attachments.map((a) => `email-attachment:${a.id}`) } }, select: { tags: true } });
+      const linkedCaseId = caseId ?? (await tx.intake.findUnique({ where: { id: intakeId }, select: { case: { select: { id: true } } } }))?.case?.id;
+      const documents = await tx.document.findMany({ where: { ...this.matterWhere(intakeId, linkedCaseId), tags: { hasSome: attachments.map((a) => `email-attachment:${a.id}`) } }, select: { tags: true } });
       const copied = new Set(documents.flatMap((d) => d.tags));
       const data = attachments.filter((a) => !copied.has(`email-attachment:${a.id}`)).map((a) => ({
-        intakeId, filename: a.filename, mimeType: a.mimeType, storagePath: a.storagePath,
+        ...(linkedCaseId ? { caseId: linkedCaseId } : { intakeId }), filename: a.filename, mimeType: a.mimeType, storagePath: a.storagePath,
         category: DocumentCategory.OTHER, tags: [`email-attachment:${a.id}`], uploadedById: user.id,
       }));
       if (data.length) await tx.document.createMany({ data });
@@ -506,9 +536,9 @@ export class EmailIntakeService {
 
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า AI');
-    const files = (await this.threadDocuments(thread.intake.id, thread.messages)).slice(0, AI_FILES_LIMIT);
+    const files = (await this.threadDocuments(thread.intake.id, thread.messages, thread.intake.case?.id)).slice(0, AI_FILES_LIMIT);
     if (!messages.length && !files.length) throw new BadRequestException('ไม่มีเนื้อหาอีเมลหรือไฟล์ให้ AI อ่าน');
-    const documentRequests = await this.prisma.intakeDocumentRequest.findMany({ where: { intakeId: thread.intake.id }, select: { id: true, name: true } });
+    const documentRequests = await this.prisma.intakeDocumentRequest.findMany({ where: this.matterWhere(thread.intake.id, thread.intake.case?.id), select: { id: true, name: true } });
     const redactedRequests = documentRequests.map((request) => ({ id: request.id, name: redactForAi(request.name).text }));
     const caseTypes = (await this.prisma.caseType.findMany({ where: { firmId: user.firmId, isActive: true }, select: { name: true } })).map((t) => t.name);
 
@@ -665,7 +695,7 @@ export class EmailIntakeService {
     dto: ResolveFieldProposalDto,
   ) {
     const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
-    const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, ...intakeFilter } });
+    const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, ...intakeFilter }, include: { case: { select: { id: true } } } });
     if (!intake) throw new NotFoundException('ไม่พบเรื่องนี้');
 
     return this.prisma.$transaction(async (tx) => {
@@ -694,8 +724,8 @@ export class EmailIntakeService {
       } else if (proposal.field === 'docRequest') {
         const name = finalValue.trim().slice(0, 200);
         if (!name) throw new BadRequestException('ชื่อเอกสารไม่ถูกต้อง');
-        const exists = await tx.intakeDocumentRequest.findFirst({ where: { intakeId, name }, select: { id: true } });
-        if (!exists) await tx.intakeDocumentRequest.create({ data: { intakeId, name, createdById: user.id } });
+        const exists = await tx.intakeDocumentRequest.findFirst({ where: { ...this.matterWhere(intakeId, intake.case?.id), name }, select: { id: true } });
+        if (!exists) await tx.intakeDocumentRequest.create({ data: { ...(intake.case ? { caseId: intake.case.id } : { intakeId }), name, createdById: user.id } });
       } else if (proposal.field === 'caseType') {
         const caseType = await tx.caseType.findFirst({ where: { firmId: user.firmId, isActive: true, name: finalValue.trim() }, select: { id: true } });
         if (!caseType) throw new BadRequestException('ไม่พบประเภทคดีนี้ในสำนักงาน');
@@ -707,10 +737,10 @@ export class EmailIntakeService {
           || !Object.values(DocumentCategory).includes(doc.category as DocumentCategory)
           || (doc.docRequestId != null && typeof doc.docRequestId !== 'string')
           || (proposal.sourceDocumentId && proposal.sourceDocumentId !== doc.documentId)) throw new BadRequestException('ข้อมูลเอกสารไม่ถูกต้อง');
-        const document = await tx.document.findFirst({ where: { id: doc.documentId, intakeId }, select: { id: true, filename: true } });
+        const document = await tx.document.findFirst({ where: { id: doc.documentId, ...this.matterWhere(intakeId, intake.case?.id) }, select: { id: true, filename: true } });
         if (!document) throw new NotFoundException('ไม่พบเอกสารในเรื่องนี้');
         if (doc.docRequestId) {
-          const request = await tx.intakeDocumentRequest.findFirst({ where: { id: doc.docRequestId as string, intakeId }, select: { id: true } });
+          const request = await tx.intakeDocumentRequest.findFirst({ where: { id: doc.docRequestId as string, ...this.matterWhere(intakeId, intake.case?.id) }, select: { id: true } });
           if (!request) throw new NotFoundException('ไม่พบรายการเอกสารที่ขอในเรื่องนี้');
         }
         const originalExtension = extname(document.filename);
@@ -746,6 +776,11 @@ export class EmailIntakeService {
       if (Object.keys(data).length) await tx.intake.update({ where: { id: intakeId }, data });
       // A confirmed contact person belongs on the customer too, so the next matter finds them.
       if (proposal.field === 'contactName' && intake.clientId) await this.addClientContact(tx, intake.clientId, finalValue);
+      // The matter is a case already: keep the case's own copies of the headline values in step.
+      const caseData: Record<string, unknown> = {};
+      if (data.title !== undefined) caseData.title = data.title;
+      if (data.estimatedDamage !== undefined) caseData.claimedAmount = data.estimatedDamage;
+      if (Object.keys(caseData).length) await tx.case.updateMany({ where: { intakeId, ...this.caseAccess.getCaseFilterForUser(user) }, data: caseData });
       return tx.intakeFieldProposal.update({
         where: { id: proposalId },
         data: { status: FieldProposalStatus.CONFIRMED, proposedValue: finalValue, confirmedById: user.id, confirmedAt: new Date() },

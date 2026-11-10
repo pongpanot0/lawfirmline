@@ -28,6 +28,6 @@ export function conflictMatchesFrom(err: unknown): ConflictMatchItem[] | null {
 export function describeConflictMatch(m: ConflictMatchItem): string {
   const side = m.side === 'OURS' ? 'ฝ่ายเรา' : m.side === 'OPPONENT' ? 'ฝ่ายตรงข้าม' : 'ผู้เกี่ยวข้อง';
   if (m.kind === 'CLIENT' || m.kind === 'CLIENT_CONTACT') return `${m.name} — ลูกความของสำนักงาน`;
-  if (m.kind === 'INTAKE_PARTY' || m.intakeId) return `${m.name} — ${side}ในเรื่องรับใหม่ ${m.intakeTitle ?? ''}`.trim();
+  if (m.kind === 'INTAKE_PARTY' || m.intakeId) return `${m.name} — ${side}ในคดีก่อนฟ้อง ${m.intakeTitle ?? ''}`.trim();
   return `${m.name} — ${side}ในคดี ${[m.ownRef, m.caseTitle].filter(Boolean).join(' ')}`.trim();
 }

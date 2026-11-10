@@ -330,10 +330,10 @@ export class IntakePrecedentAnalysisService {
    * A carried-over attachment has a document pointing at the same file, so the
    * list is deduped by storage path to keep it out of the analysis twice.
    */
-  private async selectableFiles(intakeId: string) {
+  private async selectableFiles(intakeId: string, caseId?: string) {
     const [documents, attachments] = await Promise.all([
       this.prisma.document.findMany({
-        where: { intakeId },
+        where: caseId ? { OR: [{ intakeId }, { caseId }] } : { intakeId },
         select: { id: true, filename: true, mimeType: true, storagePath: true, version: true },
       }),
       this.prisma.intakeAttachment.findMany({
@@ -348,12 +348,12 @@ export class IntakePrecedentAnalysisService {
 
   async analyze(user: AuthUser, intakeId: string, attachmentIds?: string[], text?: string, factsOnly = false) {
     const found = await this.prisma.intake.findFirst({
-      where: { id: intakeId, firmId: user.firmId },
+      where: { id: intakeId, ...await this.caseAccess.getIntakeFilterForUser(user) },
       include: { attachments: true, case: { select: { id: true } } },
     });
     if (!found) throw new NotFoundException('Intake not found');
 
-    const available = await this.selectableFiles(intakeId);
+    const available = await this.selectableFiles(intakeId, found.case?.id);
     const intake = { ...found, description: text === undefined ? found.description : text.trim() || null, attachments: available };
     if (text && text.length > 12000) throw new BadRequestException('พิมพ์ได้ไม่เกิน 12,000 ตัวอักษร');
 
@@ -495,11 +495,11 @@ export class IntakePrecedentAnalysisService {
     let linkedCaseId = caseId ?? null;
     if (caseId && !await this.caseAccess.canAccessCase(user, caseId)) throw new NotFoundException('ไม่พบคดี');
     if (intakeId) {
-      const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, firmId: user.firmId }, include: { case: { select: { id: true } } } });
+      const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, ...await this.caseAccess.getIntakeFilterForUser(user) }, include: { case: { select: { id: true } } } });
       if (!intake) throw new NotFoundException('ไม่พบเรื่อง');
       linkedCaseId = intake.case?.id ?? null;
     }
-    const available = intakeId ? await this.selectableFiles(intakeId) : await this.prisma.document.findMany({
+    const available = intakeId ? await this.selectableFiles(intakeId, linkedCaseId ?? undefined) : await this.prisma.document.findMany({
       where: { caseId: caseId!, id: { in: attachmentIds } },
       select: { id: true, filename: true, mimeType: true, storagePath: true, version: true },
     });
@@ -578,7 +578,7 @@ export class IntakePrecedentAnalysisService {
 
   async reviewFact(user: AuthUser, id: string, index: number, dto: ReviewResearchFactDto) {
     const row = await this.prisma.intakePrecedentAnalysis.findFirst({ where: { id,
-      OR: [{ intake: { firmId: user.firmId }, caseId: null }, { intakeId: null, caseId: null, firmId: user.firmId, createdById: user.id }, { case: this.caseAccess.getCaseFilterForUser(user) }],
+      OR: [{ intake: await this.caseAccess.getIntakeFilterForUser(user), caseId: null }, { intakeId: null, caseId: null, firmId: user.firmId, createdById: user.id }, { case: this.caseAccess.getCaseFilterForUser(user) }],
     } });
     if (!row || row.status !== 'COMPLETE') throw new NotFoundException('ไม่พบผลวิเคราะห์');
     if (!dto.statement.trim()) throw new BadRequestException('ข้อเท็จจริงต้องไม่ว่าง');
@@ -603,7 +603,7 @@ export class IntakePrecedentAnalysisService {
 
   async listForIntake(user: AuthUser, intakeId: string) {
     const intake = await this.prisma.intake.findFirst({
-      where: { id: intakeId, firmId: user.firmId },
+      where: { id: intakeId, ...await this.caseAccess.getIntakeFilterForUser(user) },
       select: { id: true },
     });
     if (!intake) throw new NotFoundException('Intake not found');
@@ -623,7 +623,7 @@ export class IntakePrecedentAnalysisService {
 
   async getOne(user: AuthUser, intakeId: string, analysisId: string) {
     const analysis = await this.prisma.intakePrecedentAnalysis.findFirst({
-      where: { id: analysisId, intakeId, intake: { firmId: user.firmId } },
+      where: { id: analysisId, intakeId, intake: await this.caseAccess.getIntakeFilterForUser(user) },
     });
     if (!analysis) throw new NotFoundException('Analysis not found');
     return analysis;

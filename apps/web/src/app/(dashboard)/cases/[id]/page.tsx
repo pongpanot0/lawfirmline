@@ -946,7 +946,7 @@ export default function CaseDetailPage() {
         </div>
       </header>
 
-      {token && <CaseJourneyPanel token={token} caseId={id} stage={legalCase.stage ?? null} tasksVersion={tasks} onChanged={loadCase} />}
+      {token && <CaseJourneyPanel token={token} caseId={id} intakeId={legalCase.intake?.id} stage={legalCase.stage ?? null} tasksVersion={tasks} onChanged={loadCase} />}
 
       {bannerProposals.length > 0 && pendingStage === null && legalCase.stage && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
@@ -1602,9 +1602,7 @@ export default function CaseDetailPage() {
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-base">หนังสือทวงถาม (Notice)</CardTitle>
                 <div className="flex flex-wrap gap-2">
-                  <Link href={`/intake/${legalCase.intake.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-                    <Sparkles aria-hidden="true" className="h-4 w-4" />AI ร่างหนังสือ
-                  </Link>
+
                   <Button variant="outline" size="sm" onClick={() => setPreLitOpen(true)}>อัปเดตสถานะเจรจา</Button>
                   <Button size="sm" onClick={() => setNoticeOpen(true)}><Plus aria-hidden="true" className="h-4 w-4" />ออก Notice{legalCase.intake.noticeIssuedAt ? 'ฉบับใหม่' : ''}</Button>
                 </div>
@@ -1633,7 +1631,7 @@ export default function CaseDetailPage() {
                       {legalCase.intake.noticeDeadline ? ` · ครบกำหนด ${new Date(legalCase.intake.noticeDeadline).toLocaleDateString('th-TH')}` : ''}
                     </span>
                     <span className="ml-auto flex gap-3">
-                      <Link href={`/intake/${legalCase.intake.id}`} className="text-xs text-primary hover:underline">ดูหนังสือ</Link>
+
                       <button type="button" className="text-xs text-primary hover:underline" onClick={() => setPreLitOpen(true)}>บันทึกผล</button>
                     </span>
                   </div>

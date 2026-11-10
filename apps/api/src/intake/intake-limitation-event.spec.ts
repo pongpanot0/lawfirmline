@@ -1,3 +1,4 @@
+import { CasesService } from '../cases/cases.service';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { IntakeService } from './intake.service';
@@ -22,6 +23,7 @@ describe('IntakeService conversion — limitation event vs legacy deadline event
     firm: { findUnique: jest.fn() },
     case: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    intakeDocumentRequest: { updateMany: jest.fn() },
     emailThread: { updateMany: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
@@ -41,6 +43,7 @@ describe('IntakeService conversion — limitation event vs legacy deadline event
     const module = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: CasesService, useValue: { close: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },

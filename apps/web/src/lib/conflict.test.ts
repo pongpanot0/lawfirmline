@@ -24,6 +24,6 @@ test('describes where the name was found and on which side', () => {
   );
   assert.equal(
     describeConflictMatch({ kind: 'INTAKE_PARTY', term: 'x', name: 'นาย ค', side: 'OPPONENT', intakeTitle: 'เรื่องใหม่' }),
-    'นาย ค — ฝ่ายตรงข้ามในเรื่องรับใหม่ เรื่องใหม่',
+    'นาย ค — ฝ่ายตรงข้ามในคดีก่อนฟ้อง เรื่องใหม่',
   );
 });

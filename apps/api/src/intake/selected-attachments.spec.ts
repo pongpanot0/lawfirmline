@@ -87,7 +87,7 @@ describe('intake attachment selection', () => {
         getBuffer: async (storagePath: string) => readFileSync(storagePath),
       } as unknown as FileStorageService,
       { selectRelevant: async () => null } as unknown as RelevanceService,
-      {} as CaseAccessService,
+      { getIntakeFilterForUser: jest.fn(async (user) => ({ firmId: user.firmId })) } as unknown as CaseAccessService,
     );
     return { service, extractText, create, findFirst };
   }

@@ -194,7 +194,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
               onChange={(e) => {
                 if (
                   e.target.checked &&
-                  !window.confirm('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" เห็นเฉพาะคุณ จนกว่าจะผูกกับคดีหรือส่งเป็นเรื่องรับใหม่ ยืนยันไหม?')
+                  !window.confirm('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" เห็นเฉพาะคุณ จนกว่าจะผูกกับคดีหรือรับเป็นคดีก่อนฟ้อง ยืนยันไหม?')
                 )
                   return;
                 toggle(c, { syncInboxToIntake: e.target.checked });

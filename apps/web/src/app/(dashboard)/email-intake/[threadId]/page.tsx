@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, EmailThreadDetail, IntakeDocumentRequestItem, UserItem } from '@/lib/api';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
-import { groupProposals, isPending, parseDocument, submitHelper } from '@/lib/email-intake';
+import { groupProposals, isPending, parseDocument, submitHelper, casePath } from '@/lib/email-intake';
 import { documentCategoryLabel } from '@/lib/stage-labels';
 import { JourneyStepper } from '@/components/journey/JourneyStepper';
 import { NextStepBanner } from '@/components/journey/NextStepBanner';
@@ -129,10 +129,12 @@ export default function EmailThreadDetailPage() {
     setLinking(true);
     setError('');
     try {
-      await api.attachThreadToIntake(token, threadId, intakeId);
-      await refresh();
+      const result = await api.attachThreadToIntake(token, threadId, intakeId);
+      const path = casePath(result?.caseId);
+      if (path) router.push(path);
+      else setError('ไม่พบคดีที่เชื่อมโยง');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'รวมเข้าเรื่องเดิมไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'รวมเข้าคดีเดิมไม่สำเร็จ');
     } finally {
       setLinking(false);
     }
@@ -143,17 +145,19 @@ export default function EmailThreadDetailPage() {
     setLinking(true);
     setError('');
     try {
-      await api.acceptEmailThread(token, threadId);
+      const result = await api.acceptEmailThread(token, threadId);
       window.dispatchEvent(new Event('email-intake-changed'));
-      await refresh();
+      await handleAiExtract();
+      const path = casePath(result?.caseId);
+      if (path) router.push(path);
+      else setError('ไม่พบคดีที่เชื่อมโยง');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'สร้างเรื่องใหม่ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'สร้างคดีก่อนฟ้องไม่สำเร็จ');
       return;
     } finally {
       setLinking(false);
     }
-    // Accepting is when the lawyer starts on the e-mail, so AI reads it then — not on every open.
-    await handleAiExtract();
+
   };
 
   const handleDownload = async (attachmentId: string, filename: string) => {
@@ -223,7 +227,10 @@ export default function EmailThreadDetailPage() {
     try {
       await api.assessIntake(token, data.thread.intake.id, { assessorIds: assessorIds.length ? assessorIds : user ? [user.id] : [] });
       window.dispatchEvent(new Event('email-intake-changed'));
-      router.push(`/intake/${data.thread.intake.id}`);
+      const caseId = data.thread.caseId ?? data.thread.intake.case?.id;
+      const path = casePath(caseId);
+      if (path) router.push(path);
+      else setError('ไม่พบคดีที่เชื่อมโยง');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'ยืนยันไม่สำเร็จ');
     } finally {
@@ -268,8 +275,8 @@ export default function EmailThreadDetailPage() {
   return (
     <div className="min-w-0 pb-32">
       <div className="mb-3 flex flex-wrap gap-2 border-b pb-3">
-        <Button size="sm" disabled={!unaccepted || linking} onClick={handleCreateIntake}>รับเป็นเรื่องใหม่</Button>
-        <Button size="sm" variant="outline" disabled={!unaccepted || !intakeSuggestions.length} onClick={() => document.getElementById('accept-intake')?.scrollIntoView({ behavior: 'smooth' })}>รวมเข้าเรื่องเดิม</Button>
+        <Button size="sm" disabled={!unaccepted || linking} onClick={handleCreateIntake}>รับเป็นคดีก่อนฟ้อง</Button>
+        <Button size="sm" variant="outline" disabled={!unaccepted || !intakeSuggestions.length} onClick={() => document.getElementById('accept-intake')?.scrollIntoView({ behavior: 'smooth' })}>รวมเข้าคดีเดิม</Button>
         <Button size="sm" variant="outline" onClick={() => document.getElementById('link-case')?.scrollIntoView({ behavior: 'smooth' })}>ผูกกับคดี</Button>
         <Button size="sm" variant="outline" disabled={!thread.caseId || !thread.messages.length} onClick={() => { const message = thread.messages[0]; if (message) setComposer({ kind: 'reply', replyAll: false, threadSubject: thread.subject, message }); }}>ตอบกลับ</Button>
       </div>
@@ -290,12 +297,12 @@ export default function EmailThreadDetailPage() {
 
       {thread.intake && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 text-sm">
-          <span className="text-muted-foreground">เรื่องรับใหม่:</span>
-          <Link href={`/intake/${thread.intake.id}`} className="font-medium text-primary hover:underline">{thread.intake.title ?? 'เปิดเรื่อง'}</Link>
+          <span className="text-muted-foreground">คดีก่อนฟ้อง:</span>
+          <Link href={thread.caseId ? `/cases/${thread.caseId}` : `/intake/${thread.intake.id}`} className="font-medium text-primary hover:underline">{thread.intake.title ?? 'เปิดเรื่อง'}</Link>
           <Badge variant="outline">{INTAKE_STATUS[thread.intake.status] ?? thread.intake.status}</Badge>
           {thread.intake.case
             ? <><span className="text-muted-foreground">· คดี:</span><Link href={`/cases/${thread.intake.case.id}`} className="font-medium text-primary hover:underline">{thread.intake.case.ownRef} {thread.intake.case.title}</Link></>
-            : thread.intake.status !== 'RECEIVED' && <span className="text-xs text-muted-foreground">ยังไม่เปิดคดี — เปิดคดีได้ที่หน้าเรื่องรับใหม่หลังประเมิน</span>}
+            : thread.intake.status !== 'RECEIVED' && <span className="text-xs text-muted-foreground">ยังไม่มีคดีที่เชื่อมโยง</span>}
         </div>
       )}
 
@@ -308,13 +315,13 @@ export default function EmailThreadDetailPage() {
             <h2 className="mb-3 font-semibold">อีเมลต้นทาง</h2>
             {!thread.intake && !thread.caseId && (
               <div id="accept-intake" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
-                <p className="text-sm">อีเมลนี้ยังไม่ได้รับเป็นเรื่องใหม่</p>
+                <p className="text-sm">อีเมลนี้ยังไม่ได้รับเป็นคดีก่อนฟ้อง</p>
                 <Button size="sm" disabled={linking} onClick={handleCreateIntake}>
-                  {linking ? 'กำลังสร้าง...' : 'รับเป็นเรื่องใหม่'}
+                  {linking ? 'กำลังสร้าง...' : 'รับเป็นคดีก่อนฟ้อง'}
                 </Button>
                 {intakeSuggestions.length > 0 && (
                   <div className="w-full space-y-1.5 border-t pt-2">
-                    <p className="text-xs text-muted-foreground">ผู้ส่งนี้มีเรื่องที่เปิดอยู่ — ถ้าเป็นเรื่องเดียวกัน (ลูกค้าส่งเมลใหม่แทนการตอบกลับ) ให้รวมเข้าเรื่องเดิม</p>
+                    <p className="text-xs text-muted-foreground">ผู้ส่งนี้มีเรื่องที่เปิดอยู่ — ถ้าเป็นเรื่องเดียวกัน (ลูกค้าส่งเมลใหม่แทนการตอบกลับ) ให้รวมเข้าคดีเดิม</p>
                     {intakeSuggestions.map((s) => (
                       <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                         <span className="min-w-0 break-words">

@@ -12,6 +12,9 @@ const user = { id: 'u1', firmId: 'f1', firmRole: FirmRole.LAWYER } as AuthUser;
 describe('Case journey endpoints', () => {
   const prisma = {
     case: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    intake: { findFirst: jest.fn() },
+    conflictCheck: { findFirst: jest.fn() },
+    intakeDocumentRequest: { findMany: jest.fn() },
     task: { findMany: jest.fn() },
     appliedPlaybook: { findMany: jest.fn() },
     $transaction: jest.fn(),
@@ -44,8 +47,52 @@ describe('Case journey endpoints', () => {
   it('checks tenant and deletion again on the journey data query', async () => {
     prisma.case.findFirst.mockResolvedValueOnce({ id: 'case' }).mockResolvedValueOnce(null);
     await expect(service.journey(user, 'case')).rejects.toThrow(NotFoundException);
-    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { id: 'case', firmId: 'f1', deletedAt: null }, select: { stage: true, partyRole: true } });
+    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { id: 'case', firmId: 'f1', deletedAt: null }, select: { stage: true, partyRole: true, intakeId: true } });
     expect(prisma.appliedPlaybook.findMany).not.toHaveBeenCalled();
+  });
+
+  const preLitCase = { id: 'case', stage: CaseStage.PRE_LITIGATION, intakeId: 'intake', status: 'OPEN', partyRole: null, courtLevel: 'FIRST_INSTANCE', blackCaseNumber: null, redCaseNumber: null };
+  const preLitIntake = { title: 'เรื่องใหม่', clientId: 'client', clientName: null, decision: 'FILE_SUIT', status: 'CONVERTED' };
+  const arrangePreLit = () => {
+    prisma.case.findFirst.mockResolvedValue(preLitCase);
+    prisma.case.findUnique.mockResolvedValue(preLitCase);
+    prisma.intake.findFirst.mockResolvedValue(preLitIntake);
+    prisma.conflictCheck.findFirst.mockResolvedValue({ result: 'CLEAR' });
+    prisma.intakeDocumentRequest.findMany.mockResolvedValue([]);
+  };
+
+  it('returns the four intake steps and scopes moved conflict checks and requests to either link', async () => {
+    arrangePreLit();
+    prisma.conflictCheck.findFirst.mockResolvedValue({ result: 'NEEDS_REVIEW' });
+    const result = await service.journey(user, 'case');
+    expect(result.preLitSteps.map((s) => [s.key, s.state])).toEqual([['INFO', 'done'], ['CONFLICT', 'current'], ['DOCUMENTS', 'locked'], ['DECISION', 'locked']]);
+    expect(result.preLitNext?.text).toContain('ทบทวน');
+    expect(result.canAdvance).toBe(false);
+    expect(prisma.conflictCheck.findFirst).toHaveBeenCalledWith({ where: { firmId: 'f1', OR: [{ caseId: 'case' }, { intakeId: 'intake' }] }, orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }] });
+    expect(prisma.intakeDocumentRequest.findMany).toHaveBeenCalledWith({ where: { OR: [{ caseId: 'case' }, { intakeId: 'intake' }] }, select: { required: true, status: true } });
+  });
+
+  it.each(['advance', 'PATCH'])('%s blocks pre-lit while the decision is pending even without tasks', async (path) => {
+    arrangePreLit();
+    prisma.intake.findFirst.mockResolvedValue({ ...preLitIntake, decision: 'PENDING' });
+    await expect(path === 'advance' ? service.advanceJourney(user, 'case', {}) : service.update(user, 'case', { stage: CaseStage.FILING })).rejects.toMatchObject({ status: 400, response: { blockers: [expect.stringContaining('ตัดสินใจ')] } });
+    expect(prisma.case.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps the existing task gate after all four pre-lit steps are done', async () => {
+    arrangePreLit();
+    prisma.task.findMany.mockResolvedValue([{ id: 't', title: 'โนติส', status: 'TODO', parentId: null, labels: ['stage:PRE_LITIGATION'], assignee: null, dueDate: null, skippedReason: null }]);
+    const result = await service.journey(user, 'case');
+    expect(result.preLitSteps.every((s) => s.state === 'done')).toBe(true);
+    expect(result.preLitNext).toBeNull();
+    expect(result).toMatchObject({ canAdvance: false, blockers: ['งานยังไม่เสร็จหรือข้าม: โนติส'] });
+  });
+
+  it('allows leaving pre-lit only when intake and tasks are complete', async () => {
+    arrangePreLit();
+    const update = jest.spyOn(service, 'update').mockResolvedValue({} as any);
+    await service.advanceJourney(user, 'case', {});
+    expect(update).toHaveBeenCalledWith(user, 'case', { stage: CaseStage.FILING }, CaseStage.PRE_LITIGATION);
   });
 
   it('loads stage tasks and only releases from the same firm', async () => {

@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { CaseStage, CASE_STAGE_LABELS_TH, partySide } from '@lawfirm/shared';
-import type { Journey } from '../intake/intake-journey';
+import type { Journey, JourneyStep } from '../intake/intake-journey';
 import { stepMatchesSide, stepTaskTitle } from '../practice-setup/stage-scope';
 
 type JourneyTask = {
@@ -48,7 +48,8 @@ export function caseJourney(
   legalCase: { stage: string; partyRole: string | null },
   tasks: JourneyTask[],
   applied: AppliedJourneyPlaybook[],
-): Journey & { currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] } {
+  preLit?: Journey,
+): Journey & { preLitSteps: JourneyStep[]; preLitNext: Journey['next']; currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] } {
   const stage = journeyStage(legalCase.stage);
   const stages = [...MAIN_JOURNEY_STAGES];
   if (stage === CaseStage.APPEAL || stage === CaseStage.SUPREME) stages.splice(6, 0, stage);
@@ -100,8 +101,10 @@ export function caseJourney(
     })),
     next: pending.length ? { text: `จัดการงานขั้น${CASE_STAGE_LABELS_TH[stage]}แล้ว ${done} จาก ${currentTasks.length} รายการ — ทำให้เสร็จหรือข้ามพร้อมเหตุผลอีก ${pending.length} รายการ`, done, total: currentTasks.length }
       : nextStage ? { text: `งานขั้น${CASE_STAGE_LABELS_TH[stage]}ครบแล้ว — ไปขั้น${CASE_STAGE_LABELS_TH[nextStage]}`, done, total: currentTasks.length } : null,
-    canAdvance: pending.length === 0,
-    blockers: pending.map((task) => `งานยังไม่เสร็จหรือข้าม: ${task.title}`),
+    preLitSteps: preLit?.steps ?? [],
+    preLitNext: preLit?.next ?? null,
+    canAdvance: pending.length === 0 && (preLit?.canAdvance ?? true),
+    blockers: [...(preLit?.blockers ?? []), ...pending.map((task) => `งานยังไม่เสร็จหรือข้าม: ${task.title}`)],
     currentTasks,
   };
 }

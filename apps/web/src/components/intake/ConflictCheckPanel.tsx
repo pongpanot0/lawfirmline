@@ -138,7 +138,7 @@ export function ConflictCheckPanel({
 
       <p className="mt-2 text-xs text-muted-foreground">
         {th
-          ? 'ค้นชื่อทั่วสำนักงาน: ลูกความ ผู้ติดต่อ คู่กรณีในทุกคดี และเรื่องรับใหม่ทั้งหมด'
+          ? 'ค้นชื่อทั่วสำนักงาน: ลูกความ ผู้ติดต่อ คู่กรณีในทุกคดี และคดีก่อนฟ้องทั้งหมด'
           : 'Searches the whole firm: clients, contacts, parties on every case, and every intake.'}
       </p>
 
@@ -186,7 +186,7 @@ export function ConflictCheckPanel({
                   )}
                   {m.intakeId && !m.caseId && (
                     <a className="text-primary underline" href={`/intake/${m.intakeId}`}>
-                      {m.intakeTitle || (th ? 'เรื่องรับใหม่' : 'intake')}
+                      {m.intakeTitle || (th ? 'คดีก่อนฟ้อง' : 'pre-litigation case')}
                     </a>
                   )}
                   <span className="text-muted-foreground">({m.term})</span>

@@ -1,6 +1,7 @@
+import { CasesService } from '../cases/cases.service';
 import { intakeJourney } from './intake-journey';
 import { assertFirmRefs } from '../common/firm-refs';
-import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional, Inject, forwardRef } from '@nestjs/common';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ConfigService } from '@nestjs/config';
 import { chatModel } from '../common/openai-model';
@@ -8,6 +9,7 @@ import {
   ActivityType,
   AuthUser,
   CaseStage,
+  CaseOutcome,
   DocRequestStatus,
   IntakeStage,
   redactForAi,
@@ -17,7 +19,7 @@ import {
   FirmRole,
 } from '@lawfirm/shared';
 import * as path from 'path';
-import { NotificationCategory, AssignmentType, ReferralChannel } from '../generated/prisma';
+import { Case as LegalCase, Prisma, NotificationCategory, AssignmentType, ReferralChannel } from '../generated/prisma';
 import { INTAKE_STAGE_ORDER, preLitigationDocuments } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
@@ -79,6 +81,7 @@ export class IntakeService {
     private assignmentNotifier: AssignmentNotifierService,
     private conflictCheck: ConflictCheckService,
     private caseFeed: CaseFeedService,
+    @Inject(forwardRef(() => CasesService)) private casesService: CasesService,
     @Optional() private cargoClaims?: CargoClaimsService,
   ) {}
 
@@ -129,7 +132,7 @@ export class IntakeService {
         client: { select: { id: true, name: true } },
       },
     },
-    case: { select: { id: true, ownRef: true, title: true, status: true } },
+    case: { select: { id: true, ownRef: true, title: true, status: true, stage: true } },
     relatedCase: { select: { id: true, ownRef: true, title: true, status: true } },
     attachments: {
       orderBy: { createdAt: 'desc' as const },
@@ -228,14 +231,14 @@ export class IntakeService {
   async journey(user: AuthUser, id: string) {
     const intake = await this.findOne(user, id);
     const [conflict, requests] = await Promise.all([
-      this.conflictCheck.latestForIntake(id),
-      this.prisma.intakeDocumentRequest.findMany({ where: { intakeId: id }, select: { required: true, status: true } }),
+      intake.case ? this.prisma.conflictCheck.findFirst({ where: { firmId: user.firmId, OR: [{ intakeId: id }, { caseId: intake.case.id }] }, orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }] }) : this.conflictCheck.latestForIntake(id),
+      this.prisma.intakeDocumentRequest.findMany({ where: this.intakeMatterWhere(id, intake.case?.id), select: { required: true, status: true } }),
     ]);
     return intakeJourney({ ...intake, hasCase: !!(intake as { case?: unknown }).case }, conflict, requests);
   }
 
   private unlinkedWhere(user: AuthUser) {
-    return { firmId: user.firmId, relatedCaseId: null, case: { is: null } };
+    return { firmId: user.firmId, status: { notIn: ['REJECTED', 'CONSULTED'] as ('REJECTED' | 'CONSULTED')[] }, relatedCaseId: null, case: { is: null } };
   }
 
   async countUnlinked(user: AuthUser) {
@@ -335,12 +338,16 @@ export class IntakeService {
     return updated;
   }
 
+  private intakeMatterWhere(intakeId: string, caseId?: string) {
+    return caseId ? { OR: [{ intakeId }, { caseId }] } : { intakeId };
+  }
+
   /** เอกสารที่ยังขาดและจำเป็น — ตัวกั้นก่อนออกหนังสือ/เปิดคดี */
   async missingDocuments(user: AuthUser, id: string) {
     const intake = await this.findOne(user, id);
-    await this.seedDocumentRequests(user, id, intake.preLitigationType);
+    await this.seedDocumentRequests(user, id, intake.preLitigationType, intake.case?.id);
     const requests = await this.prisma.intakeDocumentRequest.findMany({
-      where: { intakeId: id },
+      where: this.intakeMatterWhere(id, intake.case?.id),
       orderBy: [{ required: 'desc' }, { requestedAt: 'asc' }],
     });
     const missing = requests.filter(
@@ -363,13 +370,14 @@ export class IntakeService {
     user: AuthUser,
     intakeId: string,
     preLitigationType: string | null | undefined,
+    caseId?: string,
   ) {
-    const existing = await this.prisma.intakeDocumentRequest.count({ where: { intakeId } });
+    const existing = await this.prisma.intakeDocumentRequest.count({ where: this.intakeMatterWhere(intakeId, caseId) });
     if (existing > 0) return;
 
     await this.prisma.intakeDocumentRequest.createMany({
       data: preLitigationDocuments(preLitigationType).map((item) => ({
-        intakeId,
+        ...(caseId ? { caseId } : { intakeId }),
         name: item.label,
         required: true,
         createdById: user.id,
@@ -383,13 +391,13 @@ export class IntakeService {
     id: string,
     dto: BulkCreateDocumentRequestsDto | CreateDocumentRequestDto,
   ) {
-    await this.findOne(user, id);
+    const intake = await this.findOne(user, id);
     const items = 'items' in dto ? dto.items : [dto];
     if (!items.length) throw new BadRequestException('ต้องระบุเอกสารอย่างน้อยหนึ่งรายการ');
 
     await this.prisma.intakeDocumentRequest.createMany({
       data: items.map((item) => ({
-        intakeId: id,
+        ...(intake.case ? { caseId: intake.case.id } : { intakeId: id }),
         name: item.name.trim(),
         required: item.required ?? true,
         note: item.note,
@@ -417,9 +425,9 @@ export class IntakeService {
     requestId: string,
     dto: UpdateDocumentRequestDto,
   ) {
-    await this.findOne(user, id);
+    const intake = await this.findOne(user, id);
     const existing = await this.prisma.intakeDocumentRequest.findFirst({
-      where: { id: requestId, intakeId: id },
+      where: { id: requestId, ...this.intakeMatterWhere(id, intake.case?.id) },
     });
     if (!existing) throw new NotFoundException('ไม่พบรายการเอกสารนี้');
 
@@ -439,9 +447,9 @@ export class IntakeService {
   }
 
   async removeDocumentRequest(user: AuthUser, id: string, requestId: string) {
-    await this.findOne(user, id);
+    const intake = await this.findOne(user, id);
     const deleted = await this.prisma.intakeDocumentRequest.deleteMany({
-      where: { id: requestId, intakeId: id },
+      where: { id: requestId, ...this.intakeMatterWhere(id, intake.case?.id) },
     });
     if (!deleted.count) throw new NotFoundException('ไม่พบรายการเอกสารนี้');
     return this.missingDocuments(user, id);
@@ -470,11 +478,11 @@ export class IntakeService {
 
   async setChecklistItem(user: AuthUser, id: string, label: string, documentId: string | null, requestId?: string) {
     const intake = await this.findOne(user, id);
-    await this.seedDocumentRequests(user, id, intake.preLitigationType);
+    await this.seedDocumentRequests(user, id, intake.preLitigationType, intake.case?.id);
 
     const name = label.trim();
     const existing = await this.prisma.intakeDocumentRequest.findFirst({
-      where: { intakeId: id, ...(requestId ? { id: requestId } : { name }) },
+      where: { ...this.intakeMatterWhere(id, intake.case?.id), ...(requestId ? { id: requestId } : { name }) },
     });
     if (requestId && (!existing || existing.name.trim().toLocaleLowerCase() !== name.toLocaleLowerCase())) {
       throw new BadRequestException('รายการเอกสารที่เลือกไม่ตรงกับเรื่องรับเข้า');
@@ -497,7 +505,7 @@ export class IntakeService {
           data: data as never,
         })
       : await this.prisma.intakeDocumentRequest.create({
-          data: { intakeId: id, name, createdById: user.id, ...data } as never,
+          data: { ...(intake.case ? { caseId: intake.case.id } : { intakeId: id }), name, createdById: user.id, ...data } as never,
         });
 
     return {
@@ -651,11 +659,11 @@ export class IntakeService {
     if (created.relatedCaseId) {
       await this.attachToExistingCase(user, created, {} as ConvertToCaseDto);
     } else {
-      await this.openCaseFromIntake(
+      await this.openPreLitCase(
         user,
         created,
         { leadLawyerId: dto.leadLawyerId } as ConvertToCaseDto,
-        gate,
+        { gate },
       );
     }
 
@@ -912,12 +920,10 @@ export class IntakeService {
     // รับดำเนินการ = เปิดคดีทันที ในเฟสก่อนฟ้อง — งานโนติส/เจรจา/เอกสาร
     // คือคดีแล้ว ไม่ใช่ lead ที่รอแปลง. conflict gate จึงย้ายมาเฝ้าที่จุดนี้.
     if (acceptedDecisions.includes(dto.decision)) {
-      if (!intake.case) {
-        if (intake.relatedCaseId) {
-          await this.attachToExistingCase(user, intake, dto);
-        } else {
-          await this.openCaseFromIntake(user, intake, dto);
-        }
+      if (!intake.case && intake.relatedCaseId) {
+        await this.attachToExistingCase(user, intake, dto);
+      } else {
+        await this.openPreLitCase(user, intake, dto);
       }
       // Saved only once the case is open: a 409 from the conflict gate leaves the intake undecided.
       await this.prisma.intake.update({
@@ -929,8 +935,18 @@ export class IntakeService {
           clientDecision: dto.clientDecision,
         },
       });
-      // openCaseFromIntake/attachToExistingCase ตั้ง status=CONVERTED + stage=CLOSED แล้ว
+      // openPreLitCase/attachToExistingCase ตั้ง status=CONVERTED + stage=CLOSED แล้ว
       return this.findOne(user, id);
+    }
+
+    if (intake.case && !['CLOSED', 'ARCHIVED'].includes(intake.case.status) && [IntakeDecision.DO_NOT_FILE, IntakeDecision.CONSULTATION_ONLY].includes(dto.decision)) {
+      if (intake.case.stage !== CaseStage.PRE_LITIGATION) {
+        throw new BadRequestException('คดีเลยขั้นก่อนฟ้องแล้ว ปิดคดีจากหน้าคดี');
+      }
+      await this.casesService.close(user, intake.case.id, {
+        outcome: CaseOutcome.WITHDRAWN,
+        closingSummary: `ไม่รับดำเนินการ: ${dto.decisionNotes ?? ''}`,
+      });
     }
 
     const status = dto.decision === IntakeDecision.CONSULTATION_ONLY ? 'CONSULTED' : 'REJECTED';
@@ -1093,11 +1109,9 @@ export class IntakeService {
     await assertFirmRefs(this.prisma, user.firmId, { userIds: [dto.leadLawyerId], caseTypeIds: [dto.caseTypeId] });
     const intake = await this.findOne(user, id);
 
-    // A second press — or a retry after a response was lost — must not open a
-    // second case, nor add the deadline event and the intake task twice. The
-    // case this intake already reached is the answer.
+    // A retry repairs the existing case without duplicating its initial event/task.
     if (intake.case) {
-      return this.prisma.case.findUnique({ where: { id: intake.case.id } });
+      return this.openPreLitCase(user, intake, dto);
     }
     if (intake.status === 'CONVERTED' && intake.relatedCaseId) {
       return this.prisma.case.findUnique({ where: { id: intake.relatedCaseId } });
@@ -1107,35 +1121,27 @@ export class IntakeService {
       return this.attachToExistingCase(user, intake, dto);
     }
 
-    return this.openCaseFromIntake(user, intake, dto);
+    return this.openPreLitCase(user, intake, dto);
   }
 
   /**
    * เปิดคดีจากข้อมูลรับเรื่อง — ใช้ร่วมกันทั้งทาง decide และ convert เดิม.
    * คดีเริ่มที่เฟสก่อนฟ้อง (PRE_LITIGATION); intake เก็บข้อมูลต้นทางที่ผูกกับคดี.
    */
-  private async openCaseFromIntake(
+  async openPreLitCase(
     user: AuthUser,
     intake: Awaited<ReturnType<IntakeService['findOne']>>,
     dto: ConvertToCaseDto,
     /** Already gated by the caller (intake create) — reuse it instead of searching again. */
-    gated?: ConflictGate,
+    options: { gate?: ConflictGate; recordOnly?: boolean } = {},
   ) {
-    const id = intake.id;
-    // Spec L6: gate before anything is created. The intake's own names are not a clash with itself.
-    const ours = [
-      intake.clientName,
-      intake.client?.name,
-      ...(intake.additionalClients ?? []).map((c) => c.client?.name),
-    ].filter((name): name is string => !!name?.trim());
-    const gate = gated ?? await this.conflictCheck.gateNewCase(user, {
-      parties: [
-        ...[...new Set(ours)].map((name) => ({ name, side: 'OURS' as const })),
-        ...(intake.opposingParty ? [{ name: intake.opposingParty, side: 'OPPONENT' as const }] : []),
-      ],
-      overrideReason: dto.conflictOverrideReason,
-      excludeIntakeId: intake.id,
-    });
+    if (intake.case) {
+      const legalCase = await this.prisma.case.findUniqueOrThrow({ where: { id: intake.case.id } });
+      const recorded = await this.prisma.conflictCheck.findFirst({ where: { caseId: legalCase.id, firmId: user.firmId }, select: { id: true } });
+      const gate = recorded ? undefined : options.gate ?? await this.intakeCaseGate(user, intake, dto, true);
+      return this.completePreLitCase(user, intake, legalCase, gate);
+    }
+    const gate = options.gate ?? await this.intakeCaseGate(user, intake, dto, options.recordOnly);
     // Generate ownRef like cases.service.ts
     const firm = await this.prisma.firm.findUnique({
       where: { id: user.firmId },
@@ -1175,58 +1181,70 @@ export class IntakeService {
         : intake.clientName || 'คดีจาก Intake');
 
     await assertCanOpenCases(this.prisma, user.firmId);
-    const newCase = await this.prisma.case.create({
-      data: {
-        firmId: user.firmId,
-        ownRef,
-        folderId,
-        title,
-        description: this.buildCaseDescription(intake),
-        customerRef: intake.customerRef ?? undefined,
-        partyRole: intake.partyRole ?? undefined,
-        clientId: intake.clientId ?? undefined,
-        clientName: intake.clientName ?? undefined,
-        // ลูกค้า (ผู้ว่าจ้าง/ผู้จ่าย) ตามมาจาก intake; ถ้าไม่ได้ระบุไว้ ให้ลูกความเป็นลูกค้าเอง
-        customers: intake.customers?.length
-          ? {
-              create: intake.customers.map((c) => ({
-                customerId: c.customerId,
-                contactId: c.contactId,
-                sharePercent: c.sharePercent,
-                isPrimary: c.isPrimary,
-                note: c.note,
-              })),
-            }
-          : intake.clientId
-            ? { create: [{ customerId: intake.clientId, sharePercent: 100, isPrimary: true }] }
+    let newCase: LegalCase;
+    try {
+      newCase = await this.prisma.case.create({
+        data: {
+          firmId: user.firmId,
+          ownRef,
+          folderId,
+          title,
+          description: this.buildCaseDescription(intake),
+          customerRef: intake.customerRef ?? undefined,
+          partyRole: intake.partyRole ?? undefined,
+          clientId: intake.clientId ?? undefined,
+          clientName: intake.clientName ?? undefined,
+          // ลูกค้า (ผู้ว่าจ้าง/ผู้จ่าย) ตามมาจาก intake; ถ้าไม่ได้ระบุไว้ ให้ลูกความเป็นลูกค้าเอง
+          customers: intake.customers?.length
+            ? {
+                create: intake.customers.map((c) => ({
+                  customerId: c.customerId,
+                  contactId: c.contactId,
+                  sharePercent: c.sharePercent,
+                  isPrimary: c.isPrimary,
+                  note: c.note,
+                })),
+              }
+            : intake.clientId
+              ? { create: [{ customerId: intake.clientId, sharePercent: 100, isPrimary: true }] }
+              : undefined,
+          additionalClients: intake.additionalClients?.length
+            ? {
+                create: intake.additionalClients.map((c) => ({
+                  clientId: c.clientId,
+                  note: c.note,
+                })),
+              }
             : undefined,
-        additionalClients: intake.additionalClients?.length
-          ? {
-              create: intake.additionalClients.map((c) => ({
-                clientId: c.clientId,
-                note: c.note,
-              })),
-            }
-          : undefined,
-        referralSource: intake.referralName ?? undefined,
-        status: 'OPEN' as any,
-        // คดีที่ผ่าน intake มาแล้วไม่ต้อง review ซ้ำ — เริ่มที่งานก่อนฟ้องเลย
-        stage: CaseStage.PRE_LITIGATION,
-        stageChangedAt: new Date(),
-        leadLawyerId: dto.leadLawyerId ?? user.id,
-        intakeId: intake.id,
-        limitationDeadline: intake.deadlineDate ?? undefined,
-        caseTypeId: dto.caseTypeId ?? intake.caseTypeId ?? undefined,
-        // Only what the lawyer confirmed. The intake's estimated damage is a
-        // different figure and never becomes the amount claimed by itself.
-        claimedAmount: dto.claimedAmount ?? undefined,
-        // Facts the intake already captured travel with the case (spec L5).
-        customFields: {
-          ...(intake.incidentDate ? { incidentDate: intake.incidentDate.toISOString().slice(0, 10) } : {}),
-          ...(intake.estimatedDamage != null ? { estimatedDamage: intake.estimatedDamage } : {}),
+          referralSource: intake.referralName ?? undefined,
+          status: 'OPEN' as any,
+          // คดีที่ผ่าน intake มาแล้วไม่ต้อง review ซ้ำ — เริ่มที่งานก่อนฟ้องเลย
+          stage: CaseStage.PRE_LITIGATION,
+          stageChangedAt: new Date(),
+          leadLawyerId: dto.leadLawyerId ?? user.id,
+          intakeId: intake.id,
+          limitationDeadline: intake.deadlineDate ?? undefined,
+          caseTypeId: dto.caseTypeId ?? intake.caseTypeId ?? undefined,
+          // Only what the lawyer confirmed. The intake's estimated damage is a
+          // different figure and never becomes the amount claimed by itself.
+          claimedAmount: dto.claimedAmount ?? undefined,
+          // Facts the intake already captured travel with the case (spec L5).
+          customFields: {
+            ...(intake.incidentDate ? { incidentDate: intake.incidentDate.toISOString().slice(0, 10) } : {}),
+            ...(intake.estimatedDamage != null ? { estimatedDamage: intake.estimatedDamage } : {}),
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const winner = await this.prisma.case.findUnique({ where: { intakeId: intake.id } });
+        if (winner) {
+          const recorded = await this.prisma.conflictCheck.findFirst({ where: { caseId: winner.id, firmId: user.firmId }, select: { id: true } });
+          return this.completePreLitCase(user, intake, winner, recorded ? undefined : gate);
+        }
+      }
+      throw error;
+    }
 
     await this.caseFeed.log({
       caseId: newCase.id,
@@ -1239,7 +1257,7 @@ export class IntakeService {
       await addOpponents(this.prisma, newCase.id, intake.partyRole, [{ name: intake.opposingParty }]);
     }
     await ensureOurClientParticipant(this.prisma, newCase.id);
-    await this.conflictCheck.recordForCase(user, gate, { caseId: newCase.id, intakeId: intake.id });
+    await this.completePreLitCase(user, intake, newCase, gate);
     const limitationEventId = newCase.limitationDeadline
       ? await syncLimitationReminder(this.prisma, newCase.id)
       : null;
@@ -1247,21 +1265,6 @@ export class IntakeService {
     if (this.cargoClaims && intake.preLitigationType === PreLitigationType.TRANSPORT) {
       await this.cargoClaims.attachCase(user, intake.id, newCase.id);
     }
-
-    // Carry the intake's whole precedent-analysis history forward onto the case
-    // so it stays visible after conversion.
-    await this.prisma.intakePrecedentAnalysis.updateMany({
-      where: { intakeId: intake.id },
-      data: { caseId: newCase.id },
-    });
-
-    await this.carryIntakeOntoCase(intake.id, newCase.id);
-
-    // งาน/checklist ที่ตั้งไว้ตั้งแต่รับเรื่อง ตามไปเป็นงานคดี
-    await this.prisma.task.updateMany({
-      where: { intakeId: intake.id },
-      data: { caseId: newCase.id, intakeId: null },
-    });
 
     // playbook ที่เลือกตั้งแต่รับเรื่อง นับเป็น AppliedPlaybook ของคดีเลย
     // (งานถูก seed ไปแล้วตอนรับเรื่อง — กัน apply ซ้ำสร้างงานซ้อน)
@@ -1309,8 +1312,77 @@ export class IntakeService {
       });
     }
 
-    await this.prisma.intake.update({
-      where: { id },
+    // The ครบอายุความ event already covers the intake deadline when it falls on the same day.
+    if (
+      intake.deadlineDate &&
+      !this.limitationEventCovers(limitationEventId, newCase.limitationDeadline, intake.deadlineDate)
+    ) {
+      await this.prisma.calendarEvent.create({
+        data: {
+          caseId: newCase.id,
+          title: `ครบกำหนด: ${newCase.title}`,
+          startAt: intake.deadlineDate,
+          type: 'DEADLINE' as any,
+        },
+      });
+    }
+
+    await this.tasksService.create(user, newCase.id, {
+      title: `เริ่มดำเนินการคดี: ${newCase.title}`,
+      assigneeId: newCase.leadLawyerId,
+      dueDate: intake.deadlineDate?.toISOString(),
+    });
+
+    return newCase;
+  }
+
+  private intakeCaseGate(
+    user: AuthUser,
+    intake: Awaited<ReturnType<IntakeService['findOne']>>,
+    dto: ConvertToCaseDto,
+    recordOnly = false,
+  ) {
+    const ours = [
+      intake.clientName,
+      intake.client?.name,
+      ...(intake.additionalClients ?? []).map((c) => c.client?.name),
+    ].filter((name): name is string => !!name?.trim());
+    return this.conflictCheck.gateNewCase(user, {
+      parties: [
+        ...[...new Set(ours)].map((name) => ({ name, side: 'OURS' as const })),
+        ...(intake.opposingParty ? [{ name: intake.opposingParty, side: 'OPPONENT' as const }] : []),
+      ],
+      overrideReason: dto.conflictOverrideReason,
+      excludeIntakeId: intake.id,
+      ...(recordOnly ? { recordOnly: true } : {}),
+    });
+  }
+
+  /** Safe to repeat after case creation commits but a later initialization step fails. */
+  private async completePreLitCase(
+    user: AuthUser,
+    intake: Awaited<ReturnType<IntakeService['findOne']>>,
+    newCase: LegalCase,
+    gate?: ConflictGate,
+  ) {
+    if (gate) await this.conflictCheck.recordForCase(user, gate, { caseId: newCase.id, intakeId: intake.id });
+    // Carry the intake's whole precedent-analysis history forward onto the case
+    // so it stays visible after conversion.
+    await this.prisma.intakePrecedentAnalysis.updateMany({
+      where: { intakeId: intake.id },
+      data: { caseId: newCase.id },
+    });
+
+    await this.carryIntakeOntoCase(intake.id, newCase.id);
+
+    // งาน/checklist ที่ตั้งไว้ตั้งแต่รับเรื่อง ตามไปเป็นงานคดี
+    await this.prisma.task.updateMany({
+      where: { intakeId: intake.id },
+      data: { caseId: newCase.id, intakeId: null },
+    });
+
+    if (intake.status !== 'CONVERTED') await this.prisma.intake.update({
+      where: { id: intake.id },
       data: {
         status: 'CONVERTED' as any,
         statusChangedAt: new Date(),
@@ -1333,27 +1405,6 @@ export class IntakeService {
         skipDuplicates: true,
       });
     }
-
-    // The ครบอายุความ event already covers the intake deadline when it falls on the same day.
-    if (
-      intake.deadlineDate &&
-      !this.limitationEventCovers(limitationEventId, newCase.limitationDeadline, intake.deadlineDate)
-    ) {
-      await this.prisma.calendarEvent.create({
-        data: {
-          caseId: newCase.id,
-          title: `ครบกำหนด: ${newCase.title}`,
-          startAt: intake.deadlineDate,
-          type: 'DEADLINE' as any,
-        },
-      });
-    }
-
-    await this.tasksService.create(user, newCase.id, {
-      title: `เริ่มดำเนินการคดี: ${newCase.title}`,
-      assigneeId: newCase.leadLawyerId,
-      dueDate: intake.deadlineDate?.toISOString(),
-    });
 
     return newCase;
   }
@@ -1490,6 +1541,10 @@ export class IntakeService {
       where: { intakeId },
       data: { caseId, intakeId: null },
     });
+    await this.prisma.intakeDocumentRequest.updateMany({
+      where: { intakeId },
+      data: { caseId, intakeId: null },
+    });
     await this.prisma.emailThread.updateMany({
       where: { intakeId, caseId: null },
       data: { caseId, status: 'LINKED', caseUnlinkedAt: null },
@@ -1512,7 +1567,7 @@ export class IntakeService {
     submissionId: string,
     dto: ConvertPortalSubmissionDto,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const intake = await this.prisma.$transaction(async (tx) => {
       // Serialize conversion attempts for this submission, including retries.
       await tx.$queryRaw`SELECT "id" FROM "PortalIntakeSubmission" WHERE "id" = ${submissionId} FOR UPDATE`;
       const submission = await tx.portalIntakeSubmission.findFirst({
@@ -1524,7 +1579,7 @@ export class IntakeService {
       if (submission.withdrawnByClient) {
         throw new BadRequestException('เรื่องนี้ถูกถอนโดยลูกความแล้ว');
       }
-      if (submission.caseId) {
+      if (submission.caseId && !submission.intakeId) {
         throw new BadRequestException('คำขอนี้เปิดเป็นคดีแล้ว');
       }
       if (submission.intakeId) {
@@ -1534,15 +1589,6 @@ export class IntakeService {
         if (!existing) throw new NotFoundException('ไม่พบเรื่องรับที่เชื่อมไว้');
         return existing;
       }
-
-      const portalClient = await tx.client.findFirst({
-        where: { id: submission.clientId, firmId: user.firmId },
-        select: { name: true },
-      });
-      const gate = await this.conflictCheck.gateNewCase(user, {
-        parties: portalClient ? [{ name: portalClient.name, side: 'OURS' }] : [],
-        overrideReason: dto.conflictOverrideReason,
-      });
 
       const intake = await tx.intake.create({
         data: {
@@ -1563,16 +1609,15 @@ export class IntakeService {
         where: { id: submission.id },
         data: { intakeId: intake.id },
       });
-      await this.conflictCheck.recordForCase(user, gate, { intakeId: intake.id }, tx);
       return intake;
     });
+    const legalCase = await this.openPreLitCase(user, await this.findOne(user, intake.id), {}, { recordOnly: true });
+    await this.prisma.portalIntakeSubmission.update({ where: { id: submissionId }, data: { caseId: legalCase.id } });
+    return { ...await this.prisma.intake.findUniqueOrThrow({ where: { id: intake.id } }), caseId: legalCase.id };
   }
 
   async uploadAttachment(user: AuthUser, intakeId: string, file: Express.Multer.File) {
-    const intake = await this.prisma.intake.findFirst({
-      where: { id: intakeId, firmId: user.firmId },
-    });
-    if (!intake) throw new NotFoundException('Intake not found');
+    await this.findOne(user, intakeId);
 
     if (!file) {
       throw new BadRequestException('กรุณาแนบไฟล์');
@@ -1603,6 +1648,7 @@ export class IntakeService {
   }
 
   async deleteAttachment(user: AuthUser, intakeId: string, attachmentId: string) {
+    await this.findOne(user, intakeId);
     const attachment = await this.prisma.intakeAttachment.findFirst({
       where: { id: attachmentId, intakeId },
       include: { intake: { select: { firmId: true } } },

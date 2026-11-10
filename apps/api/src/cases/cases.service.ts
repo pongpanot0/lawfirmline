@@ -1,3 +1,4 @@
+import { intakeJourney, Journey } from '../intake/intake-journey';
 import { assertJourneyAdvance, caseJourney, journeyStage, nextJourneyStage } from './case-journey';
 import { AdvanceJourneyDto } from './dto/advance-journey.dto';
 import { assertFirmRefs } from '../common/firm-refs';
@@ -282,7 +283,7 @@ export class CasesService {
   private async journeyState(user: AuthUser, id: string, db: Prisma.TransactionClient = this.prisma) {
     const legalCase = await db.case.findFirst({
       where: { id, firmId: user.firmId, deletedAt: null },
-      select: { stage: true, partyRole: true },
+      select: { stage: true, partyRole: true, intakeId: true },
     });
     if (!legalCase) throw new NotFoundException('Case not found');
     const [tasks, applied] = await Promise.all([
@@ -296,7 +297,20 @@ export class CasesService {
         select: { taskIds: true, release: { select: { steps: true } } },
       }),
     ]);
-    return { legalCase, journey: caseJourney(legalCase, tasks, applied) };
+    let preLit: Journey | undefined;
+    if (legalCase.stage === CaseStage.PRE_LITIGATION && legalCase.intakeId) {
+      const [intake, conflict, requests] = await Promise.all([
+        db.intake.findFirst({ where: { id: legalCase.intakeId, firmId: user.firmId } }),
+        db.conflictCheck.findFirst({
+          where: { firmId: user.firmId, OR: [{ caseId: id }, { intakeId: legalCase.intakeId }] },
+          orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
+        }),
+        db.intakeDocumentRequest.findMany({ where: { OR: [{ caseId: id }, { intakeId: legalCase.intakeId }] }, select: { required: true, status: true } }),
+      ]);
+      if (!intake) throw new NotFoundException('ไม่พบข้อมูลรับเรื่องของคดี');
+      preLit = intakeJourney({ ...intake, hasCase: true }, conflict, requests);
+    }
+    return { legalCase, journey: caseJourney(legalCase, tasks, applied, preLit) };
   }
 
   async advanceJourney(user: AuthUser, id: string, dto: AdvanceJourneyDto) {
@@ -428,7 +442,7 @@ export class CasesService {
   }
 
   /** Opens a case for a client's portal request, inside the caller's transaction. */
-  createForPortal(
+  async createForPortal(
     tx: Prisma.TransactionClient,
     params: {
       firmId: string;
@@ -440,7 +454,18 @@ export class CasesService {
     },
   ) {
     const { firmId, ...data } = params;
-    return this.insertCase(tx, firmId, undefined, data);
+    const intake = await tx.intake.create({ data: {
+      firmId,
+      title: data.title,
+      description: data.description,
+      clientId: data.clientId,
+      clientName: data.clientName,
+      receivedById: data.leadLawyerId,
+      referralChannel: 'PORTAL',
+      status: 'CONVERTED',
+      stage: 'CLOSED',
+    } });
+    return this.insertCase(tx, firmId, undefined, { ...data, intakeId: intake.id });
   }
 
   /**

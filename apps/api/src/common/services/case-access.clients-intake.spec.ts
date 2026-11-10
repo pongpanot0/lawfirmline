@@ -31,7 +31,7 @@ describe('CaseAccessService client and intake filters', () => {
   it('OFFICE_MANAGER sees all firm clients and intakes, but only their own unlinked mail', async () => {
     const user = { id: 'om1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
     expect(service.getClientFilterForUser(user)).toEqual({ firmId: 'firm-1' });
-    expect(await service.getIntakeFilterForUser(user)).toEqual({ firmId: 'firm-1' });
+    expect(await service.getIntakeFilterForUser(user)).toEqual({ firmId: 'firm-1', OR: [{ case: service.getCaseFilterForUser(user) }, { case: { is: null } }] });
     expect(await service.getEmailThreadFilterForUser(user)).toEqual(
       expect.objectContaining({
         firmId: 'firm-1',
@@ -68,12 +68,17 @@ describe('CaseAccessService client and intake filters', () => {
     expect(filter).toEqual(
       expect.objectContaining({
         firmId: 'firm-1',
-        OR: expect.arrayContaining([
-          { receivedById: 'u1' },
-          { assignedUserIds: { has: 'u1' } },
-        ]),
+        OR: [{ case: service.getCaseFilterForUser({ id: 'u1', firmId: 'firm-1', firmRole: FirmRole.ASSISTANT } as any) }, { case: { is: null }, OR: expect.arrayContaining([{ receivedById: 'u1' }, { assignedUserIds: { has: 'u1' } }]) }],
       }),
     );
+  });
+
+  it.each([FirmRole.ASSISTANT, FirmRole.LAWYER, FirmRole.SENIOR_LAWYER])('includes the hidden intake of every visible case for %s', async (firmRole) => {
+    const user = { id: 'u1', firmId: 'firm-1', firmRole } as any;
+    const filter = await service.getIntakeFilterForUser(user);
+    expect(filter.firmId).toBe('firm-1');
+    expect(filter.OR).toContainEqual({ case: service.getCaseFilterForUser(user) });
+    expect((filter.OR as any[]).find((branch) => branch.case).case).toMatchObject({ firmId: 'firm-1', deletedAt: null });
   });
 
   it('SENIOR_LAWYER intake filter includes lawyer assignees', async () => {
@@ -83,7 +88,8 @@ describe('CaseAccessService client and intake filters', () => {
       firmRole: FirmRole.SENIOR_LAWYER,
     } as any);
     expect(mockPrisma.firmMember.findMany).toHaveBeenCalled();
-    expect(filter.OR).toEqual(
+    expect((filter.OR as any[])[1]).toMatchObject({ case: { is: null } });
+    expect((filter.OR as any[])[1].OR).toEqual(
       expect.arrayContaining([
         { assignedUserIds: { hasSome: ['lawyer-1', 'lawyer-2'] } },
         { receivedById: { in: ['lawyer-1', 'lawyer-2'] } },
@@ -102,7 +108,7 @@ describe('CaseAccessService client and intake filters', () => {
         firmId: 'firm-1',
         OR: [
           { caseId: { not: null }, case: expect.objectContaining({ firmId: 'firm-1' }) },
-          { intakeId: { not: null }, intake: expect.objectContaining({ firmId: 'firm-1' }) },
+          { caseId: null, intakeId: { not: null }, intake: expect.objectContaining({ firmId: 'firm-1' }) },
           { caseId: null, intakeId: null, mailboxConnection: { userId: 'u1' } },
         ],
       }),

@@ -66,6 +66,8 @@ function CasesPageContent() {
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState('');
   const [stageFilter, setStageFilter] = useState(searchParams.get('stage') ?? (searchParams.get('view') === 'intake' ? 'PRE_LITIGATION' : ''));
+  const urlStage = searchParams.get('stage');
+  useEffect(() => { if (urlStage) setStageFilter(urlStage); }, [urlStage]);
   const [lawyerFilter, setLawyerFilter] = useState('');
   const [page, setPage] = useState(0);
   const [sortAsc, setSortAsc] = useState(false);
@@ -450,7 +452,7 @@ function CasesPageContent() {
                       </p>
                     </Link>
                     {firstIntakeId(c) && (
-                      <Link href={`/intake/${firstIntakeId(c)}`} className="inline-flex px-4 pb-3 text-xs font-medium text-primary hover:underline">
+                      <Link href={`/cases/${c.id}`} className="inline-flex px-4 pb-3 text-xs font-medium text-primary hover:underline">
                         {d.cases.intakeDetails}
                       </Link>
                     )}
@@ -509,7 +511,7 @@ function CasesPageContent() {
                           <Link href={caseHref(c.id)} onClick={event => event.stopPropagation()} className="inline-flex min-h-11 items-center hover:underline">{c.ownRef}</Link>
                           {firstIntakeId(c) && (
                             <Link
-                              href={`/intake/${firstIntakeId(c)}`}
+                              href={`/cases/${c.id}`}
                               className="text-xs font-normal text-primary hover:underline"
                               onClick={(event) => event.stopPropagation()}
                             >
