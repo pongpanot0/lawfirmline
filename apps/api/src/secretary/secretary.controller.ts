@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseUUIDPipe, Post, Query,
+  BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, ParseUUIDPipe, Post, Query,
   UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -41,6 +41,17 @@ export class SecretaryController {
   @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: 10 * 1024 * 1024 } }))
   transcribe(@CurrentUser() u: AuthUser, @UploadedFile() audio: Express.Multer.File) {
     return this.chat.transcribe(u, audio);
+  }
+
+  @Get('ai/secretary/history')
+  secretaryHistory(@CurrentUser() u: AuthUser) {
+    return this.chat.history(u);
+  }
+
+  /** "แชทใหม่": the caller wipes only their own saved chat. */
+  @Delete('ai/secretary/history')
+  clearSecretaryHistory(@CurrentUser() u: AuthUser) {
+    return this.chat.clearHistory(u);
   }
 
   @Get('ai/daily-brief')

@@ -4,9 +4,9 @@ import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { File } from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronRight, Mic, Square } from 'lucide-react-native';
+import { ChevronRight, Mic, Square, SquarePen } from 'lucide-react-native';
 import type { SecretaryCard } from '@lawfirm/shared';
-import { useSecretaryChat, useTranscribe } from '@/api/hooks';
+import { useClearSecretaryHistory, useSecretaryChat, useSecretaryHistory, useTranscribe } from '@/api/hooks';
 import { openCaseDocument } from '@/api/files';
 import { Text, TextInput } from '@/components/AppText';
 import { Button, Card, EmptyState, InlineError, LoadingState } from '@/components/ui';
@@ -20,6 +20,8 @@ export default function SecretaryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const chat = useSecretaryChat();
+  const history = useSecretaryHistory();
+  const clearHistory = useClearSecretaryHistory();
   const transcribe = useTranscribe();
   const list = useRef<ScrollView>(null);
   const focused = useRef(false);
@@ -28,7 +30,7 @@ export default function SecretaryScreen() {
   const voiceLock = useRef(false);
   const sending = useRef(false);
   const voiceSession = useRef(0);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => history.data ?? []);
   const [input, setInput] = useState('');
   const [voice, setVoice] = useState<VoiceState>('idle');
   const [error, setError] = useState('');
@@ -74,6 +76,22 @@ export default function SecretaryScreen() {
     });
     return () => subscription.remove();
   }, [discardRecording]);
+
+  useEffect(() => {
+    // Fill an empty screen once the saved chat arrives; never overwrite a conversation already in progress.
+    if (history.data?.length) setMessages(current => current.length ? current : history.data);
+  }, [history.data]);
+
+  async function newChat() {
+    if (sending.current || clearHistory.isPending) return;
+    setError('');
+    try {
+      await clearHistory.mutateAsync();
+      setMessages([]);
+    } catch {
+      setError('เริ่มแชทใหม่ไม่สำเร็จ กรุณาลองใหม่');
+    }
+  }
 
   async function send(content: string) {
     const text = content.trim();
@@ -159,10 +177,16 @@ export default function SecretaryScreen() {
       : voice === 'transcribing' ? 'กำลังถอดเสียงและส่ง…' : 'แตะเพื่อพูด';
   return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     keyboardVerticalOffset={insets.top + 56}>
-    <Stack.Screen options={{ title: 'เลขา' }} />
+    <Stack.Screen options={{
+      title: 'เลขา',
+      headerRight: messages.length ? () => <Pressable onPress={() => void newChat()} hitSlop={12} accessibilityRole="button"
+        accessibilityLabel="เริ่มแชทใหม่" disabled={clearHistory.isPending} style={styles.newChat}>
+        <SquarePen size={18} color={colors.ink} /><Text style={styles.newChatText}>แชทใหม่</Text>
+      </Pressable> : undefined,
+    }} />
     <ScrollView ref={list} keyboardShouldPersistTaps="handled" contentContainerStyle={[pageContent, { gap: spacing.md, flexGrow: 1 }]}
       onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}>
-      {!messages.length ? <EmptyState icon={Mic}>ถามเรื่องคดี เอกสาร หรือนัดหมาย · แตะไมค์เพื่อพูด หรือพิมพ์คำถามด้านล่าง</EmptyState> : null}
+      {!messages.length ? <EmptyState icon={Mic}>ถามเรื่องคดี เอกสาร นัดหมาย วันลา หรือขั้นตอนสำนักงาน · แตะไมค์เพื่อพูด หรือพิมพ์คำถามด้านล่าง</EmptyState> : null}
       {messages.map((message, index) => <View key={index} style={[styles.message, message.role === 'user' && styles.userMessage]}>
         <Text style={styles.speaker}>{message.role === 'user' ? 'คุณ' : 'เลขา'}</Text>
         <Text selectable style={styles.body} accessibilityLiveRegion={message.role === 'assistant' ? 'polite' : undefined}>{message.content}</Text>
@@ -211,6 +235,8 @@ export default function SecretaryScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  newChat: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44, paddingHorizontal: spacing.sm },
+  newChatText: { ...typeScale.meta, color: colors.ink },
   message: { padding: spacing.lg, borderRadius: radius.card, backgroundColor: colors.surface, gap: spacing.sm },
   userMessage: { backgroundColor: colors.infoSoft, marginLeft: spacing.xl },
   speaker: { ...typeScale.meta, color: colors.muted },

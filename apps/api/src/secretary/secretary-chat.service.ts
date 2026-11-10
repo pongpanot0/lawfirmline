@@ -2,12 +2,16 @@ import { BadGatewayException, BadRequestException, Injectable, Logger } from '@n
 import { ConfigService } from '@nestjs/config';
 import { redactForAi, type AuthUser, type SecretaryCard } from '@lawfirm/shared';
 import { chatModel } from '../common/openai-model';
+import { Prisma } from '../generated/prisma';
+import { PrismaService } from '../prisma/prisma.module';
 import { RagService } from '../rag/rag.service';
 import { SecretaryToolsService } from './secretary-tools.service';
 
 export interface SecretaryMessage { role: 'user' | 'assistant'; content: string }
 
 const MAX_HISTORY = 10;
+/** Past turns shown when the panel opens. */
+const SAVED_HISTORY = 50;
 const MAX_TOOL_ROUNDS = 4;
 /** Per OpenAI call; a stalled upstream otherwise hangs for undici's ~300 s default. */
 const OPENAI_TIMEOUT_MS = 20_000;
@@ -27,12 +31,46 @@ export class SecretaryChatService {
     private readonly config: ConfigService,
     private readonly tools: SecretaryToolsService,
     private readonly rag: RagService,
+    private readonly prisma: PrismaService,
   ) {}
+
+  /** The caller's own saved chat in this firm, oldest first, so web and mobile reopen where they left off. */
+  async history(user: AuthUser): Promise<Array<SecretaryMessage & { cards: SecretaryCard[] }>> {
+    const rows = await this.prisma.secretaryMessage.findMany({
+      where: { firmId: user.firmId, userId: user.id },
+      orderBy: { createdAt: 'desc' }, take: SAVED_HISTORY,
+      select: { role: true, content: true, cards: true },
+    });
+    return rows.reverse().map((r) => ({
+      role: r.role === 'assistant' ? 'assistant' : 'user', content: r.content,
+      cards: Array.isArray(r.cards) ? (r.cards as unknown as SecretaryCard[]) : [],
+    }));
+  }
+
+  async clearHistory(user: AuthUser): Promise<{ deleted: number }> {
+    const { count } = await this.prisma.secretaryMessage.deleteMany({ where: { firmId: user.firmId, userId: user.id } });
+    return { deleted: count };
+  }
+
+  /** Losing a saved turn must not cost the user the answer they already paid for, so a failed write only logs. */
+  private async save(user: AuthUser, question: string, reply: string, cards: SecretaryCard[]) {
+    const now = Date.now();
+    try {
+      await this.prisma.secretaryMessage.createMany({ data: [
+        { firmId: user.firmId, userId: user.id, role: 'user', content: question, createdAt: new Date(now) },
+        // +1 ms keeps the pair in order when both rows land in the same millisecond.
+        { firmId: user.firmId, userId: user.id, role: 'assistant', content: reply, cards: cards as unknown as Prisma.InputJsonValue, createdAt: new Date(now + 1) },
+      ] });
+    } catch (err) {
+      this.logger.warn(`secretary history save failed: ${err}`);
+    }
+  }
 
   private systemPrompt(user: AuthUser): string {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
     return [
-      `คุณคือเลขาส่วนตัว AI ของ ${user.firstName} ${user.lastName} ในสำนักงานกฎหมาย วันนี้คือ ${today} (เขตเวลา Asia/Bangkok)`,
+      // Fixed rules first, the per-user line last: OpenAI caches the longest shared prompt prefix, so this prefix is reused across users.
+      'คุณคือเลขาส่วนตัว AI ในสำนักงานกฎหมาย',
       'กฎ:',
       '- ตอบจากข้อมูลที่เครื่องมือส่งกลับเท่านั้น ห้ามเดาหรือแต่งข้อเท็จจริง',
       '- ถ้าไม่มีข้อมูลให้บอกว่าไม่มีข้อมูล',
@@ -42,6 +80,7 @@ export class SecretaryChatService {
       '- ตอบเป็นภาษาไทย เว้นแต่ผู้ใช้เขียนเป็นภาษาอังกฤษ กระชับ เหมาะกับการอ่านบนมือถือ',
       '- คุณคุยกับเจ้าหน้าที่สำนักงานเท่านั้น ห้ามร่างข้อความถึงลูกความ',
       '- คำถามงานสำนักงาน (วันลา, SOP/ขั้นตอนสำนักงาน, ใบอนุญาตทนาย, ลูกหนี้ค้างชำระ, เงินสดย่อย) ให้ใช้เครื่องมือที่มี ถ้าไม่มีเครื่องมือสำหรับเรื่องนั้นให้บอกว่าบัญชีนี้ไม่มีสิทธิ์ดูข้อมูลนั้น',
+      `ผู้ใช้คือ ${user.firstName} ${user.lastName} วันนี้คือ ${today} (เขตเวลา Asia/Bangkok)`,
     ].join('\n');
   }
 
@@ -73,7 +112,9 @@ export class SecretaryChatService {
         const calls = round >= MAX_TOOL_ROUNDS ? undefined : msg?.tool_calls;
         if (!calls?.length) {
           await log('success');
-          return { reply: msg?.content ?? 'ไม่สามารถสร้างคำตอบได้', cards: [...cards.values()] };
+          const result = { reply: msg?.content ?? 'ไม่สามารถสร้างคำตอบได้', cards: [...cards.values()] };
+          await this.save(user, history[history.length - 1].content, result.reply, result.cards);
+          return result;
         }
         messages.push({ role: 'assistant', content: msg?.content ?? null, tool_calls: calls.map((c) => ({ ...c, type: 'function' })) });
         const results = await Promise.all(

@@ -34,12 +34,35 @@ export function useMyDay() {
   });
 }
 
+type SecretaryTurn = SecretaryMessage & { cards: SecretaryCard[] };
+const SECRETARY_HISTORY = ['secretary-history'] as const;
+
+/** The caller's saved chat; the per-user offline query cache shows it instantly on reopen. */
+export function useSecretaryHistory() {
+  return useQuery({ queryKey: SECRETARY_HISTORY, queryFn: () => api<SecretaryTurn[]>('/ai/secretary/history') });
+}
+
 export function useSecretaryChat() {
+  const queryClient = useQueryClient();
   return useMutation({
     retry: false,
     mutationFn: (messages: SecretaryMessage[]) => api<{ reply: string; cards: SecretaryCard[] }>('/ai/secretary', {
       method: 'POST', body: { messages: secretaryMessages(messages) },
     }),
+    // Mirror what the server just saved, so the cache matches without a refetch.
+    onSuccess: (result, messages) => queryClient.setQueryData<SecretaryTurn[]>(SECRETARY_HISTORY, (old = []) => [
+      ...old,
+      { role: 'user', content: messages[messages.length - 1].content, cards: [] },
+      { role: 'assistant', content: result.reply, cards: result.cards },
+    ]),
+  });
+}
+
+export function useClearSecretaryHistory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ deleted: number }>('/ai/secretary/history', { method: 'DELETE' }),
+    onSuccess: () => queryClient.setQueryData<SecretaryTurn[]>(SECRETARY_HISTORY, []),
   });
 }
 
