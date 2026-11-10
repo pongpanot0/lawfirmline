@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { AuthUser, ConflictResult, FirmRole, Role } from '@lawfirm/shared';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { ConflictCheckService, normalizeName, opponentConflicts, suggestResult } from './conflict-check.service';
 
@@ -29,7 +30,7 @@ function prismaMock(overrides: Record<string, unknown> = {}) {
 
 async function build(prisma: Record<string, unknown>) {
   const module = await Test.createTestingModule({
-    providers: [ConflictCheckService, { provide: PrismaService, useValue: prisma }],
+    providers: [ConflictCheckService, { provide: PrismaService, useValue: prisma }, { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }), getCaseFilterForUser: () => ({ firmId: 'firm-1' }) } }],
   }).compile();
   return module.get(ConflictCheckService);
 }
@@ -108,7 +109,7 @@ describe('ConflictCheckService', () => {
     const service = await build(prisma);
     await expect(
       service.record(user, { terms: ['abc'], intakeId: 'other', result: ConflictResult.CLEAR }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -173,6 +174,16 @@ describe('conflict gate', () => {
     await expect(attempt).rejects.toMatchObject({
       response: { code: 'CONFLICT_FOUND', matches: [expect.objectContaining({ caseId: 'case-9', side: 'OPPONENT' })] },
     });
+  });
+
+  it('records a clash as NEEDS_REVIEW without a blocking prompt or fabricated override', async () => {
+    const prisma = prismaMock(ourClientAsOpponentElsewhere);
+    const service = await build(prisma);
+    const gate = await service.gateNewCase(user, { parties: [{ name: 'บริษัท ก จำกัด', side: 'OURS' }], recordOnly: true });
+    expect(gate).toMatchObject({ result: ConflictResult.NEEDS_REVIEW, overrideReason: null, matches: [expect.objectContaining({ caseId: 'case-9' })] });
+    await service.recordForCase(user, gate, { caseId: 'new-case' });
+    expect(prisma.conflictCheck.create).toHaveBeenCalledWith({ data: expect.objectContaining({ caseId: 'new-case', result: 'NEEDS_REVIEW', matchCount: 1, notes: null }) });
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('a reason under 10 characters is refused; a proper one lets it through as POTENTIAL_CONFLICT', async () => {

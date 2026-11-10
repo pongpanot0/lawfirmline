@@ -1,3 +1,4 @@
+import { CasesModule } from '../cases/cases.module';
 import { forwardRef, Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TasksModule } from '../tasks/tasks.module';
@@ -13,7 +14,7 @@ import { RagModule } from '../rag/rag.module';
 import { CargoClaimsModule } from '../cargo-claims/cargo-claims.module';
 
 @Module({
-  imports: [forwardRef(() => TasksModule), forwardRef(() => IntelligenceModule), forwardRef(() => DocumentsModule), ConflictCheckModule, forwardRef(() => RagModule), forwardRef(() => CargoClaimsModule), forwardRef(() => NotificationsModule)],
+  imports: [forwardRef(() => CasesModule), forwardRef(() => TasksModule), forwardRef(() => IntelligenceModule), forwardRef(() => DocumentsModule), ConflictCheckModule, forwardRef(() => RagModule), forwardRef(() => CargoClaimsModule), forwardRef(() => NotificationsModule)],
   controllers: [IntakeController, IntakeJourneyController],
   providers: [
     IntakeService,

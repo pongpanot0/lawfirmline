@@ -30,3 +30,7 @@ export function submitHelper(steps: EmailIntakeStep[]) {
   const missing = steps.filter((step) => (step.key === 'CONFIRM' || step.key === 'DOCUMENTS') && step.state !== 'done').map((step) => step.label);
   return missing.length ? 'ต้องทำให้ครบก่อน: ' + missing.join(' และ ') : 'พร้อมส่งประเมิน';
 }
+
+export function casePath(caseId: string | null | undefined): string | null {
+  return caseId ? `/cases/${caseId}` : null;
+}

@@ -1,3 +1,4 @@
+import { IntakeModule } from '../intake/intake.module';
 import { forwardRef, Module } from '@nestjs/common';
 import { EmailIntakeService } from './email-intake.service';
 import { EmailIntakeController } from './email-intake.controller';
@@ -11,7 +12,7 @@ import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { OutlookIntegrationModule } from '../outlook-integration/outlook-integration.module';
 
 @Module({
-  imports: [forwardRef(() => DocumentsModule), forwardRef(() => IntelligenceModule), forwardRef(() => OutlookIntegrationModule), forwardRef(() => TasksModule)],
+  imports: [forwardRef(() => IntakeModule), forwardRef(() => DocumentsModule), forwardRef(() => IntelligenceModule), forwardRef(() => OutlookIntegrationModule), forwardRef(() => TasksModule)],
   controllers: [EmailIntakeController, CaseEmailController],
   providers: [EmailIntakeService, CaseEmailService, EmailDateSuggestionsService, EmailMentionTasksService],
   exports: [EmailIntakeService, CaseEmailService],

@@ -142,6 +142,7 @@ export class DocumentsService {
     const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
     const intake = await this.prisma.intake.findFirst({
       where: { id: intakeId, firmId: user.firmId, ...intakeFilter },
+      include: { case: { select: { id: true } } },
     });
     if (!intake) throw new NotFoundException('Intake not found');
     return intake;
@@ -258,10 +259,10 @@ export class DocumentsService {
   }
 
   async findByIntake(user: AuthUser, intakeId: string) {
-    await this.verifyIntake(user, intakeId);
-    await this.adoptIntakeAttachments(intakeId);
+    const intake = await this.verifyIntake(user, intakeId);
+    await this.adoptIntakeAttachments(intakeId, intake.case?.id);
     return this.prisma.document.findMany({
-      where: { intakeId },
+      where: this.intakeDocumentWhere(intakeId, intake.case?.id),
       include: {
         uploadedBy: {
           select: { id: true, firstName: true, lastName: true },
@@ -273,9 +274,13 @@ export class DocumentsService {
     });
   }
 
-  private async verifyIntakeDocument(intakeId: string, documentId: string) {
+  private intakeDocumentWhere(intakeId: string, caseId?: string): Prisma.DocumentWhereInput {
+    return caseId ? { OR: [{ intakeId }, { caseId }] } : { intakeId };
+  }
+
+  private async verifyIntakeDocument(intakeId: string, documentId: string, caseId?: string) {
     const document = await this.prisma.document.findFirst({
-      where: { id: documentId, intakeId },
+      where: { id: documentId, ...this.intakeDocumentWhere(intakeId, caseId) },
     });
     if (!document) throw new NotFoundException('Document not found');
     return document;
@@ -543,8 +548,8 @@ export class DocumentsService {
     documentId: string,
     file: Express.Multer.File,
   ) {
-    await this.verifyIntake(user, intakeId);
-    const document = await this.verifyIntakeDocument(intakeId, documentId);
+    const intake = await this.verifyIntake(user, intakeId);
+    const document = await this.verifyIntakeDocument(intakeId, documentId, intake.case?.id);
 
     const newVersion = document.version + 1;
     const ext = path.extname(decodeUploadFilename(file.originalname));
@@ -591,8 +596,8 @@ export class DocumentsService {
    * is recoverable, a row deleted with the file still listed is not.
    */
   async removeFromIntake(user: AuthUser, intakeId: string, documentId: string) {
-    await this.verifyIntake(user, intakeId);
-    const document = await this.verifyIntakeDocument(intakeId, documentId);
+    const intake = await this.verifyIntake(user, intakeId);
+    const document = await this.verifyIntakeDocument(intakeId, documentId, intake.case?.id);
 
     const versions = await this.prisma.documentVersion.findMany({
       where: { documentId },
@@ -709,9 +714,9 @@ export class DocumentsService {
   }
 
   async getFilePathForIntake(user: AuthUser, intakeId: string, documentId: string, version?: number) {
-    await this.verifyIntake(user, intakeId);
+    const intake = await this.verifyIntake(user, intakeId);
     const document = await this.prisma.document.findFirst({
-      where: { id: documentId, intakeId },
+      where: { id: documentId, ...this.intakeDocumentWhere(intakeId, intake.case?.id) },
       include: { versions: true },
     });
     if (!document) throw new NotFoundException('Document not found');
@@ -730,8 +735,8 @@ export class DocumentsService {
   }
 
   async updateVisibilityForIntake(user: AuthUser, intakeId: string, documentId: string, visibleToClient: boolean) {
-    await this.verifyIntake(user, intakeId);
-    await this.verifyIntakeDocument(intakeId, documentId);
+    const intake = await this.verifyIntake(user, intakeId);
+    await this.verifyIntakeDocument(intakeId, documentId, intake.case?.id);
     return this.prisma.document.update({
       where: { id: documentId },
       data: { visibleToClient },

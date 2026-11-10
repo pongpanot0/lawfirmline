@@ -15,7 +15,7 @@ const fact = { statement: 'บริษัทประกันจ่ายค�
 function setup() {
   const rows = { create: jest.fn(async ({ data }) => ({ id: 'r1', ...data })), findMany: jest.fn(async () => []), findFirst: jest.fn(), updateMany: jest.fn(async () => ({ count: 1 })), findUniqueOrThrow: jest.fn() };
   const prisma = { intakePrecedentAnalysis: rows, case: { findFirst: jest.fn(async () => ({ title: 'คดีทดสอบ', description: 'ข้อเท็จจริงจากทีม', participants: [{ name: 'คู่ความทดสอบ', role: 'DEFENDANT' }], tasks: [{ title: 'เตรียมคำให้การ' }], calendarEvents: [{ title: 'นัดไกล่เกลี่ย' }], activities: [{ title: 'ส่งหลักฐานแล้ว' }] })) }, document: { findMany: jest.fn(async () => []) } };
-  const access = { canAccessCase: jest.fn(async () => true), getCaseFilterForUser: jest.fn(() => ({ firmId: 'f1', leadLawyerId: 'u1' })) };
+  const access = { getIntakeFilterForUser: jest.fn(async () => ({ firmId: 'f1' })), canAccessCase: jest.fn(async () => true), getCaseFilterForUser: jest.fn(() => ({ firmId: 'f1', leadLawyerId: 'u1' })) };
   const iapp = { searchPrecedents: jest.fn(async () => []), getPrecedentDetail: jest.fn() };
   const intel = { extractFactsWithAI: jest.fn(async () => ({ facts: [fact], flags: [] })), extractTextWithOcr: jest.fn(async () => text) };
   const service = new IntakePrecedentAnalysisService(prisma as unknown as PrismaService, { get: () => 'test-key' } as unknown as ConfigService, iapp as unknown as IappLegalClient, intel as unknown as DocumentIntelligenceService, { getBuffer: async () => Buffer.from(text) } as unknown as FileStorageService, { selectRelevant: async () => null } as unknown as RelevanceService, access as unknown as CaseAccessService);

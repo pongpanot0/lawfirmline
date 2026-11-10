@@ -226,7 +226,7 @@ describe('CaseAccessService', () => {
         firmId: 'f1',
         OR: [
           { caseId: { not: null }, case: { marker: 'case' } },
-          { intakeId: { not: null }, intake: { marker: 'intake' } },
+          { caseId: null, intakeId: { not: null }, intake: { marker: 'intake' } },
           { caseId: null, intakeId: null, mailboxConnection: { userId: 'u1' } },
         ],
       });

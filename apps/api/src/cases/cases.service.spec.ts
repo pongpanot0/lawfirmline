@@ -92,6 +92,7 @@ describe('CasesService.createForPortal', () => {
   let service: CasesService;
   const tx = {
     firm: { findUnique: jest.fn() },
+    intake: { create: jest.fn().mockResolvedValue({ id: 'hidden-intake' }) },
     case: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
   };
 
@@ -127,6 +128,7 @@ describe('CasesService.createForPortal', () => {
       leadLawyerId: 'owner-1',
     });
 
+    expect(tx.intake.create).toHaveBeenCalledWith({ data: expect.objectContaining({ firmId: 'firm-1', clientId: 'client-1', title: 'ขอคำปรึกษา', description: 'รายละเอียด', receivedById: 'owner-1', referralChannel: 'PORTAL', status: 'CONVERTED' }) });
     expect(tx.case.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -134,6 +136,7 @@ describe('CasesService.createForPortal', () => {
           ownRef: expect.stringMatching(/^ABC\d{4}0008$/),
           folderId: expect.stringMatching(/^LF-/),
           stage: 'PRE_LITIGATION',
+          intakeId: 'hidden-intake',
           clientId: 'client-1',
           clientName: 'บริษัท ก',
           title: 'ขอคำปรึกษา',

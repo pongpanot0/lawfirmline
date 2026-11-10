@@ -159,6 +159,8 @@ describe('parseIntakeAiSummary', () => {
     const leaked = JSON.stringify({ summary: { overview: [], clientRequest: null, urgency: 'LOW', urgencyReason: null, nextActions: ['ยืนยันผู้ว่าจ้างก่อนกำหนด partyRole หรือ caseType'], missingDocuments: [] } });
     const quoted = JSON.stringify({ summary: { overview: [], clientRequest: null, urgency: 'LOW', urgencyReason: null, nextActions: ['ตรวจสอบผล peer review (ข้อความต้นทาง: “Peer review 7. เอกสารประกอบ”; sourceMessageId: )'], missingDocuments: [] } });
     expect(parseIntakeAiSummary(quoted)?.nextActions).toEqual(['ตรวจสอบผล peer review']);
+    const cutOff = JSON.stringify({ summary: { overview: ['ผ่าตัด LSG วันที่ 8 มีนาคม 2568 (ข้อความต้นทาง: “8 มีนาคม 2568 ... เวลา 19.30 นาฬิกา'], clientRequest: null, urgency: 'LOW', urgencyReason: null, nextActions: [], missingDocuments: [] } });
+    expect(parseIntakeAiSummary(cutOff)?.overview).toEqual(['ผ่าตัด LSG วันที่ 8 มีนาคม 2568']);
     expect(parseIntakeAiSummary(leaked)?.nextActions).toEqual(['ยืนยันผู้ว่าจ้างก่อนกำหนด บทบาทลูกความ หรือ ประเภทคดี']);
   });
 });

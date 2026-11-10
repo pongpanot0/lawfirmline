@@ -1,3 +1,4 @@
+import { CasesService } from '../cases/cases.service';
 import { Test } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -45,6 +46,7 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
         update: jest.fn().mockResolvedValue({ ...intake, noticeIssuedAt: new Date() }),
       },
       intakeDocumentRequest: {
+        updateMany: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
         createMany: jest.fn(),
         // เรื่องนี้มี checklist อยู่แล้ว → seed ไม่ทำงาน (ทดสอบ seed แยกด้านล่าง)
@@ -64,6 +66,7 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
     const module = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: CasesService, useValue: { close: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },

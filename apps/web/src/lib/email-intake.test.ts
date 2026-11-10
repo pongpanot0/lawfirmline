@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupProposals, parseOtherAmount, parseDocument, submitHelper } from './email-intake.ts';
+import { groupProposals, parseOtherAmount, parseDocument, submitHelper, casePath } from './email-intake.ts';
 import type { IntakeFieldProposalItem, EmailIntakeStep } from './api';
 
 test('groups proposals by matter including general data', () => {
@@ -19,4 +19,9 @@ test('submit helper lists incomplete required steps', () => {
   assert.equal(submitHelper(steps), 'ต้องทำให้ครบก่อน: จัดเอกสาร');
   steps[1].state = 'done';
   assert.equal(submitHelper(steps), 'พร้อมส่งประเมิน');
+});
+
+test('links acceptance and assessment to the linked case', () => {
+  assert.equal(casePath('case-123'), '/cases/case-123');
+  assert.equal(casePath(null), null);
 });

@@ -197,6 +197,8 @@ export function cleanIntakeAiSummary(value: unknown): IntakeAiSummary | null {
   if (!summary) return null;
   const clean = (text: string) => squash(Object.entries(FIELD_WORDS).reduce((out, [key, th]) => out.replace(new RegExp(`\\b${key}\\b`, 'g'), th), text)
     .replace(/\s*\((?:[^()]*?(?:แหล่งอ้างอิง|อ้างอิง|ข้อความต้นทาง|source(?:Message|Document)?Id|source)[^()]*)\)/gi, '')
+    // A summary saved cut off mid-citation has no closing bracket.
+    .replace(/\s*\((?:แหล่งอ้างอิง|อ้างอิง|ข้อความต้นทาง)[^)]*$/i, '')
     .replace(/;?\s*source(?:Message|Document)Id\s*:\s*[^\s;)]*/gi, '')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ''));
   const list = (value: unknown, max: number) => (Array.isArray(value) ? value : [])

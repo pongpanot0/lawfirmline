@@ -1,3 +1,4 @@
+import { CasesService } from '../cases/cases.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { IntakeService } from './intake.service';
@@ -20,6 +21,7 @@ describe('IntakeService assignment notifications', () => {
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    intakeDocumentRequest: { updateMany: jest.fn() },
     emailThread: { updateMany: jest.fn() },
     insuranceClaim: { create: jest.fn() },
     document: { updateMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -43,6 +45,7 @@ describe('IntakeService assignment notifications', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: CasesService, useValue: { close: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },

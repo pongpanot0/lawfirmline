@@ -224,6 +224,20 @@ describe('DocumentsService — intake-scoped methods', () => {
     service = module.get(DocumentsService);
   });
 
+  it('lists and downloads migrated case documents through their intake', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', case: { id: 'case-1' } });
+    const scope = { OR: [{ intakeId: 'intake-1' }, { caseId: 'case-1' }] };
+    const file = { id: 'doc-1', caseId: 'case-1', storagePath: 'case/file.pdf', filename: 'file.pdf', mimeType: 'application/pdf', versions: [] };
+    mockPrisma.document.findMany.mockResolvedValue([file]);
+    mockPrisma.document.findFirst.mockImplementation(async ({ where }) => where.OR ? file : null);
+    expect(await service.findByIntake(user, 'intake-1')).toEqual([file]);
+    expect(mockPrisma.document.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: scope }));
+    await expect(service.getFilePathForIntake(user, 'intake-1', 'doc-1')).resolves.toMatchObject({ path: 'case/file.pdf' });
+    expect(mockPrisma.document.findFirst).toHaveBeenLastCalledWith({ where: { id: 'doc-1', ...scope }, include: { versions: true } });
+    await service.updateVisibilityForIntake(user, 'intake-1', 'doc-1', true);
+    expect(mockPrisma.document.update).toHaveBeenCalledWith({ where: { id: 'doc-1' }, data: { visibleToClient: true } });
+  });
+
   describe('findByIntake', () => {
     it('queries Document filtered by intakeId', async () => {
       mockPrisma.document.findMany.mockResolvedValue([]);
@@ -239,6 +253,7 @@ describe('DocumentsService — intake-scoped methods', () => {
       await expect(service.findByIntake(user, 'intake-1')).rejects.toThrow(NotFoundException);
       expect(mockPrisma.intake.findFirst).toHaveBeenCalledWith({
         where: { id: 'intake-1', firmId: 'firm-1' },
+        include: { case: { select: { id: true } } },
       });
       expect(mockPrisma.document.findMany).not.toHaveBeenCalled();
     });

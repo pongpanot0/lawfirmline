@@ -1263,6 +1263,7 @@ export interface IntakeItem {
   preLitigationStatus: string;
   preLitigationNotes?: string | null;
   settlementOfferAmount?: number | null;
+  assessedAt?: string | null;
   caseStrength?: string | null;
   assessmentNotes?: string | null;
   decisionNotes?: string | null;
@@ -1842,7 +1843,7 @@ export interface AddinCaseSuggestion {
 
 export type JourneyStep = { key: string; label: string; state: 'done' | 'current' | 'locked'; summary?: string | null; unlockHint?: string | null };
 export type Journey = { steps: JourneyStep[]; next: { text: string; done: number; total: number } | null; canAdvance: boolean; blockers: string[] };
-export type CaseJourney = Journey & { currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] };
+export type CaseJourney = Journey & { preLitSteps: JourneyStep[]; preLitNext: Journey['next']; currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] };
 export type SkippedTask = { id: string; status: string; skippedReason: string; skippedAt: string; skippedById: string };
 
 export const api = {
@@ -3804,7 +3805,7 @@ export const api = {
     ),
 
   attachThreadToIntake: (token: string, threadId: string, intakeId: string) =>
-    request<{ threadId: string; intakeId: string }>(`/email-intake/threads/${threadId}/intake-link`, {
+    request<{ threadId: string; intakeId: string; caseId: string }>(`/email-intake/threads/${threadId}/intake-link`, {
       method: 'POST',
       token,
       body: JSON.stringify({ intakeId }),
@@ -3817,7 +3818,7 @@ export const api = {
     request<{ proposals: number; cached?: boolean }>(`/email-intake/threads/${threadId}/ai-extract`, { method: 'POST', token }),
 
   acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
-    request<IntakeItem>(`/email-intake/threads/${threadId}/accept`, {
+    request<IntakeItem & { caseId: string }>(`/email-intake/threads/${threadId}/accept`, {
       method: 'POST',
       token,
       body: JSON.stringify(data ?? {}),

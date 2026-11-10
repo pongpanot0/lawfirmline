@@ -1,5 +1,6 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, ConflictResult, INTAKE_STAGE_ORDER, IntakeStage, ParticipantSide, TMP_CLIENT_PLACEHOLDER } from '@lawfirm/shared';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { CONFLICT_TERM_MIN_LENGTH, ConflictSearchDto, RecordConflictCheckDto } from './dto/conflict-check.dto';
@@ -36,7 +37,7 @@ export interface PartyName {
 }
 
 export interface ConflictGate {
-  result: ConflictResult.CLEAR | ConflictResult.POTENTIAL_CONFLICT;
+  result: ConflictResult.CLEAR | ConflictResult.POTENTIAL_CONFLICT | ConflictResult.NEEDS_REVIEW;
   terms: string[];
   matches: ConflictMatch[];
   overrideReason: string | null;
@@ -84,7 +85,7 @@ export function opponentConflicts(searched: PartyName[], matches: ConflictMatch[
 
 @Injectable()
 export class ConflictCheckService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private caseAccess: CaseAccessService) {}
 
   /**
    * ค้นชื่อทั่วทั้งสำนักงาน: ลูกความ, ผู้ติดต่อของลูกความ, คู่กรณี/ผู้เกี่ยวข้อง
@@ -235,10 +236,10 @@ export class ConflictCheckService {
   async record(user: AuthUser, dto: RecordConflictCheckDto) {
     if (dto.intakeId) {
       const intake = await this.prisma.intake.findFirst({
-        where: { id: dto.intakeId, firmId: user.firmId },
+        where: { id: dto.intakeId, ...await this.caseAccess.getIntakeFilterForUser(user) },
         select: { id: true },
       });
-      if (!intake) throw new BadRequestException('ไม่พบเรื่องรับใหม่นี้ในสำนักงาน');
+      if (!intake) throw new NotFoundException('ไม่พบเรื่องรับใหม่นี้ในสำนักงาน');
     }
 
     const found = await this.search(user, dto.terms);
@@ -266,7 +267,7 @@ export class ConflictCheckService {
    */
   async gateNewCase(
     user: AuthUser,
-    input: { parties: PartyName[]; overrideReason?: string | null; excludeIntakeId?: string },
+    input: { parties: PartyName[]; overrideReason?: string | null; excludeIntakeId?: string; recordOnly?: boolean },
   ): Promise<ConflictGate> {
     const parties: GateParty[] = input.parties
       .map((p) => {
@@ -280,6 +281,8 @@ export class ConflictCheckService {
     const terms = [...new Set(parties.map((p) => p.name))];
     const conflicts = opponentConflicts(parties, await this.gateHits(user, parties, input.excludeIntakeId));
     if (!conflicts.length) return { result: ConflictResult.CLEAR, terms, matches: [], overrideReason: null };
+
+    if (input.recordOnly) return { result: ConflictResult.NEEDS_REVIEW, terms, matches: conflicts, overrideReason: null };
 
     const reason = input.overrideReason?.trim() ?? '';
     if (!reason) {
@@ -454,9 +457,13 @@ export class ConflictCheckService {
     });
   }
 
-  list(user: AuthUser, intakeId?: string) {
+  async list(user: AuthUser, intakeId?: string) {
+    const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
+    if (intakeId && !await this.prisma.intake.findFirst({ where: { id: intakeId, ...intakeFilter }, select: { id: true } })) {
+      throw new NotFoundException('ไม่พบเรื่องรับใหม่นี้ในสำนักงาน');
+    }
     return this.prisma.conflictCheck.findMany({
-      where: { firmId: user.firmId, ...(intakeId ? { intakeId } : {}) },
+      where: { firmId: user.firmId, ...(intakeId ? { intakeId } : { OR: [{ intake: intakeFilter }, { case: this.caseAccess.getCaseFilterForUser(user) }, { intakeId: null, caseId: null }] }) },
       include: { checkedBy: { select: { firstName: true, lastName: true } } },
       orderBy: { checkedAt: 'desc' },
       take: intakeId ? 50 : 100,

@@ -94,10 +94,10 @@ function WorkDashboardPage() {
   const visibleCases = data?.recentCases.slice(0, 4) ?? [];
   const visibleCaseIds = new Set(visibleCases.map(item => item.id));
   const recentMatters = [
-    ...(intakes ?? []).filter(item => ![item.case?.id, item.relatedCaseId].some(id => id && visibleCaseIds.has(id))).map(item => ({
+    ...(intakes ?? []).filter(item => item.case?.id && !visibleCaseIds.has(item.case.id)).map(item => ({
       id: `intake-${item.id}`,
-      href: `/intake/${item.id}`,
-      title: item.title || item.description?.slice(0, 100) || t('เรื่องรับเข้า', 'Intake'),
+      href: `/cases/${item.case!.id}`,
+      title: item.title || item.description?.slice(0, 100) || t('คดีก่อนฟ้อง', 'Pre-litigation case'),
       detail: [item.insurerName || item.clientName || t('ยังไม่ระบุบริษัท / ลูกความ', 'Company / client not specified'), item.claimNumber ? `${t('เคลม', 'Claim')} ${item.claimNumber}` : null].filter(Boolean).join(' · '),
       at: item.receivedDate,
       kind: 'intake' as const,
@@ -130,7 +130,7 @@ function WorkDashboardPage() {
   return <div className="mx-auto max-w-[1440px] space-y-6">
     <PageHeader
       title={t('ศูนย์ปฏิบัติงาน', 'Legal operations')}
-      description={`${data?.firmName ? `${data.firmName} · ` : ''}${date(new Date().toISOString())} · ${t('คิวรับเรื่อง งานรอตรวจ และกำหนดที่ต้องติดตาม', 'intake, review work and deadlines to follow up')}`}
+      description={`${data?.firmName ? `${data.firmName} · ` : ''}${date(new Date().toISOString())} · ${t('คดีก่อนฟ้อง งานรอตรวจ และกำหนดที่ต้องติดตาม', 'pre-litigation cases, review work and deadlines to follow up')}`}
       actions={<Link href="/cases/new" data-tour="new-intake" className={buttonVariants()}><Plus className="h-4 w-4" aria-hidden />{t('เปิดคดีใหม่', 'New case')}</Link>}
     />
 
@@ -183,7 +183,7 @@ function WorkDashboardPage() {
             }} aria-selected={section === tab} onClick={() => setSection(tab)} className={`min-h-14 border-b-2 px-3 text-sm font-semibold ${section === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{tab === 'tasks' ? t('คิวงาน', 'Work queue') : t('เรื่องและคดีล่าสุด', 'Recent matters')}</button>)}
           </div>
           <div role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}>
-          {section === 'tasks' ? actionToken ? <ActionCenter token={actionToken} tasks={tasks} tasksFailed={!tasks} userId={user?.id} scope={filter} onScopeChange={setFilter} statuses={statuses} onRetryTasks={() => setRetry(value => value + 1)} /> : failed : !intakes || !data ? failed : recentMatters.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground"><p>{t('ยังไม่มีเรื่องหรือคดี', 'No matters yet.')}</p><Link href="/cases/new" className={`${link} mt-2`}>{t('เปิดคดีใหม่', 'New case')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link></div> : <div className="divide-y divide-border/70">{recentMatters.map(item => <Link key={item.id} href={item.href} className="group flex items-start gap-3 px-5 py-4 hover:bg-muted/40"><FileText className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium group-hover:text-primary">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.detail} · {date(item.at)}</p></div>{item.kind === 'case' ? <CaseStatusBadge status={item.status} /> : <Badge variant="muted">{t('รับเรื่อง', 'Intake')}</Badge>}<ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /></Link>)}</div>}
+          {section === 'tasks' ? actionToken ? <ActionCenter token={actionToken} tasks={tasks} tasksFailed={!tasks} userId={user?.id} scope={filter} onScopeChange={setFilter} statuses={statuses} onRetryTasks={() => setRetry(value => value + 1)} /> : failed : !intakes || !data ? failed : recentMatters.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground"><p>{t('ยังไม่มีเรื่องหรือคดี', 'No matters yet.')}</p><Link href="/cases/new" className={`${link} mt-2`}>{t('เปิดคดีใหม่', 'New case')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link></div> : <div className="divide-y divide-border/70">{recentMatters.map(item => <Link key={item.id} href={item.href} className="group flex items-start gap-3 px-5 py-4 hover:bg-muted/40"><FileText className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium group-hover:text-primary">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.detail} · {date(item.at)}</p></div>{item.kind === 'case' ? <CaseStatusBadge status={item.status} /> : <Badge variant="muted">{t('คดีก่อนฟ้อง', 'Pre-litigation')}</Badge>}<ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /></Link>)}</div>}
           </div>
           <div className="border-t border-border px-5 py-3"><Link href={section === 'tasks' ? '/todos' : '/cases'} className={link}>{section === 'tasks' ? t('เปิดรายการงานทั้งหมด', 'Open all tasks') : t('เปิดเรื่องและคดีทั้งหมด', 'Open all matters')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link></div>
         </section>

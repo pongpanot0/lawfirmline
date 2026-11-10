@@ -185,10 +185,6 @@ export class CaseAccessService {
       return { id: '__external_has_no_intake_access__' };
     }
 
-    if (hasFirmCapability(user.firmRole, 'viewAllCases')) {
-      return tenantFilter;
-    }
-
     const ownOrRelated: Prisma.IntakeWhereInput[] = [
       { receivedById: user.id },
       { assignedUserIds: { has: user.id } },
@@ -201,21 +197,17 @@ export class CaseAccessService {
         select: { userId: true },
       });
       const lawyerIds = lawyers.map((m) => m.userId);
-      return {
-        ...tenantFilter,
-        OR: [
-          ...ownOrRelated,
-          ...(lawyerIds.length
-            ? [
-                { assignedUserIds: { hasSome: lawyerIds } },
-                { receivedById: { in: lawyerIds } },
-              ]
-            : []),
-        ],
-      };
+      if (lawyerIds.length) ownOrRelated.push(
+        { assignedUserIds: { hasSome: lawyerIds } },
+        { receivedById: { in: lawyerIds } },
+      );
     }
 
-    return { ...tenantFilter, OR: ownOrRelated };
+    // Once paired, only the case's access rule applies, including soft deletion.
+    return { ...tenantFilter, OR: [
+      { case: this.getCaseFilterForUser(user) },
+      { case: { is: null }, ...(hasFirmCapability(user.firmRole, 'viewAllCases') ? {} : { OR: ownOrRelated }) },
+    ] };
   }
 
   async getEmailThreadFilterForUser(user: AuthUser): Promise<Prisma.EmailThreadWhereInput> {
@@ -229,7 +221,7 @@ export class CaseAccessService {
     ]);
     const or: Prisma.EmailThreadWhereInput[] = [
       { caseId: { not: null }, case: caseFilter },
-      { intakeId: { not: null }, intake: intakeFilter },
+      { caseId: null, intakeId: { not: null }, intake: intakeFilter },
       // Unlinked mail is private to the mailbox owner — owners/managers included.
       { caseId: null, intakeId: null, mailboxConnection: { userId: user.id } },
     ];

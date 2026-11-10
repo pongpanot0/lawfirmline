@@ -49,7 +49,7 @@ describe('IntakePrecedentAnalysisService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakePrecedentAnalysisService,
-        { provide: CaseAccessService, useValue: { getCaseFilterForUser: () => ({ firmId: 'firm-1' }), canAccessCase: jest.fn().mockResolvedValue(true) } },
+        { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }), getCaseFilterForUser: () => ({ firmId: 'firm-1' }), canAccessCase: jest.fn().mockResolvedValue(true) } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: IappLegalClient, useValue: mockIapp },
         { provide: DocumentIntelligenceService, useValue: mockDocIntel },

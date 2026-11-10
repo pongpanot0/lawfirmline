@@ -1,3 +1,4 @@
+import { IntakeService } from '../intake/intake.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
@@ -13,7 +14,8 @@ describe('EmailIntakeService', () => {
   const mockPrisma = {
     emailThread: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     emailMessage: { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-    intake: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    intake: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), findUniqueOrThrow: jest.fn(), create: jest.fn(), update: jest.fn() },
+    case: { updateMany: jest.fn(), count: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
     intakeFieldProposal: {
       findFirst: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
@@ -38,7 +40,9 @@ describe('EmailIntakeService', () => {
       firmId: user.firmId,
     })),
     getIntakeFilterForUser: jest.fn(),
+    getCaseFilterForUser: jest.fn(),
   };
+  const mockIntake = { findOne: jest.fn(), openPreLitCase: jest.fn(), convertToCase: jest.fn() };
   const mockStorage = { getBuffer: jest.fn() };
   const mockIntelligence = { extractTextWithOcr: jest.fn() };
   const mockConfig = { get: jest.fn() };
@@ -47,6 +51,9 @@ describe('EmailIntakeService', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    mockIntake.findOne.mockResolvedValue({ id: 'intake-1' });
+    mockIntake.openPreLitCase.mockResolvedValue({ id: 'case-1' });
+    mockPrisma.intake.findUniqueOrThrow.mockImplementation((args) => mockPrisma.intake.findUnique(args));
     mockPrisma.$transaction.mockImplementation((callback) => callback(mockPrisma));
     mockPrisma.emailThread.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.caseType.findMany.mockResolvedValue([]);
@@ -62,9 +69,11 @@ describe('EmailIntakeService', () => {
     mockPrisma.auditLog.findFirst.mockResolvedValue(null);
     mockCaseAccess.getEmailThreadFilterForUser.mockResolvedValue({ firmId: 'firm-1' });
     mockCaseAccess.getIntakeFilterForUser.mockResolvedValue({ firmId: 'firm-1' });
+    mockCaseAccess.getCaseFilterForUser.mockReturnValue({ firmId: 'firm-1' });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailIntakeService,
+        { provide: IntakeService, useValue: mockIntake },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
         { provide: ConfigService, useValue: mockConfig },
@@ -93,6 +102,21 @@ describe('EmailIntakeService', () => {
   });
 
   describe('acceptIntakeFromThread', () => {
+    it('attaches accepted mail to the selected existing case and links its thread there', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 'thread-1', intake: null, messages: [], lastMessageAt: new Date() });
+      mockPrisma.case.count.mockResolvedValue(1);
+      mockCaseAccess.getCaseFilterForUser = jest.fn().mockReturnValue({ firmId: 'firm-1' });
+      mockPrisma.client.findMany.mockResolvedValue([]);
+      mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
+      mockPrisma.intake.findUnique.mockResolvedValue({ id: 'intake-1', relatedCaseId: 'existing-case' });
+      mockIntake.findOne.mockResolvedValue({ id: 'intake-1', relatedCaseId: 'existing-case' });
+      mockIntake.convertToCase.mockResolvedValue({ id: 'existing-case' });
+      await expect(service.acceptIntakeFromThread(user, 'thread-1', { relatedCaseId: 'existing-case' })).resolves.toMatchObject({ caseId: 'existing-case' });
+      expect(mockIntake.convertToCase).toHaveBeenCalledWith(user, 'intake-1', {});
+      expect(mockIntake.openPreLitCase).not.toHaveBeenCalled();
+      expect(mockPrisma.emailThread.update).toHaveBeenCalledWith({ where: { id: 'thread-1' }, data: { caseId: 'existing-case', caseUnlinkedAt: null } });
+    });
+
     it('is idempotent — re-accepting an already-linked thread does not create a second intake', async () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue({
         id: 'thread-1',
@@ -104,7 +128,9 @@ describe('EmailIntakeService', () => {
       const result = await service.acceptIntakeFromThread(user, 'thread-1', {});
 
       expect(mockPrisma.intake.create).not.toHaveBeenCalled();
-      expect(result).toEqual({ id: 'intake-1' });
+      expect(result).toEqual({ id: 'intake-1', caseId: 'case-1' });
+      expect(mockIntake.openPreLitCase).toHaveBeenCalledWith(user, { id: 'intake-1' }, {}, { recordOnly: true });
+      expect(mockPrisma.emailThread.update).toHaveBeenCalledWith({ where: { id: 'thread-1' }, data: { caseId: 'case-1', caseUnlinkedAt: null } });
     });
 
     it('a second accept that loses the race returns the winner\'s intake and adds nothing', async () => {
@@ -115,7 +141,7 @@ describe('EmailIntakeService', () => {
       mockPrisma.emailThread.findUnique.mockResolvedValue({ intakeId: 'winner' });
       mockPrisma.intake.findUnique.mockResolvedValue({ id: 'winner' });
 
-      await expect(service.acceptIntakeFromThread(user, 'thread-1', {})).resolves.toEqual({ id: 'winner' });
+      await expect(service.acceptIntakeFromThread(user, 'thread-1', {})).resolves.toEqual({ id: 'winner', caseId: 'case-1' });
       expect(mockPrisma.emailThread.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'thread-1', intakeId: null } }));
       expect(mockPrisma.intakeFieldProposal.createMany).not.toHaveBeenCalled();
     });
@@ -139,7 +165,7 @@ describe('EmailIntakeService', () => {
 
       expect(mockPrisma.emailThread.updateMany).toHaveBeenCalledWith({
         where: { id: 'thread-2', intakeId: null },
-        data: { intakeId: 'intake-1', status: 'LINKED' },
+        data: { intakeId: 'intake-1', caseId: null, status: 'LINKED', caseUnlinkedAt: null },
       });
       const created = mockPrisma.intakeFieldProposal.createMany.mock.calls[0][0].data;
       expect(created).toEqual(expect.arrayContaining([expect.objectContaining({ intakeId: 'intake-1', field: 'estimatedDamage', proposedValue: '200000' })]));
@@ -151,7 +177,7 @@ describe('EmailIntakeService', () => {
       mockPrisma.intake.findFirst.mockResolvedValue(null);
 
       await expect(service.attachThreadToIntake(user, 'thread-2', 'intake-9')).rejects.toThrow(NotFoundException);
-      expect(mockPrisma.intake.findFirst).toHaveBeenCalledWith({ where: { id: 'intake-9', firmId: 'firm-1', marker: 'x' }, select: { id: true } });
+      expect(mockPrisma.intake.findFirst).toHaveBeenCalledWith({ where: { id: 'intake-9', firmId: 'firm-1', marker: 'x' }, select: { id: true, case: { select: { id: true } } } });
       expect(mockPrisma.emailThread.updateMany).not.toHaveBeenCalled();
     });
 
@@ -248,6 +274,7 @@ describe('EmailIntakeService', () => {
 
       expect(mockPrisma.intake.findFirst).toHaveBeenCalledWith({
         where: { id: 'intake-1', firmId: 'firm-1', marker: 'intake' },
+        include: { case: { select: { id: true } } },
       });
       expect(mockPrisma.intakeFieldProposal.findFirst).not.toHaveBeenCalled();
       expect(mockPrisma.intakeFieldProposal.update).not.toHaveBeenCalled();
@@ -346,6 +373,21 @@ describe('EmailIntakeService', () => {
       expect(mockPrisma.intake.update).toHaveBeenCalledWith({ where: { id: 'intake-1' }, data: { estimatedDamage: 4500000 } });
     });
 
+    it('keeps case access on the title sync write', async () => {
+      const caseFilter = { firmId: 'firm-1', deletedAt: null, OR: [{ leadLawyerId: user.id }] };
+      mockCaseAccess.getCaseFilterForUser.mockReturnValue(caseFilter);
+      await confirm('title', 'ชื่อคดี');
+      expect(mockPrisma.case.updateMany).toHaveBeenCalledWith({ where: { intakeId: 'intake-1', ...caseFilter }, data: { title: 'ชื่อคดี' } });
+    });
+
+    it('a confirmed title or claimed amount also updates the pre-litigation case', async () => {
+      await confirm('estimatedDamage', '1000000');
+      expect(mockPrisma.case.updateMany).toHaveBeenCalledWith({ where: { intakeId: 'intake-1', firmId: 'firm-1' }, data: { claimedAmount: 1000000 } });
+      mockPrisma.case.updateMany.mockClear();
+      await confirm('policyNumber', 'P-1');
+      expect(mockPrisma.case.updateMany).not.toHaveBeenCalled();
+    });
+
     it('a confirmed contact person is also saved on the customer, once', async () => {
       mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', clientId: 'client-1' });
       mockPrisma.clientContact.count.mockResolvedValueOnce(0);
@@ -429,6 +471,38 @@ describe('EmailIntakeService', () => {
     });
   });
 
+  it('attaches a new thread to the intake case and creates its attachments on that case', async () => {
+    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', intake: null, messages: [{ id: 'm', direction: 'INBOUND', bodyText: '', attachments: [{ id: 'a', filename: 'new.pdf', mimeType: 'application/pdf', storagePath: 'email/a' }] }] });
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', case: { id: 'case-1' } });
+    mockPrisma.document.findMany.mockResolvedValue([{ tags: ['email-attachment:a'] }]);
+    expect(await service.attachThreadToIntake(user, 't', 'intake-1')).toEqual({ threadId: 't', intakeId: 'intake-1', caseId: 'case-1' });
+    expect(mockPrisma.emailThread.updateMany).toHaveBeenCalledWith({ where: { id: 't', intakeId: null }, data: { intakeId: 'intake-1', caseId: 'case-1', status: 'LINKED', caseUnlinkedAt: null } });
+    expect(mockPrisma.document.findMany).toHaveBeenCalledWith({ where: { OR: [{ intakeId: 'intake-1' }, { caseId: 'case-1' }], tags: { hasSome: ['email-attachment:a'] } }, select: { tags: true } });
+    expect(mockPrisma.document.createMany).not.toHaveBeenCalled();
+  });
+
+  it('resolves a document and request moved to the intake case, preserving scope', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', case: { id: 'case-1' } });
+    mockPrisma.intakeFieldProposal.findFirst.mockResolvedValue({ id: 'p', field: 'document', status: 'SUGGESTED', sourceDocumentId: 'd', proposedValue: JSON.stringify({ documentId: 'd', filename: 'สัญญา.pdf', category: 'CONTRACT', docRequestId: 'r' }) });
+    mockPrisma.document.findFirst.mockResolvedValue({ id: 'd', filename: 'scan.pdf' });
+    mockPrisma.intakeDocumentRequest.findFirst.mockResolvedValue({ id: 'r' });
+    await service.resolveFieldProposal(user, 'intake-1', 'p', { action: 'confirm' });
+    expect(mockPrisma.document.findFirst).toHaveBeenCalledWith({ where: { id: 'd', OR: [{ intakeId: 'intake-1' }, { caseId: 'case-1' }] }, select: { id: true, filename: true } });
+    expect(mockPrisma.intakeDocumentRequest.findFirst).toHaveBeenCalledWith({ where: { id: 'r', OR: [{ intakeId: 'intake-1' }, { caseId: 'case-1' }] }, select: { id: true } });
+    expect(mockPrisma.intakeDocumentRequest.update).toHaveBeenCalledWith({ where: { id: 'r' }, data: { documentId: 'd', status: 'RECEIVED', receivedAt: expect.any(Date) } });
+  });
+
+  it('dedupes proposed document requests against either link and creates new requests on the case', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', case: { id: 'case-1' } });
+    mockPrisma.intakeFieldProposal.findFirst.mockResolvedValue({ id: 'p', field: 'docRequest', status: 'SUGGESTED', proposedValue: 'สัญญา' });
+    mockPrisma.intakeDocumentRequest.findFirst.mockResolvedValueOnce({ id: 'r' }).mockResolvedValueOnce(null);
+    await service.resolveFieldProposal(user, 'intake-1', 'p', { action: 'confirm' });
+    expect(mockPrisma.intakeDocumentRequest.findFirst).toHaveBeenCalledWith({ where: { OR: [{ intakeId: 'intake-1' }, { caseId: 'case-1' }], name: 'สัญญา' }, select: { id: true } });
+    expect(mockPrisma.intakeDocumentRequest.create).not.toHaveBeenCalled();
+    await service.resolveFieldProposal(user, 'intake-1', 'p', { action: 'confirm' });
+    expect(mockPrisma.intakeDocumentRequest.create).toHaveBeenCalledWith({ data: { caseId: 'case-1', name: 'สัญญา', createdById: 'user-1' } });
+  });
+
   it('suggests an intake only for exactly one accessible open match, in one batched query', async () => {
     const base = { subject: 'mail', _count: { messages: 1 }, intake: null, caseId: null };
     mockPrisma.emailThread.findMany.mockResolvedValue([
@@ -446,8 +520,25 @@ describe('EmailIntakeService', () => {
     const result = await service.listThreads(user);
     expect(result.map((r) => r.suggestedIntake)).toEqual([{ id: 'i1', title: null }, null, null, null, null]);
     expect(mockPrisma.intake.findMany).toHaveBeenCalledTimes(1);
-    expect(mockPrisma.intake.findMany.mock.calls[0][0].where.AND).toEqual(expect.arrayContaining([{ firmId: 'firm-1' }, { status: { notIn: ['REJECTED', 'CONVERTED'] } }]));
+    expect(mockPrisma.intake.findMany.mock.calls[0][0].where.AND).toEqual(expect.arrayContaining([{ firmId: 'firm-1' }, { OR: [
+      { status: { notIn: ['REJECTED', 'CONVERTED', 'CONSULTED'] } },
+      { status: 'CONVERTED', case: { deletedAt: null, status: { notIn: ['CLOSED', 'ARCHIVED'] } } },
+    ] }]));
     expect(mockPrisma.intake.findMany.mock.calls[0][0].where.AND[2].emailThreads.some.OR[0]).toEqual({ fromAddress: { equals: 'one@example.com', mode: 'insensitive' } });
+  });
+
+  it('offers a converted intake of an open case when the sender starts a fresh thread', async () => {
+    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 'new', subject: 'Claim', fromAddress: 'client@example.com', intake: null, messages: [] });
+    mockPrisma.intake.findMany.mockResolvedValue([{ id: 'converted', title: 'Claim', status: 'CONVERTED' }]);
+    expect(await service.suggestIntakesForThread(user, 'new')).toEqual([{ id: 'converted', title: 'Claim', status: 'CONVERTED' }]);
+    expect(mockPrisma.intake.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { AND: [
+      { firmId: 'firm-1' },
+      { OR: [
+        { status: { notIn: ['REJECTED', 'CONVERTED', 'CONSULTED'] } },
+        { status: 'CONVERTED', case: { deletedAt: null, status: { notIn: ['CLOSED', 'ARCHIVED'] } } },
+      ] },
+      { OR: expect.any(Array) },
+    ] } }));
   });
 
   it('copies inbound attachments once when the thread is accepted, and never again on a repeat', async () => {
@@ -471,6 +562,19 @@ describe('EmailIntakeService', () => {
     expect(mockPrisma.document.createMany).not.toHaveBeenCalled();
   });
 
+  it('copies files and proposes before opening, so a plan-limit retry retains the original evidence', async () => {
+    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', intake: null, subject: 's', fromName: null, messages: [{ id: 'm', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: 'เรียกร้อง 200,000 บาท', attachments: [{ id: 'a', filename: 'proof.pdf', mimeType: 'application/pdf', storagePath: 'email/a' }] }] });
+    mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
+    mockIntake.openPreLitCase.mockRejectedValueOnce(new Error('plan limit'));
+    await expect(service.acceptIntakeFromThread(user, 't', {})).rejects.toThrow('plan limit');
+    expect(mockPrisma.document.createMany).toHaveBeenCalled();
+    expect(mockPrisma.intakeFieldProposal.createMany).toHaveBeenCalled();
+    expect(mockPrisma.document.createMany.mock.invocationCallOrder[0]).toBeLessThan(mockIntake.openPreLitCase.mock.invocationCallOrder[0]);
+    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', intake: { id: 'intake-1' }, messages: [] });
+    expect(await service.acceptIntakeFromThread(user, 't', {})).toMatchObject({ caseId: 'case-1' });
+    expect(mockPrisma.document.createMany).toHaveBeenCalledTimes(1);
+  });
+
   it('strips quoted history and signature on accept and retains only sender attribution', async () => {
     mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', fromName: 'Thread sender', fromAddress: 'thread@example.com', subject: 'x', messages: [
       { id: 'm', direction: 'INBOUND', toAddresses: [], ccAddresses: [], fromName: 'Nathamon Chanitaphat', fromAddress: 'risk@example.com', attachments: [], bodyText: 'กรุณาตรวจยอด\n\nNathamon Chanitaphat\nRisk management Manager\nKasemrad Ramkhamhaeng Hospital\n02-339-0000 ต่อ 4006\n\nFrom: Old <old@example.com>\nSent: Tuesday\nold history' },
@@ -481,14 +585,14 @@ describe('EmailIntakeService', () => {
     expect(mockPrisma.intake.create.mock.calls[0][0].data.description).toBe('กรุณาตรวจยอด\n\n— Nathamon Chanitaphat <risk@example.com>');
   });
 
-  it("returns progress plus only this thread's intake document summaries without storage paths", async () => {
-    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', intake: { id: 'intake-1', status: 'RECEIVED' }, messages: [{ direction: 'INBOUND', toAddresses: [], ccAddresses: [], attachments: [{ id: 'a1' }] }] });
+  it.each([undefined, 'case-1'])("returns progress and this thread's documents without storage paths (case=%s)", async (caseId) => {
+    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', case: caseId ? { id: caseId } : null, intake: { id: 'intake-1', status: 'RECEIVED', case: caseId ? { id: caseId } : null }, messages: [{ direction: 'INBOUND', toAddresses: [], ccAddresses: [], attachments: [{ id: 'a1' }] }] });
     mockPrisma.document.findMany.mockResolvedValue([{ id: 'd1', filename: 'scan.pdf', mimeType: 'application/pdf', category: 'OTHER', storagePath: 'private' }]);
     mockPrisma.auditLog.findFirst.mockResolvedValue({ id: 'audit' });
     const result = await service.getThread(user, 't');
     expect(result.documents).toEqual([{ id: 'd1', filename: 'scan.pdf', mimeType: 'application/pdf', category: 'OTHER' }]);
-    expect(result.progress.steps.map((step) => step.state)).toEqual(['done', 'done', 'done', 'done', 'current']);
-    expect(mockPrisma.document.findMany.mock.calls[0][0].where).toEqual({ intakeId: 'intake-1', tags: { hasSome: ['email-attachment:a1'] } });
+    expect(result.progress.steps.map((step) => step.state)).toEqual(['done', 'done', 'done', 'done', caseId ? 'done' : 'current']);
+    expect(mockPrisma.document.findMany.mock.calls[0][0].where).toEqual({ ...(caseId ? { OR: [{ intakeId: 'intake-1' }, { caseId }] } : { intakeId: 'intake-1' }), tags: { hasSome: ['email-attachment:a1'] } });
   });
 
   describe('explicit AI reading', () => {
@@ -497,7 +601,7 @@ describe('EmailIntakeService', () => {
     it('reads up to twelve files three at a time, never inline pictures, caps and redacts all text, creates only pending proposals', async () => {
       const files = Array.from({ length: 13 }, (_, i) => ({ id: `d${i}`, filename: `patient@example.com-${i}.pdf`, mimeType: 'application/pdf', storagePath: `email/${i}.pdf`, category: 'OTHER' }));
       mockConfig.get.mockReturnValue('fake-key');
-      mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', subject: 'patient@example.com', intake: { id: 'intake-1' }, messages: [
+      mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', subject: 'patient@example.com', intake: { id: 'intake-1', case: { id: 'case-1' } }, messages: [
         { id: 'm1', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: 'กรุณาตรวจ patient@example.com 0812345678', attachments: [{ id: 'a' }] },
         { id: 'out', direction: 'OUTBOUND', toAddresses: [], ccAddresses: [], bodyText: 'private outbound', attachments: [] },
       ] });
@@ -520,6 +624,8 @@ describe('EmailIntakeService', () => {
         status: { in: ['SUGGESTED', 'REQUIRES_CONFIRMATION'] },
       }) });
       expect(mockStorage.getBuffer).toHaveBeenCalledTimes(12);
+      expect(mockPrisma.document.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { OR: [{ intakeId: 'intake-1' }, { caseId: 'case-1' }], tags: { hasSome: ['email-attachment:a'] } } }));
+      expect(mockPrisma.intakeDocumentRequest.findMany).toHaveBeenCalledWith({ where: { OR: [{ intakeId: 'intake-1' }, { caseId: 'case-1' }] }, select: { id: true, name: true } });
       // Logos/pasted pictures (Outlook isInline) never load with the thread, so they never become files.
       expect(mockPrisma.emailThread.findFirst.mock.calls[0][0].include.messages.include.attachments).toEqual({ where: { isInline: false } });
       expect(peak).toBe(3);
