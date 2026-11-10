@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Check, FileText, Mail } from 'lucide-react';
 import type { IntakeFieldProposalItem } from '@/lib/api';
-import { isPending, moneyFields, parseOtherAmount, sourceQuote } from '@/lib/email-intake';
+import { groupProposals, isPending, moneyFields, parseOtherAmount, sourceQuote } from '@/lib/email-intake';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -93,4 +93,23 @@ export function ProposalGroup({ title, items, proposals, fileNames = NO_FILES, o
     <Block title="เอกสารที่ควรขอเพิ่ม" hint="ขอเอกสารนี้ = เพิ่มในรายการขอเอกสาร" items={requests} render={rows} />
     {rejected.length > 0 && <button type="button" className="text-xs text-primary underline" onClick={() => setShowRejected(!showRejected)}>{showRejected ? 'ซ่อนที่ตัดออก' : `แสดงที่ตัดออก (${rejected.length})`}</button>}
   </section>;
+}
+
+/**
+ * On a case the AI's values are already applied once confirmed, so only what still needs a decision
+ * is shown; everything decided folds into one line the lawyer can open.
+ */
+export function ProposalReview({ proposals, onResolve, resolvingId }: { proposals: IntakeFieldProposalItem[]; onResolve: Resolve; resolvingId: string | null }) {
+  const [showDecided, setShowDecided] = useState(false);
+  const fields = proposals.filter((p) => p.field !== 'document');
+  const pending = fields.filter(isPending);
+  const decided = fields.length - pending.length;
+  if (!fields.length) return null;
+  const shown = showDecided ? fields : pending;
+  return <div className="space-y-3">
+    {groupProposals(shown).map(([label, items]) => <ProposalGroup key={label ?? ''} title={label ?? 'ข้อมูลจาก AI ที่รอยืนยัน'} items={items} proposals={proposals} resolvingId={resolvingId} onResolve={onResolve} />)}
+    {decided > 0 && <button type="button" className="text-sm text-primary underline-offset-4 hover:underline" onClick={() => setShowDecided(!showDecided)}>
+      {showDecided ? 'ซ่อนข้อมูลที่ตรวจแล้ว' : `ข้อมูลจาก AI ตรวจแล้ว ${decided} รายการ · ดู`}
+    </button>}
+  </div>;
 }

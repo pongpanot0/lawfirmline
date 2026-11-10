@@ -19,8 +19,8 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
-import { ProposalGroup } from '@/components/email-intake/ProposalGroup';
-import { groupProposals, isPending, parseDocument } from '@/lib/email-intake';
+import { ProposalReview } from '@/components/email-intake/ProposalGroup';
+import { isPending, parseDocument } from '@/lib/email-intake';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocumentRequestItem, UserItem, ApiError, ChecklistClassificationSuggestion, CaseTypeItem } from '@/lib/api';
@@ -1501,7 +1501,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
   const embedded = !!steps;
   return (
     <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-clip">
-      {embedded && <section className="space-y-3" aria-label="ขั้นตอนก่อนฟ้อง"><h2 className="font-semibold">ก่อนฟ้อง</h2>{groupProposals((intake.fieldProposals ?? []).filter((p) => p.field !== 'document')).map(([label, items]) => <ProposalGroup key={label ?? ''} title={label ?? 'ข้อมูลทั่วไปจาก AI'} items={items} proposals={intake.fieldProposals ?? []} resolvingId={resolvingId} onResolve={resolveProposal} />)}{error && <p role="alert" className="text-destructive">{error}</p>}{steps.map((step) => <JourneySection key={step.key} step={{ ...step, label: step.key === 'INFO' ? 'ข้อมูลครบ' : step.label }} readOnly={false}>{sections[step.key]}</JourneySection>)}</section>}
+      {embedded && <section className="space-y-3" aria-label="ขั้นตอนก่อนฟ้อง"><h2 className="font-semibold">ก่อนฟ้อง</h2><ProposalReview proposals={intake.fieldProposals ?? []} resolvingId={resolvingId} onResolve={resolveProposal} />{error && <p role="alert" className="text-destructive">{error}</p>}{steps.map((step) => <JourneySection key={step.key} step={{ ...step, label: step.key === 'INFO' ? 'ข้อมูลครบ' : step.label }} readOnly={false}>{sections[step.key]}</JourneySection>)}</section>}
       {!embedded && <div inert={history} aria-disabled={history}>
       <PageHeader
         title={intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
