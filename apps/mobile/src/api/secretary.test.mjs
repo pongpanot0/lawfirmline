@@ -23,6 +23,7 @@ function load(path, imports, globals = {}) {
 function setup({ size = 128, response = { text: 'สรุปคดีให้หน่อย' }, status = 200 } = {}) {
   const requests = [];
   const deleted = [];
+  const queryData = new Map();
   const client = load('./client.ts', { 'expo-secure-store': { getItemAsync: async () => 'token' } }, {
     fetch: async (url, init) => {
       requests.push({ url, ...init });
@@ -42,9 +43,12 @@ function setup({ size = 128, response = { text: 'สรุปคดีให้�
   const secretary = load('../lib/secretary.ts', {});
   const hooks = load('./hooks.ts', {
     './client': client, './files': files, '../lib/secretary': secretary, '../format': {},
-    '@tanstack/react-query': { useMutation: options => options, useQuery: options => options },
+    '@tanstack/react-query': {
+      useMutation: options => options, useQuery: options => options,
+      useQueryClient: () => ({ setQueryData: (key, update) => { const k = JSON.stringify(key); queryData.set(k, typeof update === 'function' ? update(queryData.get(k)) : update); } }),
+    },
   });
-  return { requests, deleted, files, hooks };
+  return { requests, deleted, files, hooks, queryData };
 }
 
 test('voice uses the authenticated multipart audio field and deletes the temporary file', async () => {
@@ -90,4 +94,21 @@ test('brief 404 is empty, access denial stays an error, and owner queries can be
   const forbidden = setup({ status: 403, response: { message: 'Forbidden' } });
   await assert.rejects(() => forbidden.hooks.useDailyBrief().queryFn(), error => error.status === 403);
   await assert.rejects(() => forbidden.hooks.useCaseBrief('c1').queryFn(), error => error.status === 403);
+});
+
+test('a chat answer is appended to the cached history and new chat empties it', async () => {
+  const { hooks, queryData, requests } = setup({ response: { reply: 'ตอบ', cards: [] } });
+  const key = JSON.stringify(['secretary-history']);
+  queryData.set(key, [{ role: 'user', content: 'เก่า', cards: [] }]);
+  const chat = hooks.useSecretaryChat();
+  const messages = [{ role: 'user', content: 'ใหม่' }];
+  chat.onSuccess(await chat.mutationFn(messages), messages);
+  // Values come from the vm realm, so compare by shape.
+  assert.equal(JSON.stringify(queryData.get(key).map(m => [m.role, m.content])), JSON.stringify([['user', 'เก่า'], ['user', 'ใหม่'], ['assistant', 'ตอบ']]));
+  const clear = hooks.useClearSecretaryHistory();
+  await clear.mutationFn();
+  clear.onSuccess();
+  assert.equal(JSON.stringify(queryData.get(key)), '[]');
+  assert.equal(requests.at(-1).method, 'DELETE');
+  assert.ok(requests.at(-1).url.endsWith('/ai/secretary/history'));
 });

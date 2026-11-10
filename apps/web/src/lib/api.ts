@@ -3192,6 +3192,12 @@ export const api = {
       body: JSON.stringify({ messages }),
     }),
 
+  secretaryHistory: (token: string) =>
+    request<Array<{ role: 'user' | 'assistant'; content: string; cards: SecretaryCard[] }>>('/ai/secretary/history', { token }),
+
+  clearSecretaryHistory: (token: string) =>
+    request<{ deleted: number }>('/ai/secretary/history', { method: 'DELETE', token }),
+
   getCaseBrief: (token: string, caseId: string) => request<MatterBrief>(`/cases/${caseId}/brief`, { token }),
 
   getDailyBrief: (token: string, date?: string) =>

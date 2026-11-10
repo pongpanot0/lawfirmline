@@ -14,7 +14,14 @@ describe('SecretaryChatService', () => {
       run: jest.fn().mockResolvedValue({ content: { ok: 1 }, cards: [{ type: 'case', id: 'c1', title: 'A', ownRef: null }] }),
     };
     const rag = { logRun: jest.fn().mockResolvedValue(undefined) };
-    return { svc: new SecretaryChatService(config as any, tools as any, rag as any), tools, rag };
+    const prisma = {
+      secretaryMessage: {
+        createMany: jest.fn().mockResolvedValue({ count: 2 }),
+        findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn().mockResolvedValue({ count: 3 }),
+      },
+    };
+    return { svc: new SecretaryChatService(config as any, tools as any, rag as any, prisma as any), tools, rag, prisma };
   }
   const json = (body: unknown, ok = true, status = 200) => ({ ok, status, json: async () => body, text: async () => '' }) as any;
   const final = (content: string) => json({ choices: [{ message: { content } }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
@@ -143,5 +150,52 @@ describe('SecretaryChatService', () => {
   it('transcribe rejects non-audio', async () => {
     const { svc } = build();
     await expect(svc.transcribe(user, { mimetype: 'application/pdf', buffer: Buffer.from('a') } as any)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('saves the question and the reply with its cards after a successful answer', async () => {
+    const { svc, prisma } = build();
+    fetchSpy.mockResolvedValueOnce(toolCall()).mockResolvedValueOnce(final('ตอบแล้ว'));
+    await svc.chat(user, msgs);
+    const rows = prisma.secretaryMessage.createMany.mock.calls[0][0].data;
+    expect(rows.map((r: any) => [r.role, r.content, r.userId, r.firmId])).toEqual([['user', 'hi', 'u1', 'f1'], ['assistant', 'ตอบแล้ว', 'u1', 'f1']]);
+    expect(rows[1].cards).toEqual([{ type: 'case', id: 'c1', title: 'A', ownRef: null }]);
+    expect(rows[1].createdAt.getTime()).toBeGreaterThan(rows[0].createdAt.getTime());
+  });
+
+  it('still answers when saving history fails, and saves nothing when the AI fails', async () => {
+    const { svc, prisma } = build();
+    prisma.secretaryMessage.createMany.mockRejectedValueOnce(new Error('db down'));
+    fetchSpy.mockResolvedValueOnce(final('ok'));
+    await expect(svc.chat(user, msgs)).resolves.toEqual({ reply: 'ok', cards: [] });
+    prisma.secretaryMessage.createMany.mockClear();
+    fetchSpy.mockResolvedValueOnce(json({}, false, 500));
+    await expect(svc.chat(user, msgs)).rejects.toBeInstanceOf(BadGatewayException);
+    expect(prisma.secretaryMessage.createMany).not.toHaveBeenCalled();
+  });
+
+  it('history returns only the caller\'s own chat, oldest first', async () => {
+    const { svc, prisma } = build();
+    prisma.secretaryMessage.findMany.mockResolvedValue([
+      { role: 'assistant', content: 'b', cards: [{ type: 'case', id: 'c1', title: 'A', ownRef: null }] },
+      { role: 'user', content: 'a', cards: null },
+    ]);
+    const h = await svc.history(user);
+    expect(prisma.secretaryMessage.findMany.mock.calls[0][0].where).toEqual({ firmId: 'f1', userId: 'u1' });
+    expect(h).toEqual([{ role: 'user', content: 'a', cards: [] }, { role: 'assistant', content: 'b', cards: [{ type: 'case', id: 'c1', title: 'A', ownRef: null }] }]);
+  });
+
+  it('clearHistory deletes only the caller\'s own chat', async () => {
+    const { svc, prisma } = build();
+    expect(await svc.clearHistory(user)).toEqual({ deleted: 3 });
+    expect(prisma.secretaryMessage.deleteMany).toHaveBeenCalledWith({ where: { firmId: 'f1', userId: 'u1' } });
+  });
+
+  it('keeps the per-user line at the end of the system prompt so the prefix is cacheable', async () => {
+    const { svc } = build();
+    fetchSpy.mockResolvedValueOnce(final('ok'));
+    await svc.chat(user, msgs);
+    const sys: string = body(0).messages[0].content;
+    expect(sys.startsWith('คุณคือเลขาส่วนตัว AI ในสำนักงานกฎหมาย')).toBe(true);
+    expect(sys.split('\n').at(-1)).toContain('สมชาย ใจดี');
   });
 });

@@ -469,6 +469,7 @@ model Firm {
   workflowRuns       WorkflowRun[]
   deadlineRules      DeadlineRule[]
   dailyBriefs        DailyBrief[]
+  secretaryMessages  SecretaryMessage[]
 }
 
 model FirmMember {
@@ -719,6 +720,7 @@ model User {
   confirmedCargoClaims       CargoClaim[]                 @relation("CargoClaimConfirmer")
   recordedInvoicePayments    InvoicePayment[]             @relation("InvoicePaymentRecorder")
   createdPleadingDrafts      PleadingDraft[]              @relation("PleadingDraftCreator")
+  secretaryMessages          SecretaryMessage[]
   caseComments               CaseComment[]
   notifications              Notification[]
   notificationPreferences    UserNotificationPreference[]
@@ -3142,4 +3144,22 @@ model ErrorLog {
 
   @@index([createdAt])
   @@index([source, createdAt])
+}
+
+/// One turn of a member's AI secretary chat, kept so the panel can show past conversation on any device.
+model SecretaryMessage {
+  id        String   @id @default(uuid())
+  firmId    String
+  userId    String
+  /// 'user' | 'assistant'
+  role      String
+  content   String
+  /// SecretaryCard[] shown under an assistant reply
+  cards     Json?
+  createdAt DateTime @default(now())
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([firmId, userId, createdAt])
 }

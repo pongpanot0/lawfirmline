@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Loader2 } from 'lucide-react';
-import type { SecretaryCard } from '@lawfirm/shared';
+import { ChevronRight, Loader2, SquarePen } from 'lucide-react';
+import { hasFirmCapability, type SecretaryCard } from '@lawfirm/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -17,7 +17,14 @@ type Msg = { role: 'user' | 'assistant'; content: string; cards?: SecretaryCard[
 /** Server accepts up to 20; the last 10 are what it actually uses. */
 const HISTORY_SENT = 10;
 
-const SUGGESTIONS = ['สัปดาห์นี้ผมมีนัดศาลที่ไหนบ้าง', 'คดีไหนงานค้างนานที่สุด'];
+const SUGGESTIONS = ['สัปดาห์นี้ผมมีนัดศาลที่ไหนบ้าง', 'คดีไหนงานค้างนานที่สุด', 'สัปดาห์หน้าใครลาบ้าง'];
+const FINANCE_SUGGESTIONS = ['ลูกหนี้ค้างเกิน 60 วันมีใครบ้าง'];
+
+/**
+ * The chat survives closing the panel within this tab (instant reopen); the server copy
+ * restores it after a reload or on another device. Keyed by user so a sign-in switch never shows someone else's chat.
+ */
+let cache: { userId: string; messages: Msg[] } | null = null;
 
 function cardHref(card: SecretaryCard): string {
   switch (card.type) {
@@ -46,16 +53,49 @@ function cardLabel(card: SecretaryCard): string {
 }
 
 export function SecretaryChat() {
-  const { token } = useAuth();
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const { token, user } = useAuth();
+  const userId = user?.id ?? '';
+  const cached = cache?.userId === userId ? cache.messages : null;
+  const [messages, setMessagesState] = useState<Msg[]>(cached ?? []);
+  const [loadingHistory, setLoadingHistory] = useState(!cached);
+  const setMessages = (update: Msg[] | ((prev: Msg[]) => Msg[])) =>
+    setMessagesState((prev) => {
+      const next = typeof update === 'function' ? update(prev) : update;
+      cache = { userId, messages: next };
+      return next;
+    });
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (cached || !token || !userId) return;
+    let alive = true;
+    api.secretaryHistory(token)
+      .then((h) => { if (alive) setMessages((prev) => (prev.length ? prev : h)); })
+      .catch(() => { /* history is a convenience; the chat still works without it */ })
+      .finally(() => { if (alive) setLoadingHistory(false); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per user
+  }, [token, userId]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, busy]);
+
+  const newChat = async () => {
+    if (!token || busy) return;
+    try {
+      await api.clearSecretaryHistory(token);
+      setMessages([]);
+      setError(null);
+    } catch {
+      setError('เริ่มแชทใหม่ไม่สำเร็จ ลองใหม่อีกครั้ง');
+    }
+  };
+
+  const suggestions = hasFirmCapability(user?.firmRole, 'manageInvoices') ? [...SUGGESTIONS, ...FINANCE_SUGGESTIONS] : SUGGESTIONS;
 
   const send = async (text: string) => {
     const q = text.trim();
@@ -80,14 +120,31 @@ export function SecretaryChat() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {messages.length > 0 && (
+        <div className="flex justify-end border-b border-border px-4 py-1.5">
+          <button
+            type="button"
+            onClick={() => void newChat()}
+            disabled={busy}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:min-h-8"
+          >
+            <SquarePen className="h-3.5 w-3.5" aria-hidden /> แชทใหม่
+          </button>
+        </div>
+      )}
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 scrollbar-thin">
-        {messages.length === 0 && (
+        {loadingHistory && messages.length === 0 && (
+          <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> กำลังโหลดแชทเดิม…
+          </div>
+        )}
+        {!loadingHistory && messages.length === 0 && (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              ถามเลขาได้ทุกคดีที่คุณเข้าถึง เช่น ภาพรวมคดี หาเอกสาร หรือดูนัด — เลขาตอบจากข้อมูลในระบบเท่านั้น
+              ถามเลขาได้ทุกคดีที่คุณเข้าถึงและงานสำนักงาน เช่น ภาพรวมคดี หาเอกสาร ดูนัด วันลา หรือขั้นตอน SOP — เลขาตอบจากข้อมูลในระบบเท่านั้น
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {SUGGESTIONS.map((s) => (
+              {suggestions.map((s) => (
                 <button
                   key={s}
                   type="button"
