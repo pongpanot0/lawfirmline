@@ -136,7 +136,7 @@ function BillingPageContent() {
     <div className="space-y-6">
       <PageHeader
         title={d.billing.title}
-        description={fmt(d.billing.description, { firmName: user.firmName })}
+        description={`ตรวจแพ็กเกจและการชำระเงินของ ${user.firmName}`}
         actions={canManagePayment ? (
           <Button
             className="whitespace-normal text-left"
@@ -189,7 +189,7 @@ function BillingPageContent() {
 
       <section aria-labelledby="billing-plans-heading">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 id="billing-plans-heading" className="text-lg font-semibold">{d.billing.plans}</h2>
+          <div><h2 id="billing-plans-heading" className="text-lg font-semibold">{d.billing.plans}</h2><p className="mt-1 text-sm text-muted-foreground">เลือกช่วงชำระ แล้วเลือกแพ็กเกจและวิธีชำระที่ต้องการ</p></div>
           {!loading && !loadError && <BillingPeriodToggle value={billingPeriod} onChange={setBillingPeriod} />}
         </div>
         {loading ? (

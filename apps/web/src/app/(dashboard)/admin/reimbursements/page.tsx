@@ -283,7 +283,7 @@ export default function ReimbursementsPage() {
       {tab === 'advances' && canIssueAdvances ? (
         <CashAdvanceReconciliation token={token ?? getStoredToken() ?? ''} onBusyChange={setAdvanceBusy} />
       ) : <>
-      <div className="mb-4 flex flex-wrap items-end gap-3">
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border bg-card p-4">
         <Tabs value={filter} onValueChange={setFilter} className="min-w-0 flex-1">
           <TabsList>
             {FILTERS.map((s) => (
@@ -329,7 +329,7 @@ export default function ReimbursementsPage() {
                   <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <button
                       type="button"
-                      className="flex min-w-0 flex-1 items-start gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex min-h-11 min-w-0 flex-1 items-start gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       aria-expanded={open}
                       onClick={() => setExpandedId(open ? null : claim.id)}
                     >
@@ -371,7 +371,7 @@ export default function ReimbursementsPage() {
           <CardTitle>{d.reimbursements.advancesTitle}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={issueAdvance} className="grid gap-3 sm:grid-cols-[1fr_10rem_1fr_auto] sm:items-end">
+          <form onSubmit={issueAdvance} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)_minmax(0,1fr)_auto] sm:items-end">
             <SelectField
               label={d.reimbursements.advancesSelectMember}
               required

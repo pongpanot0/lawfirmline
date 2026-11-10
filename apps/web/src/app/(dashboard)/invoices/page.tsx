@@ -107,7 +107,7 @@ export default function InvoicesPage() {
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 pb-20 sm:px-6">
       <PageHeader
         title="ใบแจ้งหนี้"
-        description="20 ใบล่าสุดที่คุณมีสิทธิ์ดู"
+        description="ค้นหาใบแจ้งหนี้ 20 ใบล่าสุด หรือออกใบใหม่"
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus aria-hidden="true" className="h-4 w-4" />
@@ -137,11 +137,11 @@ export default function InvoicesPage() {
         ))}
       </section>
 
-      <section aria-label="ค้นหาและกรองใบแจ้งหนี้" className="space-y-3">
+      <section aria-label="ค้นหาและกรองใบแจ้งหนี้" className="space-y-3 rounded-lg border bg-card p-4">
         <label htmlFor="invoice-search" className="sr-only">
           ค้นหาใบแจ้งหนี้
         </label>
-        <div className="relative">
+        <div className="flex flex-wrap items-center gap-3"><div className="relative min-w-0 flex-1">
           <Search
             aria-hidden="true"
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -164,7 +164,7 @@ export default function InvoicesPage() {
               <X aria-hidden="true" className="h-4 w-4" />
             </button>
           )}
-        </div>
+        </div><span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">ลองพิมพ์ชื่อผู้ว่าจ้างหรือเลขคดี</span></div>
       </section>
 
       {loading ? (
@@ -177,7 +177,7 @@ export default function InvoicesPage() {
         <EmptyState
           icon={FileText}
           title={rows.length === 0 ? 'ยังไม่มีใบแจ้งหนี้' : 'ไม่พบใบแจ้งหนี้ที่ตรงกัน'}
-          description={rows.length === 0 ? 'ใบแจ้งหนี้ที่ออกแล้วจะแสดงที่นี่พร้อมสถานะ' : 'ไม่มีใบที่ตรงกับสถานะหรือคำค้นนี้'}
+          description={rows.length === 0 ? 'กดออกใบแจ้งหนี้เพื่อเริ่มสร้างใบแรก' : 'ไม่มีใบที่ตรงกับสถานะหรือคำค้นนี้'}
           action={rows.length > 0 && (search || status !== 'ALL') ? (
             <Button variant="outline" onClick={() => { setSearch(''); setStatus('ALL'); }}>ล้างตัวกรอง</Button>
           ) : rows.length === 0 ? (

@@ -194,7 +194,7 @@ export default function ExpensesPage() {
         { label: d.expenses.statusApproved, value: formatCurrency(finance.approvedExpenses), note: `${finance.expenseCount} รายการ` },
       ]} />}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+      <div className="mb-4 grid grid-cols-2 gap-3 rounded-lg border bg-card p-4 sm:flex sm:flex-wrap">
           <SelectField
             label={d.expenses.filterStatus}
             containerClassName="min-w-0 sm:w-48"
@@ -237,7 +237,7 @@ export default function ExpensesPage() {
         <CardHeader className="flex-row items-center justify-between gap-3">
           <div>
             <CardTitle>{d.expenses.savedDrafts}</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">รายการที่ยังไม่ได้เบิก</p>
+            <p className="mt-1 text-xs text-muted-foreground">เลือกรายการฉบับร่าง แล้วกดจัดทำใบเบิก</p>
           </div>
 
         </CardHeader>

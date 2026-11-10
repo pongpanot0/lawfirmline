@@ -4,9 +4,11 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { downloadPettyCashCsv } from '@/lib/petty-cash-csv';
-import { ArrowLeft, Printer, Send, Download } from 'lucide-react';
+import { ArrowLeft, Printer, Download } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ExpenseItem } from '@/lib/api';
+import { CheckoutSteps } from '@/components/guide/CheckoutSteps';
+import { SubmitSummary } from '@/components/guide/SubmitSummary';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
@@ -113,10 +115,7 @@ function ExpenseClaimContent() {
             <Printer className="h-4 w-4" aria-hidden />
             พิมพ์ใบเบิก
           </Button>
-          {items.length > 0 && items.every(e => e.status === 'DRAFT') && <Button type="button" disabled={submitting || exporting} onClick={handleSend}>
-            <Send className="h-4 w-4" aria-hidden />
-            {submitting ? d.expenses.submitting : d.expenses.reviewedSendToOwner}
-          </Button>}
+
         </div>
       </div>
 
@@ -128,6 +127,8 @@ function ExpenseClaimContent() {
 
       <p className="mb-4 text-sm text-muted-foreground print:hidden">ไฟล์ ZIP มี CSV สำหรับ Excel ใบเสร็จต้นฉบับ และใบเบิกสำหรับพิมพ์ การดาวน์โหลดไม่ส่งอนุมัติ</p>
 
+      <div className="print:hidden"><CheckoutSteps steps={[{ title: 'ตรวจรายการ', state: items.length ? 'done' : 'current' }, { title: 'ตรวจยอดและผู้เบิก', state: items.length ? 'current' : 'todo' }, { title: 'ส่งอนุมัติ', state: 'todo' }]} /></div>
+      <form onSubmit={(event) => { event.preventDefault(); void handleSend(); }} className="space-y-4 pb-32 xl:pb-0">
       <Card className="print:border-black print:shadow-none">
         <CardContent className="space-y-5 p-6 md:p-8">
           <div className="border-b border-border pb-4 text-center">
@@ -214,6 +215,11 @@ function ExpenseClaimContent() {
           </div>
         </CardContent>
       </Card>
+      <div className="print:hidden"><SubmitSummary items={[
+        { label: 'เลือกรายการค่าใช้จ่าย', done: items.length > 0 },
+        { label: 'ทุกรายการเป็นฉบับร่าง', done: items.length > 0 && items.every(e => e.status === 'DRAFT'), hint: 'กลับไปเลือกรายการใหม่หากส่งไปแล้ว' },
+      ]} loading={submitting || exporting} label={d.expenses.reviewedSendToOwner} loadingLabel={submitting ? d.expenses.submitting : 'กำลังรวมเอกสาร…'} /></div>
+      </form>
     </div>
   );
 }
