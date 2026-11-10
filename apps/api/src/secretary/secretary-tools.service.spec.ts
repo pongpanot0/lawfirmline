@@ -1,8 +1,9 @@
-import type { AuthUser } from '@lawfirm/shared';
+import { FirmRole, type AuthUser } from '@lawfirm/shared';
 import { SecretaryToolsService } from './secretary-tools.service';
 
 describe('SecretaryToolsService', () => {
-  const user = { id: 'u1', firmId: 'f1' } as AuthUser;
+  const user = { id: 'u1', firmId: 'f1', firmRole: FirmRole.OWNER } as AuthUser;
+  const lawyer = { id: 'u2', firmId: 'f1', firmRole: FirmRole.LAWYER } as AuthUser;
   const caseFilter = { firmId: 'f1', deletedAt: null };
   const intakeFilter = { firmId: 'f1' };
 
@@ -13,7 +14,12 @@ describe('SecretaryToolsService', () => {
       document: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       documentChunk: { count: jest.fn().mockResolvedValue(0) },
       calendarEvent: { findMany: jest.fn().mockResolvedValue([]) },
+      leaveRequest: { findMany: jest.fn().mockResolvedValue([]) },
+      sop: { findMany: jest.fn().mockResolvedValue([]) },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      pettyCashFund: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
     };
+    const collections = { getReceivables: jest.fn().mockResolvedValue({ buckets: {}, rows: [] }) };
     const access = {
       getCaseFilterForUser: jest.fn().mockReturnValue(caseFilter),
       getIntakeFilterForUser: jest.fn().mockResolvedValue(intakeFilter),
@@ -24,8 +30,8 @@ describe('SecretaryToolsService', () => {
       retrieve: jest.fn().mockResolvedValue([]),
       ensureCaseIndexed: jest.fn().mockResolvedValue(undefined),
     };
-    const svc = new SecretaryToolsService(prisma as any, access as any, brief as any, rag as any);
-    return { svc, prisma, brief, rag };
+    const svc = new SecretaryToolsService(prisma as any, access as any, brief as any, rag as any, collections as any);
+    return { svc, prisma, brief, rag, collections };
   }
 
   it('find_matters searches only accessible cases and intakes', async () => {
@@ -116,9 +122,58 @@ describe('SecretaryToolsService', () => {
     expect(prisma.intake.findMany.mock.calls[0][0].where.AND).toContainEqual({ case: null });
   });
 
-  it('definitions lists the 5 tools', () => {
-    expect(build().svc.definitions().map((d) => d.function.name)).toEqual(
-      ['find_matters', 'case_overview', 'search_documents', 'read_document', 'list_events'],
-    );
+  it('definitions gives office managers every tool', () => {
+    expect(build().svc.definitions(user).map((d) => d.function.name)).toEqual([
+      'find_matters', 'case_overview', 'search_documents', 'read_document', 'list_events',
+      'list_leaves', 'search_sops', 'lawyer_licenses', 'receivables', 'petty_cash_balance',
+    ]);
+  });
+
+  it('definitions hides finance tools from a lawyer', () => {
+    const names = build().svc.definitions(lawyer).map((d) => d.function.name);
+    expect(names).toEqual(expect.arrayContaining(['list_leaves', 'search_sops', 'lawyer_licenses']));
+    expect(names).not.toContain('receivables');
+    expect(names).not.toContain('petty_cash_balance');
+  });
+
+  it('refuses a finance tool the lawyer was never offered', async () => {
+    const { svc, collections, prisma } = build();
+    expect(await svc.run(lawyer, 'receivables', {})).toEqual({ content: { error: 'forbidden' }, cards: [] });
+    expect(await svc.run(lawyer, 'petty_cash_balance', {})).toEqual({ content: { error: 'forbidden' }, cards: [] });
+    expect(collections.getReceivables).not.toHaveBeenCalled();
+    expect(prisma.pettyCashFund.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('receivables filters by days overdue, sorts worst first and totals everything', async () => {
+    const { svc, collections } = build();
+    const row = (n: string, days: number, outstanding: number) => ({ invoiceNumber: n, daysOverdue: days, outstanding, dueAt: null, lastReminderAt: null });
+    collections.getReceivables.mockResolvedValue({ buckets: { '0-30': 100 }, rows: [row('A', 10, 100), row('B', 95, 50), row('C', 70, 25)] });
+    const r = await svc.run(user, 'receivables', { minDaysOverdue: 60 });
+    const c = r.content as { totalOutstanding: number; matchingOutstanding: number; matching: number; invoices: Array<{ invoiceNumber: string }> };
+    expect(c.totalOutstanding).toBe(175);
+    expect(c.matchingOutstanding).toBe(75);
+    expect(c.matching).toBe(2);
+    expect(c.invoices.map((i) => i.invoiceNumber)).toEqual(['B', 'C']);
+  });
+
+  it('lawyer_licenses limits a non-office member to their own licence', async () => {
+    const { svc, prisma } = build();
+    await svc.run(lawyer, 'lawyer_licenses', {});
+    expect(prisma.user.findMany.mock.calls[0][0].where).toMatchObject({ id: 'u2', firmMembers: { some: { firmId: 'f1' } } });
+    await svc.run(user, 'lawyer_licenses', {});
+    expect(prisma.user.findMany.mock.calls[1][0].where.id).toBeUndefined();
+  });
+
+  it('list_leaves rejects an over-long range and scopes to the firm', async () => {
+    const { svc, prisma } = build();
+    expect(await svc.run(lawyer, 'list_leaves', { from: '2026-01-01', to: '2026-06-01' })).toEqual({ content: { error: 'invalid_date_range' }, cards: [] });
+    await svc.run(lawyer, 'list_leaves', { from: '2026-11-10', to: '2026-11-20' });
+    expect(prisma.leaveRequest.findMany.mock.calls[0][0].where.firmId).toBe('f1');
+  });
+
+  it('petty_cash_balance only reads, never creates the fund', async () => {
+    const { svc, prisma } = build();
+    expect((await svc.run(user, 'petty_cash_balance', {})).content).toEqual({ notSetUp: true });
+    expect(prisma.pettyCashFund.upsert).not.toHaveBeenCalled();
   });
 });
