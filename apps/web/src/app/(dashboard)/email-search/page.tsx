@@ -8,6 +8,7 @@ import { api, type EmailSearchResult } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/samnuan/PageHeader';
+import { getPageGuide } from '@/components/guide/page-guides';
 import { Input } from '@/components/ui/input';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
@@ -63,7 +64,7 @@ export default function EmailSearchPage() {
     <div>
       <PageHeader title="ค้นหาอีเมล" description="อีเมลจากทุกคดีที่คุณเข้าถึงได้: ลูกความ ผู้ส่ง หัวเรื่อง เลขคดี เนื้อหา และไฟล์แนบ" />
 
-      <div className="relative mb-4">
+      <Card className="mb-4"><CardContent className="flex flex-wrap items-center gap-2 p-4"><div className="relative min-w-0 flex-1 basis-48">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input
           autoFocus
@@ -74,7 +75,7 @@ export default function EmailSearchPage() {
           className="h-11 pl-9 text-base"
           aria-label="ค้นหาอีเมล"
         />
-      </div>
+      </div><span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/email-search')?.searchHint}</span></CardContent></Card>
 
       <Card>
         <CardContent className="p-0">

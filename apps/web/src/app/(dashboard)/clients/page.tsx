@@ -8,6 +8,7 @@ import { ArrowLeft, Search, Mail, Phone, Building2, Briefcase, Plus, User, Penci
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, ClientItem, ContactCaseAccessEntry } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
+import { getPageGuide } from '@/components/guide/page-guides';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -649,10 +650,11 @@ export default function ClientsPage() {
           </Button>
         }
       />
-      <div className="mb-4 relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <Input type="search" aria-label={d.clients.searchPlaceholder} placeholder={d.clients.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
+      <Card className="mb-4"><CardContent className="flex flex-wrap items-center gap-2 p-4">
+        <div className="relative min-w-0 flex-1 basis-48"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input type="search" aria-label={d.clients.searchPlaceholder} placeholder={d.clients.searchPlaceholder} className="h-11 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/clients')?.searchHint}</span>
+      </CardContent></Card>
 
       {loadError ? (
         <LoadFailed onRetry={load} />
@@ -662,7 +664,7 @@ export default function ClientsPage() {
         <EmptyState
           icon={Briefcase}
           title={d.clients.empty}
-          description={d.clients.emptyHint}
+          description={search ? 'ลองค้นด้วยชื่ออื่น' : 'กดเพิ่มลูกความเพื่อเริ่มบันทึกข้อมูล'}
           action={search ? undefined : (
             <Button size="sm" variant="outline" onClick={() => router.push('/clients/new')}>
               <Plus className="h-4 w-4" aria-hidden />{d.clients.addClient}

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { PageHeader } from '@/components/samnuan/PageHeader';
+import { getPageGuide } from '@/components/guide/page-guides';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 
@@ -77,11 +78,14 @@ export function EmailIntakeList() {
       .finally(() => setLoading(false));
   }, [token, reloadKey]);
 
+  const visibleThreads = threads.filter((thread) => (filter === 'ALL' || thread.status === filter) && [thread.subject, thread.fromName, thread.fromAddress, thread.bodyExcerpt].some((value) => value?.toLowerCase().includes(search.toLowerCase())));
+
   return (
     <div>
-      <PageHeader title="รับเรื่องจากอีเมล" />
-      <input aria-label="ค้นหาอีเมล" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหาอีเมล" className="mb-2 w-full rounded-md border bg-background px-3 py-2 text-sm" />
-      <div className="mb-2 flex gap-1">{[['ALL', 'ทั้งหมด'], ['PENDING_INTAKE', 'รอรับเรื่อง'], ['LINKED', 'รับเรื่องแล้ว']].map(([value, label]) => <Button key={value} size="sm" variant={filter === value ? 'default' : 'ghost'} onClick={() => setFilter(value)}>{label}</Button>)}</div>
+      <PageHeader title="รับเรื่องจากอีเมล" description="เลือกอีเมลเพื่อตรวจและรับเรื่อง" />
+      <Card className="mb-3"><CardContent className="p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2"><input aria-label="ค้นหาอีเมล" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหาอีเมล" className="min-h-11 min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /><span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/email-intake')?.searchHint}</span></div>
+      <div className="flex flex-wrap gap-1">{[['ALL', 'ทั้งหมด'], ['PENDING_INTAKE', 'รอรับเรื่อง'], ['LINKED', 'รับเรื่องแล้ว']].map(([value, label]) => <Button key={value} size="sm" className="min-h-11" variant={filter === value ? 'default' : 'ghost'} onClick={() => setFilter(value)}>{label}</Button>)}</div></CardContent></Card>
 
       {linkError && <p role="alert" className="mb-4 text-sm text-destructive">{linkError}</p>}
       <Card>
@@ -96,10 +100,12 @@ export function EmailIntakeList() {
             </div>
           ) : threads.length === 0 ? (
             <EmptyState icon={Mail} title="ยังไม่มีอีเมลรอรับเรื่อง" description="เมื่อมีอีเมลใหม่เข้ามา รายการจะแสดงที่นี่" />
+          ) : visibleThreads.length === 0 ? (
+            <EmptyState icon={Mail} title="ไม่พบอีเมล" description="ลองเปลี่ยนคำค้นหรือเลือกสถานะอื่น" />
           ) : (
             <div className="divide-y">
               {['วันนี้', 'เมื่อวาน', 'สัปดาห์นี้', 'เก่ากว่า'].map((group) => {
-                const items = threads.filter((thread) => mailDateGroup(new Date(thread.lastMessageAt)) === group && (filter === 'ALL' || thread.status === filter) && [thread.subject, thread.fromName, thread.fromAddress, thread.bodyExcerpt].some((value) => value?.toLowerCase().includes(search.toLowerCase())));
+                const items = visibleThreads.filter((thread) => mailDateGroup(new Date(thread.lastMessageAt)) === group);
                 if (!items.length) return null;
                 return <section key={group}><h2 className="bg-muted px-4 py-1 text-xs text-muted-foreground">{group}</h2>{items.map((thread) => <div key={thread.id} className={`border-l-2 px-4 py-3 hover:bg-muted/50 ${pathname === `/email-intake/${thread.id}` ? 'border-primary bg-primary/5' : 'border-transparent'}`}>
                   <Link href={`/email-intake/${thread.id}`} className="block min-w-0">

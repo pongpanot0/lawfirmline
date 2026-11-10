@@ -7,6 +7,8 @@ import { api } from '@/lib/api';
 import { PreLitigationIntake } from '@/components/journey/PreLitigationIntake';
 import { PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { Badge } from '@/components/ui/badge';
 
 export default function IntakeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +27,6 @@ export default function IntakeDetailPage() {
     return () => { active = false; };
   }, [token, id, router, attempt]);
   if (state === 'error') return <LoadFailed onRetry={() => { setState('loading'); setAttempt((n) => n + 1); }} />;
-  if (state === 'history') return <><p className="mb-4 text-sm text-muted-foreground">ข้อมูลประวัติ (อ่านอย่างเดียว)</p><PreLitigationIntake id={id} history /></>;
+  if (state === 'history') return <><PageHeader title="ประวัติเรื่องรับเข้า" description="ตรวจข้อมูลเรื่องที่บันทึกไว้" actions={<Badge variant="muted">อ่านอย่างเดียว</Badge>} /><PreLitigationIntake id={id} history /></>;
   return <PageLoading variant="detail" title="กำลังโหลดข้อมูล" lines={4} />;
 }
