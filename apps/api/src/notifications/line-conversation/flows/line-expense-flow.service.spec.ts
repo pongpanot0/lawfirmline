@@ -4,7 +4,6 @@ import {
   ConversationStep,
   FlowType,
 } from '../line-conversation.types';
-import { InsufficientCreditsError } from '../../../intelligence/receipt-extraction.service';
 
 describe('LineExpenseFlowService', () => {
   const billing = {
@@ -87,14 +86,14 @@ describe('LineExpenseFlowService', () => {
     expect(sessionState.data.receiptBase64).toBeDefined();
   });
 
-  it('AI path falls back to manual on insufficient credits, keeping the photo', async () => {
+  it('AI path falls back to manual when extraction throws, keeping the photo', async () => {
     sessionState.step = ConversationStep.EXPENSE_RECEIPT;
     sessionState.data = { mode: 'ai' };
-    extraction.extractReceipt.mockRejectedValue(new InsufficientCreditsError());
+    extraction.extractReceipt.mockRejectedValue(new Error('boom'));
     await svc.handleImage(sessionState, { buffer: Buffer.from('x'), contentType: 'image/jpeg' });
     expect(sessionState.step).toBe(ConversationStep.EXPENSE_AMOUNT);
     expect(sessionState.data.receiptBase64).toBeDefined();
-    expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('เครดิต AI ไม่พอ'), expect.any(Array));
+    expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('เกิดข้อผิดพลาดในการอ่านรูป'), expect.any(Array));
   });
 
   it('edits one field from the confirm step instead of restarting', async () => {

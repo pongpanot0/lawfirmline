@@ -542,7 +542,7 @@ export class EmailIntakeService {
     const redactedRequests = documentRequests.map((request) => ({ id: request.id, name: redactForAi(request.name).text }));
     const caseTypes = (await this.prisma.caseType.findMany({ where: { firmId: user.firmId, isActive: true }, select: { name: true } })).map((t) => t.name);
 
-    // Same e-mails, files, requests and prompt as an earlier read → reuse its result: no OCR, no model call, no credit.
+    // Same e-mails, files, requests and prompt as an earlier read → reuse its result: no OCR, no model call.
     const inputHash = createHash('sha256').update(JSON.stringify({
       model: INTAKE_AI_MODEL, prompt: INTAKE_AI_SYSTEM_PROMPT, format: INTAKE_AI_RESPONSE_FORMAT,
       subject: thread.subject, messages, files: files.map((f) => [f.id, f.storagePath]), redactedRequests, caseTypes,

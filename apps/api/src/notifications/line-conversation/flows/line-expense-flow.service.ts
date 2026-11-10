@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BillingService } from '../../../billing/billing.service';
 import { CasesService } from '../../../cases/cases.service';
-import {
-  InsufficientCreditsError,
-  ReceiptExtractionService,
-} from '../../../intelligence/receipt-extraction.service';
+import { ReceiptExtractionService } from '../../../intelligence/receipt-extraction.service';
 import { LineMessagingService, QuickReplyItem } from '../../line-messaging.service';
 import { LineNotificationService } from '../line-notification.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
@@ -247,7 +244,7 @@ export class LineExpenseFlowService {
     }
 
     try {
-      const extracted = await this.receiptExtraction.extractReceipt(session.userId, image);
+      const extracted = await this.receiptExtraction.extractReceipt(image);
       if (extracted && (extracted.amount !== null || extracted.description !== null)) {
         const data = {
           ...withReceipt,
@@ -280,14 +277,6 @@ export class LineExpenseFlowService {
       });
       await this.reply(session, 'อ่านรูปไม่สำเร็จครับ — กรอกเองนะครับ ยอดเงินเท่าไหร่ครับ?');
     } catch (err) {
-      if (err instanceof InsufficientCreditsError) {
-        this.store.update(session.lineUserId, {
-          data: { ...withReceipt, mode: 'manual' },
-          step: ConversationStep.EXPENSE_AMOUNT,
-        });
-        await this.reply(session, 'เครดิต AI ไม่พอครับ — เปลี่ยนเป็นกรอกเองนะครับ ยอดเงินเท่าไหร่ครับ?');
-        return;
-      }
       this.logger.error('Receipt handling failed', err);
       this.store.update(session.lineUserId, {
         data: { ...withReceipt, mode: 'manual' },

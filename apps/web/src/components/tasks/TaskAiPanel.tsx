@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowRight, Check, ChevronRight, Loader2, Sparkles, X } from 'lucide-react';
-import { AI_CREDIT_COST, canAssignFirmRole, TASK_WORK_TYPES, TaskStatus, TaskLogAction } from '@lawfirm/shared';
+import { canAssignFirmRole, TASK_WORK_TYPES, TaskStatus, TaskLogAction } from '@lawfirm/shared';
 import { api, ApiError, TaskAiInsight, TaskDetail, UserItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
@@ -68,9 +68,7 @@ export function TaskAiPanel({ task, users, tab, onTabChange, onChanged, onNaviga
       onChanged();
     } catch (err) {
       if (request !== requestId.current) return;
-      setError(err instanceof ApiError && err.status === 402
-        ? t('เครดิต AI ไม่พอ', 'Not enough AI credits')
-        : err instanceof ApiError ? err.message : t('วิเคราะห์งานไม่สำเร็จ', 'Could not analyze this task'));
+      setError(err instanceof ApiError ? err.message : t('วิเคราะห์งานไม่สำเร็จ', 'Could not analyze this task'));
     } finally {
       if (request === requestId.current) setLoading(false);
     }
@@ -158,9 +156,9 @@ export function TaskAiPanel({ task, users, tab, onTabChange, onChanged, onNaviga
       {insight && <p className="text-xs text-muted-foreground">{t('วิเคราะห์ล่าสุด', 'Last analyzed')} · {formatDateTime(insight.analyzedAt)}</p>}
       {loading ? <div role="status" className="flex items-center gap-2 rounded-xl border p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{t('กำลังวิเคราะห์ข้อความอัปเดต…', 'Analyzing task updates…')}</div>
         : error ? <div role="alert" className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm"><p>{error}</p><Button size="sm" variant="outline" className="mt-3" onClick={() => void analyze()}>{t('ลองใหม่', 'Retry')}</Button></div>
-        : stale ? <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900 dark:bg-amber-950/30"><p className="font-semibold">{t('มีข้อมูลใหม่หลังวิเคราะห์', 'New information since analysis')}</p><p className="mt-1 text-xs text-muted-foreground">{t('วิเคราะห์อีกครั้งก่อนใช้ข้อเสนอสร้างงาน', 'Analyze again before creating a suggested task.')}</p><Button size="sm" className="mt-3" onClick={() => void analyze()} disabled={!task.comments.length}>{t('วิเคราะห์ใหม่ · 1 เครดิต', 'Analyze again · 1 credit')}</Button></div>
+        : stale ? <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900 dark:bg-amber-950/30"><p className="font-semibold">{t('มีข้อมูลใหม่หลังวิเคราะห์', 'New information since analysis')}</p><p className="mt-1 text-xs text-muted-foreground">{t('วิเคราะห์อีกครั้งก่อนใช้ข้อเสนอสร้างงาน', 'Analyze again before creating a suggested task.')}</p><Button size="sm" className="mt-3" onClick={() => void analyze()} disabled={!task.comments.length}>{t('วิเคราะห์ใหม่', 'Analyze again')}</Button></div>
         : !task.comments.length || insight?.status === 'insufficient' ? <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground"><p className="font-medium text-foreground">{t('ยังสรุปสิ่งที่ติดขัดไม่ได้', 'Not enough information yet')}</p><p className="mt-1">{t('เพิ่มข้อความอัปเดตในแท็บแก้ไขงาน แล้วกลับมาดูใหม่', 'Add a task update in Edit task, then check again.')}</p></div>
-        : !insight ? <div className="rounded-xl border border-border bg-accent p-5 dark:border-input dark:bg-brand-700/30"><div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" />{t('ดูว่างานนี้ติดอะไร', 'Find what is blocking this task')}</div><p className="mt-2 text-xs leading-6 text-muted-foreground">{t('AI จะอ่านเฉพาะข้อความอัปเดตของงานนี้ โดยปกปิดเลขประจำตัว เบอร์โทร และอีเมลก่อนส่งไปวิเคราะห์', 'AI reads only this task’s updates. Personal identifiers are redacted before analysis.')}</p><Button size="sm" className="mt-4" disabled={(user?.aiCredits ?? 0) < AI_CREDIT_COST.TASK_UPDATE_ANALYSIS} onClick={() => void analyze()}>{t(`วิเคราะห์งานนี้ · ${AI_CREDIT_COST.TASK_UPDATE_ANALYSIS} เครดิต`, `Analyze · ${AI_CREDIT_COST.TASK_UPDATE_ANALYSIS} credit`)}</Button>{(user?.aiCredits ?? 0) < AI_CREDIT_COST.TASK_UPDATE_ANALYSIS && <p className="mt-2 text-xs text-destructive">{t('เครดิต AI ไม่พอ', 'Not enough AI credits')}</p>}</div>
+        : !insight ? <div className="rounded-xl border border-border bg-accent p-5 dark:border-input dark:bg-brand-700/30"><div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" />{t('ดูว่างานนี้ติดอะไร', 'Find what is blocking this task')}</div><p className="mt-2 text-xs leading-6 text-muted-foreground">{t('AI จะอ่านเฉพาะข้อความอัปเดตของงานนี้ โดยปกปิดเลขประจำตัว เบอร์โทร และอีเมลก่อนส่งไปวิเคราะห์', 'AI reads only this task’s updates. Personal identifiers are redacted before analysis.')}</p><Button size="sm" className="mt-4" onClick={() => void analyze()}>{t('วิเคราะห์งานนี้', 'Analyze')}</Button></div>
         : insight?.status === 'clear' ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm dark:border-emerald-900 dark:bg-emerald-950/30"><div className="flex items-center gap-2 font-semibold text-emerald-800 dark:text-emerald-300"><Check className="h-4 w-4" />{t('ยังไม่พบสิ่งที่ติดขัด', 'No blocker found in these updates')}</div><p className="mt-2 text-xs text-muted-foreground">{t('สรุปจากข้อความที่วิเคราะห์เท่านั้น ไม่ได้ยืนยันว่าคดีไม่มีความเสี่ยง', 'Based only on the analyzed updates; this is not a case risk assessment.')}</p></div>
         : insight?.status === 'blocker' ? <>
           <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><Sparkles className="h-3.5 w-3.5" />{t('ข้อเสนอจาก AI · รอตรวจยืนยัน', 'AI suggestion · review before acting')}</p>

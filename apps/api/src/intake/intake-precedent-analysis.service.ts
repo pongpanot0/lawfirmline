@@ -4,7 +4,7 @@ import { Prisma } from '../generated/prisma';
 import { ReviewResearchFactDto } from './dto/research.dto';
 import { ConfigService } from '@nestjs/config';
 import { chatModel } from '../common/openai-model';
-import { AI_CREDIT_COST, AuthUser, RedactionCounts, redactForAi, isUnusableAnalysis } from '@lawfirm/shared';
+import { AuthUser, RedactionCounts, redactForAi, isUnusableAnalysis } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient, type IappDekaSearchResult } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
@@ -12,7 +12,6 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { RelevanceService } from '../rag/relevance.service';
 
-export const PRECEDENT_ANALYSIS_COST = AI_CREDIT_COST.PRECEDENT_ANALYSIS;
 
 /**
  * Cap on extracted attachment text — applied both when storing `extractedFacts`
@@ -399,9 +398,7 @@ export class IntakePrecedentAnalysisService {
       });
     } catch (err) {
       // Persist the failure for audit (how many times this was run, and why it
-      // failed) — but re-throw so AiCreditsInterceptor, which only decrements
-      // credit after a successful handler response, does not charge the user
-      // for a run that produced nothing useful.
+      // failed) — but re-throw so the caller sees the run produced nothing useful.
       //
       // The audit write itself must never replace the original failure: if it
       // throws (e.g. DB unavailable), log it separately and still re-throw the

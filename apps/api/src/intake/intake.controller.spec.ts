@@ -5,7 +5,6 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 
 describe('IntakeController precedent analysis', () => {
   let controller: IntakeController;
@@ -30,12 +29,6 @@ describe('IntakeController precedent analysis', () => {
       .useValue({ canActivate: () => true })
       .overrideGuard(RolesGuard)
       .useValue({ canActivate: () => true })
-      // AiCreditsInterceptor is referenced by class in @UseInterceptors on the
-      // runPrecedentAnalysis route, so Nest resolves its constructor deps
-      // (Reflector, PrismaService) eagerly at module-compile time. Override it
-      // the same way the guards above are overridden.
-      .overrideInterceptor(AiCreditsInterceptor)
-      .useValue({ intercept: (_: unknown, next: any) => next.handle() })
       .compile();
     controller = module.get(IntakeController);
   });

@@ -6,12 +6,11 @@ import { TodosController } from './todos.controller';
 import { IntakeTasksController } from './intake-tasks.controller';
 import { TaskDetailController } from './task-detail.controller';
 import { TaskDetailService } from './task-detail.service';
-import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 
 @Module({
   imports: [forwardRef(() => NotificationsModule)],
   controllers: [TasksController, TaskSkipController, TodosController, IntakeTasksController, TaskDetailController],
-  providers: [TasksService, TaskDetailService, AiCreditsInterceptor],
+  providers: [TasksService, TaskDetailService],
   exports: [TasksService],
 })
 export class TasksModule {}

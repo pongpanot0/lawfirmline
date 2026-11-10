@@ -167,7 +167,7 @@ export function CaseEmailPanel({
     });
 
   const suggestDates = (message: CaseEmailThreadDetail['messages'][number]) => {
-    if (!window.confirm('ให้ AI อ่านอีเมลนี้เพื่อหาวันนัด / กำหนดยื่น? การทำงานนี้ใช้เครดิต AI ของคุณ')) return;
+    if (!window.confirm('ให้ AI อ่านอีเมลนี้เพื่อหาวันนัด / กำหนดยื่น?')) return;
     run(`ai-dates-${message.id}`, async (t) => {
       const result = await api.suggestDatesFromEmailMessage(t, caseId, message.id);
       if (result.created === 0) return { type: 'success', text: 'AI ไม่พบวันนัดหรือกำหนดยื่นในอีเมลนี้' };

@@ -116,9 +116,9 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
         </div>
       </details>}
       <div className="flex flex-wrap gap-2">
-        <Button disabled={!!busy || (!text.trim() && !selected.length)} onClick={() => void run(false)}>ค้นฎีกา · 10 เครดิต</Button>
-        <Button variant="outline" disabled={!!busy || (!text.trim() && !selected.length)} onClick={() => void run(true)}>จัดข้อเท็จจริง · 5 เครดิต</Button>
-        {(intakeId || caseId) && <Button variant="outline" disabled={!!busy || !selected.length} onClick={() => void summarize()}>สรุปข้อมูลจากเอกสาร · 5 เครดิต</Button>}
+        <Button disabled={!!busy || (!text.trim() && !selected.length)} onClick={() => void run(false)}>ค้นฎีกา</Button>
+        <Button variant="outline" disabled={!!busy || (!text.trim() && !selected.length)} onClick={() => void run(true)}>จัดข้อเท็จจริง</Button>
+        {(intakeId || caseId) && <Button variant="outline" disabled={!!busy || !selected.length} onClick={() => void summarize()}>สรุปข้อมูลจากเอกสาร</Button>}
       </div>
       {(intakeId || caseId) && <p className="text-xs text-muted-foreground">สรุปเอกสารใช้เฉพาะไฟล์ที่เลือก ไม่รวมข้อความในช่องด้านบน</p>}
       <p className="text-xs text-muted-foreground">ผลสำเร็จบันทึกอัตโนมัติ{caseId ? 'ในคดีนี้' : intakeId ? 'ในเรื่องนี้ และติดตามไปเมื่อเปิดเป็นคดี' : 'ในประวัติของคุณ'} · ข้อความเป็นข้อมูลที่ผู้ใช้ระบุ จนกว่าจะตรวจเทียบหลักฐาน</p>
@@ -176,7 +176,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
           </div>
           {!!fact.revisions?.length && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">ประวัติแก้ไข ({fact.revisions.length})</summary>{fact.revisions.map((rev,i) => <p key={i}>{new Date(rev.at).toLocaleString('th-TH')} · {rev.statement}</p>)}</details>}
         </li>)}</ul>
-        {chosenFacts.length > 0 && <Button variant="outline" disabled={!!busy} onClick={() => void run(false, chosenFacts.map((index) => `[ผู้ใช้เลือกจากผล ${result.id} ข้อ ${index + 1} · ${STATUS[facts[index].status]} · ${facts[index].source}] ${facts[index].statement}`).join('\n'))}>ค้นฎีกาจาก {chosenFacts.length} ข้อที่เลือก · 10 เครดิต</Button>}
+        {chosenFacts.length > 0 && <Button variant="outline" disabled={!!busy} onClick={() => void run(false, chosenFacts.map((index) => `[ผู้ใช้เลือกจากผล ${result.id} ข้อ ${index + 1} · ${STATUS[facts[index].status]} · ${facts[index].source}] ${facts[index].statement}`).join('\n'))}>ค้นฎีกาจาก {chosenFacts.length} ข้อที่เลือก</Button>}
       </div>}
       <details key={result.id} open={result.extractedFacts?.summaryOnly || undefined} className="rounded-xl border border-border p-4"><summary className="cursor-pointer font-medium">{result.extractedFacts?.caseSummary ? 'สรุปข้อมูลคดีและเอกสาร' : result.extractedFacts?.summaryOnly ? 'สรุปข้อมูลจากเอกสาร' : 'สรุปเหตุการณ์และลำดับเวลา'}</summary>{result.extractedFacts?.summaryOnly && <p className="mt-2 text-xs text-muted-foreground">{result.extractedFacts.caseSummary && 'ใช้ข้อมูลคดีที่บันทึกไว้ร่วมด้วย · '}ไฟล์ที่ใช้: {result.extractedFacts.selectedAttachments?.map(file => `${file.filename} · รุ่น ${file.version ?? '—'}`).join(', ') || 'ไม่มี'} · โปรดตรวจเทียบต้นฉบับก่อนใช้งาน</p>}<p className="mt-3 whitespace-pre-wrap text-sm">{result.documentSummary}</p>{result.timeline?.map((item,index) => <p key={index} className="mt-2 text-sm"><strong>{item.date}</strong> · {item.event}</p>)}</details>
       {!result.extractedFacts?.factsOnly && <div className="rounded-xl border border-border bg-card p-4 space-y-3">

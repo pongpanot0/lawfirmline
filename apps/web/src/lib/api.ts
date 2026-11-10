@@ -1687,7 +1687,6 @@ export interface IntakePrecedentAnalysisItem {
   timeline?: Array<{ date: string; event: string }> | null;
   summaryBullets: string;
   noticeFacts: string;
-  creditsCost: number;
   createdAt: string;
   errorMessage?: string | null;
 }
@@ -4272,7 +4271,7 @@ export interface DateSuggestionItem {
 
 export type AiTrayCard =
   | { type: 'UNREAD_DOCUMENTS'; caseId: string; caseTitle: string; caseRef: string | null;
-      documents: { id: string; filename: string; createdAt: string }[]; creditCost: number }
+      documents: { id: string; filename: string; createdAt: string }[] }
   | { type: 'PENDING_DATES'; caseId: string; caseTitle: string; caseRef: string | null; count: number };
 
 export type DeadlineTriggerValue = import('@lawfirm/shared').DeadlineTrigger;

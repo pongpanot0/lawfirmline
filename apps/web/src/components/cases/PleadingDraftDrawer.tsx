@@ -173,7 +173,6 @@ export function PleadingDraftDrawer({
                   'สร้างร่าง'
                 )}
               </button>
-              <p className="text-xs text-muted-foreground">ใช้ 10 เครดิต</p>
             </div>
           )}
 

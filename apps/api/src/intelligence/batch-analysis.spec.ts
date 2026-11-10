@@ -6,7 +6,6 @@ import { DocumentIntelligenceService } from './document-intelligence.service';
 import { IntelligenceController } from './intelligence.controller';
 import { BatchAnalysisDto } from './dto/batch-analysis.dto';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
-import { REQUIRE_CREDITS_KEY } from '../common/decorators/require-credits.decorator';
 import { PrismaService } from '../prisma/prisma.module';
 import { DocumentsService } from '../documents/documents.service';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -142,9 +141,6 @@ describe('selected document batch analysis', () => {
     expect(
       reflector.get('__guards__', controller.analyzeExistingBatch),
     ).toContain(CaseAccessGuard);
-    expect(
-      reflector.get(REQUIRE_CREDITS_KEY, controller.analyzeExistingBatch),
-    ).toBe(5);
     expect(reflector.get('__guards__', controller.listBatchAnalyses)).toContain(
       CaseAccessGuard,
     );

@@ -63,7 +63,6 @@ export class TenantService {
       trialEndAt: firm.trialEndAt.toISOString(),
       currentPeriodEnd: firm.currentPeriodEnd?.toISOString() ?? null,
       maxUsers: firm.maxUsers,
-      aiCredits: user.aiCredits,
       mfaEnabled: user.mfaEnabled,
       isPlatformAdmin: platformAdminEmails().has(user.email.toLowerCase()),
       role: user.role as AuthUser['role'],

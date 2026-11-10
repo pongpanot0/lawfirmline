@@ -1057,7 +1057,6 @@ export interface AuthUser {
   trialEndAt: string | null;
   currentPeriodEnd: string | null;
   maxUsers: number;
-  aiCredits?: number;
   mfaEnabled: boolean;
   /** The operator's own account (PLATFORM_ADMIN_EMAILS) — sees /superadmin. */
   isPlatformAdmin?: boolean;
@@ -1108,7 +1107,7 @@ export * from './pii';
 export * from './agenda';
 export * from './litigation';
 export * from './ai-redaction';
-export * from './ai-credits';
+export * from './ai-uploads';
 export * from './analysis-quality';
 export * from './cargo-claim';
 export * from './default-playbooks';

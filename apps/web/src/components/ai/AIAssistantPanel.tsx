@@ -62,8 +62,6 @@ const AI_ACTIONS = [
   },
 ] as const;
 
-const CREDIT_COST = 5;
-
 interface AIAssistantPanelProps {
   /** When opened from within a case, skips the case picker for "summarize". */
   caseId?: string;
@@ -72,7 +70,7 @@ interface AIAssistantPanelProps {
 }
 
 export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string | null>(null);
   const [tab, setTab] = useState<'secretary' | 'main'>(caseId || intakeId ? 'main' : 'secretary');
@@ -87,10 +85,8 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [creditsSpent, setCreditsSpent] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const remainingCredits = Math.max(0, (user?.aiCredits ?? 0) - creditsSpent);
   const action = AI_ACTIONS.find((a) => a.id === active);
 
   const resetActionState = () => {
@@ -121,15 +117,14 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
 
   const runSummarize = async () => {
     if (!token || !file || !selectedCaseId) return;
-    if (!confirm(`ให้ AI สรุป "${file.name}" ใช้ ${CREDIT_COST} เครดิต?`)) return;
+    if (!confirm(`ให้ AI สรุป "${file.name}"?`)) return;
     setLoading(true);
     setError(null);
     try {
       const doc = await api.analyzeDocument(token, selectedCaseId, file, file.name);
       setResult(doc.summary);
-      setCreditsSpent((c) => c + CREDIT_COST);
     } catch {
-      setError('สรุปเอกสารไม่สำเร็จ — ตรวจสอบว่าตั้งค่า AI credit และไฟล์เอกสารถูกต้อง');
+      setError('สรุปเอกสารไม่สำเร็จ — ตรวจสอบว่าไฟล์เอกสารถูกต้อง');
     } finally {
       setLoading(false);
     }
@@ -137,13 +132,12 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
 
   const runDraft = async () => {
     if (!token || !selectedIntakeId) return;
-    if (!confirm(`ให้ AI ร่างหนังสือจากเรื่องนี้ ใช้ ${CREDIT_COST} เครดิต?`)) return;
+    if (!confirm(`ให้ AI ร่างหนังสือจากเรื่องนี้?`)) return;
     setLoading(true);
     setError(null);
     try {
       const { content } = await api.draftNoticeIntake(token, selectedIntakeId);
       setResult(content);
-      setCreditsSpent((c) => c + CREDIT_COST);
     } catch {
       setError('ร่างหนังสือไม่สำเร็จ — ลองใหม่อีกครั้ง');
     } finally {
@@ -282,11 +276,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground">
-                    {action?.id === 'summarize'
-                      ? `ใช้ ${CREDIT_COST} credit ต่อครั้ง`
-                      : `สร้างร่างจากข้อมูล intake ที่มีอยู่ — ใช้ ${CREDIT_COST} credit ต่อครั้ง`}
-                  </p>
+                  {action?.id === 'draft' && <p className="text-sm text-muted-foreground">สร้างร่างจากข้อมูล intake ที่มีอยู่</p>}
 
                   {action?.id === 'summarize' && (
                     <>
@@ -383,10 +373,6 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
       </div>
 
       )}
-
-      <div className={cn('border-t border-border px-4 py-3 text-xs text-muted-foreground')}>
-        เหลือ {remainingCredits} AI credit
-      </div>
     </div>
   );
 }

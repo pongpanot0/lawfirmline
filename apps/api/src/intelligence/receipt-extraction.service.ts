@@ -1,44 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { chatModel } from '../common/openai-model';
-import { AI_CREDIT_COST } from '@lawfirm/shared';
-import { PrismaService } from '../prisma/prisma.module';
-
-/** Thrown before any API call when the user cannot afford the extraction. */
-export class InsufficientCreditsError extends Error {
-  constructor() {
-    super('Insufficient AI credits');
-  }
-}
-
-const EXTRACTION_COST = AI_CREDIT_COST.DOCUMENT_ANALYSIS;
 
 /**
  * Reads a receipt photo with a vision model and returns the grand total and a
- * short Thai description. Credits are checked up front but debited only after
- * a successful parse — a failed read costs the user nothing.
+ * short Thai description. A failed read returns null.
  */
 @Injectable()
 export class ReceiptExtractionService {
   private readonly logger = new Logger(ReceiptExtractionService.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private config: ConfigService,
-  ) {}
+  constructor(private config: ConfigService) {}
 
   async extractReceipt(
-    userId: string,
     image: { buffer: Buffer; contentType: string },
   ): Promise<{ amount: number | null; description: string | null } | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { aiCredits: true },
-    });
-    if (!user || user.aiCredits < EXTRACTION_COST) {
-      throw new InsufficientCreditsError();
-    }
-
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) return null;
 
@@ -89,11 +65,6 @@ export class ReceiptExtractionService {
           ? parsed.description.trim()
           : null;
       if (amount === null && description === null) return null;
-
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { aiCredits: { decrement: EXTRACTION_COST } },
-      });
       return { amount, description };
     } catch (err) {
       this.logger.error('Receipt extraction failed', err);

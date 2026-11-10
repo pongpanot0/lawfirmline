@@ -70,8 +70,8 @@ test('empty and oversized recordings are rejected before upload and cleaned up',
   }
 });
 
-test('AI failure and credit messages survive both chat and transcription', async () => {
-  for (const [status, message] of [[502, 'เลขาไม่พร้อมใช้งาน กรุณาลองใหม่'], [402, 'Insufficient AI credits']]) {
+test('AI failure and read-only messages survive both chat and transcription', async () => {
+  for (const [status, message] of [[502, 'เลขาไม่พร้อมใช้งาน กรุณาลองใหม่'], [402, 'สำนักงานอยู่ในโหมดดูอย่างเดียว · การใช้งานหมดอายุแล้ว']]) {
     const { files, hooks, deleted } = setup({ status, response: { message } });
     await assert.rejects(() => files.transcribeSecretaryAudio('file:///voice.m4a'), error => error.message === message);
     await assert.rejects(() => hooks.useSecretaryChat().mutationFn([{ role: 'user', content: 'สรุปคดี' }]), error => error.message === message);

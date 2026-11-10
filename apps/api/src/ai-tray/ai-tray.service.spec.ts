@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { AI_CREDIT_COST, DOCUMENT_ANALYSIS_MIME_TYPES, DateSuggestionSource, DateSuggestionStatus, type AuthUser } from '@lawfirm/shared';
+import { DOCUMENT_ANALYSIS_MIME_TYPES, DateSuggestionSource, DateSuggestionStatus, type AuthUser } from '@lawfirm/shared';
 import { AiTrayService } from './ai-tray.service';
 
 describe('AiTrayService', () => {
@@ -40,7 +40,7 @@ describe('AiTrayService', () => {
     expect(prisma.document.findMany.mock.calls[0][0].where.caseId).toEqual({ not: null });
   });
 
-  it('groups unread documents per case with a credit estimate, and counts pending dates per case', async () => {
+  it('groups unread documents per case, and counts pending dates per case', async () => {
     const { service, prisma } = build();
     const kase = { id: 'c1', title: 'คดี A', ownRef: 'A-1' };
     prisma.document.findMany.mockResolvedValue([
@@ -59,7 +59,6 @@ describe('AiTrayService', () => {
           { id: 'd2', filename: 'b.pdf', createdAt: '2026-09-29T02:00:00.000Z' },
           { id: 'd1', filename: 'a.pdf', createdAt: '2026-09-29T01:00:00.000Z' },
         ],
-        creditCost: 2 * AI_CREDIT_COST.DOCUMENT_ANALYSIS * 2,
       },
       { type: 'PENDING_DATES', caseId: 'c2', caseTitle: 'คดี B', caseRef: null, count: 2 },
     ]);

@@ -9,7 +9,6 @@ import { ResearchWorkspace } from '@/components/research/ResearchWorkspace';
 
 import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
 import {
-  AI_CREDIT_COST,
   AI_UPLOAD_MAX_FILES,
   canAssignFirmRole,
   documentHintsFor,
@@ -70,7 +69,6 @@ const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
   CONSULTED: 'muted',
 };
 
-const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
 
 const DECISION_LABELS: Record<string, string> = {
   FILE_SUIT: 'ฟ้อง',
@@ -858,11 +856,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
         return [...byDoc.values()];
       });
     } catch (err) {
-      if (err instanceof ApiError && err.status === 402) {
-        setClassifyError('เครดิต AI ไม่เพียงพอสำหรับแนะนำประเภทเอกสาร');
-      } else {
-        setClassifyError(err instanceof ApiError ? err.message : 'AI แนะนำประเภทเอกสารไม่สำเร็จ');
-      }
+      setClassifyError(err instanceof ApiError ? err.message : 'AI แนะนำประเภทเอกสารไม่สำเร็จ');
     } finally {
       setClassifyingChecklist(false);
     }
@@ -1255,7 +1249,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
               พร้อม {matchedExpectedDocuments.length}/{expectedDocuments.length}
               {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตาม checklist'}
               {' · '}ติ๊กเองได้ · จับคู่ชื่อไฟล์อัตโนมัติ · หรือกด「ให้ AI แนะนำประเภท」แล้วยืนยัน
-              {' · '}แนบ PDF / TXT ไม่เกิน 30MB · เลือกวิเคราะห์ได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์ · แนะนำประเภท {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิต
+              {' · '}แนบ PDF / TXT ไม่เกิน 30MB · เลือกวิเคราะห์ได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์
             </p>
             {classifyError && (
               <p className="mt-2 text-sm text-destructive" role="alert">{classifyError}</p>
@@ -2187,16 +2181,11 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
                         variant="outline"
                         size="sm"
                         onClick={handleDraftNotice}
-                        disabled={drafting || (user?.aiCredits ?? 0) < DRAFT_NOTICE_COST}
-                        title={
-                          (user?.aiCredits ?? 0) < DRAFT_NOTICE_COST
-                            ? `credit ไม่พอ (ต้องใช้ ${DRAFT_NOTICE_COST}, เหลือ ${user?.aiCredits ?? 0})`
-                            : undefined
-                        }
+                        disabled={drafting}
                       >
                         {drafting
                           ? 'กำลังร่าง...'
-                          : `ให้ AI ช่วยร่าง (ใช้ ${DRAFT_NOTICE_COST} credit, เหลือ ${user?.aiCredits ?? 0})`}
+                          : 'ให้ AI ช่วยร่าง'}
                       </Button>
                     </div>
                     <textarea
