@@ -18,6 +18,7 @@ import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Badge } from '@/components/ui/badge';
 import { EmailMessageCard } from '@/components/email/EmailMessageCard';
+import { LinkEmailDialog } from './LinkEmailDialog';
 import { CaseEmailComposer, type CaseEmailComposerMode } from './CaseEmailComposer';
 import { CaseUnknownAddresses } from './CaseUnknownAddresses';
 import { EmailMentionTasks } from './EmailMentionTasks';
@@ -31,15 +32,18 @@ const errorText = (error: unknown, fallback: string) => (error instanceof ApiErr
 
 export function CaseEmailPanel({
   caseId,
+  caseRef,
   initialThreadId,
   onOpenSuggestions,
 }: {
   caseId: string;
+  caseRef: string;
   initialThreadId?: string | null;
   /** Switches the case to the tab that lists date suggestions. */
   onOpenSuggestions?: () => void;
 }) {
   const { token } = useAuth();
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [threads, setThreads] = useState<CaseEmailThreadItem[] | null>(null);
   const [links, setLinks] = useState<CaseFolderLinkItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(initialThreadId ?? null);
@@ -242,6 +246,7 @@ export function CaseEmailPanel({
 
   return (
     <div className="space-y-4">
+      {linkDialogOpen && token && <LinkEmailDialog token={token} caseId={caseId} caseRef={caseRef} onClose={() => setLinkDialogOpen(false)} onLinked={load} />}
       {notice && (
         <p
           role="status"
@@ -268,7 +273,8 @@ export function CaseEmailPanel({
               <FolderOpen aria-hidden="true" className="h-4 w-4 text-muted-foreground" /> folder Outlook ที่ผูกกับคดี
             </h2>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={busy !== null} onClick={() => setComposer({ kind: 'new' })}>
+              <Button size="sm" disabled={busy !== null} onClick={() => setLinkDialogOpen(true)}>+ ผูกอีเมลเข้าคดี</Button>
+              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => setComposer({ kind: 'new' })}>
                 เขียนอีเมล
               </Button>
               <Button size="sm" variant="outline" disabled={busy !== null || links.length === 0} onClick={syncNow}>
@@ -376,6 +382,7 @@ export function CaseEmailPanel({
                   <p className="truncate text-xs text-muted-foreground">
                     {thread.fromName ?? thread.fromAddress ?? '—'} · {formatDateTime(thread.lastMessageAt)}
                   </p>
+                  {thread.linkedBy && <p className="text-xs text-muted-foreground">ผูกโดย {thread.linkedBy.firstName} {thread.linkedBy.lastName}</p>}
                   {thread.awaitingReplySince && (
                     <Badge variant="warning" className="mb-1">
                       {awaitingReplyLabel(thread.awaitingReplySince)}

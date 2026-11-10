@@ -83,6 +83,12 @@ export class CasesController {
     return this.casesService.update(user, id, dto);
   }
 
+  @Delete(':id/assignments/me')
+  @UseGuards(CaseAccessGuard)
+  leaveTeam(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.casesService.leaveTeam(user, id);
+  }
+
   @Put(':id/assignments')
   @UseGuards(CaseAccessGuard, FirmRoleGuard)
   @RequireCapability('reassignCaseLead')

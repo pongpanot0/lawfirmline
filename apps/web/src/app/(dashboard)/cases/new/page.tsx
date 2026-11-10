@@ -9,21 +9,21 @@ import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { CreateClientContactDialog } from '@/components/intake/CreateClientContactDialog';
-import { workloadLabel as workloadHint } from '@/lib/workload-label';
+import { OwnerPicker } from '@/components/cases/OwnerPicker';
+import { EmailLinkCandidates } from '@/components/cases/EmailLinkCandidates';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import {
   api,
-  UserItem,
   CaseTypeItem,
   CourtItem,
   ClientItem,
   ApiError,
-  WorkloadSummary,
   FieldSuggestion,
   SuggestibleField,
+  type LinkCandidate,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { PageLoading } from '@/components/ui/misc';
@@ -31,7 +31,7 @@ import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { CourtSelect } from '@/components/cases/CourtSelect';
 import { ConflictOverrideDialog } from '@/components/ConflictOverrideDialog';
 import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
-import { litigationPayload, missingRequiredMessage, type OpponentRow } from '@/lib/case-create';
+import { litigationPayload, missingRequiredMessage, openingStageError, type OpponentRow } from '@/lib/case-create';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft, Plus, X } from 'lucide-react';
@@ -48,6 +48,7 @@ import {
   FEE_MAX,
   CARGO_CLAIM_PLAYBOOK_KEY,
   CARGO_CLAIM_PLAYBOOK_NAME,
+  CASE_STAGE_LABELS_TH, CaseStage,
 } from '@lawfirm/shared';
 
 export default function NewCasePage() {
@@ -64,17 +65,16 @@ function NewCaseForm() {
   const submittingRef = useRef(false);
   const createdCaseId = useRef('');
   const pendingUploads = useRef<File[]>([]);
+  const emailFailures = useRef(0);
   const playbookManuallySelected = useRef(Boolean(requestedSopId));
   const [autoTitle, setAutoTitle] = useState(true);
   const [retry, setRetry] = useState(0);
   const [lookupWarning, setLookupWarning] = useState('');
-  const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [playbookId, setPlaybookId] = useState(requestedSopId);
   const [cargoClaimEnabled, setCargoClaimEnabled] = useState(false);
@@ -85,6 +85,9 @@ function NewCaseForm() {
   const [opponents, setOpponents] = useState<OpponentRow[]>([{ name: '', role: '', personType: '' }]);
   const [courts, setCourts] = useState<CourtItem[]>([]);
   const [limitationIncomplete, setLimitationIncomplete] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState<LinkCandidate[]>([]);
+  const [blackUnknown, setBlackUnknown] = useState(false);
+  const [stage, setStage] = useState<CaseStage>(CaseStage.PRE_LITIGATION);
   const [conflict, setConflict] = useState<ConflictMatchItem[] | null>(null);
 
   const [form, setForm] = useState({
@@ -101,6 +104,7 @@ function NewCaseForm() {
     partyRole: '',
     courtLevel: CourtLevel.TRIAL as string,
     blackCaseNumber: '',
+    redCaseNumber: '',
     limitationDeadline: '',
     claimedAmount: '',
     leadLawyerId: '',
@@ -123,7 +127,9 @@ function NewCaseForm() {
   const isRequired = (key: string) => fieldSchema.some((field) => field.key === key && field.required);
   const customFieldList = fieldSchema.filter((field) => !['chargeSection', 'incidentDate', 'estimatedDamage', 'opposingParty'].includes(field.key));
 
-  const workloadLabel = (userId: string) => workloadHint(workload.find((x) => x.userId === userId));
+  const stages = [CaseStage.PRE_LITIGATION, CaseStage.FILING, CaseStage.ANSWER, CaseStage.MEDIATION, CaseStage.HEARING, CaseStage.AWAITING_JUDGMENT, CaseStage.ENFORCEMENT];
+  const stageIndex = stages.indexOf(stage);
+  useEffect(() => { setSelectedEmails([]); }, [form.clientId]);
 
   useEffect(() => {
     if (!token) return;
@@ -131,7 +137,6 @@ function NewCaseForm() {
     setError('');
     setLookupWarning('');
     Promise.all([
-      api.getLawyers(token),
       api.getCaseTypes(token),
       api.getClients(token).catch(() => {
         setLookupWarning(
@@ -140,17 +145,13 @@ function NewCaseForm() {
         return [] as ClientItem[];
       }),
       api.getNextOwnRef(token).catch(() => ({ ownRef: '' })),
-      api.getWorkloadSummary(token).catch(() => [] as WorkloadSummary[]),
       api.getCourts(token).catch(() => [] as CourtItem[]),
     ])
       .then(
-        ([lawyerList, types, clientList, nextRef, workloadList, courtList]) => {
-          setLawyers(lawyerList);
+        ([types, clientList, nextRef, courtList]) => {
           setForm((f) => ({
             ...f,
-            leadLawyerId: lawyerList.some((l) => l.id === f.leadLawyerId)
-              ? f.leadLawyerId
-              : (lawyerList.find((l) => l.id === user?.id)?.id ?? ''),
+            leadLawyerId: f.leadLawyerId || user?.id || '',
             caseTypeId: f.caseTypeId || (types.length === 1 ? types[0].id : ''),
           }));
           setCaseTypes(types);
@@ -165,7 +166,6 @@ function NewCaseForm() {
             }
           }
           setNextOwnRef(nextRef.ownRef);
-          setWorkload(workloadList);
           setCourts(courtList);
         },
       )
@@ -220,8 +220,9 @@ function NewCaseForm() {
     if (limitationIncomplete) return 'กรอกวันครบอายุความให้ครบ (วัน/เดือน/ปี พ.ศ.) หรือเว้นว่างทั้งหมด';
     const missing = missingRequiredMessage(fieldSchema, { chargeSection: form.chargeSection, customFields: form.customFields, opponents });
     if (missing) return missing;
-    if (!lawyers.some((l) => l.id === form.leadLawyerId))
-      return 'กรุณาเลือกทนายผู้รับผิดชอบ';
+    if (!form.leadLawyerId) return 'กรุณาเลือกทนายผู้รับผิดชอบ';
+    const stageError = openingStageError(stage, form.courtName, form.blackCaseNumber, blackUnknown);
+    if (stageError) return stageError;
     return '';
   };
   const handleSubmit = async (conflictOverrideReason?: string) => {
@@ -244,6 +245,9 @@ function NewCaseForm() {
       if (!createdCaseId.current) {
       const payload: Record<string, unknown> = {
         title: form.title.trim(),
+        stage,
+        ...(stageIndex > 0 && blackUnknown ? { blackCaseNumberUnknown: true } : {}),
+        ...(form.redCaseNumber.trim() ? { redCaseNumber: form.redCaseNumber.trim() } : {}),
         ownRef: form.ownRef.trim() || undefined,
         ownRefSuggested: nextOwnRef || undefined,
         description: form.description.trim() || undefined,
@@ -253,7 +257,7 @@ function NewCaseForm() {
           opponents,
           courtLevel: form.courtLevel,
           courtName: form.courtName,
-          blackCaseNumber: form.blackCaseNumber,
+          blackCaseNumber: stageIndex > 0 && blackUnknown ? '' : form.blackCaseNumber,
           limitationDeadline: form.limitationDeadline,
         }),
         ...(conflictOverrideReason ? { conflictOverrideReason } : {}),
@@ -302,6 +306,9 @@ function NewCaseForm() {
       createdCaseId.current = created.id;
       setConflict(null);
       pendingUploads.current = files;
+      for (const row of selectedEmails) {
+        try { await api.linkThreadToCase(token, row.threadId, created.id); } catch { emailFailures.current++; }
+      }
       }
       const failed: File[] = [];
       for (const file of pendingUploads.current) {
@@ -314,9 +321,13 @@ function NewCaseForm() {
       pendingUploads.current = failed;
       setUploadFailures(failed.map((file) => file.name));
       if (failed.length) {
-        setError(`สร้างคดีแล้ว แต่อัปโหลดเอกสารไม่สำเร็จ: ${failed.map((file) => file.name).join(', ')} — กดลองอีกครั้งได้โดยไม่สร้างคดีซ้ำ`);
+        setError(`สร้างคดีแล้ว แต่อัปโหลดเอกสารไม่สำเร็จ: ${failed.map((file) => file.name).join(', ')} — กดลองอีกครั้งได้โดยไม่สร้างคดีซ้ำ${emailFailures.current ? ` · ผูกอีเมลไม่สำเร็จ ${emailFailures.current} ฉบับ — ผูกได้อีกครั้งจากแท็บอีเมลของคดี` : ''}`);
         setSubmitting(false);
         submittingRef.current = false;
+        return;
+      }
+      if (emailFailures.current) {
+        router.push(`/cases/${createdCaseId.current}?tab=email&emailLinkFailures=${emailFailures.current}`);
         return;
       }
       router.push(`/cases/${createdCaseId.current}${cargoClaimEnabled ? '?tab=cargo-claim' : `?tab=tasks${playbookId ? `&sop=${encodeURIComponent(playbookId)}` : ''}`}`);
@@ -455,14 +466,12 @@ function NewCaseForm() {
                 <input id="case-title" required value={form.title} onChange={(event) => { setAutoTitle(false); setForm({ ...form, title: event.target.value }); }} className={inputClass} placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง" />
                 {autoTitle && <p className="mt-1 text-xs text-muted-foreground">ตั้งชื่อจากประเภทคดีและลูกความให้อัตโนมัติ แก้ไขได้</p>}
               </div>
-              <label htmlFor="lead-lawyer" className={fieldLabel}>ทนายผู้รับผิดชอบ <span className="text-destructive">*</span>
-                <select id="lead-lawyer" required value={form.leadLawyerId} onChange={(event) => setForm({ ...form, leadLawyerId: event.target.value })} className={inputClass}>
-                  <option value="">เลือกทนายผู้รับผิดชอบ</option>
-                  {lawyers.map((lawyer) => <option key={lawyer.id} value={lawyer.id}>{lawyer.firstName} {lawyer.lastName}{workloadLabel(lawyer.id)}</option>)}
-                </select>
-              </label>
+              <div><label htmlFor="lead-lawyer" className={fieldLabel}>ทนายผู้รับผิดชอบ <span className="text-destructive">*</span></label>
+                {token && <OwnerPicker id="lead-lawyer" token={token} currentUserId={user?.id} value={form.leadLawyerId} onChange={(leadLawyerId) => setForm((current) => ({ ...current, leadLawyerId }))} />}
+              </div>
               <section className="space-y-4 border-t border-border pt-5" aria-label="คู่ความและศาล">
                 <h3 className="text-sm font-semibold">คู่ความและศาล</h3>
+                <fieldset><legend className={fieldLabel}>ขั้นปัจจุบันของคดี *</legend><div className="mt-2 flex flex-wrap gap-2">{stages.map((item) => <label key={item} className={`flex min-h-11 cursor-pointer items-center rounded-lg border px-3 text-sm hover:bg-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${stage === item ? 'border-primary bg-primary/10' : ''}`}><input type="radio" className="sr-only" name="stage" checked={stage === item} onChange={() => setStage(item)} />{CASE_STAGE_LABELS_TH[item]}</label>)}</div>{stageIndex > 0 && <p className="mt-2 text-sm text-muted-foreground">ขั้นก่อนหน้า {stageIndex} ขั้นจะขึ้นว่า "ข้ามตอนเปิดคดี" — ไม่สร้างงานย้อนหลัง</p>}</fieldset>
                 <label htmlFor="party-role" className={fieldLabel}>เราเป็น
                   <select id="party-role" value={form.partyRole} onChange={(e) => setForm({ ...form, partyRole: e.target.value })} className={inputClass}>
                     <option value="">ยังไม่ระบุ</option>
@@ -495,19 +504,22 @@ function NewCaseForm() {
                     <Plus className="h-3.5 w-3.5" /> เพิ่มคู่ความ
                   </Button>
                 </fieldset>
+                {stageIndex > 0 && <h4 className="text-sm font-semibold">ข้อมูลศาล</h4>}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label htmlFor="court-level" className={fieldLabel}>ระดับศาล
                     <select id="court-level" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>
                       {Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}
                     </select>
                   </label>
-                  <label htmlFor="court-name" className={fieldLabel}>ศาล
+                  <label htmlFor="court-name" className={fieldLabel}>ศาล{stageIndex > 0 ? ' *' : ''}
                     <CourtSelect id="court-name" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} />
                   </label>
-                  <label htmlFor="black-case-number" className={fieldLabel}>หมายเลขคดีดำ
-                    <input id="black-case-number" value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })}
+                  <label htmlFor="black-case-number" className={fieldLabel}>หมายเลขคดีดำ{stageIndex > 0 && !blackUnknown ? ' *' : ''}
+                    <input id="black-case-number" disabled={stageIndex > 0 && blackUnknown} value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })}
                       placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} />
                   </label>
+                  {stageIndex > 0 && <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={blackUnknown} onChange={(e) => setBlackUnknown(e.target.checked)} />ยังไม่ทราบเลขคดี — สร้างงาน "ใส่หมายเลขคดีดำ" ให้ทนายผู้รับผิดชอบ</label>}
+                  <label htmlFor="red-case-number" className={fieldLabel}>หมายเลขคดีแดง (ไม่บังคับ)<input id="red-case-number" value={form.redCaseNumber} onChange={(e) => setForm({ ...form, redCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label>
                   <div role="group" aria-labelledby="limitation-deadline-label" className={fieldLabel}>
                     <span id="limitation-deadline-label">วันครบอายุความ</span>
                     <ThaiDateInput id="limitation-deadline" className="mt-1" value={form.limitationDeadline} onChange={(limitationDeadline) => setForm((current) => ({ ...current, limitationDeadline }))} onIncompleteChange={setLimitationIncomplete} />
@@ -702,6 +714,8 @@ function NewCaseForm() {
                 </section>
               )}
             </div>
+              <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="font-semibold">อีเมลที่เกี่ยวข้อง (ไม่บังคับ)</h2><p className="text-sm text-muted-foreground">ผูกอีเมลที่มีอยู่แล้วเข้าคดีตอนสร้าง — ไฟล์แนบจะเข้าแท็บเอกสาร · แสดงเฉพาะอีเมลในกล่องของคุณ</p>{token && <EmailLinkCandidates token={token} clientId={form.clientId} selected={selectedEmails} onChange={setSelectedEmails} />}</section>
+              <section className="space-y-1 rounded-lg border bg-card p-4 text-sm" aria-label="สรุป"><h2 className="font-semibold">สรุป</h2><p>ขั้นเริ่มต้น: {CASE_STAGE_LABELS_TH[stage]}</p><p>อีเมลที่จะผูก: {selectedEmails.length} ฉบับ (ไฟล์ {selectedEmails.reduce((sum, row) => sum + row.attachmentCount, 0)})</p></section>
             </fieldset>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card py-3 pl-4 pr-20 sm:px-5">
           <Button
@@ -727,7 +741,7 @@ function NewCaseForm() {
               ? 'กำลังบันทึก…'
               : uploadFailures.length
                 ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)`
-              : 'สร้างคดี'}
+              : `สร้างคดีที่ขั้น${CASE_STAGE_LABELS_TH[stage]}`}
           </Button>
             </div>
           </form>

@@ -11,7 +11,7 @@ import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 describe('CasesService.findOne', () => {
   let service: CasesService;
-  const mockPrisma = { case: { findUnique: jest.fn() } };
+  const mockPrisma = { case: { findUnique: jest.fn() }, emailThread: { findFirst: jest.fn().mockResolvedValue(null) } };
   const realCaseAccess = new CaseAccessService({} as any);
   const mockCaseAccess = {
     canAccessCase: jest.fn(),

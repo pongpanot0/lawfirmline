@@ -35,6 +35,11 @@ export class RecordConflictCheckDto extends ConflictSearchDto {
   @IsUUID()
   intakeId?: string;
 
+  /** คดีที่เปิดจากฟอร์ม (ไม่มีเรื่องรับเข้า) บันทึกผลตรวจผูกกับคดีโดยตรง */
+  @IsOptional()
+  @IsUUID()
+  caseId?: string;
+
   /** คำตัดสินของทนาย — ระบบเสนอได้ แต่ไม่ตัดสินแทน */
   @IsEnum(ConflictResult)
   result!: ConflictResult;

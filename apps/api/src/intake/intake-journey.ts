@@ -1,4 +1,5 @@
 export type JourneyStep = {
+  skippedAtOpen?: boolean;
   key: string;
   label: string;
   state: 'done' | 'current' | 'locked';

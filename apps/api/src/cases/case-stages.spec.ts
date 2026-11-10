@@ -21,6 +21,10 @@ describe('case stages', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prisma = {
+      emailThread: { findFirst: jest.fn().mockResolvedValue(null) },
+      conflictCheck: { findFirst: jest.fn().mockResolvedValue({ result: 'CLEAR' }) },
+      intakeDocumentRequest: { findMany: jest.fn().mockResolvedValue([]) },
+      caseAssignment: { deleteMany: jest.fn(), createMany: jest.fn() },
       firm: { findUnique: jest.fn().mockResolvedValue(null) }, // no plan: no case limit
       case: {
         findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }),

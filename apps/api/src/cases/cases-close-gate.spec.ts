@@ -26,6 +26,7 @@ describe('CasesService.close — ด่านของค้าง', () => {
     jest.useFakeTimers().setSystemTime(now);
     calendar.remove.mockResolvedValue({ deleted: true });
     prisma = {
+      emailThread: { findFirst: jest.fn().mockResolvedValue(null) },
       case: {
         findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }),
         findUnique: jest.fn().mockResolvedValue({ id: 'case-1', status: 'OPEN', stage: 'HEARING', title: 'คดี' }),

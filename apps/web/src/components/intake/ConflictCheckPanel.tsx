@@ -26,10 +26,13 @@ const TONE_CLASS: Record<string, string> = {
  */
 export function ConflictCheckPanel({
   intake,
+  caseTarget,
   token,
   onRecorded,
 }: {
-  intake: IntakeItem;
+  /** The intake being checked — or, for a case opened from the form, the case and its party names. */
+  intake?: IntakeItem | null;
+  caseTarget?: { id: string; names: string[] };
   token: string;
   onRecorded?: () => void;
 }) {
@@ -38,10 +41,10 @@ export function ConflictCheckPanel({
 
   const suggestedTerms = useMemo(
     () =>
-      [intake.clientName, intake.opposingParty, intake.contactName, intake.referralName]
+      (intake ? [intake.clientName, intake.opposingParty, intake.contactName, intake.referralName] : caseTarget?.names ?? [])
         .map((t) => t?.trim())
         .filter((t): t is string => !!t && t.length >= 3),
-    [intake.clientName, intake.opposingParty, intake.contactName, intake.referralName],
+    [intake, caseTarget?.names],
   );
 
   const [terms, setTerms] = useState(suggestedTerms.join(', '));
@@ -54,11 +57,11 @@ export function ConflictCheckPanel({
 
   const loadHistory = useCallback(async () => {
     try {
-      setHistory(await api.listConflictChecks(token, intake.id));
+      setHistory(await api.listConflictChecks(token, intake?.id, intake ? undefined : caseTarget?.id));
     } catch {
       /* ประวัติโหลดไม่ได้ไม่ควรทำให้หน้าพัง */
     }
-  }, [token, intake.id]);
+  }, [token, intake?.id, caseTarget?.id]);
 
   useEffect(() => {
     void loadHistory();
@@ -94,7 +97,8 @@ export function ConflictCheckPanel({
     try {
       await api.recordConflictCheck(token, {
         terms: parsedTerms,
-        intakeId: intake.id,
+        intakeId: intake?.id,
+        caseId: intake ? undefined : caseTarget?.id,
         result,
         notes: notes.trim() || undefined,
       });

@@ -21,7 +21,7 @@ describe('CaseEmailService', () => {
     mailboxConnection: { findMany: jest.fn() },
     emailAttachment: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     document: { findFirst: jest.fn(), findMany: jest.fn() },
-    auditLog: { create: jest.fn() },
+    auditLog: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
   };
   const threadFilter = { firmId: 'firm-1' };
   const mockCaseAccess = {

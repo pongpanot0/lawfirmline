@@ -170,3 +170,9 @@ export interface PersonWorkload {
   /** type is null when the viewer may not see why (only the owner and the person do). */
   leaves: { id: string; type: string | null; startDate: string; endDate: string }[];
 }
+
+export interface AssigneeLoad {
+  userId: string; firstName: string; lastName: string; firmRole: string;
+  openCaseCount: number; overdueTaskCount: number;
+  leave: { startDate: string; endDate: string } | null;
+}

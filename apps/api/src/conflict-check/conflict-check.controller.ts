@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthUser, Role } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -19,8 +19,8 @@ export class ConflictCheckController {
   }
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query('intakeId') intakeId?: string) {
-    return this.conflictCheck.list(user, intakeId);
+  list(@CurrentUser() user: AuthUser, @Query('intakeId') intakeId?: string, @Query('caseId', new ParseUUIDPipe({ optional: true })) caseId?: string) {
+    return this.conflictCheck.list(user, intakeId, caseId);
   }
 
   @Post()

@@ -1101,6 +1101,22 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     service = module.get(IntakeService);
   });
 
+  it('creates the assessment atomically once and does not recreate it on retry', async () => {
+    arrange();
+    const intake = await service.findOne(user, 'intake-1');
+    await service.openPreLitCase(user, intake, { leadLawyerId: 'lead' }, { recordOnly: true });
+    expect(mockPrisma.case.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      openedAtStage: 'PRE_LITIGATION',
+      tasks: { create: expect.objectContaining({
+        title: 'ประเมินและตัดสินใจแนวทาง (ฟ้อง / เจรจา / ส่งโนติส)', assigneeId: 'lead', createdById: user.id,
+        labels: ['stage:PRE_LITIGATION'], dueDate: expect.any(Date),
+      }) },
+    }) });
+    mockPrisma.case.findUniqueOrThrow.mockResolvedValue({ id: 'case-1', leadLawyerId: 'lead' });
+    await service.openPreLitCase(user, { ...intake, case: { id: 'case-1' } } as any, {}, { recordOnly: true });
+    expect(mockPrisma.case.create).toHaveBeenCalledTimes(1);
+  });
+
   it('FILE_SUIT with cleared conflict opens a PRE_LITIGATION case and converts the intake', async () => {
     arrange();
 
@@ -1264,6 +1280,16 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     expect(mockConflict.recordForCase).toHaveBeenCalledTimes(2);
     expect(mockTasksService.create).not.toHaveBeenCalled();
     expect(mockPrisma.calendarEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps the lawyer who took the matter in on the team when someone else leads the case', async () => {
+    arrange({ assignedUserIds: [], receivedById: 'receiver-1' });
+    const intake = await service.findOne(user, 'intake-1');
+    await service.openPreLitCase(user, intake, {}, { recordOnly: true });
+    const created = await mockPrisma.case.create.mock.results[0].value;
+    expect(created.leadLawyerId).not.toBe('receiver-1');
+    expect(mockPrisma.caseAssignment.createMany).toHaveBeenCalledWith({ data: [{ caseId: created.id, userId: 'receiver-1', assignmentType: 'BUDDY' }], skipDuplicates: true });
+    expect(mockTasksService.create).not.toHaveBeenCalledWith(user, created.id, expect.objectContaining({ title: expect.stringContaining('เริ่มดำเนินการคดี') }));
   });
 
   it('repairs a failed document migration without recording an existing conflict check again', async () => {

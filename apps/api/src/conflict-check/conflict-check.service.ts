@@ -241,6 +241,7 @@ export class ConflictCheckService {
       });
       if (!intake) throw new NotFoundException('ไม่พบเรื่องรับใหม่นี้ในสำนักงาน');
     }
+    if (dto.caseId && !await this.caseAccess.canAccessCase(user, dto.caseId)) throw new NotFoundException('ไม่พบคดีนี้ในสำนักงาน');
 
     const found = await this.search(user, dto.terms);
 
@@ -248,6 +249,7 @@ export class ConflictCheckService {
       data: {
         firmId: user.firmId,
         intakeId: dto.intakeId,
+        caseId: dto.caseId,
         searchTerms: found.terms,
         matches: found.matches as unknown as object,
         matchCount: found.matchCount,
@@ -457,7 +459,16 @@ export class ConflictCheckService {
     });
   }
 
-  async list(user: AuthUser, intakeId?: string) {
+  async list(user: AuthUser, intakeId?: string, caseId?: string) {
+    if (caseId) {
+      if (!await this.caseAccess.canAccessCase(user, caseId)) throw new NotFoundException('ไม่พบคดีนี้ในสำนักงาน');
+      return this.prisma.conflictCheck.findMany({
+        where: { firmId: user.firmId, caseId },
+        include: { checkedBy: { select: { firstName: true, lastName: true } } },
+        orderBy: { checkedAt: 'desc' },
+        take: 50,
+      });
+    }
     const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
     if (intakeId && !await this.prisma.intake.findFirst({ where: { id: intakeId, ...intakeFilter }, select: { id: true } })) {
       throw new NotFoundException('ไม่พบเรื่องรับใหม่นี้ในสำนักงาน');

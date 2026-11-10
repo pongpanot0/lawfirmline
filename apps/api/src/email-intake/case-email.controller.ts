@@ -37,6 +37,17 @@ export class CaseEmailController {
     return this.service.searchThreads(user, q);
   }
 
+  @Get('email/link-candidates')
+  linkCandidates(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string, @Query('q') q?: string) {
+    return this.service.linkCandidates(user, { clientId, q });
+  }
+
+  @Get('cases/:caseId/email/link-candidates')
+  @UseGuards(CaseAccessGuard)
+  caseLinkCandidates(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Query('q') q?: string) {
+    return this.service.linkCandidates(user, { caseId, q });
+  }
+
   @Get('cases/:caseId/email/threads')
   @UseGuards(CaseAccessGuard)
   listCaseThreads(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {

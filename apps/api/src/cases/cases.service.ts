@@ -1,5 +1,5 @@
-import { intakeJourney, Journey } from '../intake/intake-journey';
-import { assertJourneyAdvance, caseJourney, journeyStage, nextJourneyStage } from './case-journey';
+import { Journey } from '../intake/intake-journey';
+import { assertJourneyAdvance, caseJourney, journeyStage, nextJourneyStage, preLitChecklist, MAIN_JOURNEY_STAGES } from './case-journey';
 import { AdvanceJourneyDto } from './dto/advance-journey.dto';
 import { assertFirmRefs } from '../common/firm-refs';
 import { syncLimitationReminder } from '../common/limitation-reminder';
@@ -127,6 +127,9 @@ export class CasesService {
       select: {
         id: true,
         status: true,
+        receivedById: true,
+        receivedBy: { select: { id: true, firstName: true, lastName: true } },
+        createdAt: true,
         noticeIssuedAt: true,
         noticeDeadline: true,
         noticeRecipient: true,
@@ -272,7 +275,21 @@ export class CasesService {
       },
     });
     if (!legalCase) throw new NotFoundException('Case not found');
-    return legalCase;
+    const origin = await this.prisma.emailThread.findFirst({
+      where: { firmId: user.firmId, caseId: id },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true, subject: true, createdAt: true,
+        messages: {
+          where: { direction: 'INBOUND' }, orderBy: { receivedAt: 'asc' },
+          select: { receivedAt: true, _count: { select: { attachments: { where: { isInline: false } } } } },
+        },
+      },
+    });
+    return { ...legalCase, originThread: origin ? {
+      id: origin.id, subject: origin.subject, receivedAt: origin.messages[0]?.receivedAt ?? origin.createdAt,
+      attachmentCount: origin.messages.reduce((sum, m) => sum + m._count.attachments, 0),
+    } : null };
   }
 
   async journey(user: AuthUser, id: string) {
@@ -283,7 +300,7 @@ export class CasesService {
   private async journeyState(user: AuthUser, id: string, db: Prisma.TransactionClient = this.prisma) {
     const legalCase = await db.case.findFirst({
       where: { id, firmId: user.firmId, deletedAt: null },
-      select: { stage: true, partyRole: true, intakeId: true },
+      select: { stage: true, openedAtStage: true, partyRole: true, intakeId: true, title: true, clientId: true, clientName: true },
     });
     if (!legalCase) throw new NotFoundException('Case not found');
     const [tasks, applied] = await Promise.all([
@@ -298,17 +315,21 @@ export class CasesService {
       }),
     ]);
     let preLit: Journey | undefined;
-    if (legalCase.stage === CaseStage.PRE_LITIGATION && legalCase.intakeId) {
+    if (journeyStage(legalCase.stage) === CaseStage.PRE_LITIGATION) {
+      const links = [{ caseId: id }, ...(legalCase.intakeId ? [{ intakeId: legalCase.intakeId }] : [])];
       const [intake, conflict, requests] = await Promise.all([
-        db.intake.findFirst({ where: { id: legalCase.intakeId, firmId: user.firmId } }),
+        legalCase.intakeId ? db.intake.findFirst({ where: { id: legalCase.intakeId, firmId: user.firmId } }) : null,
         db.conflictCheck.findFirst({
-          where: { firmId: user.firmId, OR: [{ caseId: id }, { intakeId: legalCase.intakeId }] },
+          where: { firmId: user.firmId, OR: links },
           orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
         }),
-        db.intakeDocumentRequest.findMany({ where: { OR: [{ caseId: id }, { intakeId: legalCase.intakeId }] }, select: { required: true, status: true } }),
+        db.intakeDocumentRequest.findMany({ where: { OR: links }, select: { required: true, status: true } }),
       ]);
-      if (!intake) throw new NotFoundException('ไม่พบข้อมูลรับเรื่องของคดี');
-      preLit = intakeJourney({ ...intake, hasCase: true }, conflict, requests);
+      preLit = preLitChecklist({
+        title: intake?.title?.trim() || legalCase.title,
+        clientId: intake?.clientId || legalCase.clientId,
+        clientName: intake?.clientName?.trim() || legalCase.clientName,
+      }, conflict, requests);
     }
     return { legalCase, journey: caseJourney(legalCase, tasks, applied, preLit) };
   }
@@ -396,7 +417,7 @@ export class CasesService {
 
   /**
    * Shared core of every case creation: allocates the Own Ref (or checks a requested one),
-   * a folder id, and opens the case at PRE_LITIGATION.
+   * a folder id, and defaults the opening stage to PRE_LITIGATION.
    *
    * `suggestedOwnRef` is the number the form pre-filled. A request that sends it back
    * unchanged is still "auto": if someone else took it meanwhile, a fresh number is
@@ -406,7 +427,7 @@ export class CasesService {
     db: Prisma.TransactionClient,
     firmId: string,
     requestedOwnRef: string | undefined,
-    data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId' | 'stage'>,
+    data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId'>,
     suggestedOwnRef?: string,
   ) {
     // A case created already closed (old work brought in) never occupies an open slot.
@@ -435,7 +456,8 @@ export class CasesService {
         firmId,
         ownRef,
         folderId: this.generateFolderId(),
-        stage: CaseStage.PRE_LITIGATION,
+        stage: data.stage ?? CaseStage.PRE_LITIGATION,
+        openedAtStage: data.stage ?? CaseStage.PRE_LITIGATION,
       },
       include: this.caseInclude,
     });
@@ -548,6 +570,12 @@ export class CasesService {
   }
 
   async create(user: AuthUser, dto: CreateCaseDto) {
+    const stage = dto.stage ?? CaseStage.PRE_LITIGATION;
+    if (!MAIN_JOURNEY_STAGES.slice(0, -1).includes(stage)) throw new BadRequestException('ขั้นเริ่มต้นของคดีไม่ถูกต้อง');
+    if (stage !== CaseStage.PRE_LITIGATION) {
+      if (!dto.courtName?.trim()) throw new BadRequestException('ระบุศาลเมื่อคดียื่นฟ้องแล้ว');
+      if (!dto.blackCaseNumber?.trim() && !dto.blackCaseNumberUnknown) throw new BadRequestException('ระบุหมายเลขคดีดำ หรือเลือก "ยังไม่ทราบเลขคดี"');
+    }
     await assertFirmRefs(this.prisma, user.firmId, {
       clientIds: [...(dto.customers ?? []).map((c) => c.customerId), ...(dto.clients ?? []).map((c) => c.clientId)],
       contactIds: (dto.customers ?? []).map((c) => c.contactId),
@@ -613,6 +641,12 @@ export class CasesService {
     });
 
     const created = await this.insertCase(this.prisma, user.firmId, dto.ownRef, {
+      stage,
+      tasks: stage === CaseStage.PRE_LITIGATION || dto.blackCaseNumberUnknown ? { create: {
+        title: stage === CaseStage.PRE_LITIGATION ? 'ประเมินและตัดสินใจแนวทาง (ฟ้อง / เจรจา / ส่งโนติส)' : 'ใส่หมายเลขคดีดำ',
+        assigneeId: dto.leadLawyerId, createdById: user.id, firmId: user.firmId,
+        dueDate: new Date(Date.now() + 7 * 86400000), labels: [`stage:${stage}`],
+      } } : undefined,
       customerRef: dto.customerRef,
       title: dto.title,
       description: dto.description,
@@ -707,6 +741,7 @@ export class CasesService {
     ) {
       throw new BadRequestException('ใช้ปุ่มเปิดคดีอีกครั้ง');
     }
+    const leadChanged = !!dto.leadLawyerId && dto.leadLawyerId !== before.leadLawyerId;
     const stageChanged = !!dto.stage && dto.stage !== before.stage;
     const stageNote = dto.stageNote?.trim() || null;
     if (stageChanged && isBackwardStage(before.stage, dto.stage!) && !stageNote) {
@@ -756,29 +791,38 @@ export class CasesService {
     }
 
     const { customFields, customers, clients, stageNote: _stageNote, ...rest } = dto;
-    const write = (db: Prisma.TransactionClient) => db.case.update({
-      where: { id },
-      data: {
-        ...rest,
-        limitationDeadline:
-          dto.limitationDeadline === undefined
-            ? undefined
-            : dto.limitationDeadline
-              ? new Date(dto.limitationDeadline)
-              : null,
-        ownRef: dto.ownRef?.trim() || undefined,
-        customFields: customFields as Prisma.InputJsonValue | undefined,
-        customers:
-          customers === undefined
-            ? undefined
-            : { deleteMany: {}, create: this.customerRows(customers) },
-        additionalClients:
-          clients === undefined ? undefined : { deleteMany: {}, create: this.additionalClientRows(clients) },
-        closedAt: dto.closedAt ? new Date(dto.closedAt) : undefined,
-        stageChangedAt: stageChanged ? new Date() : undefined,
-      },
-      include: this.caseInclude,
-    });
+    const write = async (db: Prisma.TransactionClient) => {
+      if (leadChanged) {
+        const receiver = before.intake?.receivedById;
+        if (receiver && receiver !== dto.leadLawyerId) {
+          await db.caseAssignment.createMany({ data: [{ caseId: id, userId: receiver, assignmentType: AssignmentType.BUDDY }], skipDuplicates: true });
+        }
+        await db.caseAssignment.deleteMany({ where: { caseId: id, userId: dto.leadLawyerId, assignmentType: AssignmentType.BUDDY } });
+      }
+      return db.case.update({
+        where: { id },
+        data: {
+          ...rest,
+          limitationDeadline:
+            dto.limitationDeadline === undefined
+              ? undefined
+              : dto.limitationDeadline
+                ? new Date(dto.limitationDeadline)
+                : null,
+          ownRef: dto.ownRef?.trim() || undefined,
+          customFields: customFields as Prisma.InputJsonValue | undefined,
+          customers:
+            customers === undefined
+              ? undefined
+              : { deleteMany: {}, create: this.customerRows(customers) },
+          additionalClients:
+            clients === undefined ? undefined : { deleteMany: {}, create: this.additionalClientRows(clients) },
+          closedAt: dto.closedAt ? new Date(dto.closedAt) : undefined,
+          stageChangedAt: stageChanged ? new Date() : undefined,
+        },
+        include: this.caseInclude,
+      });
+    };
     const updated = dto.stage !== undefined ? await this.prisma.$transaction(async (tx) => {
       const { legalCase, journey } = await this.journeyState(user, id, tx);
       if (legalCase.stage !== before.stage) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า');
@@ -792,7 +836,7 @@ export class CasesService {
       });
       if (result.count === 0) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า');
       return write(tx);
-    }) : await write(this.prisma);
+    }) : leadChanged ? await this.prisma.$transaction(write) : await write(this.prisma);
     // The overview form always sends both, so only an actual change re-syncs our client's row.
     const clientChanged = dto.clientId !== undefined && (dto.clientId || null) !== (before.clientId ?? null);
     const partyRoleChanged = dto.partyRole !== undefined && (dto.partyRole || null) !== (before.partyRole ?? null);
@@ -911,6 +955,16 @@ export class CasesService {
       (field) => numbers[field] !== undefined && (numbers[field]?.trim() || null) !== (before[field]?.trim() || null),
     );
     return { fromLevel, toLevel, enteredHigherCourt, numbers, numbersChanged };
+  }
+
+  async leaveTeam(user: AuthUser, id: string) {
+    const legalCase = await this.prisma.case.findFirst({ where: { id, firmId: user.firmId, deletedAt: null }, select: { leadLawyerId: true } });
+    if (!legalCase) throw new NotFoundException('ไม่พบคดี');
+    if (legalCase.leadLawyerId === user.id) throw new BadRequestException('เจ้าของคดีออกจากทีมไม่ได้ — เปลี่ยนเจ้าของคดีก่อน');
+    const removed = await this.prisma.caseAssignment.deleteMany({ where: { caseId: id, userId: user.id, assignmentType: AssignmentType.BUDDY } });
+    if (!removed.count) throw new NotFoundException('คุณไม่ได้อยู่ในทีมคดีนี้');
+    await this.caseFeed.log({ caseId: id, userId: user.id, type: ActivityType.NOTE, title: 'ออกจากทีมคดี' });
+    return { left: true };
   }
 
   async updateAssignments(user: AuthUser, id: string, dto: UpdateCaseAssignmentsDto) {

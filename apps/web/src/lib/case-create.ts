@@ -54,3 +54,10 @@ export function missingRequiredMessage(
   }
   return '';
 }
+
+export function openingStageError(stage: string, courtName: string, blackCaseNumber: string, unknown: boolean): string {
+  if (stage === 'PRE_LITIGATION') return '';
+  if (!courtName.trim()) return 'ระบุศาลเมื่อคดียื่นฟ้องแล้ว';
+  if (!blackCaseNumber.trim() && !unknown) return 'ระบุหมายเลขคดีดำ หรือเลือก "ยังไม่ทราบเลขคดี"';
+  return '';
+}

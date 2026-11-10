@@ -13,6 +13,7 @@ describe('Case journey endpoints', () => {
   const prisma = {
     case: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     intake: { findFirst: jest.fn() },
+    emailThread: { findFirst: jest.fn().mockResolvedValue(null) },
     conflictCheck: { findFirst: jest.fn() },
     intakeDocumentRequest: { findMany: jest.fn() },
     task: { findMany: jest.fn() },
@@ -27,7 +28,10 @@ describe('Case journey endpoints', () => {
   beforeEach(() => {
     jest.restoreAllMocks();
     jest.resetAllMocks();
+    prisma.emailThread.findFirst.mockResolvedValue(null);
     prisma.task.findMany.mockResolvedValue([]);
+    prisma.conflictCheck.findFirst.mockResolvedValue({ result: 'CLEAR' });
+    prisma.intakeDocumentRequest.findMany.mockResolvedValue([]);
     prisma.appliedPlaybook.findMany.mockResolvedValue([]);
     prisma.$transaction.mockImplementation((fn) => fn(prisma));
     prisma.case.updateMany.mockResolvedValue({ count: 1 });
@@ -47,7 +51,7 @@ describe('Case journey endpoints', () => {
   it('checks tenant and deletion again on the journey data query', async () => {
     prisma.case.findFirst.mockResolvedValueOnce({ id: 'case' }).mockResolvedValueOnce(null);
     await expect(service.journey(user, 'case')).rejects.toThrow(NotFoundException);
-    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { id: 'case', firmId: 'f1', deletedAt: null }, select: { stage: true, partyRole: true, intakeId: true } });
+    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { id: 'case', firmId: 'f1', deletedAt: null }, select: { stage: true, openedAtStage: true, partyRole: true, intakeId: true, title: true, clientId: true, clientName: true } });
     expect(prisma.appliedPlaybook.findMany).not.toHaveBeenCalled();
   });
 
@@ -61,25 +65,30 @@ describe('Case journey endpoints', () => {
     prisma.intakeDocumentRequest.findMany.mockResolvedValue([]);
   };
 
-  it('returns the four intake steps and scopes moved conflict checks and requests to either link', async () => {
+  it('returns the three independent checklist items and scopes moved conflict checks and requests to either link', async () => {
     arrangePreLit();
     prisma.conflictCheck.findFirst.mockResolvedValue({ result: 'NEEDS_REVIEW' });
     const result = await service.journey(user, 'case');
-    expect(result.preLitSteps.map((s) => [s.key, s.state])).toEqual([['INFO', 'done'], ['CONFLICT', 'current'], ['DOCUMENTS', 'locked'], ['DECISION', 'locked']]);
+    expect(result.preLitSteps.map((s) => [s.key, s.state])).toEqual([['INFO', 'done'], ['CONFLICT', 'current'], ['DOCUMENTS', 'done']]);
     expect(result.preLitNext?.text).toContain('ทบทวน');
     expect(result.canAdvance).toBe(false);
     expect(prisma.conflictCheck.findFirst).toHaveBeenCalledWith({ where: { firmId: 'f1', OR: [{ caseId: 'case' }, { intakeId: 'intake' }] }, orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }] });
     expect(prisma.intakeDocumentRequest.findMany).toHaveBeenCalledWith({ where: { OR: [{ caseId: 'case' }, { intakeId: 'intake' }] }, select: { required: true, status: true } });
   });
 
-  it.each(['advance', 'PATCH'])('%s blocks pre-lit while the decision is pending even without tasks', async (path) => {
+  it.each(['advance', 'PATCH'])('%s blocks a pending assessment task and accepts it skipped with a reason', async (path) => {
     arrangePreLit();
     prisma.intake.findFirst.mockResolvedValue({ ...preLitIntake, decision: 'PENDING' });
-    await expect(path === 'advance' ? service.advanceJourney(user, 'case', {}) : service.update(user, 'case', { stage: CaseStage.FILING })).rejects.toMatchObject({ status: 400, response: { blockers: [expect.stringContaining('ตัดสินใจ')] } });
+    const assessment = { id: 'assessment', title: 'ประเมินและตัดสินใจแนวทาง (ฟ้อง / เจรจา / ส่งโนติส)', status: 'TODO', parentId: null, labels: ['stage:PRE_LITIGATION'], assignee: null, dueDate: null, skippedReason: null };
+    prisma.task.findMany.mockResolvedValue([assessment]);
+    const run = () => path === 'advance' ? service.advanceJourney(user, 'case', {}) : service.update(user, 'case', { stage: CaseStage.FILING });
+    await expect(run()).rejects.toMatchObject({ status: 400, response: { blockers: [expect.stringContaining('ตัดสินใจ')] } });
     expect(prisma.case.update).not.toHaveBeenCalled();
+    prisma.task.findMany.mockResolvedValue([{ ...assessment, skippedReason: 'ตกลงให้ผู้รับประกันดำเนินการ' }]);
+    await expect(run()).resolves.toBeDefined();
   });
 
-  it('keeps the existing task gate after all four pre-lit steps are done', async () => {
+  it('keeps the existing task gate after all three pre-lit items are done', async () => {
     arrangePreLit();
     prisma.task.findMany.mockResolvedValue([{ id: 't', title: 'โนติส', status: 'TODO', parentId: null, labels: ['stage:PRE_LITIGATION'], assignee: null, dueDate: null, skippedReason: null }]);
     const result = await service.journey(user, 'case');
@@ -93,6 +102,17 @@ describe('Case journey endpoints', () => {
     const update = jest.spyOn(service, 'update').mockResolvedValue({} as any);
     await service.advanceJourney(user, 'case', {});
     expect(update).toHaveBeenCalledWith(user, 'case', { stage: CaseStage.FILING }, CaseStage.PRE_LITIGATION);
+  });
+
+  it.each(['PRE_LITIGATION', 'INTAKE_REVIEW', 'FACT_GATHERING'])('builds the checklist for a form-created %s case', async (stage) => {
+    prisma.case.findFirst.mockResolvedValue({ stage, title: 'คดีจากฟอร์ม', clientId: 'client', clientName: null, intakeId: null, partyRole: null });
+    prisma.conflictCheck.findFirst.mockResolvedValue({ result: 'CLEAR' });
+    prisma.intakeDocumentRequest.findMany.mockResolvedValue([]);
+    const result = await service.journey(user, 'case');
+    expect(result.preLitSteps.map((s) => s.state)).toEqual(['done', 'done', 'done']);
+    expect(result.canAdvance).toBe(true);
+    expect(prisma.intake.findFirst).not.toHaveBeenCalled();
+    expect(prisma.conflictCheck.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { firmId: 'f1', OR: [{ caseId: 'case' }] } }));
   });
 
   it('loads stage tasks and only releases from the same firm', async () => {
@@ -132,7 +152,7 @@ describe('Case journey endpoints', () => {
   });
 
   it.each([[CaseStage.AWAITING_JUDGMENT, CaseStage.APPEAL], [CaseStage.APPEAL, CaseStage.SUPREME], [CaseStage.PRE_LITIGATION, CaseStage.CLOSING]])('sends %s → %s through the existing stage update', async (fromStage, toStage) => {
-    prisma.case.findFirst.mockResolvedValue({ stage: fromStage, partyRole: null });
+    prisma.case.findFirst.mockResolvedValue({ stage: fromStage, partyRole: null, title: 'คดี', clientId: 'client' });
     const update = jest.spyOn(service, 'update').mockResolvedValue({} as any);
     await service.advanceJourney(user, 'case', { toStage });
     expect(update).toHaveBeenCalledWith(user, 'case', { stage: toStage }, fromStage);

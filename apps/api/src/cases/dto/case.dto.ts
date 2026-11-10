@@ -71,6 +71,14 @@ export class OpponentDto {
 
 export class CreateCaseDto {
   @IsOptional()
+  @IsEnum(CaseStage, { message: 'ขั้นเริ่มต้นของคดีไม่ถูกต้อง' })
+  stage?: CaseStage;
+
+  @IsOptional()
+  @IsBoolean()
+  blackCaseNumberUnknown?: boolean;
+
+  @IsOptional()
   @IsString()
   ownRef?: string;
 

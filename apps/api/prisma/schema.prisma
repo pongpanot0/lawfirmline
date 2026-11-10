@@ -990,6 +990,7 @@ model Case {
   description          String?
   status               CaseStatus  @default(OPEN)
   stage                CaseStage   @default(PRE_LITIGATION)
+  openedAtStage        CaseStage?
   stageChangedAt       DateTime    @default(now())
   /// ขั้นล่าสุดที่ผู้ใช้จัดการงานแนะนำจาก playbook แล้ว (สร้างหรือข้าม) — ≠ stage → หน้าคดีเสนองานของขั้นนั้น
   stageTasksHandledFor CaseStage?

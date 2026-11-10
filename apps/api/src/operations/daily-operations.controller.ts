@@ -26,6 +26,7 @@ export class DailyOperationsController {
 @UseGuards(JwtAuthGuard, FirmRoleGuard)
 export class TeamWorkloadController {
   constructor(private daily: DailyOperationsService) {}
+  @Get('assignees') assignees(@CurrentUser() user: AuthUser) { return this.daily.assignees(user); }
   @Get('radar') radar(@CurrentUser() user: AuthUser, @Query() query: DailyWorkQueryDto) { return this.daily.radar(user, query.date); }
   @Get('people/:id') person(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Query() query: PersonWorkloadQueryDto) { return this.daily.person(user, id, query.from); }
 }

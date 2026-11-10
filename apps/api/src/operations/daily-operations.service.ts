@@ -1,7 +1,7 @@
 import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
 import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AssignmentType, AuthUser, FirmRole, hasFirmCapability, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
+import { AssigneeLoad, AssignmentType, AuthUser, FirmRole, hasFirmCapability, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 import { reviewQueueOrder, reviewQueueWhere } from '../tasks/review-queue';
 import { PrismaService } from '../prisma/prisma.module';
@@ -38,6 +38,41 @@ export function dailyTaskScope(firmId: string): Prisma.TaskWhereInput {
 @Injectable()
 export class DailyOperationsService {
   constructor(private prisma: PrismaService, private tasks: TasksService, private notifier: AssignmentNotifierService, private caseAccess: CaseAccessService) {}
+
+  async assignees(user: AuthUser): Promise<AssigneeLoad[]> {
+    const now = new Date();
+    const today = bangkokDateOnly(now);
+    const members = await this.prisma.firmMember.findMany({
+      where: { firmId: user.firmId, role: { not: FirmRole.EXTERNAL } },
+      select: { userId: true, role: true, user: { select: { firstName: true, lastName: true } } },
+    });
+    const ids = members.map((m) => m.userId);
+    const [cases, overdue, leaves] = await Promise.all([
+      this.prisma.case.findMany({
+        where: { firmId: user.firmId, deletedAt: null, status: { notIn: ['CLOSED', 'ARCHIVED'] }, OR: [{ leadLawyerId: { in: ids } }, { assignments: { some: { userId: { in: ids }, assignmentType: AssignmentType.BUDDY } } }] },
+        select: { leadLawyerId: true, assignments: { where: { assignmentType: AssignmentType.BUDDY, userId: { in: ids } }, select: { userId: true } } },
+      }),
+      this.prisma.task.groupBy({
+        by: ['assigneeId'],
+        where: { AND: [dailyTaskScope(user.firmId)], assigneeId: { in: ids }, status: { not: TaskStatus.DONE }, skippedAt: null, skippedReason: null, dueDate: { lt: now } },
+        _count: { _all: true },
+      }),
+      this.prisma.leaveRequest.findMany({
+        where: { firmId: user.firmId, userId: { in: ids }, status: 'APPROVED', endDate: { gte: today }, startDate: { lte: new Date(today.getTime() + 14 * DAY_MS) } },
+        select: { userId: true, startDate: true, endDate: true }, orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
+      }),
+    ]);
+    const counts = new Map<string, number>();
+    for (const c of cases) {
+      for (const id of new Set([c.leadLawyerId, ...c.assignments.map((a) => a.userId)])) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return members.map((m) => {
+      const leave = leaves.find((l) => l.userId === m.userId);
+      return { userId: m.userId, ...m.user, firmRole: m.role, openCaseCount: counts.get(m.userId) ?? 0,
+        overdueTaskCount: overdue.find((t) => t.assigneeId === m.userId)?._count._all ?? 0,
+        leave: leave ? { startDate: leave.startDate.toISOString().slice(0, 10), endDate: leave.endDate.toISOString().slice(0, 10) } : null };
+    }).sort((a, b) => a.openCaseCount - b.openCaseCount || a.overdueTaskCount - b.overdueTaskCount || a.firstName.localeCompare(b.firstName));
+  }
 
   private owner(user: AuthUser) {
     if (!hasFirmCapability(user.firmRole, 'runOperations')) throw new ForbiddenException('ไม่มีสิทธิ์ดูภาพรวมงานประจำวัน / Insufficient permissions');
