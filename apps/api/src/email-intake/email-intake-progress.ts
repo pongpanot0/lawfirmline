@@ -16,16 +16,17 @@ export function intakeProgress(
     aiRead || proposals.length > 0,
     unresolvedFields === 0,
     !hasFiles || unresolvedDocuments === 0,
-    !!thread.case || !!thread.intake && ['ASSESSING', 'ACCEPTED', 'REJECTED', 'CONVERTED', 'CONSULTED'].includes(thread.intake.status),
+    // Done once the matter is a case at ก่อนฟ้อง (or was closed without one) — assessing alone is not a case.
+    !!thread.case || !!thread.intake && ['REJECTED', 'CONVERTED', 'CONSULTED'].includes(thread.intake.status),
   ];
   const keys = ['ACCEPT', 'AI_READ', 'CONFIRM', 'DOCUMENTS', 'SUBMIT'] as const;
-  const labels = ['รับเป็นเรื่อง', 'AI อ่านอีเมลและไฟล์', 'ตรวจและยืนยันข้อมูล', 'จัดเอกสาร', 'ส่งประเมิน'];
+  const labels = ['รับเป็นเรื่อง', 'AI อ่านอีเมลและไฟล์', 'ตรวจและยืนยันข้อมูล', 'จัดเอกสาร', 'สร้างคดีก่อนฟ้อง'];
   const current = completed.indexOf(false);
   const steps = keys.map((key, i) => ({ key, label: labels[i], state: (current < 0 || i < current ? 'done' : i === current ? 'current' : 'locked') as 'done' | 'current' | 'locked' }));
   const next = current < 0 ? null : current === 2
     ? { text: `ยืนยันข้อมูลอีก ${unresolvedFields} รายการ แล้วไปขั้นจัดเอกสาร`, done: fields.length - unresolvedFields, total: fields.length }
     : current === 3
-      ? { text: `จัดเอกสารอีก ${unresolvedDocuments} รายการ แล้วส่งประเมิน`, done: documents.length - unresolvedDocuments, total: documents.length }
-      : { text: ['รับอีเมลเป็นเรื่องเพื่อเริ่มตรวจข้อมูล', 'ให้ AI อ่านอีเมลและไฟล์แนบ', '', '', 'ส่งเรื่องประเมิน — เปิดคดีที่หน้าเรื่องรับใหม่หลังประเมิน'][current], done: 0, total: 1 };
+      ? { text: `จัดเอกสารอีก ${unresolvedDocuments} รายการ แล้วสร้างคดีก่อนฟ้อง`, done: documents.length - unresolvedDocuments, total: documents.length }
+      : { text: ['รับอีเมลเป็นเรื่องเพื่อเริ่มตรวจข้อมูล', 'ให้ AI อ่านอีเมลและไฟล์แนบ', '', '', 'สร้างคดีก่อนฟ้อง — เรื่องจะขึ้นในหน้าเรื่องและคดี'][current], done: 0, total: 1 };
   return { steps, next };
 }

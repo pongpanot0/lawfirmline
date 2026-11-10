@@ -32,10 +32,14 @@ describe('intakeProgress', () => {
   it('does not block on files that do not exist', () => {
     expect(intakeProgress(thread, [proposal('document', 'SUGGESTED')], false, false).steps[3].state).toBe('done');
   });
-  it.each(['ASSESSING', 'ACCEPTED', 'CONVERTED', 'CONSULTED', 'REJECTED'])('finishes submit at %s', (status) => {
+  it.each(['CONVERTED', 'CONSULTED', 'REJECTED'])('finishes submit at %s', (status) => {
     const result = intakeProgress({ intake: { status } }, [], false, true);
     expect(result.steps.every((s) => s.state === 'done')).toBe(true);
     expect(result.next).toBeNull();
+  });
+  it.each(['ASSESSING', 'ACCEPTED'])('still asks for the pre-litigation case at %s without one', (status) => {
+    const result = intakeProgress({ intake: { status } }, [], false, true);
+    expect(result.steps[4]).toMatchObject({ label: 'สร้างคดีก่อนฟ้อง', state: 'current' });
   });
   it('finishes submit when the thread has a case', () => {
     expect(intakeProgress({ ...thread, case: { id: 'c' } }, [], false, true).next).toBeNull();
