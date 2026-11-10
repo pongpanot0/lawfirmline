@@ -10,7 +10,7 @@ import { SkipTaskDto } from './dto/skip-task.dto';
 const user = { id: 'u1', firmId: 'f1', firmRole: FirmRole.LAWYER } as AuthUser;
 
 describe('Task skip endpoint', () => {
-  const prisma = { task: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() }, case: { findFirst: jest.fn(), findUnique: jest.fn() }, taskObserver: { findFirst: jest.fn() } };
+  const prisma = { task: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() }, case: { findFirst: jest.fn(), findUnique: jest.fn() }, caseAssignment: { count: jest.fn() }, taskObserver: { findFirst: jest.fn() } };
   const access = new CaseAccessService(prisma as any);
   const service = new TasksService(prisma as any, access, {} as any, {} as any, {} as any);
 
@@ -77,12 +77,24 @@ describe('Task skip endpoint', () => {
     expect(prisma.task.update).toHaveBeenCalled();
   });
 
-  it('refuses a case member who cannot change another lawyer’s task status', async () => {
+  it('refuses someone who can see the case but is not on its team to change another lawyer’s task', async () => {
     prisma.task.findUnique.mockResolvedValue({ id: 't', firmId: 'f1', caseId: 'c', status: 'TODO', assigneeId: 'other' });
     prisma.case.findFirst.mockResolvedValue({ id: 'c' });
     prisma.case.findUnique.mockResolvedValue({ id: 'c', leadLawyerId: 'lead' });
+    prisma.caseAssignment.count.mockResolvedValue(0);
     await expect(service.skip('t', user, { reason: 'ไม่เกี่ยวข้อง' })).rejects.toThrow(ForbiddenException);
     expect(prisma.task.update).not.toHaveBeenCalled();
+  });
+
+  it('lets a team member skip a stage task assigned to the lead', async () => {
+    prisma.task.findUnique.mockResolvedValue({ id: 't', firmId: 'f1', caseId: 'c', status: 'TODO', assigneeId: 'lead' });
+    prisma.case.findFirst.mockResolvedValue({ id: 'c' });
+    prisma.case.findUnique.mockResolvedValue({ id: 'c', leadLawyerId: 'lead' });
+    prisma.caseAssignment.count.mockResolvedValue(1);
+    prisma.task.update.mockResolvedValue({ id: 't' });
+    await service.skip('t', user, { reason: 'ทำนอกระบบแล้ว' });
+    expect(prisma.caseAssignment.count).toHaveBeenCalledWith({ where: { caseId: 'c', userId: user.id } });
+    expect(prisma.task.update).toHaveBeenCalled();
   });
 
   it('requires current case access even for a former assignee with delivered-task visibility', async () => {

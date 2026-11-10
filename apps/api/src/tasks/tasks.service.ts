@@ -492,7 +492,10 @@ export class TasksService {
     if (!legalCase && !hasFirmCapability(user.firmRole, 'runOperations')) {
       throw new ForbiddenException('เปลี่ยนสถานะได้เฉพาะงานของตัวเอง');
     }
-    if (legalCase) this.assertLeadOrOwner(user, legalCase);
+    if (!legalCase || hasFirmCapability(user.firmRole, 'runOperations') || legalCase.leadLawyerId === user.id) return;
+    // Anyone working the case may tick off or skip its tasks; reassigning stays with the lead (assertLeadOrOwner).
+    const onTeam = await this.prisma.caseAssignment.count({ where: { caseId: legalCase.id, userId: user.id } });
+    if (!onTeam) throw new ForbiddenException('เปลี่ยนสถานะได้เฉพาะงานของตัวเอง หรือคนในทีมคดี');
   }
 
   async skip(taskId: string, user: AuthUser, dto: SkipTaskDto) {

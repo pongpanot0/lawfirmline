@@ -972,6 +972,9 @@ export class CasesService {
       where: { id, firmId: user.firmId },
     });
     if (!legalCase) throw new NotFoundException('Case not found');
+    if (!hasFirmCapability(user.firmRole, 'reassignCaseLead') && legalCase.leadLawyerId !== user.id) {
+      throw new ForbiddenException('จัดทีมคดีได้เฉพาะเจ้าของคดีหรือเจ้าของสำนักงาน');
+    }
 
     const buddyIds = [
       ...new Set(dto.buddyIds.filter((uid) => uid !== legalCase.leadLawyerId)),

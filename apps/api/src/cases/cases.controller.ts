@@ -89,9 +89,9 @@ export class CasesController {
     return this.casesService.leaveTeam(user, id);
   }
 
+  /** Owners, or the case's own lead lawyer, choose who works the case with them. */
   @Put(':id/assignments')
-  @UseGuards(CaseAccessGuard, FirmRoleGuard)
-  @RequireCapability('reassignCaseLead')
+  @UseGuards(CaseAccessGuard)
   updateAssignments(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,

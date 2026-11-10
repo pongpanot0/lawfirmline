@@ -168,6 +168,16 @@ describe('CasesService assignment notifications', () => {
     await expect(service.update(lawyer, 'c1', { leadLawyerId: 'owner-1' } as any)).rejects.toThrow('Only owners can reassign the case lead lawyer');
   });
 
+  it('lets the case lead build the team, but not another lawyer', async () => {
+    const lead = { ...user, id: 'lead-1', firmRole: 'LAWYER' };
+    mockPrisma.case.findFirst.mockResolvedValue({ id: 'c1', title: 'คดีเดิม', leadLawyerId: 'lead-1' });
+    mockPrisma.caseAssignment.findMany.mockResolvedValue([]);
+    mockPrisma.firmMember.count.mockResolvedValue(2);
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'c1', title: 'คดีเดิม' });
+    await expect(service.updateAssignments(lead, 'c1', { buddyIds: ['u3', 'u5'] } as any)).resolves.toBeDefined();
+    await expect(service.updateAssignments({ ...lead, id: 'someone-else' }, 'c1', { buddyIds: ['u3'] } as any)).rejects.toThrow('จัดทีมคดีได้เฉพาะเจ้าของคดีหรือเจ้าของสำนักงาน');
+  });
+
   it('notifies only newly added buddies on updateAssignments', async () => {
     mockPrisma.case.findFirst.mockResolvedValue({ id: 'c1', title: 'คดีเดิม', leadLawyerId: 'u1' });
     mockPrisma.caseAssignment.findMany.mockResolvedValue([{ userId: 'u3' }]);
