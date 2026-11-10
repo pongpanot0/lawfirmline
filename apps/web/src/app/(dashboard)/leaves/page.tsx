@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
-import { SelectField } from '@/components/ui/form-fields';
+import { SubmitSummary } from '@/components/guide/SubmitSummary';
 import { AlertTriangle } from 'lucide-react';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { leaveApprovalQueue } from '@/lib/leave-flags';
@@ -132,50 +132,42 @@ export default function LeavesPage() {
       <PageHeader title={d.leaves.title} description={d.leaves.description} />
 
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{d.leaves.formTitle}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-3">
-            <SelectField
-              label={d.leaves.type}
-              required
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value as typeof form.type })}
-              className="h-11"
-            >
-              <option value="SICK">{d.leaves.typeSick}</option>
-              <option value="PERSONAL">{d.leaves.typePersonal}</option>
-              <option value="VACATION">{d.leaves.typeVacation}</option>
-            </SelectField>
-            <div className="space-y-1.5">
+      <form onSubmit={handleSubmit} className="space-y-4 [&>aside]:static [&>aside]:rounded-lg [&>aside]:border [&>aside]:shadow-none">
+        <Card>
+          <CardHeader><CardTitle>1. {d.leaves.formTitle}</CardTitle></CardHeader>
+          <CardContent>
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium">{d.leaves.type}</legend>
+              <div className="flex flex-wrap gap-2">
+                {(['SICK', 'PERSONAL', 'VACATION'] as const).map((type) => (
+                  <label key={type} className={`inline-flex min-h-11 cursor-pointer items-center rounded-lg border px-4 text-sm focus-within:ring-2 focus-within:ring-ring ${form.type === type ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:bg-muted'}`}>
+                    <input type="radio" name="leave-type" value={type} checked={form.type === type} onChange={() => setForm({ ...form, type })} className="sr-only" />
+                    {typeLabel[type]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>2. วันที่ลา</CardTitle></CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1.5">
               <label htmlFor="leave-start" className="block text-sm font-medium">{d.leaves.startDate}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
-              <ThaiDateInput
-                id="leave-start"
-                value={form.startDate}
-                onChange={(value) => setForm({ ...form, startDate: value, endDate: form.endDate && form.endDate >= value ? form.endDate : value })}
-                required
-              />
+              <ThaiDateInput id="leave-start" value={form.startDate} onChange={(value) => setForm({ ...form, startDate: value, endDate: form.endDate && form.endDate >= value ? form.endDate : value })} required />
             </div>
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <label htmlFor="leave-end" className="block text-sm font-medium">{d.leaves.endDate}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
-              <ThaiDateInput
-                id="leave-end"
-                value={form.endDate}
-                onChange={(value) => setForm({ ...form, endDate: value })}
-                required
-              />
+              <ThaiDateInput id="leave-end" value={form.endDate} onChange={(value) => setForm({ ...form, endDate: value })} required />
             </div>
-            {submitError && <p role="alert" className="text-sm text-destructive md:col-span-3">{submitError}</p>}
-            <div className="md:col-span-3">
-              <Button type="submit" disabled={submitting || !form.startDate || !form.endDate}>
-                {submitting ? d.leaves.submitting : d.leaves.submit}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+        {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
+        <SubmitSummary items={[
+          { label: d.leaves.startDate, done: !!form.startDate },
+          { label: d.leaves.endDate, done: !!form.endDate },
+        ]} loading={submitting} label={d.leaves.submit} loadingLabel={d.leaves.submitting} />
+      </form>
 
       {canApproveLeave && (
         <Card>
@@ -236,7 +228,7 @@ export default function LeavesPage() {
           {loadError ? (
             <LoadFailed message={loadError} onRetry={() => setReloadKey((k) => k + 1)} />
           ) : myLeaves.length === 0 ? (
-            <InlineEmptyState title={d.leaves.noRequests} />
+            <InlineEmptyState title={d.leaves.noRequests} description="เลือกประเภทและวันที่ลาด้านบน แล้วกดส่งคำขอลา" />
           ) : (
             myLeaves.map((leave) => (
               <div key={leave.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4">

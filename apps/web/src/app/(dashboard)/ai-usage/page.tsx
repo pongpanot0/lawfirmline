@@ -103,7 +103,7 @@ export default function AiUsagePage() {
               type="button"
               aria-pressed={days === w}
               onClick={() => setDays(w)}
-              className={`min-h-10 rounded-md px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              className={`min-h-11 rounded-md px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 days === w ? 'bg-muted font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
