@@ -12,7 +12,7 @@ describe('CasesService assignment notifications', () => {
   let service: CasesService;
   const mockPrisma = {
     firm: { findUnique: jest.fn().mockResolvedValue(null) }, // no plan: no case limit
-    case: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn() },
+    case: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
     caseType: { findFirst: jest.fn() },
     client: { findFirst: jest.fn() },
     firmMember: { count: jest.fn() },
@@ -151,6 +151,20 @@ describe('CasesService assignment notifications', () => {
     mockPrisma.case.update.mockResolvedValue({ id: 'c1', leadLawyerId: 'u4' });
     await expect(service.update(lawyer, 'c1', { leadLawyerId: 'u4' } as any)).resolves.toBeDefined();
     await expect(service.update(lawyer, 'c1', { leadLawyerId: 'u5' } as any)).rejects.toThrow('Only owners can reassign the case lead lawyer');
+  });
+
+  it('lets the lawyer who took the matter in hand it to a senior or the owner while they lead it', async () => {
+    const lawyer = { ...user, firmRole: 'LAWYER' };
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'c1', title: 'คดีเดิม', leadLawyerId: 'user-1' });
+    mockPrisma.case.update.mockResolvedValue({ id: 'c1', title: 'คดีเดิม', leadLawyerId: 'owner-1' });
+    mockPrisma.firmMember.count.mockResolvedValue(1);
+    mockPrisma.case.count.mockResolvedValue(1);
+    await expect(service.update(lawyer, 'c1', { leadLawyerId: 'owner-1' } as any)).resolves.toBeDefined();
+    expect(mockPrisma.case.count).toHaveBeenCalledWith({ where: { id: 'c1', intake: { receivedById: 'user-1' } } });
+
+    // Leading a case someone else took in does not let a lawyer give it away.
+    mockPrisma.case.count.mockResolvedValue(0);
+    await expect(service.update(lawyer, 'c1', { leadLawyerId: 'owner-1' } as any)).rejects.toThrow('Only owners can reassign the case lead lawyer');
   });
 
   it('notifies only newly added buddies on updateAssignments', async () => {

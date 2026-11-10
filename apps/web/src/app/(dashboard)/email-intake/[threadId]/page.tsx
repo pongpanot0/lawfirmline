@@ -40,7 +40,9 @@ export default function EmailThreadDetailPage() {
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [teamIds, setTeamIds] = useState<string[]>([]);
   const [confirmingAll, setConfirmingAll] = useState(false);
-  const canReassignLead = hasFirmCapability(user?.firmRole, 'reassignCaseLead');
+  // Same rule as the API: owners, or the person who took the matter in while they still lead it.
+  const mayHandOver = (legalCase: { leadLawyerId?: string }) => hasFirmCapability(user?.firmRole, 'reassignCaseLead')
+    || (!!user && legalCase.leadLawyerId === user.id && data?.thread.intake?.receivedById === user.id);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
 
   useEffect(() => {
@@ -251,8 +253,9 @@ export default function EmailThreadDetailPage() {
       // accepting again is idempotent and only adds the missing case, so the matter appears in เรื่องและคดี.
       const existingCase = data.thread.case ?? data.thread.intake.case ?? null;
       const caseId = existingCase?.id ?? data.thread.caseId ?? (await api.acceptEmailThread(token, threadId, { leadLawyerId: team[0] })).caseId;
-      // Handing an existing case to someone else is a reassignment — owners only (the picker says so).
-      if (existingCase && canReassignLead && team[0] && team[0] !== existingCase.leadLawyerId) await api.updateCase(token, caseId, { leadLawyerId: team[0] });
+      // Handing an existing case to someone else: owners, or whoever took the matter in while they lead it
+      // (a lawyer opening it for a senior or the owner). Anyone else only adds people to the team.
+      if (existingCase && mayHandOver(existingCase) && team[0] && team[0] !== existingCase.leadLawyerId) await api.updateCase(token, caseId, { leadLawyerId: team[0] });
       if (team.length) await api.updateIntake(token, data.thread.intake.id, { assignedUserIds: team });
       window.dispatchEvent(new Event('email-intake-changed'));
       const path = casePath(caseId);
@@ -296,7 +299,7 @@ export default function EmailThreadDetailPage() {
   const confirmable = fieldProposals.filter((p) => isPending(p) && p.status !== 'CONFLICT' && p.field !== 'docRequest');
   const fileNames = new Map(documents.map((d) => [d.id, d.filename]));
   const existingCase = thread.case ?? thread.intake?.case ?? null;
-  const leadLocked = !!existingCase && !canReassignLead;
+  const leadLocked = !!existingCase && !mayHandOver(existingCase);
   const rejectedDocuments = documentProposals.filter((p) => p.status === 'REJECTED');
   const documentLocked = progress.steps.find((step) => step.key === 'DOCUMENTS')?.state === 'locked';
   const canSubmit = ['CONFIRM', 'DOCUMENTS'].every((key) => progress.steps.some((step) => step.key === key && step.state === 'done'));

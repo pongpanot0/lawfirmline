@@ -70,7 +70,7 @@ const INTAKE_FIELD_MAP: Record<string, string> = {
 
 const threadInclude = {
   intake: {
-    select: { id: true, status: true, title: true, clientName: true, case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true } } },
+    select: { id: true, status: true, title: true, clientName: true, receivedById: true, case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true } } },
   },
   case: {
     select: { id: true, ownRef: true, title: true, leadLawyerId: true },

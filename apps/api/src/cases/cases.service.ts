@@ -722,7 +722,11 @@ export class CasesService {
 
     // Sending the current lead back (a form saving every field) is not a reassignment.
     if (dto.leadLawyerId && dto.leadLawyerId !== before.leadLawyerId) {
-      if (!hasFirmCapability(user.firmRole, 'reassignCaseLead')) {
+      // Mail often lands with a lawyer who takes it in, then passes it to the senior who will run it:
+      // the one who received the matter may hand it over while they still lead it. Otherwise owners only.
+      const handingOverOwnIntake = before.leadLawyerId === user.id
+        && (await this.prisma.case.count({ where: { id, intake: { receivedById: user.id } } })) > 0;
+      if (!hasFirmCapability(user.firmRole, 'reassignCaseLead') && !handingOverOwnIntake) {
         throw new ForbiddenException('Only owners can reassign the case lead lawyer');
       }
       const isMember = await this.prisma.firmMember.count({

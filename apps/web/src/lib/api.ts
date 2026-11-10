@@ -1377,7 +1377,7 @@ export type EmailIntakeStep = { key: 'ACCEPT' | 'AI_READ' | 'CONFIRM' | 'DOCUMEN
 export interface EmailThreadDetail {
   thread: EmailThreadListItem & {
     messages: EmailMessageItem[];
-    intake: { id: string; status: string; title: string | null; case?: { id: string; ownRef: string; title: string; leadLawyerId?: string } | null } | null;
+    intake: { id: string; status: string; title: string | null; receivedById?: string; case?: { id: string; ownRef: string; title: string; leadLawyerId?: string } | null } | null;
     case?: { id: string; ownRef: string; title: string; leadLawyerId?: string } | null;
   };
   proposals: IntakeFieldProposalItem[];
