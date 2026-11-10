@@ -1,4 +1,5 @@
 import { IntakeService } from '../intake/intake.service';
+import { assertFirmRefs } from '../common/firm-refs';
 import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
 import { hasCidRefs } from '../outlook-integration/mail/inline-cid-images';
@@ -69,10 +70,10 @@ const INTAKE_FIELD_MAP: Record<string, string> = {
 
 const threadInclude = {
   intake: {
-    select: { id: true, status: true, title: true, clientName: true, case: { select: { id: true, ownRef: true, title: true } } },
+    select: { id: true, status: true, title: true, clientName: true, case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true } } },
   },
   case: {
-    select: { id: true, ownRef: true, title: true },
+    select: { id: true, ownRef: true, title: true, leadLawyerId: true },
   },
   messages: {
     orderBy: { receivedAt: 'desc' as const },
@@ -336,7 +337,7 @@ export class EmailIntakeService {
       // so a duplicate click (or a duplicate inbound webhook delivery)
       // cannot create a second Intake for the same thread. Files are not re-adopted here: one
       // the lawyer removed from the intake must stay removed.
-      return this.openThreadCase(user, threadId, thread.intake.id);
+      return this.openThreadCase(user, threadId, thread.intake.id, dto.leadLawyerId);
     }
 
     // A related case must be one this person can open, not just any id.
@@ -384,19 +385,21 @@ export class EmailIntakeService {
     });
     if (!intake) {
       const linked = await this.prisma.emailThread.findUnique({ where: { id: thread.id }, select: { intakeId: true } });
-      return linked?.intakeId ? this.openThreadCase(user, threadId, linked.intakeId) : null;
+      return linked?.intakeId ? this.openThreadCase(user, threadId, linked.intakeId, dto.leadLawyerId) : null;
     }
 
     await this.copyThreadAttachments(user, intake.id, thread.messages);
     await this.proposeFromThread(intake.id, thread.messages);
-    return this.openThreadCase(user, threadId, intake.id);
+    return this.openThreadCase(user, threadId, intake.id, dto.leadLawyerId);
   }
 
-  private async openThreadCase(user: AuthUser, threadId: string, intakeId: string) {
+  /** Opens the intake's case, or returns it; `leadLawyerId` only applies when the case is created here. */
+  private async openThreadCase(user: AuthUser, threadId: string, intakeId: string, leadLawyerId?: string) {
+    await assertFirmRefs(this.prisma, user.firmId, { userIds: [leadLawyerId] });
     const intake = await this.intakeService.findOne(user, intakeId);
     const legalCase = intake.relatedCaseId
       ? await this.intakeService.convertToCase(user, intakeId, {})
-      : await this.intakeService.openPreLitCase(user, intake, {}, { recordOnly: true });
+      : await this.intakeService.openPreLitCase(user, intake, { leadLawyerId }, { recordOnly: true });
     if (!legalCase) throw new NotFoundException('ไม่พบคดี');
     await this.prisma.emailThread.update({ where: { id: threadId }, data: { caseId: legalCase.id, caseUnlinkedAt: null } });
     return { ...await this.prisma.intake.findUniqueOrThrow({ where: { id: intakeId } }), caseId: legalCase.id };

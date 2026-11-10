@@ -145,6 +145,14 @@ describe('CasesService assignment notifications', () => {
     expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
   });
 
+  it('lets a non-owner save the unchanged lead, but not hand the case to someone else', async () => {
+    const lawyer = { ...user, firmRole: 'SENIOR_LAWYER' };
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'c1', title: 'คดีเดิม', leadLawyerId: 'u4' });
+    mockPrisma.case.update.mockResolvedValue({ id: 'c1', leadLawyerId: 'u4' });
+    await expect(service.update(lawyer, 'c1', { leadLawyerId: 'u4' } as any)).resolves.toBeDefined();
+    await expect(service.update(lawyer, 'c1', { leadLawyerId: 'u5' } as any)).rejects.toThrow('Only owners can reassign the case lead lawyer');
+  });
+
   it('notifies only newly added buddies on updateAssignments', async () => {
     mockPrisma.case.findFirst.mockResolvedValue({ id: 'c1', title: 'คดีเดิม', leadLawyerId: 'u1' });
     mockPrisma.caseAssignment.findMany.mockResolvedValue([{ userId: 'u3' }]);

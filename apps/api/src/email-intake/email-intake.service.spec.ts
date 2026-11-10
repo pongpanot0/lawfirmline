@@ -30,7 +30,7 @@ describe('EmailIntakeService', () => {
     intakeDocumentRequest: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
     caseType: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
     auditLog: { findFirst: jest.fn(), create: jest.fn() },
-    firmMember: { findMany: jest.fn().mockResolvedValue([]) },
+    firmMember: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn() },
     mailboxConnection: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn(),
     $queryRaw: jest.fn().mockResolvedValue([]),
@@ -131,6 +131,23 @@ describe('EmailIntakeService', () => {
       expect(result).toEqual({ id: 'intake-1', caseId: 'case-1' });
       expect(mockIntake.openPreLitCase).toHaveBeenCalledWith(user, { id: 'intake-1' }, {}, { recordOnly: true });
       expect(mockPrisma.emailThread.update).toHaveBeenCalledWith({ where: { id: 'thread-1' }, data: { caseId: 'case-1', caseUnlinkedAt: null } });
+    });
+
+    it('opens an older intake\'s missing case with the chosen lead — choosing at creation is not a reassignment', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 'thread-1', intake: { id: 'intake-1' }, messages: [] });
+      mockPrisma.firmMember.count.mockResolvedValue(1);
+
+      await service.acceptIntakeFromThread(user, 'thread-1', { leadLawyerId: 'lawyer-2' });
+
+      expect(mockPrisma.firmMember.count).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ firmId: 'firm-1', userId: { in: ['lawyer-2'] } }) }));
+      expect(mockIntake.openPreLitCase).toHaveBeenCalledWith(user, { id: 'intake-1' }, { leadLawyerId: 'lawyer-2' }, { recordOnly: true });
+    });
+
+    it('refuses a lead from outside the firm', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 'thread-1', intake: { id: 'intake-1' }, messages: [] });
+      mockPrisma.firmMember.count.mockResolvedValue(0);
+      await expect(service.acceptIntakeFromThread(user, 'thread-1', { leadLawyerId: 'stranger' })).rejects.toThrow();
+      expect(mockIntake.openPreLitCase).not.toHaveBeenCalled();
     });
 
     it('a second accept that loses the race returns the winner\'s intake and adds nothing', async () => {

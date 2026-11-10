@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Paperclip, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { api, ApiError, EmailThreadDetail, IntakeDocumentRequestItem, UserItem } from '@/lib/api';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
@@ -39,6 +40,7 @@ export default function EmailThreadDetailPage() {
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [teamIds, setTeamIds] = useState<string[]>([]);
   const [confirmingAll, setConfirmingAll] = useState(false);
+  const canReassignLead = hasFirmCapability(user?.firmRole, 'reassignCaseLead');
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
 
   useEffect(() => {
@@ -242,13 +244,15 @@ export default function EmailThreadDetailPage() {
     setAccepting(true);
     setError('');
     try {
-      // Accepted before every intake opened its case at "ก่อนฟ้อง": open it now — accepting again
-      // is idempotent and only adds the missing case, so the matter appears in เรื่องและคดี.
-      const caseId = data.thread.caseId ?? data.thread.intake.case?.id ?? (await api.acceptEmailThread(token, threadId)).caseId;
       // No assessment step: the first person picked owns the case, everyone picked is its team
       // (the intake's team syncs onto its case).
       const team = teamIds.length ? teamIds : user ? [user.id] : [];
-      if (team[0]) await api.updateCase(token, caseId, { leadLawyerId: team[0] });
+      // Accepted before every intake opened its case at "ก่อนฟ้อง": open it now with the chosen lead —
+      // accepting again is idempotent and only adds the missing case, so the matter appears in เรื่องและคดี.
+      const existingCase = data.thread.case ?? data.thread.intake.case ?? null;
+      const caseId = existingCase?.id ?? data.thread.caseId ?? (await api.acceptEmailThread(token, threadId, { leadLawyerId: team[0] })).caseId;
+      // Handing an existing case to someone else is a reassignment — owners only (the picker says so).
+      if (existingCase && canReassignLead && team[0] && team[0] !== existingCase.leadLawyerId) await api.updateCase(token, caseId, { leadLawyerId: team[0] });
       if (team.length) await api.updateIntake(token, data.thread.intake.id, { assignedUserIds: team });
       window.dispatchEvent(new Event('email-intake-changed'));
       const path = casePath(caseId);
@@ -291,6 +295,8 @@ export default function EmailThreadDetailPage() {
   const fieldConfirmed = fieldProposals.filter((p) => p.status === 'CONFIRMED').length;
   const confirmable = fieldProposals.filter((p) => isPending(p) && p.status !== 'CONFLICT' && p.field !== 'docRequest');
   const fileNames = new Map(documents.map((d) => [d.id, d.filename]));
+  const existingCase = thread.case ?? thread.intake?.case ?? null;
+  const leadLocked = !!existingCase && !canReassignLead;
   const rejectedDocuments = documentProposals.filter((p) => p.status === 'REJECTED');
   const documentLocked = progress.steps.find((step) => step.key === 'DOCUMENTS')?.state === 'locked';
   const canSubmit = ['CONFIRM', 'DOCUMENTS'].every((key) => progress.steps.some((step) => step.key === key && step.state === 'done'));
@@ -485,7 +491,7 @@ export default function EmailThreadDetailPage() {
               users={user && !lawyers.some((l) => l.id === user.id) ? [user as unknown as UserItem, ...lawyers] : lawyers}
               value={teamIds.length ? teamIds : user ? [user.id] : []}
               onChange={setTeamIds}
-              placeholder="คนแรกเป็นเจ้าของคดี (เลือกได้หลายคน)"
+              placeholder={leadLocked ? 'เพิ่มคนเข้าทีมคดี (เลือกได้หลายคน)' : 'คนแรกเป็นเจ้าของคดี (เลือกได้หลายคน)'}
               dropUp
             />
           </div>

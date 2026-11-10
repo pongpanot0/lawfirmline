@@ -720,7 +720,8 @@ export class CasesService {
       if (existing) throw new ConflictException(OWN_REF_TAKEN_MESSAGE);
     }
 
-    if (dto.leadLawyerId) {
+    // Sending the current lead back (a form saving every field) is not a reassignment.
+    if (dto.leadLawyerId && dto.leadLawyerId !== before.leadLawyerId) {
       if (!hasFirmCapability(user.firmRole, 'reassignCaseLead')) {
         throw new ForbiddenException('Only owners can reassign the case lead lawyer');
       }
