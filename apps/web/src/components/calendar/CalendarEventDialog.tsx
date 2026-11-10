@@ -14,6 +14,7 @@ import { api, CalendarEventItem, CaseListItem, TravelResult, UserItem } from '@/
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
+import { CheckoutSteps } from '@/components/guide/CheckoutSteps';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
@@ -328,7 +329,14 @@ export function CalendarEventDialog({
           {savedId ? d.calendar.editEvent : d.calendar.newEvent}
         </h2>
 
-        <div className="space-y-3">
+        <CheckoutSteps steps={[
+          { title: 'คดีและนัด', state: form.caseId && form.title ? 'done' : 'current' },
+          { title: 'วัน เวลา และผู้รับผิดชอบ', state: !form.caseId || !form.title ? 'todo' : form.startAt ? 'done' : 'current' },
+          { title: 'รายละเอียดเพิ่มเติม', state: form.caseId && form.title && form.startAt ? 'current' : 'todo' },
+        ]} />
+        <div className="space-y-4">
+          <section className="space-y-3 rounded-lg border border-border p-4">
+          <h3 className="font-semibold">1. เลือกคดีและระบุนัด</h3>
           {caseId ? (
             <p className="text-xs text-muted-foreground">{d.calendar.caseFixed}</p>
           ) : (
@@ -373,19 +381,10 @@ export function CalendarEventDialog({
             />
           </label>
 
-          <label className="block text-sm">
-            <span className="mb-1 block text-muted-foreground">{d.calendar.eventType}</span>
-            <select
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
-              className={SELECT_CLASS}
-            >
-              <option value="COURT_DATE">{d.calendar.typeCourtDate}</option>
-              <option value="CLIENT_MEETING">{d.calendar.typeClientMeeting}</option>
-              <option value="DEADLINE">{d.calendar.typeDeadline}</option>
-              <option value="OTHER">{d.calendar.typeOther}</option>
-            </select>
-          </label>
+          <div role="group" aria-labelledby="event-type-label" className="space-y-2">
+            <p id="event-type-label" className="text-sm text-muted-foreground">{d.calendar.eventType}</p>
+            <div className="flex flex-wrap gap-2">{([['COURT_DATE', d.calendar.typeCourtDate], ['CLIENT_MEETING', d.calendar.typeClientMeeting], ['DEADLINE', d.calendar.typeDeadline], ['OTHER', d.calendar.typeOther]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={form.type === value} onClick={() => setForm({ ...form, type: value })} className={`min-h-11 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.type === value ? 'border-primary bg-primary/10 font-medium text-primary' : 'border-border hover:bg-muted'}`}>{label}</button>)}</div>
+          </div>
 
           {form.type === 'COURT_DATE' && (
             <>
@@ -412,6 +411,9 @@ export function CalendarEventDialog({
             </>
           )}
 
+          </section>
+          <section className="space-y-3 rounded-lg border border-border p-4">
+          <h3 className="font-semibold">2. วัน เวลา และผู้รับผิดชอบ</h3>
           <label className="block text-sm">
             <span className="mb-1 block text-muted-foreground">{d.calendar.timeHint}</span>
             <ThaiDateTimeInput
@@ -472,7 +474,7 @@ export function CalendarEventDialog({
                 const isPrimary = form.assigneeIds[0] === u.id;
                 const flag = leaveFlags.get(u.id);
                 return (
-                  <label key={u.id} className="flex items-center gap-2 py-0.5">
+                  <label key={u.id} className="flex min-h-11 items-center gap-2 py-0.5">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -536,7 +538,7 @@ export function CalendarEventDialog({
                       <button
                         key={email}
                         type="button"
-                        className={`rounded-full border px-2 py-0.5 text-xs ${form.inviteeEmails.includes(email) ? 'bg-primary text-primary-foreground' : ''}`}
+                        className={`min-h-11 rounded-full border px-2 py-0.5 text-xs ${form.inviteeEmails.includes(email) ? 'bg-primary text-primary-foreground' : ''}`}
                         onClick={() =>
                           setForm((f) => ({
                             ...f,
@@ -575,7 +577,7 @@ export function CalendarEventDialog({
                         <button
                           type="button"
                           aria-label={`ลบ ${email}`}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:text-destructive"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-full hover:text-destructive"
                           onClick={() =>
                             setForm((f) => ({ ...f, inviteeEmails: f.inviteeEmails.filter((x) => x !== email) }))
                           }
@@ -589,6 +591,9 @@ export function CalendarEventDialog({
             </>
           )}
 
+          </section>
+          <section className="space-y-3 rounded-lg border border-border p-4">
+          <h3 className="font-semibold">3. รายละเอียดเพิ่มเติม</h3>
           <label className="block text-sm">
             <span className="mb-1 block text-muted-foreground">{d.calendar.eventDescription}</span>
             <Input
@@ -597,6 +602,7 @@ export function CalendarEventDialog({
             />
           </label>
 
+          </section>
           {selectedCase && !caseId && (
             <p className="text-xs text-muted-foreground">
               {selectedCase.ownRef} — {selectedCase.title}
@@ -610,6 +616,7 @@ export function CalendarEventDialog({
           </p>
         )}
 
+        <p className="mt-4 text-sm text-muted-foreground" aria-live="polite">{(() => { const missing = [!form.caseId && !caseId ? 'เลือกคดี' : '', !form.title ? 'ระบุชื่อนัด' : '', !form.startAt ? 'ระบุวันและเวลา' : '', form.type === 'CLIENT_MEETING' && form.onlineMeeting && inviteDraft.trim() && !EMAIL_PATTERN.test(inviteDraft.trim().toLowerCase()) ? 'แก้ไขอีเมลผู้รับเชิญ' : ''].filter(Boolean); return missing.length ? `เหลืออีก ${missing.length} อย่าง: ${missing.join(', ')}` : 'ตรวจข้อมูลแล้วกดบันทึก'; })()}</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="submit" disabled={saving}>
             {saving ? d.calendar.saving : event ? d.common.save : d.calendar.addEvent}

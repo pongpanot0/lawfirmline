@@ -29,7 +29,7 @@ export default function ExternalWorkPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader title="งานของฉัน" description={`งานที่สำนักงานมอบหมายให้คุณ${user?.firstName ?? ''}`} />
+      <PageHeader title="งานของฉัน" description="เปิดงานที่ได้รับมอบหมาย ตรวจไฟล์ และส่งงานเมื่อเสร็จ" />
       {error && <LoadFailed onRetry={() => { setError(''); load(); }} />}
       {!steps && !error && (
         <div role="status" aria-label="กำลังโหลด" className="space-y-4">

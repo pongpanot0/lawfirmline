@@ -361,7 +361,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
           title={event.title}
           description={`${t.title} · ${event.case.ownRef} · ${event.case.title}`}
         />
-        <div className="-mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        <div className="-mt-4 flex min-w-0 flex-wrap gap-x-5 gap-y-2 break-words text-sm">
           <p className="font-medium">
             {date(event.startAt)}{' '}
             <span className="font-normal text-muted-foreground">

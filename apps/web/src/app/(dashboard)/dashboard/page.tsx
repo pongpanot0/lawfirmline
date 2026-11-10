@@ -140,7 +140,7 @@ function WorkDashboardPage() {
           <h2 id="team-workload-heading" className="text-base font-semibold">{t('ภาระงานทีม', 'Team workload')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{teamWorkload ? t(`${teamWorkload.length} คน · ภาระงานสูง ${highLoadCount} คน`, `${teamWorkload.length} people · ${highLoadCount} with high load`) : t('เรียงจากผู้ที่มีภาระงานสูง · แสดงกำหนดใน 7 วัน', 'Highest workload first · deadlines within 7 days')}</p>
         </div>
-        <Link href="/operations" className={link}>{t('ดู Operations ทั้งหมด', 'Open operations')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>
+        <Link href="/operations" className={link}>{t('ดูภาระงานทีมทั้งหมด', 'View team workload')}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>
       </div>
       {teamWorkloadLoading ? <div role="status" aria-label={t('กำลังโหลดภาระงานทีม', 'Loading team workload')} className="mt-4 space-y-3">{[0, 1, 2].map(i => <Skeleton key={i} className="h-9 w-full" />)}</div>
         : teamWorkloadFailed ? <p role="alert" className="mt-4 text-sm text-muted-foreground">{t('โหลดภาระงานทีมไม่สำเร็จ', 'Unable to load team workload')} <button onClick={() => setRetry(value => value + 1)} className={link}>{t('ลองอีกครั้ง', 'Retry')}</button></p>
