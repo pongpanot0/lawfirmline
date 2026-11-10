@@ -247,14 +247,16 @@
 }
 
 .tabScroller {
+  overflow-x: auto;
   min-width: 0;
   flex: 1;
 }
 
 .tabList {
   display: flex;
-  flex-wrap: wrap;
-  width: 100%;
+  flex-wrap: nowrap;
+  width: max-content;
+  min-width: 100%;
   gap: var(--case-space-1);
 }
 

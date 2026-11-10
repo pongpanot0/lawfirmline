@@ -7,6 +7,7 @@ import { Plus, Download, ArrowUpDown, Columns3, ClipboardList, Briefcase, Upload
 import { FirmRole, Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseListItem, UserItem } from '@/lib/api';
+import { CaseViewToggle } from '@/components/cases/CaseViewToggle';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { caseStatusOptions, getCaseStatusDisplay } from '@/lib/case-status';
@@ -248,7 +249,7 @@ function CasesPageContent() {
   return (
     <div>
       <PageHeader
-        title={sopId ? 'เลือกคดีที่จะใช้ SOP' : d.cases.title}
+        title={sopId ? 'เลือกคดีที่จะใช้ SOP' : 'เรื่องและคดี'}
         description={sopId ? 'เลือกคดีเพื่อดูรายการงานก่อนยืนยันเพิ่ม ระบบจะเก็บคดีและ SOP ที่เลือกไว้ให้' : d.cases.description}
         actions={
           <>
@@ -324,7 +325,7 @@ function CasesPageContent() {
             aria-label={d.cases.allStatuses}
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+            className="min-h-11 max-w-full rounded-lg border border-input bg-card px-3 text-sm"
           >
             <option value="">{d.cases.allStatuses}</option>
             {caseStatusOptions(d.caseStatus).map((opt) => (
@@ -335,7 +336,7 @@ function CasesPageContent() {
             aria-label="กรองตามขั้นตอนงาน"
             value={stageFilter}
             onChange={(e) => { setStageFilter(e.target.value); setPage(0); }}
-            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+            className="min-h-11 max-w-full rounded-lg border border-input bg-card px-3 text-sm"
           >
             <option value="">ทุกขั้นตอน</option>
             {caseStageOptions('th').map((opt) => (
@@ -346,15 +347,16 @@ function CasesPageContent() {
             aria-label="กรองตามทนาย"
             value={lawyerFilter}
             onChange={(e) => { setLawyerFilter(e.target.value); setPage(0); }}
-            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+            className="min-h-11 max-w-full rounded-lg border border-input bg-card px-3 text-sm"
           >
             <option value="">ทุกคน</option>
             {lawyers.map((u) => (
               <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
             ))}
           </select>
-          <details className="group relative ml-auto max-md:hidden">
-            <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
+          <CaseViewToggle current="list" />
+          <details className="group relative">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
               <Columns3 aria-hidden="true" className="h-4 w-4" /> คอลัมน์
             </summary>
             <div className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-input bg-card p-2 text-sm shadow-soft">
@@ -380,7 +382,7 @@ function CasesPageContent() {
             <select
               value={bulkLawyerId}
               onChange={(e) => setBulkLawyerId(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              className="min-h-11 max-w-full rounded-lg border border-input bg-card px-3 text-sm"
             >
               <option value="">เปลี่ยนผู้รับผิดชอบเป็น…</option>
               {lawyers.map((l) => (
@@ -425,7 +427,7 @@ function CasesPageContent() {
                   <li key={c.id}>
                     <Link href={caseHref(c.id)} className="block space-y-1.5 p-4 hover:bg-muted/50">
                       <div className="flex items-start justify-between gap-3">
-                        <span className="text-sm font-medium text-primary">{c.ownRef}</span>
+                        <span className="font-mono text-sm font-medium text-primary">{c.ownRef}</span>
                         <span className="flex shrink-0 flex-col items-end gap-1">
                           <CaseStatusBadge status={c.status} />
                           {c.stage && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{caseStageLabel(c.stage, 'th')}</span>}
@@ -460,7 +462,7 @@ function CasesPageContent() {
                 ))}
               </ul>
               <Table className="max-md:hidden">
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-[1] bg-card">
                   <TableRow>
                     {canCreate && (
                       <TableHead className="w-8">
@@ -479,6 +481,7 @@ function CasesPageContent() {
                     </TableHead>
                     <TableHead>{d.cases.caseTitle}</TableHead>
                     <TableHead>{d.home.client}</TableHead>
+                    <TableHead>ขั้นตอน</TableHead>
                     <TableHead>{d.billing.status}</TableHead>
                     <TableHead>{d.cases.assignedLawyer}</TableHead>
                     <TableHead>{d.home.court}</TableHead>
@@ -506,7 +509,7 @@ function CasesPageContent() {
                           />
                         </TableCell>
                       )}
-                      <TableCell className="font-medium text-primary">
+                      <TableCell className="font-mono font-medium text-primary">
                         <span className="flex flex-col items-start gap-1">
                           <Link href={caseHref(c.id)} onClick={event => event.stopPropagation()} className="inline-flex min-h-11 items-center hover:underline">{c.ownRef}</Link>
                           {firstIntakeId(c) && (
@@ -520,14 +523,10 @@ function CasesPageContent() {
                           )}
                         </span>
                       </TableCell>
-                      <TableCell className="min-w-[200px] max-w-xs font-medium"><Link href={caseHref(c.id)} onClick={event => event.stopPropagation()} className="block py-2 leading-relaxed hover:underline">{c.title}</Link></TableCell>
+                      <TableCell className="min-w-[200px] max-w-xs font-medium"><Link href={caseHref(c.id)} onClick={event => event.stopPropagation()} className="line-clamp-2 break-words leading-relaxed hover:underline">{c.title}</Link>{(c.blackCaseNumber || c.redCaseNumber) && <p className="text-xs font-normal text-muted-foreground">คดีดำ {caseNumberDisplay(c.blackCaseNumber)} · คดีแดง {caseNumberDisplay(c.redCaseNumber)}</p>}</TableCell>
                       <TableCell className="max-w-[160px] text-muted-foreground">{c.clientName ?? '—'}</TableCell>
-                      <TableCell>
-                        <span className="flex flex-col items-start gap-1">
-                          <CaseStatusBadge status={c.status} />
-                          {c.stage && <span className="rounded-sm bg-muted px-2 py-1 text-xs">{caseStageLabel(c.stage, 'th')}</span>}
-                        </span>
-                      </TableCell>
+                      <TableCell>{c.stage ? <span className={`inline-block whitespace-nowrap rounded-full px-2 py-1 text-xs ${c.stage === 'PRE_LITIGATION' ? 'bg-warning/10 text-warning' : c.stage === 'CLOSING' ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>{caseStageLabel(c.stage, 'th')}</span> : '—'}</TableCell>
+                      <TableCell><CaseStatusBadge status={c.status} /></TableCell>
                       <TableCell>{c.leadLawyer.firstName} {c.leadLawyer.lastName}</TableCell>
                       <TableCell className="max-w-[180px] text-muted-foreground">{c.courtName ?? '—'}</TableCell>
                       {!hiddenColumns.has('customerRef') && <TableCell className="text-muted-foreground">{c.customerRef ?? '—'}</TableCell>}

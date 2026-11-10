@@ -199,7 +199,7 @@ export default function DocumentReviewPage() {
       </Link>
       <PageHeader
         title={document.filename}
-        description={latestVersion ? `ตรวจเอกสาร · เวอร์ชัน v${latestVersion.version}` : 'ตรวจเอกสาร'}
+        description={[document.uploadedBy ? `${document.uploadedBy.firstName} ${document.uploadedBy.lastName}` : document.uploadedByContact?.name, formatDateTime(document.createdAt), document.mimeType].filter(Boolean).join(' · ')}
         actions={
           <Button size="sm" variant="outline" onClick={handleDownload}>
             <Download aria-hidden="true" className="h-4 w-4" /> ดาวน์โหลดฉบับนี้
@@ -217,12 +217,12 @@ export default function DocumentReviewPage() {
         </p>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
         <Card>
           <CardContent className="p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold">ฉบับที่กำลังตรวจ</h2>
-              {latestVersion && (
+              {latestVersion && latestVersion.status !== 'DRAFT' && (
                 <Badge variant={VERSION_STATUS_VARIANT[latestVersion.status] ?? 'muted'}>
                   {VERSION_STATUS_LABELS[latestVersion.status] ?? latestVersion.status}
                 </Badge>
@@ -231,6 +231,7 @@ export default function DocumentReviewPage() {
             {latestVersion ? (
               <div className="space-y-1 text-sm">
                 <p>เวอร์ชัน v{latestVersion.version} — {latestVersion.filename}</p>
+                {latestVersion.status === 'DRAFT' && <p className="text-xs text-muted-foreground">สถานะ: ฉบับร่าง</p>}
                 <p className="text-xs text-muted-foreground">อัปโหลดเมื่อ {formatDateTime(latestVersion.createdAt)}</p>
                 {latestVersion.notes && <p className="text-xs text-muted-foreground">หมายเหตุ: {latestVersion.notes}</p>}
               </div>
@@ -308,35 +309,15 @@ export default function DocumentReviewPage() {
                       <p className="rounded-lg bg-success/10 p-2 text-sm text-success">
                         คุณตรวจผ่านแล้ว {activeRound.decisions.filter((d) => d.decision === 'APPROVED').length < activeRound.reviewerIds.length ? '· ยังรอผู้ตรวจอื่น' : ''}
                       </p>
-                    ) : showReturnBox ? (
-                      <div className="space-y-2">
-                        <label htmlFor="return-reason" className="block text-sm font-medium">สิ่งที่ต้องแก้ไข<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
-                        <textarea
-                          id="return-reason"
-                          required
-                          className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
-                          rows={3}
-                          placeholder="ระบุสิ่งที่ต้องแก้ไข"
-                          value={returnReason}
-                          onChange={(e) => setReturnReason(e.target.value)}
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => setShowReturnBox(false)}>
-                            ยกเลิก
-                          </Button>
-                          <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" disabled={deciding} onClick={() => handleDecision('return')}>
-                            ยืนยันส่งกลับแก้ไข
-                          </Button>
-                        </div>
-                      </div>
                     ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <Button disabled={deciding} onClick={() => handleDecision('approve')}>
-                          ผ่านการตรวจฉบับนี้
-                        </Button>
-                        <Button variant="outline" disabled={deciding} onClick={() => setShowReturnBox(true)}>
-                          ส่งกลับแก้ไข
-                        </Button>
+                      <div className="space-y-3">
+                        <div role="group" aria-label="ผลการตรวจ" className="grid grid-cols-2 rounded-lg border bg-muted p-1">
+                          <button type="button" aria-pressed={!showReturnBox} onClick={() => setShowReturnBox(false)} className={`min-h-11 rounded-md text-sm focus-visible:ring-2 focus-visible:ring-ring ${!showReturnBox ? 'bg-card font-semibold shadow-sm' : 'text-muted-foreground'}`}>ผ่าน</button>
+                          <button type="button" aria-pressed={showReturnBox} onClick={() => setShowReturnBox(true)} className={`min-h-11 rounded-md text-sm focus-visible:ring-2 focus-visible:ring-ring ${showReturnBox ? 'bg-card font-semibold shadow-sm' : 'text-muted-foreground'}`}>ต้องแก้ไข</button>
+                        </div>
+                        {showReturnBox && <div><label htmlFor="return-reason" className="block text-sm font-medium">สิ่งที่ต้องแก้ไข<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
+                          <textarea id="return-reason" required className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm" rows={3} placeholder="ระบุสิ่งที่ต้องแก้ไข" value={returnReason} onChange={(e) => setReturnReason(e.target.value)} /></div>}
+                        <Button className="min-h-11 w-full" disabled={deciding} onClick={() => handleDecision(showReturnBox ? 'return' : 'approve')}>บันทึกผลตรวจ</Button>
                       </div>
                     )}
                   </div>

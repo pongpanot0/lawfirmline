@@ -5,8 +5,8 @@ import { api, type AssigneeLoad } from '@/lib/api';
 import { ROLE_LABELS } from '@/lib/daily-workboard';
 import { Button } from '@/components/ui/button';
 
-export function OwnerPicker({ token, value, onChange, currentUserId, locked, lockedHint, id }: {
-  token: string; value: string; onChange: (id: string) => void; currentUserId?: string; locked?: boolean; lockedHint?: string; id?: string;
+export function OwnerPicker({ token, value, onChange, onResolvedName, currentUserId, locked, lockedHint, id }: {
+  token: string; value: string; onChange: (id: string) => void; onResolvedName?: (name: string | null) => void; currentUserId?: string; locked?: boolean; lockedHint?: string; id?: string;
 }) {
   const [rows, setRows] = useState<AssigneeLoad[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -26,6 +26,8 @@ export function OwnerPicker({ token, value, onChange, currentUserId, locked, loc
   }, []);
   const filtered = rows?.filter((row) => `${row.firstName} ${row.lastName}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())) ?? [];
   const selected = rows?.find((row) => row.userId === value);
+  const selectedName = selected ? `${selected.firstName} ${selected.lastName}` : null;
+  useEffect(() => { onResolvedName?.(selectedName); }, [selectedName]); // eslint-disable-line react-hooks/exhaustive-deps
   const choose = (row: AssigneeLoad) => { onChange(row.userId); setOpen(false); setQuery(''); root.current?.querySelector<HTMLButtonElement>('button')?.focus(); };
   const keyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Escape') { event.preventDefault(); setOpen(false); root.current?.querySelector<HTMLButtonElement>('button')?.focus(); }

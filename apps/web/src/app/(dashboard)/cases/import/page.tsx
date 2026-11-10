@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { CASE_STAGE_LABELS_TH, COURT_LEVEL_LABELS, CourtLevel, type CaseStage } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, type ExcelCaseDraft, type ExcelCaseResult, type ImportClosedOutcome, type UserItem } from '@/lib/api';
@@ -32,6 +32,7 @@ export default function CaseImportPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [noKeyRows, setNoKeyRows] = useState(0);
   const [fileName, setFileName] = useState('');
+  const [fileSize, setFileSize] = useState(0);
   const [busy, setBusy] = useState<'' | 'template' | 'preview' | 'create'>('');
   const [error, setError] = useState('');
   const [results, setResults] = useState<(ExcelCaseResult & { title: string })[]>([]);
@@ -72,6 +73,7 @@ export default function CaseImportPage() {
     setError('');
     setResults([]);
     setFileName(file.name);
+    setFileSize(file.size);
     try {
       const preview = await api.previewCaseImport(token, file);
       setRows(preview.drafts.map((d) => ({ ...d, selected: excelRowProblems(d).length === 0, uploaded: { blackCaseNumber: d.blackCaseNumber } })));
@@ -109,37 +111,32 @@ export default function CaseImportPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="min-w-0 pb-24">
+      <Link href="/cases" className="mb-4 inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground">← เรื่องและคดี</Link>
       <PageHeader
         title="นำเข้าคดีจาก Excel"
-        description="ดาวน์โหลด template กรอกหนึ่งแถวต่อหนึ่งคดี แล้วอัปโหลดกลับมาตรวจ — ระบบจะยังไม่สร้างคดีจนกว่าจะกดปุ่มสร้าง"
-        actions={<Link href="/cases" className="text-sm underline">กลับไปรายการคดี</Link>}
+        description="ดาวน์โหลด template กรอกหนึ่งแถวต่อหนึ่งคดี แล้วอัปโหลดกลับมาตรวจก่อนสร้างคดี"
+        actions={<Button variant="outline" disabled={busy === 'template'} onClick={downloadTemplate}>{busy === 'template' ? 'กำลังสร้างไฟล์…' : 'ดาวน์โหลด template'}</Button>}
       />
-
-      <ol className="mb-6 grid gap-3 sm:grid-cols-2">
-        <li className="rounded-xl border bg-card p-4">
-          <p className="mb-2 text-sm font-semibold">1. ดาวน์โหลด template</p>
-          <p className="mb-3 text-xs text-muted-foreground">มี dropdown ประเภทคดีและรายชื่อทนายของสำนักงาน พร้อมแผ่น &quot;วิธีกรอก&quot;</p>
-          <Button variant="outline" disabled={busy === 'template'} onClick={downloadTemplate}>
-            {busy === 'template' ? 'กำลังสร้างไฟล์…' : 'ดาวน์โหลด template'}
-          </Button>
-        </li>
-        <li className="rounded-xl border bg-card p-4">
-          <label htmlFor="case-import-file" className="mb-2 block text-sm font-semibold">2. อัปโหลดไฟล์ที่กรอกแล้ว (.xlsx)</label>
-          <input
-            id="case-import-file"
-            type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            disabled={busy === 'preview'}
-            onChange={(e) => {
-              void upload(e.target.files?.[0]);
-              e.target.value = '';
-            }}
-            className="block w-full text-sm file:mr-3 file:min-h-10 file:rounded-md file:border file:bg-background file:px-3 file:text-sm"
-          />
-          {busy === 'preview' && <p role="status" className="mt-2 text-xs text-muted-foreground">กำลังอ่าน {fileName}…</p>}
-        </li>
+      <ol aria-label="ขั้นตอนนำเข้าคดี" className="mb-4 flex flex-wrap gap-2 text-sm">
+        {['ดาวน์โหลด template', 'อัปโหลดไฟล์', 'ตรวจและเลือกแถวที่จะสร้าง'].map((label, i) => (
+          <li key={label} aria-current={(rows.length > 0 ? 2 : 1) === i ? 'step' : undefined} className={`rounded-full px-3 py-2 ${(rows.length > 0 ? 2 : 1) === i ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'}`}>
+            {i + 1} {label}
+          </li>
+        ))}
       </ol>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
+        <div className="min-w-0 text-sm">
+          <p className="break-words font-medium">{fileName || 'อัปโหลดไฟล์ที่กรอกแล้ว (.xlsx)'}</p>
+          {fileName && <p className="mt-1 text-xs tabular-nums text-muted-foreground">{(fileSize / 1024).toFixed(1)} KB · {rows.length} แถว</p>}
+          {!fileName && <p className="mt-1 text-xs text-muted-foreground">template มี dropdown ประเภทคดี รายชื่อทนาย และแผ่นวิธีกรอก</p>}
+          {busy === 'preview' && <p role="status" className="mt-1 text-xs text-muted-foreground">กำลังอ่าน {fileName}…</p>}
+        </div>
+        <label htmlFor="case-import-file" className="inline-flex min-h-11 cursor-pointer items-center whitespace-nowrap rounded-lg border px-4 text-sm font-semibold hover:bg-accent focus-within:ring-2 focus-within:ring-ring">
+          {fileName ? 'เปลี่ยนไฟล์' : 'เลือกไฟล์'}
+          <input id="case-import-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy === 'preview'} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ''; }} className="sr-only" />
+        </label>
+      </div>
 
       {error && <p role="alert" className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>}
 
@@ -159,29 +156,27 @@ export default function CaseImportPage() {
 
       {rows.length > 0 && (
         <section aria-labelledby="excel-review-heading" className="space-y-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="excel-review-heading" className="text-sm font-semibold">
-              3. ตรวจและเลือกแถวที่จะสร้าง <span className="tabular-nums">({selected.length}/{rows.length})</span>
-            </h2>
-            {/* One live summary instead of an alert per row — 300 alerts would flood a screen reader. */}
-            <p role="status" className="text-xs text-muted-foreground">
-              {(() => {
-                const blocked = rows.filter((r) => problemsOf(r).length > 0).length;
-                return blocked ? `${blocked} แถวมีปัญหา ต้องแก้ก่อนจึงเลือกได้` : 'ทุกแถวพร้อมสร้าง';
-              })()}
-            </p>
-            {noKeyRows > 0 && (
-              <p className="text-xs text-warning">{noKeyRows} แถวไม่มีเลขอ้างอิงหรือเลขคดีดำ — ระบบตรวจซ้ำให้ไม่ได้</p>
-            )}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-lg border bg-card p-4">
+            <div><h2 id="excel-review-heading" className="font-semibold">ตรวจและเลือกแถวที่จะสร้าง</h2><p className="text-xs text-muted-foreground">เปิดรายละเอียดแต่ละแถวเพื่อแก้ไขข้อมูลก่อนสร้าง</p></div>
+            <div role="status" className="flex flex-wrap gap-2 text-xs tabular-nums">
+              <span className="rounded-full bg-muted px-3 py-1">ทั้งหมด {rows.length}</span>
+              <span className="rounded-full bg-primary/10 px-3 py-1">พร้อมสร้าง {rows.filter((r) => problemsOf(r).length === 0).length}</span>
+              <span className="rounded-full bg-destructive/10 px-3 py-1 text-destructive">มีปัญหา {rows.filter((r) => problemsOf(r).length > 0).length}</span>
+            </div>
+            {noKeyRows > 0 && <p className="w-full text-xs text-warning">{noKeyRows} แถวไม่มีเลขอ้างอิงหรือเลขคดีดำ — ระบบตรวจซ้ำให้ไม่ได้</p>}
           </div>
 
-          <ul className="space-y-2">
+          <div className="max-w-full overflow-x-auto rounded-lg border bg-card">
+            <table className="w-full min-w-[800px] text-left text-sm">
+              <thead className="bg-muted/40 text-xs text-muted-foreground"><tr><th className="p-3">เลือก</th><th className="p-3">แถว</th><th className="p-3">เลขอ้างอิง</th><th className="p-3">ชื่อคดี</th><th className="p-3">ลูกความ</th><th className="p-3">วันเปิดคดี</th><th className="p-3">สถานะ</th></tr></thead>
+              <tbody>
             {rows.map((r) => {
               const problems = problemsOf(r);
               const blocked = problems.length > 0;
               return (
-                <li key={r.rowNumber} className={`rounded-lg border p-3 ${r.selected && !blocked ? '' : 'bg-muted/20'}`}>
-                  <label className="flex min-h-11 items-start gap-2 text-sm">
+                <Fragment key={r.rowNumber}>
+                  <tr className={`border-t ${blocked ? 'bg-destructive/5' : ''}`}>
+                    <td className="p-3"><label className="flex min-h-11 items-center">
                     <input
                       type="checkbox"
                       className="mt-1 h-4 w-4"
@@ -189,12 +184,13 @@ export default function CaseImportPage() {
                       disabled={blocked}
                       onChange={(e) => update(r.rowNumber, { selected: e.target.checked })}
                     />
-                    <span>
-                      <span className="text-muted-foreground">แถว {r.rowNumber} · </span>
-                      <span className="font-medium">{r.title || '(ไม่มีชื่อคดี)'}</span>
-                    </span>
-                  </label>
-
+                    <span className="sr-only">เลือกแถว {r.rowNumber}</span></label></td>
+                    <td className="p-3 tabular-nums">{r.rowNumber}</td><td className="p-3 font-mono">{r.ownRef || '—'}</td>
+                    <td className="p-3 font-medium">{r.title || '(ไม่มีชื่อคดี)'}</td><td className="p-3">{r.clientName || '—'}</td>
+                    <td className="p-3 whitespace-nowrap">{thaiDate(r.openedAt) || '—'}</td>
+                    <td className="p-3">{blocked ? <span className="text-destructive">⚠ {problems.join(' · ')}</span> : '✓ พร้อมสร้าง'}{r.createError && <p className="text-destructive">สร้างไม่สำเร็จ: {r.createError}</p>}</td>
+                  </tr>
+                  <tr className={blocked ? 'bg-destructive/5' : ''}><td colSpan={7} className="px-3 pb-3"><details><summary className="min-h-11 cursor-pointer py-3 text-xs font-medium text-primary">รายละเอียดและแก้ไขแถว {r.rowNumber}</summary>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     <label className="text-xs sm:col-span-2">ชื่อคดี
                       <input value={r.title} onChange={(e) => update(r.rowNumber, { title: e.target.value })} className={field} />
@@ -265,14 +261,20 @@ export default function CaseImportPage() {
                       {problems.map((p) => <li key={p}>{p}</li>)}
                     </ul>
                   )}
-                </li>
+                  </details></td></tr>
+                </Fragment>
               );
             })}
-          </ul>
+              </tbody>
+            </table>
+          </div>
 
-          <Button disabled={busy === 'create' || selected.length === 0} onClick={create}>
-            {busy === 'create' ? 'กำลังสร้าง…' : `สร้าง ${selected.length} คดี`}
-          </Button>
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm">
+            <p className="text-sm tabular-nums">เลือก {selected.length} แถว · ข้าม {rows.filter((r) => problemsOf(r).length > 0).length} แถวที่มีปัญหา</p>
+            <div className="flex flex-wrap gap-2"><Link href="/cases" className="inline-flex min-h-11 items-center px-4 text-sm hover:underline">ยกเลิก</Link><Button disabled={busy === 'create' || selected.length === 0} onClick={create}>
+              {busy === 'create' ? 'กำลังสร้าง…' : `สร้าง ${selected.length} คดี`}
+            </Button></div>
+          </div>
         </section>
       )}
     </div>

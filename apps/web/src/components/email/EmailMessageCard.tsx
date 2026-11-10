@@ -15,6 +15,7 @@ export interface EmailMessageView {
   bodyText: string | null;
   bodyHtml?: string | null;
   receivedAt: string;
+  attachments?: { id: string }[];
 }
 
 /**
@@ -67,7 +68,7 @@ export function EmailMessageCard({
           <span className="block truncate text-sm font-medium">{sender}</span>
           <span className="block truncate text-xs text-muted-foreground">{emailPreview(message.bodyText) || '(ไม่มีเนื้อหา)'}</span>
         </span>
-        <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(message.receivedAt)}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{message.attachments?.length ? `📎 ${message.attachments.length} · ` : ''}{formatDateTime(message.receivedAt)}</span><ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
       </button>
     );
   }
@@ -78,7 +79,7 @@ export function EmailMessageCard({
         {avatar}
         <div className="min-w-0 flex-1 text-xs text-muted-foreground">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-            <p className="min-w-0 truncate">
+            <p className="min-w-0 break-all">
               <span className="text-sm font-semibold text-foreground">{sender}</span>
               {message.fromName && message.fromAddress && <span> &lt;{message.fromAddress}&gt;</span>}
             </p>

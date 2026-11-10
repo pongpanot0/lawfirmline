@@ -64,6 +64,10 @@ export default function EmailThreadDetailPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const [requests, setRequests] = useState<IntakeDocumentRequestItem[]>([]);
   const [showRejectedDocuments, setShowRejectedDocuments] = useState(false);
+  const [showOlder, setShowOlder] = useState(false);
+  const [showAttachments, setShowAttachments] = useState(false);
+  const [showAllAttachments, setShowAllAttachments] = useState(false);
+  const [showAllDocuments, setShowAllDocuments] = useState(false);
   const [composer, setComposer] = useState<CaseEmailComposerMode | null>(null);
 
   const load = useCallback(async () => {
@@ -292,6 +296,10 @@ export default function EmailThreadDetailPage() {
   }
 
   const { thread, proposals, documents, progress } = data;
+  const attachments = thread.messages.flatMap((message, index) => message.attachments.map((attachment) => ({ attachment, messageNumber: thread.messages.length - index })));
+  const participants = new Set(thread.messages.flatMap((message) => [message.fromAddress, ...(message.toAddresses ?? []), ...(message.ccAddresses ?? [])]).filter((address): address is string => !!address).map((address) => address.toLowerCase())).size;
+  const indexedMessages = thread.messages.map((message, index) => ({ message, index }));
+  const visibleMessages = [...(showOlder ? indexedMessages.slice(1) : indexedMessages.slice(1, 4)).reverse(), ...indexedMessages.slice(0, 1)];
   const documentProposals = proposals.filter((p) => p.field === 'document');
   const fieldProposals = proposals.filter((p) => p.field !== 'document' && p.status !== 'REJECTED');
   const fieldTotal = fieldProposals.length;
@@ -322,8 +330,8 @@ export default function EmailThreadDetailPage() {
       </Link>
       <div className="mt-2">
         <PageHeader
-          title={thread.subject || '(ไม่มีหัวเรื่อง)'}
-          description={`${thread.fromName ?? thread.fromAddress ?? '—'} · ${thread.messages.length} ฉบับ`}
+          title={<span className="line-clamp-2 break-words font-display not-italic">{thread.subject || '(ไม่มีหัวเรื่อง)'}</span>}
+          description={`จาก ${thread.fromName ?? thread.fromAddress ?? '—'}${thread.fromName && thread.fromAddress ? ` <${thread.fromAddress}>` : ''} · ${thread.messages.length} ฉบับ · ${attachments.length} ไฟล์แนบ · ผู้ร่วมสนทนา ${participants} คน`}
         />
       </div>
 
@@ -345,10 +353,10 @@ export default function EmailThreadDetailPage() {
 
       <div id="link-case"><LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} /></div>
 
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         {/* Source email */}
-        <Card>
-          <CardContent className="p-4">
+        <Card className="min-w-0">
+          <CardContent className="min-w-0 p-4">
             <h2 className="mb-3 font-semibold">อีเมลต้นทาง</h2>
             {!thread.intake && !thread.caseId && (
               <div id="accept-intake" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
@@ -374,11 +382,13 @@ export default function EmailThreadDetailPage() {
                 )}
               </div>
             )}
-            <p className="text-sm text-muted-foreground">
-              จาก: {thread.fromName ?? '—'} {thread.fromAddress ? `<${thread.fromAddress}>` : ''}
-            </p>
-            <div className="mt-3 space-y-3">
-              {thread.messages.map((message, index) => (
+            {attachments.length > 0 && <div className="flex flex-wrap gap-2 border-b pb-2" aria-label="เนื้อหาอีเมล">
+              <button type="button" aria-pressed={!showAttachments} onClick={() => setShowAttachments(false)} className={`min-h-11 rounded-md px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring ${!showAttachments ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>ข้อความ ({thread.messages.length})</button>
+              <button type="button" aria-pressed={showAttachments} onClick={() => setShowAttachments(true)} className={`min-h-11 rounded-md px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring ${showAttachments ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>ไฟล์แนบทั้งหมด ({attachments.length})</button>
+            </div>}
+            {showAttachments ? <div className="mt-3 space-y-2">{(showAllAttachments ? attachments : attachments.slice(0, 6)).map(({ attachment, messageNumber }) => <button key={attachment.id} type="button" onClick={() => handleDownload(attachment.id, attachment.filename)} className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-lg border p-3 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><Paperclip className="h-4 w-4 shrink-0" aria-hidden /><span className="min-w-0 flex-1 truncate">{attachment.filename}</span><span className="shrink-0 text-xs text-muted-foreground">จากฉบับที่ {messageNumber}</span></button>)}{attachments.length > 6 && <button type="button" onClick={() => setShowAllAttachments(!showAllAttachments)} className="min-h-11 text-sm text-primary hover:underline">{showAllAttachments ? 'แสดงน้อยลง' : `แสดงอีก ${attachments.length - 6} ไฟล์`}</button>}</div> : <div className="mt-3 space-y-3">
+              {thread.messages.length > 4 && <button type="button" aria-expanded={showOlder} onClick={() => setShowOlder((open) => !open)} className="min-h-11 w-full rounded-lg border text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">{showOlder ? 'ย่อข้อความก่อนหน้า' : `ข้อความก่อนหน้า ${thread.messages.length - 4} ฉบับ · แสดงทั้งหมด`}</button>}
+              {visibleMessages.map(({ message, index }) => (
                 <EmailMessageCard key={message.id} message={message} subject={thread.subject} defaultExpanded={index === 0}>
                   {message.attachments.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -386,7 +396,7 @@ export default function EmailThreadDetailPage() {
                         <button
                           key={att.id}
                           type="button"
-                          className="inline-flex min-h-[44px] items-center gap-1 rounded-full border px-3 text-xs hover:underline sm:min-h-8"
+                          className="inline-flex min-h-[44px] max-w-full items-center gap-1 break-all rounded-full border px-3 text-left text-xs hover:underline sm:min-h-8"
                           onClick={() => handleDownload(att.id, att.filename)}
                         >
                           <Paperclip className="h-3.5 w-3.5" aria-hidden /> {att.filename}
@@ -414,7 +424,7 @@ export default function EmailThreadDetailPage() {
                   )}
                 </EmailMessageCard>
               ))}
-            </div>
+            </div>}
 
             {process.env.NODE_ENV !== 'production' && (
             <div className="mt-4 rounded-lg border border-dashed p-3">
@@ -462,7 +472,7 @@ export default function EmailThreadDetailPage() {
           <Card id="documents" className={documentLocked ? 'bg-muted/50 text-muted-foreground' : ''}><CardContent className="space-y-3 p-4">
             <h2 className="flex items-center gap-2 font-semibold">{documentLocked && <Lock className="h-4 w-4" />}จัดเอกสาร</h2>
             {documentLocked && <p className="text-sm">ปลดล็อกเมื่อยืนยันข้อมูลครบ</p>}
-            {documents.map((doc) => {
+            {(showAllDocuments ? documents : documents.slice(0, 6)).map((doc) => {
               const suggestions = documentProposals.filter((p) => parseDocument(p.proposedValue)?.documentId === doc.id && (showRejectedDocuments || p.status !== 'REJECTED'));
               return <div key={doc.id} className="space-y-2 rounded-md border bg-card p-3 text-sm">
                 <button type="button" className="break-all text-left font-medium text-primary hover:underline" onClick={() => handlePreview(doc)}>{doc.filename}</button>
@@ -480,14 +490,15 @@ export default function EmailThreadDetailPage() {
                 })}
               </div>;
             })}
+            {documents.length > 6 && <button type="button" onClick={() => setShowAllDocuments(!showAllDocuments)} className="min-h-11 text-sm text-primary hover:underline">{showAllDocuments ? 'แสดงน้อยลง' : `แสดงอีก ${documents.length - 6} ไฟล์`}</button>}
             {documents.length === 0 && <p className="text-sm text-muted-foreground">ไม่มีไฟล์แนบ</p>}
             {rejectedDocuments.length > 0 && <button type="button" disabled={documentLocked} className="text-xs text-primary underline" onClick={() => setShowRejectedDocuments(!showRejectedDocuments)}>{showRejectedDocuments ? 'ซ่อนที่ตัดออก' : `แสดงที่ตัดออก (${rejectedDocuments.length})`}</button>}
           </CardContent></Card>
         </div>
       </div>
-      <div id="submit-intake" className="fixed inset-x-0 bottom-0 z-30 flex flex-wrap items-center justify-end gap-3 border-t bg-card p-4 pr-44 shadow-lg pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div id="submit-intake" className="sticky bottom-0 z-30 flex min-w-0 flex-wrap items-center justify-end gap-3 border-t bg-card p-3 shadow-lg pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p className="text-sm text-muted-foreground">{submitHelper(progress.steps)}</p>
-        <div className="flex min-w-0 items-center gap-2 text-sm">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">ผู้รับผิดชอบคดี</span>
           <div className="w-64 max-w-full">
             <MultiUserSelect
