@@ -47,3 +47,12 @@ test('a required opposingParty is satisfied by an opponent row, not by a custom 
   assert.equal(missingRequiredMessage(fields, { ...empty, opponents: [{ name: 'ข', role: '', personType: '' }] }), '');
   assert.equal(missingRequiredMessage(fields, { ...empty, customFields: {}, opponents: [{ name: 'ข', role: '', personType: '' }] }), 'กรุณากรอกเอ็กซ์');
 });
+
+test('opening later stages requires court and a black number unless unknown', async () => {
+  const { openingStageError } = await import('./case-create.ts');
+  assert.equal(openingStageError('PRE_LITIGATION', '', '', false), '');
+  assert.equal(openingStageError('FILING', ' ', '', false), 'ระบุศาลเมื่อคดียื่นฟ้องแล้ว');
+  assert.equal(openingStageError('HEARING', 'ศาลแพ่ง', '', false), 'ระบุหมายเลขคดีดำ หรือเลือก "ยังไม่ทราบเลขคดี"');
+  assert.equal(openingStageError('HEARING', 'ศาลแพ่ง', '', true), '');
+  assert.equal(openingStageError('HEARING', 'ศาลแพ่ง', '123/2569', false), '');
+});

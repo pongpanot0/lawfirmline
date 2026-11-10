@@ -30,7 +30,7 @@ function prismaMock(overrides: Record<string, unknown> = {}) {
 
 async function build(prisma: Record<string, unknown>) {
   const module = await Test.createTestingModule({
-    providers: [ConflictCheckService, { provide: PrismaService, useValue: prisma }, { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }), getCaseFilterForUser: () => ({ firmId: 'firm-1' }) } }],
+    providers: [ConflictCheckService, { provide: PrismaService, useValue: prisma }, { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }), getCaseFilterForUser: () => ({ firmId: 'firm-1' }), canAccessCase: jest.fn(async (_u: unknown, id: string) => id === 'case-1') } }],
   }).compile();
   return module.get(ConflictCheckService);
 }
@@ -331,5 +331,16 @@ describe('conflict gate', () => {
     }));
     const found = await service.search(user, ['บริษัท ร่วม']);
     expect(found.matches).toContainEqual(expect.objectContaining({ kind: 'CASE_CLIENT', side: 'OURS', caseId: 'case-3' }));
+  });
+
+  it('records and lists a check on a case opened without an intake, only for a case the user can open', async () => {
+    const prisma = prismaMock();
+    const service = await build(prisma);
+    const saved = await service.record(user, { terms: ['บริษัท ทดสอบ'], caseId: 'case-1', result: ConflictResult.CLEAR });
+    expect(saved).toMatchObject({ caseId: 'case-1', intakeId: undefined, result: ConflictResult.CLEAR });
+    await expect(service.record(user, { terms: ['บริษัท ทดสอบ'], caseId: 'case-2', result: ConflictResult.CLEAR })).rejects.toBeInstanceOf(NotFoundException);
+    await service.list(user, undefined, 'case-1');
+    expect((prisma.conflictCheck.findMany as jest.Mock).mock.calls.at(-1)[0].where).toEqual({ firmId: 'firm-1', caseId: 'case-1' });
+    await expect(service.list(user, undefined, 'case-2')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

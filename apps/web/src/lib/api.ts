@@ -834,6 +834,9 @@ export interface CaseDetail extends CaseItem {
   intake?: {
     id: string;
     status: string;
+    receivedById: string | null;
+    receivedBy: { id: string; firstName: string; lastName: string } | null;
+    createdAt: string;
     noticeIssuedAt?: string | null;
     noticeDeadline?: string | null;
     noticeRecipient?: string | null;
@@ -841,6 +844,7 @@ export interface CaseDetail extends CaseItem {
     preLitigationStatus?: string | null;
     settlementOfferAmount?: number | null;
   } | null;
+  originThread: { id: string; subject: string; receivedAt: string; attachmentCount: number } | null;
   description?: string | null;
   folderId?: string;
   courtName?: string | null;
@@ -1500,6 +1504,17 @@ export interface CaseFolderLinkItem {
   connection: { mailboxAddress: string; status: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'ERROR' };
 }
 
+export interface AssigneeLoad {
+  userId: string; firstName: string; lastName: string; firmRole: string; openCaseCount: number; overdueTaskCount: number;
+  leave: { startDate: string; endDate: string } | null;
+}
+
+export interface LinkCandidate {
+  threadId: string; subject: string; fromName: string | null; fromAddress: string | null; lastMessageAt: string;
+  attachmentCount: number; reasons: ThreadMatchReason[]; linkedCase: { id: string; ownRef: string; title: string } | null;
+}
+export type LinkCandidates = { suggested: LinkCandidate[]; linkedElsewhere: LinkCandidate[] };
+
 export interface CaseEmailThreadItem {
   id: string;
   subject: string;
@@ -1509,6 +1524,7 @@ export interface CaseEmailThreadItem {
   messageCount: number;
   attachmentCount: number;
   awaitingReplySince: string | null;
+  linkedBy: { firstName: string; lastName: string } | null;
 }
 
 export interface CaseEmailMessageItem {
@@ -1851,7 +1867,7 @@ export interface AddinCaseSuggestion {
   reasons: string[];
 }
 
-export type JourneyStep = { key: string; label: string; state: 'done' | 'current' | 'locked'; summary?: string | null; unlockHint?: string | null };
+export type JourneyStep = { key: string; label: string; state: 'done' | 'current' | 'locked'; summary?: string | null; unlockHint?: string | null; skippedAtOpen?: boolean };
 export type Journey = { steps: JourneyStep[]; next: { text: string; done: number; total: number } | null; canAdvance: boolean; blockers: string[] };
 export type CaseJourney = Journey & { preLitSteps: JourneyStep[]; preLitNext: Journey['next']; currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] };
 export type SkippedTask = { id: string; status: string; skippedReason: string; skippedAt: string; skippedById: string };
@@ -2135,7 +2151,7 @@ export const api = {
     request<{ deleted: boolean }>(`/cases/${id}`, { method: 'DELETE', token }),
 
 
-  createCase: (token: string, data: Record<string, unknown>) =>
+  createCase: (token: string, data: Record<string, unknown> & { stage?: import('@lawfirm/shared').CaseStage; blackCaseNumberUnknown?: boolean }) =>
     request('/cases', {
       method: 'POST',
       token,
@@ -2196,15 +2212,15 @@ export const api = {
       { token },
     ),
 
-  listConflictChecks: (token: string, intakeId?: string) =>
+  listConflictChecks: (token: string, intakeId?: string, caseId?: string) =>
     request<ConflictCheckRecord[]>(
-      `/conflict-check${intakeId ? `?intakeId=${intakeId}` : ''}`,
+      `/conflict-check${intakeId ? `?intakeId=${intakeId}` : caseId ? `?caseId=${caseId}` : ''}`,
       { token },
     ),
 
   recordConflictCheck: (
     token: string,
-    data: { terms: string[]; intakeId?: string; result: string; notes?: string },
+    data: { terms: string[]; intakeId?: string; caseId?: string; result: string; notes?: string },
   ) =>
     request<ConflictCheckRecord>('/conflict-check', {
       method: 'POST',
@@ -2218,6 +2234,13 @@ export const api = {
       token,
       body: JSON.stringify({ stage, note }),
     }),
+
+  getCaseDocumentRequests: (token: string, id: string) =>
+    request<IntakeDocumentRequestItem[]>(`/cases/${id}/document-requests`, { token }),
+  addCaseDocumentRequest: (token: string, id: string, data: { name: string; requestedFrom: string }) =>
+    request<IntakeDocumentRequestItem>(`/cases/${id}/document-requests`, { token, method: 'POST', body: JSON.stringify(data) }),
+  updateCaseDocumentRequest: (token: string, id: string, requestId: string, status: string) =>
+    request<IntakeDocumentRequestItem>(`/cases/${id}/document-requests/${requestId}`, { token, method: 'PATCH', body: JSON.stringify({ status }) }),
 
   getIntakeDocumentRequests: (token: string, id: string) =>
     request<IntakeDocumentRequestsResult>(`/intake/${id}/document-requests`, { token }),
@@ -3736,6 +3759,11 @@ export const api = {
 
   convertIntake: (token: string, id: string, data?: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/convert`, { method: 'POST', token, body: JSON.stringify(data ?? {}) }),
+
+  getAssignees: (token: string) => request<AssigneeLoad[]>('/operations/assignees', { token }),
+  leaveCaseTeam: (token: string, id: string) => request<{ left: true }>(`/cases/${encodeURIComponent(id)}/assignments/me`, { token, method: 'DELETE' }),
+  getCaseEmailLinkCandidates: (token: string, caseId: string, q = '') => request<LinkCandidates>(`/cases/${encodeURIComponent(caseId)}/email/link-candidates?q=${encodeURIComponent(q)}`, { token }),
+  getEmailLinkCandidates: (token: string, clientId: string, q = '') => request<LinkCandidates>(`/email/link-candidates?clientId=${encodeURIComponent(clientId)}&q=${encodeURIComponent(q)}`, { token }),
 
   // --- Email intake ---
   getEmailThreads: (token: string) => request<EmailThreadListItem[]>('/email-intake/threads', { token }),

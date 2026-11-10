@@ -46,7 +46,7 @@ test('forms preserve party roles and blank unknowns, escape text, and keep priva
 test('both documents use the saved charge, while missing or malformed legacy values stay blank', () => {
   const c: CaseDetail = {
     id: 'test-case', ownRef: 'TEST', title: 'ทดสอบ', status: CaseStatus.OPEN,
-    openedAt: '2026-09-22T00:00:00Z', assignments: [], tasks: [], participants: [],
+    originThread: null, openedAt: '2026-09-22T00:00:00Z', assignments: [], tasks: [], participants: [],
     _count: { tasks: 0, documents: 0 },
     leadLawyer: { id: 'lawyer', firstName: 'ทนาย', lastName: 'ทดสอบ', email: 'test@example.com' },
     customFields: { chargeSection: '  ละเมิด เรียกค่าเสียหาย  ', unrelated: 'keep' },

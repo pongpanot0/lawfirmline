@@ -19,7 +19,6 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
-import { ProposalReview } from '@/components/email-intake/ProposalGroup';
 import { isPending, parseDocument } from '@/lib/email-intake';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -272,7 +271,7 @@ function JourneySection({ step, children, readOnly }: { step: JourneyStep; child
 
 type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | 'details' | 'quote' | null;
 
-export function PreLitigationIntake({ id, steps, onChanged, history = false }: { id: string; steps?: JourneyStep[]; onChanged?: () => void; history?: boolean }) {
+export function PreLitigationIntake({ id, history = false }: { id: string; history?: boolean }) {
   const { token, user } = useAuth();
   const router = useRouter();
   const [intake, setIntake] = useState<IntakeItem | null>(null);
@@ -466,10 +465,10 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
       api
         .setIntakeChecklistItem(token, id, label, documentId)
         // ด่านก่อนออกหนังสืออ่านจากตารางเดียวกัน จำนวนที่ขาดต้องตามทันที
-        .then(async () => { await loadDocumentRequests(); await reloadJourney(); onChanged?.(); })
+        .then(async () => { await loadDocumentRequests(); await reloadJourney(); })
         .catch(console.error);
     },
-    [token, id, loadDocumentRequests, reloadJourney, onChanged],
+    [token, id, loadDocumentRequests, reloadJourney],
   );
 
   useEffect(() => {
@@ -510,7 +509,6 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
     if (!token || !id) return;
     const [updated] = await Promise.all([api.getIntake(token, id), reloadJourney()]);
     setIntake(updated);
-    onChanged?.();
   };
 
   const caseId = intake?.case?.id;
@@ -882,7 +880,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
 
   const toggleChecklistReceived = (item: { label: string; hints: string[] }) => {
     if (!id) return;
-    if (intake?.status === 'REJECTED' || (!steps && intake?.status === 'CONVERTED') || intake?.status === 'CONSULTED') {
+    if (intake?.status === 'REJECTED' || (intake?.status === 'CONVERTED') || intake?.status === 'CONSULTED') {
       return;
     }
     setConfirmedChecklist((previous) => {
@@ -1041,7 +1039,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
     INFO: <div className="space-y-4">          <Card>
             <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-base">รายละเอียด</CardTitle>
-              {(!!steps || intake.status !== 'CONVERTED') && (
+              {(intake.status !== 'CONVERTED') && (
                 <Button variant="outline" size="sm" onClick={openDetailsModal}>แก้ไข</Button>
               )}
             </CardHeader>
@@ -1101,11 +1099,10 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
     CONFLICT: token && <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />,
     DOCUMENTS: <div id="intake-documents" className="min-w-0 space-y-4">
       {(intake.fieldProposals ?? []).filter((p) => p.field === 'document').map((proposal) => { const doc = parseDocument(proposal.proposedValue); if (!doc) return null; return <div key={proposal.id} className="space-y-2 rounded-lg border p-3 text-sm"><p>{doc.filename} · {doc.docTypeLabel}</p>{proposal.sourceDetail && <p className="text-muted-foreground">{proposal.sourceDetail}</p>}{isPending(proposal) ? <div className="flex gap-2"><Button size="sm" variant="outline" disabled={resolvingId === proposal.id} onClick={() => void resolveProposal(proposal.id, 'reject')}>ไม่ใช่</Button><Button size="sm" disabled={resolvingId === proposal.id} onClick={() => void resolveProposal(proposal.id, 'confirm')}>ยืนยัน</Button></div> : <p>{proposal.status === 'CONFIRMED' ? 'ยืนยันแล้ว' : 'ตัดออกแล้ว'}</p>}</div>; })}
-      <Button variant="outline" onClick={() => setWorkspaceTab(steps && workspaceTab === 'research' ? 'overview' : 'research')} aria-expanded={steps ? workspaceTab === 'research' : undefined}>
-        {steps && workspaceTab === 'research' ? 'ปิดพื้นที่ค้นคว้า' : 'จัดข้อเท็จจริงและค้นฎีกา'}
+      <Button variant="outline" onClick={() => setWorkspaceTab('research')} >
+        จัดข้อเท็จจริงและค้นฎีกา
         <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
       </Button>
-      {steps && workspaceTab === 'research' && <ResearchWorkspace intakeId={id} initialText={intake.description ?? ''} documents={documents} onUploaded={() => { void loadDocuments(); void reload(); }} onResult={(row) => { setAnalyses((prev) => [row, ...prev.filter((a) => a.id !== row.id)]); setSelectedAnalysisId(row.id); void reload(); }} />}
       {currentAnalysis?.extractedFacts?.selectedAttachments && <p className="text-xs text-muted-foreground">ไฟล์ที่ใช้ในผลวิเคราะห์ที่แสดง: {currentAnalysis.extractedFacts.selectedAttachments.map((file) => file.filename).join(', ') || 'ใช้เฉพาะรายละเอียดเรื่อง'}</p>}
       {currentAnalysis?.extractedFacts?.attachmentWarnings?.map((warning) => <p key={warning} className="text-sm text-destructive">{warning}</p>)}
 
@@ -1121,7 +1118,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
         </CardHeader>
         <CardContent className="space-y-4">
           {intake.status !== 'REJECTED' &&
-            (!!steps || intake.status !== 'CONVERTED') &&
+            (intake.status !== 'CONVERTED') &&
             intake.status !== 'CONSULTED' && (
               <DocumentDropZone
                 multiple
@@ -1139,7 +1136,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
               <p className="text-sm font-medium">เอกสารที่คาดว่าจะถูกส่งเข้ามา</p>
               {documents.length > 0 &&
                 intake.status !== 'REJECTED' &&
-                (!!steps || intake.status !== 'CONVERTED') &&
+                (intake.status !== 'CONVERTED') &&
                 intake.status !== 'CONSULTED' && (
                   <Button
                     type="button"
@@ -1163,7 +1160,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
                 const pending = pendingSuggestions.find((suggestion) => suggestion.label === item.label);
                 const canToggle =
                   intake.status !== 'REJECTED' &&
-                  (!!steps || intake.status !== 'CONVERTED') &&
+                  (intake.status !== 'CONVERTED') &&
                   intake.status !== 'CONSULTED';
                 return (
                   <button
@@ -1211,7 +1208,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
             {/* เพิ่มเอกสารที่ต้องขอนอกเหนือรายการมาตรฐาน — รายการที่จำเป็นและยังไม่ได้รับ
                 จะกั้นการออกหนังสือไว้ */}
             {intake.status !== 'REJECTED' &&
-              (!!steps || intake.status !== 'CONVERTED') &&
+              (intake.status !== 'CONVERTED') &&
               intake.status !== 'CONSULTED' && (
                 <form
                   className="mt-3 flex flex-wrap items-center gap-2"
@@ -1498,11 +1495,9 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
     {(intake.noticeIssuedAt || intake.preLitigationStatus !== 'NOT_STARTED') && sections.ACTION}
   </div>;
 
-  const embedded = !!steps;
   return (
     <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-clip">
-      {embedded && <section className="space-y-3" aria-label="ขั้นตอนก่อนฟ้อง"><h2 className="font-semibold">ก่อนฟ้อง</h2><ProposalReview proposals={intake.fieldProposals ?? []} resolvingId={resolvingId} onResolve={resolveProposal} />{error && <p role="alert" className="text-destructive">{error}</p>}{steps.map((step) => <JourneySection key={step.key} step={{ ...step, label: step.key === 'INFO' ? 'ข้อมูลครบ' : step.label }} readOnly={false}>{sections[step.key]}</JourneySection>)}</section>}
-      {!embedded && <div inert={history} aria-disabled={history}>
+      <div inert={history} aria-disabled={history}>
       <PageHeader
         title={intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
         description={`${intake.referralName || intake.clientName || intake.client?.name || '—'} · รับเมื่อ ${formatDateOrDash(intake.receivedDate)}`}
@@ -1739,7 +1734,7 @@ export function PreLitigationIntake({ id, steps, onChanged, history = false }: {
       </div>
       </div>
 
-      </div>}
+      </div>
       {/* Modals */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">

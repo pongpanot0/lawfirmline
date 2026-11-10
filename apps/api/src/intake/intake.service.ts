@@ -1217,6 +1217,12 @@ export class IntakeService {
           status: 'OPEN' as any,
           // คดีที่ผ่าน intake มาแล้วไม่ต้อง review ซ้ำ — เริ่มที่งานก่อนฟ้องเลย
           stage: CaseStage.PRE_LITIGATION,
+          openedAtStage: CaseStage.PRE_LITIGATION,
+          tasks: { create: {
+            title: 'ประเมินและตัดสินใจแนวทาง (ฟ้อง / เจรจา / ส่งโนติส)',
+            assigneeId: dto.leadLawyerId ?? user.id, createdById: user.id, firmId: user.firmId,
+            dueDate: new Date(Date.now() + 7 * 86400000), labels: ['stage:PRE_LITIGATION'],
+          } },
           stageChangedAt: new Date(),
           leadLawyerId: dto.leadLawyerId ?? user.id,
           intakeId: intake.id,
@@ -1324,12 +1330,6 @@ export class IntakeService {
       });
     }
 
-    await this.tasksService.create(user, newCase.id, {
-      title: `เริ่มดำเนินการคดี: ${newCase.title}`,
-      assigneeId: newCase.leadLawyerId,
-      dueDate: intake.deadlineDate?.toISOString(),
-    });
-
     return newCase;
   }
 
@@ -1389,7 +1389,8 @@ export class IntakeService {
       },
     });
 
-    const assigneeIds = (intake.assignedUserIds ?? []).filter(
+    // Whoever took the matter in stays on the team when someone else leads it.
+    const assigneeIds = [...new Set([...(intake.assignedUserIds ?? []), ...(intake.receivedById ? [intake.receivedById] : [])])].filter(
       (userId) => userId !== newCase.leadLawyerId,
     );
     if (assigneeIds.length > 0) {

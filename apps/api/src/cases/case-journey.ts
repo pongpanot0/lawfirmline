@@ -44,8 +44,33 @@ export function assertJourneyAdvance(fromStage: string, toStage: CaseStage | nul
   }
 }
 
+export function preLitChecklist(
+  info: { title?: string | null; clientId?: string | null; clientName?: string | null },
+  conflict: { result: string } | null,
+  requests: { required: boolean; status: string }[],
+): Journey {
+  const required = requests.filter((r) => r.required);
+  const resolved = required.filter((r) => !['REQUESTED', 'MISSING'].includes(r.status)).length;
+  const missing = [!info.title?.trim() ? 'ชื่อเรื่อง' : '', !info.clientId && !info.clientName?.trim() ? 'ข้อมูลลูกความ' : ''].filter(Boolean);
+  const complete = [missing.length === 0, !!conflict && conflict.result !== 'NEEDS_REVIEW', resolved === required.length];
+  const keys = ['INFO', 'CONFLICT', 'DOCUMENTS'];
+  const labels = ['ข้อมูลเรื่องและลูกความครบ', 'ตรวจผลประโยชน์ขัดกัน', 'เอกสารจากลูกความ'];
+  const texts = [
+    `กรอก${missing.join('และ')}ให้ครบ`,
+    conflict ? 'ทบทวนและบันทึกผลตรวจผลประโยชน์ขัดกัน' : 'ตรวจและบันทึกผลประโยชน์ขัดกัน',
+    `เอกสารที่จำเป็นพร้อมแล้ว ${resolved} จาก ${required.length} รายการ — กด 'ได้รับแล้ว' หรือ 'ไม่ใช้' ให้ครบ`,
+  ];
+  const first = complete.indexOf(false);
+  return {
+    steps: keys.map((key, i) => ({ key, label: labels[i], state: complete[i] ? 'done' : 'current', summary: complete[i] ? labels[i] : texts[i] })),
+    next: first < 0 ? null : { text: texts[first], done: first === 2 ? resolved : 0, total: first === 2 ? required.length : 1 },
+    canAdvance: first < 0,
+    blockers: texts.filter((_, i) => !complete[i]),
+  };
+}
+
 export function caseJourney(
-  legalCase: { stage: string; partyRole: string | null },
+  legalCase: { stage: string; partyRole: string | null; openedAtStage?: string | null },
   tasks: JourneyTask[],
   applied: AppliedJourneyPlaybook[],
   preLit?: Journey,
@@ -54,6 +79,7 @@ export function caseJourney(
   const stages = [...MAIN_JOURNEY_STAGES];
   if (stage === CaseStage.APPEAL || stage === CaseStage.SUPREME) stages.splice(6, 0, stage);
   const current = stages.indexOf(stage);
+  const opened = stages.indexOf(journeyStage(legalCase.openedAtStage ?? CaseStage.PRE_LITIGATION));
   const side = partySide(legalCase.partyRole);
   const linked = new Set<string>();
   for (const application of applied) {
@@ -96,7 +122,8 @@ export function caseJourney(
   return {
     steps: stages.map((key, i) => ({
       key, label: CASE_STAGE_LABELS_TH[key], state: i < current ? 'done' : i === current ? 'current' : 'locked',
-      summary: i < current ? 'ผ่านขั้นตอนนี้แล้ว' : null,
+      summary: i < opened ? 'ข้ามตอนเปิดคดี' : i < current ? 'ผ่านขั้นตอนนี้แล้ว' : null,
+      ...(i < opened ? { skippedAtOpen: true } : {}),
       unlockHint: i > current ? `ปลดล็อกเมื่อเสร็จขั้น${CASE_STAGE_LABELS_TH[stages[i - 1]]}` : null,
     })),
     next: pending.length ? { text: `จัดการงานขั้น${CASE_STAGE_LABELS_TH[stage]}แล้ว ${done} จาก ${currentTasks.length} รายการ — ทำให้เสร็จหรือข้ามพร้อมเหตุผลอีก ${pending.length} รายการ`, done, total: currentTasks.length }

@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuthUser, DocumentCategory } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -31,6 +31,17 @@ export interface ThreadCaseSuggestion {
   reasons: ThreadMatchReason[];
 }
 
+export interface LinkCandidate {
+  threadId: string;
+  subject: string;
+  fromName: string | null;
+  fromAddress: string | null;
+  lastMessageAt: Date;
+  attachmentCount: number;
+  reasons: ThreadMatchReason[];
+  linkedCase: { id: string; ownRef: string; title: string } | null;
+}
+
 /** Every address a thread touches (sender, to, cc), lower-cased and de-duplicated, minus the mailbox it arrived in. */
 export function threadAddresses(thread: {
   fromAddress: string | null;
@@ -49,6 +60,8 @@ export function threadAddresses(thread: {
 
 const THREAD_REASON_RANK: Record<ThreadMatchReason, number> = { OWN_REF: 0, CASE_NUMBER: 1, SAME_REFERENCE: 2, CONTACT_EMAIL: 3 };
 const MAX_SUGGESTIONS = 10;
+const MAX_LINK_CANDIDATES = 30;
+const MAX_REFERENCES = 50;
 const MAX_ADDRESSES = 20;
 const MAX_CASE_THREADS = 200;
 const MAX_SEARCH_RESULTS = 50;
@@ -169,6 +182,73 @@ export class CaseEmailService {
       .slice(0, MAX_SUGGESTIONS);
   }
 
+  async linkCandidates(user: AuthUser, input: { caseId?: string; clientId?: string; q?: string }): Promise<{ suggested: LinkCandidate[]; linkedElsewhere: LinkCandidate[] }> {
+    const contactSelect = { billingEmail: true, contacts: { select: { email: true }, take: MAX_ADDRESSES } } as const;
+    let addresses: string[] = [];
+    let refs: string[] = [];
+    if (input.caseId) {
+      const legalCase = await this.prisma.case.findFirst({
+        where: { AND: [this.caseAccess.getCaseFilterForUser(user), { id: input.caseId }] },
+        select: {
+          ownRef: true, customerRef: true, blackCaseNumber: true,
+          intake: { select: { claimNumber: true, policyNumber: true } },
+          client: { select: contactSelect },
+          participants: { select: { email: true }, take: MAX_ADDRESSES },
+          emailThreads: { select: { subject: true }, orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }], take: MAX_CASE_THREADS },
+        },
+      });
+      if (!legalCase) throw new NotFoundException('ไม่พบคดี หรือคุณไม่มีสิทธิ์ในคดีนี้');
+      refs = [legalCase.ownRef, legalCase.customerRef, legalCase.blackCaseNumber, legalCase.intake?.claimNumber, legalCase.intake?.policyNumber,
+        ...legalCase.emailThreads.flatMap((t) => subjectRefs(t.subject))].filter((r): r is string => !!r?.trim());
+      addresses = [legalCase.client?.billingEmail, ...(legalCase.client?.contacts ?? []).map((c) => c.email), ...legalCase.participants.map((p) => p.email)]
+        .filter((a): a is string => !!a?.trim());
+    } else if (input.clientId !== undefined) {
+      const client = await this.prisma.client.findFirst({ where: { id: input.clientId, firmId: user.firmId }, select: contactSelect });
+      if (!client) throw new BadRequestException('ไม่พบลูกความในสำนักงานนี้');
+      addresses = [client.billingEmail, ...client.contacts.map((c) => c.email)].filter((a): a is string => !!a?.trim());
+    }
+    addresses = [...new Set(addresses.map((a) => a.trim().toLowerCase()))].slice(0, MAX_ADDRESSES);
+    refs = [...new Set(refs.map((r) => r.trim().toLowerCase()))].slice(0, MAX_REFERENCES);
+    const q = input.q?.trim().slice(0, MAX_SEARCH_QUERY) ?? '';
+    const matches: Prisma.EmailThreadWhereInput[] = refs.map((ref) => ({ subject: { contains: ref, mode: 'insensitive' } }));
+    if (addresses.length) {
+      const senders = addresses.map((a) => ({ fromAddress: { equals: a, mode: 'insensitive' as const } }));
+      matches.push(...senders, { messages: { some: { OR: [...senders, { toAddresses: { hasSome: addresses } }, { ccAddresses: { hasSome: addresses } }] } } });
+    }
+    if (q.length >= 2) {
+      const contains = { contains: q, mode: 'insensitive' as const };
+      matches.push({ subject: contains }, { fromAddress: contains }, { fromName: contains });
+    }
+    if (!matches.length) return { suggested: [], linkedElsewhere: [] };
+    const load = async (linked: boolean) => {
+      const threads = await this.prisma.emailThread.findMany({
+        where: await this.threadWhere(user, {
+          caseId: linked ? { not: null } : null,
+          ...(linked && input.caseId ? { NOT: { caseId: input.caseId } } : {}),
+          OR: matches,
+        }),
+        select: {
+          id: true, subject: true, fromName: true, fromAddress: true, lastMessageAt: true, caseId: true,
+          case: { select: { id: true, ownRef: true, title: true } },
+          mailboxConnection: { select: { mailboxAddress: true } },
+          messages: { select: { fromAddress: true, toAddresses: true, ccAddresses: true, _count: { select: { attachments: { where: { isInline: false } } } } } },
+        },
+        orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }], take: MAX_CASE_THREADS,
+      });
+      return threads.flatMap((t): LinkCandidate[] => {
+        if (input.caseId && t.caseId === input.caseId) return [];
+        const reasons: ThreadMatchReason[] = [];
+        if (refs.some((r) => t.subject.toLowerCase().includes(r))) reasons.push('SAME_REFERENCE');
+        if (threadAddresses(t).some((a) => addresses.includes(a))) reasons.push('CONTACT_EMAIL');
+        if (!reasons.length && !(q.length >= 2 && [t.subject, t.fromAddress, t.fromName].some((v) => v?.toLowerCase().includes(q.toLowerCase())))) return [];
+        return [{ threadId: t.id, subject: t.subject, fromName: t.fromName, fromAddress: t.fromAddress, lastMessageAt: t.lastMessageAt,
+          attachmentCount: t.messages.reduce((sum, m) => sum + m._count.attachments, 0), reasons, linkedCase: t.case }];
+      }).slice(0, MAX_LINK_CANDIDATES);
+    };
+    const [suggested, linkedElsewhere] = await Promise.all([load(false), load(true)]);
+    return { suggested, linkedElsewhere };
+  }
+
   /**
    * Addresses in a case's thread that the case does not know yet: not a client contact, not a participant,
    * not a firm member, not a firm mailbox. Read-only; nothing is added here.
@@ -283,12 +363,26 @@ export class CaseEmailService {
       orderBy: { lastMessageAt: 'desc' },
       take: MAX_CASE_THREADS,
     });
-    const [internal, latest] = await Promise.all([
+    const [internal, latest, links] = await Promise.all([
       loadInternalAddresses(this.prisma, user.firmId),
       loadLatestMessages(this.prisma, threads.map((t) => t.id)),
+      threads.length ? this.prisma.auditLog.findMany({
+        where: { firmId: user.firmId, action: 'EMAIL_THREAD_LINKED', AND: [
+          { metadata: { path: ['caseId'], equals: caseId } },
+          { OR: threads.map((t) => ({ metadata: { path: ['threadId'], equals: t.id } })) },
+        ] },
+        select: { metadata: true, user: { select: { firstName: true, lastName: true } } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }) : [],
     ]);
+    const linkedBy = new Map<string, { firstName: string; lastName: string } | null>();
+    for (const link of links) {
+      const threadId = (link.metadata as { threadId?: string } | null)?.threadId;
+      if (threadId && !linkedBy.has(threadId)) linkedBy.set(threadId, link.user);
+    }
     return threads.map((thread) => ({
       id: thread.id,
+      linkedBy: linkedBy.get(thread.id) ?? null,
       awaitingReplySince: awaitingMessage(thread, latest.get(thread.id), internal)?.receivedAt.toISOString() ?? null,
       subject: thread.subject,
       fromName: thread.fromName,

@@ -28,7 +28,7 @@ import { AuthUser, hasFirmCapability, type FirmCapability } from '@lawfirm/share
 import { cn } from '@/lib/utils';
 import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * Day-to-day work and the settings that shape the office are different
@@ -88,6 +88,12 @@ export function SamnuanSidebar({ user, mobileOpen = false, onMobileClose }: Samn
   const pathname = usePathname();
   const d = useDashboardT();
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => { try { setCollapsed(localStorage.getItem('samnuan.sidebar.collapsed') === 'true'); } catch {} }, []);
+  const toggleCollapsed = () => setCollapsed((value) => {
+    const next = !value;
+    try { localStorage.setItem('samnuan.sidebar.collapsed', String(next)); } catch {}
+    return next;
+  });
   const links: NavItem[] = NAV_ITEMS.flatMap(item => [
     { ...item, children: [] },
     ...item.children.map(child => ({ ...child, group: item.group, children: [], isChild: true })),
@@ -166,7 +172,7 @@ export function SamnuanSidebar({ user, mobileOpen = false, onMobileClose }: Samn
           )}
           aria-label={collapsed ? d.nav.expandMenu : d.nav.collapseMenu}
           title={collapsed ? d.nav.expandMenu : undefined}
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapsed}
         >
           {collapsed ? <PanelLeftOpen className="h-4 w-4" aria-hidden /> : <PanelLeftClose className="h-4 w-4" aria-hidden />}
           {!collapsed && <span>{d.nav.collapseMenu}</span>}
@@ -217,7 +223,7 @@ function NavItemRow({
 
   const linkClass = (isActive: boolean) =>
     cn(
-      'samnuan-navlink flex min-h-11 items-center gap-3 px-3 py-2 text-sm md:min-h-9 md:py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-foreground focus-visible:ring-inset',
+      'samnuan-navlink flex min-h-11 items-center gap-3 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-foreground focus-visible:ring-inset',
       isActive
         ? 'bg-sidebar-accent text-sidebar-foreground'
         : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground',

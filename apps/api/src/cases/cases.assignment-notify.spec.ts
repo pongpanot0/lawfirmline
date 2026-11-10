@@ -13,6 +13,7 @@ describe('CasesService assignment notifications', () => {
   const mockPrisma = {
     firm: { findUnique: jest.fn().mockResolvedValue(null) }, // no plan: no case limit
     case: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
+    emailThread: { findFirst: jest.fn().mockResolvedValue(null) },
     caseType: { findFirst: jest.fn() },
     client: { findFirst: jest.fn() },
     firmMember: { count: jest.fn() },
@@ -20,7 +21,7 @@ describe('CasesService assignment notifications', () => {
     caseStatusLog: { create: jest.fn() },
     auditLog: { create: jest.fn() },
     caseProceeding: { upsert: jest.fn() },
-    $transaction: jest.fn().mockResolvedValue([]),
+    $transaction: jest.fn().mockImplementation((action) => typeof action === 'function' ? action(mockPrisma) : Promise.all(action)),
   };
   const mockNotifier = { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() };
   const mockCaseFeed = { log: jest.fn() };

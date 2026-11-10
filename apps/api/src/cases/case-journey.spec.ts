@@ -98,3 +98,18 @@ describe('nextJourneyStage', () => {
   it.each([CaseStage.FILING, CaseStage.ANSWER, CaseStage.ENFORCEMENT])('refuses explicit main-path target %s', (toStage) => expect(nextJourneyStage('PRE_LITIGATION', toStage)).toBeNull());
   it('refuses same-stage targets', () => expect(nextJourneyStage('CLOSING', CaseStage.CLOSING)).toBeNull());
 });
+
+describe('opening-stage journey', () => {
+  it('distinguishes skipped-at-open steps from steps passed later', () => {
+    const result = caseJourney({ stage: 'HEARING', partyRole: null, openedAtStage: 'ANSWER' } as any, [], []);
+    expect(result.steps.slice(0, 2)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'PRE_LITIGATION', summary: 'ข้ามตอนเปิดคดี', skippedAtOpen: true }),
+      expect.objectContaining({ key: 'FILING', summary: 'ข้ามตอนเปิดคดี', skippedAtOpen: true }),
+    ]));
+    expect(result.steps[2]).toMatchObject({ summary: 'ผ่านขั้นตอนนี้แล้ว' });
+    expect(result.steps[2]).not.toHaveProperty('skippedAtOpen');
+  });
+  it('treats null opening stage as legacy pre-litigation', () => {
+    expect(caseJourney({ ...legalCase, openedAtStage: null } as any, [], []).steps[0]).toMatchObject({ summary: 'ผ่านขั้นตอนนี้แล้ว' });
+  });
+});
