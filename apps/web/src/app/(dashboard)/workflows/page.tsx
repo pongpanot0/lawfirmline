@@ -27,10 +27,10 @@ function WorkflowsContent() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader title="สายงาน" description="งานที่ส่งต่อกันเป็นทอด อยู่ขั้นไหน ค้างที่ใคร และส่งลูกความทันไหม" />
+      <PageHeader title="สายงานส่งต่อ" description="ดูว่างานอยู่ขั้นไหน ใครรับผิดชอบ และใกล้ถึงกำหนดหรือยัง" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="pipeline">กำลังเดิน</TabsTrigger>
+          <TabsTrigger value="pipeline">งานที่กำลังดำเนินการ</TabsTrigger>
           <TabsTrigger value="templates">แม่แบบ</TabsTrigger>
         </TabsList>
         <TabsContent value="pipeline" className="mt-6"><Pipeline token={token} /></TabsContent>

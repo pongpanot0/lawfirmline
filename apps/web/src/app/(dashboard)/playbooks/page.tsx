@@ -52,12 +52,12 @@ function PlaybooksList() {
       />
     </div>
     {error ? <LoadFailed message={error} onRetry={() => setReload(n => n + 1)} /> : loading ? <div role="status" aria-label={th ? 'กำลังโหลด SOP' : 'Loading SOPs'} className="space-y-2">{[0, 1, 2].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}</div> : items.length === 0 ?
-      (<EmptyState title={th ? 'ยังไม่มี SOP อัตโนมัติ' : 'No automated SOPs yet.'} action={canCreate ? createLink : undefined} />) :
+      (<EmptyState title={th ? 'ยังไม่มี SOP อัตโนมัติ' : 'No automated SOPs yet.'} description={th ? (canCreate ? 'กดสร้าง SOP เพื่อเพิ่มชุดขั้นตอนแรก' : 'ขอให้ผู้ดูแลสำนักงานเพิ่มชุดขั้นตอน') : undefined} action={canCreate ? createLink : undefined} />) :
       <div className="space-y-2">
         {items.map(p => <Link key={p.id} href={`/playbooks/${p.id}`} className="group flex min-h-20 items-center gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-primary/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
           <Zap className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold">{p.name}</span>
+            <span className="block break-words font-semibold">{p.name}</span>
             <span className="text-xs tabular-nums text-muted-foreground">v{p.version} · {p.steps.length} {th ? 'ขั้นตอน' : 'steps'}</span>
           </span>
           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden />

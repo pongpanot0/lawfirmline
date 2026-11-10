@@ -1,5 +1,7 @@
 'use client';
 
+import { SubmitSummary } from '@/components/guide/SubmitSummary';
+
 import { useCallback, useEffect, useState } from 'react';
 import {
   api,
@@ -273,7 +275,7 @@ export function InvoicePanel({
           onDismiss?.();
         }}
       >
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className={formOnly ? "space-y-3 pb-32 xl:pb-0" : "space-y-3"}>
           {caseId &&
             (hasWork ? (
               <div className="space-y-1">
@@ -327,6 +329,7 @@ export function InvoicePanel({
               </p>
             ))}
 
+          {formOnly && <h2 className="font-semibold">1. เลือกผู้รับใบแจ้งหนี้</h2>}
           {standalone && (
             <CustomerSelect
               id="invoice-billTo"
@@ -338,6 +341,7 @@ export function InvoicePanel({
             />
           )}
 
+          {formOnly && <h2 className="pt-3 font-semibold">2. เพิ่มรายการและตรวจยอด</h2>}
           <div className="space-y-2">
             {items.map((item, index) => (
               <div key={index} className="flex flex-wrap items-center gap-2">
@@ -497,13 +501,13 @@ export function InvoicePanel({
               {error}
             </p>
           )}
-          <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+          {formOnly ? <SubmitSummary items={[{ label: 'ส่วนลดไม่เกินยอดรวม', done: discountAmount <= total }, { label: 'ระบุเหตุผลเมื่อให้ส่วนลด', done: discountAmount <= 0 || !!discountReason.trim() }]} loading={submitting} label="ออกใบแจ้งหนี้" loadingLabel="กำลังออก…" /> : <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
             {submitting
               ? 'กำลังออก…'
               : customers.length > 1
                 ? `ออกใบแจ้งหนี้ ${customers.length} ใบ`
                 : 'ออกใบแจ้งหนี้'}
-          </Button>
+          </Button>}
         </form>
       </SideDrawer>
 

@@ -314,13 +314,16 @@ function CasesPageContent() {
 
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-start gap-3 p-4">
+          <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
           <Input
             placeholder={d.cases.searchPlaceholder}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             aria-label={d.cases.searchPlaceholder}
-            className="w-full sm:max-w-xs"
+            className="w-full sm:w-64"
           />
+          <span className="hidden whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:inline">💡 ลองพิมพ์ชื่อลูกความ</span>
+          </div>
           <select
             aria-label={d.cases.allStatuses}
             value={statusFilter}

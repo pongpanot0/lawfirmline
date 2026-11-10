@@ -49,14 +49,14 @@ export default function DailyBriefPage() {
   const header = (
     <PageHeader
       title="สรุปประจำวัน"
-      description="งานที่ติดอยู่ ติดที่ใคร กี่วันแล้ว — สรุปให้ทุกเช้า 07:30"
+      description="ดูงานที่ติดอยู่ ผู้รับผิดชอบ และจำนวนวันที่ค้าง เลือกวันเพื่อดูสรุปย้อนหลัง"
       actions={
         dates.length > 0 && (
           <select
             aria-label="เลือกวัน"
             value={date ?? dates[0]}
             onChange={(e) => setDate(e.target.value)}
-            className="h-11 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9"
+            className="h-11 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {dates.map((d) => (
               <option key={d} value={d}>

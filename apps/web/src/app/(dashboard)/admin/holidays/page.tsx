@@ -188,7 +188,7 @@ export default function HolidaysPage() {
           ) : loading ? (
             <div role="status" aria-label={d.common.loading} className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : holidays.length === 0 ? (
-            <InlineEmptyState title={d.holidays.empty} description="วันหยุดที่ใส่ไว้ จะถูกข้ามตอนคำนวณ deadline" />
+            <InlineEmptyState title={d.holidays.empty} description="เพิ่มวันหยุดเพื่อให้ระบบข้ามวันเหล่านี้เมื่อคำนวณวันทำการ" />
           ) : (
             <ul className="divide-y divide-border">
               {holidays.map((holiday) => (

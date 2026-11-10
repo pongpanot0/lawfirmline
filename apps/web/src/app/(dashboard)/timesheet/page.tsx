@@ -173,7 +173,7 @@ export default function TimesheetPage() {
     <div className="w-full space-y-6">
       <PageHeader
         title={d.timesheet.title}
-        description={d.timesheet.description}
+        description="ตรวจเวลาที่บันทึก หรือเพิ่มเวลาทำงานในคดี"
         actions={
           <Button type="button" onClick={() => { setShowAdd(true); setEditing(null); }}>
             เพิ่มเวลา
@@ -321,7 +321,7 @@ export default function TimesheetPage() {
                 <div>
                   <h3 className="mb-2 text-sm font-semibold">{d.timesheet.totalsTitle}</h3>
                   {totals.length === 0 ? (
-                    <InlineEmptyState title={d.timesheet.noEntries} />
+                    <InlineEmptyState title="ยังไม่มีเวลาที่บันทึก กดเพิ่มเวลาเพื่อเริ่ม" />
                   ) : (
                     <Table>
                       <TableHeader>
@@ -347,7 +347,7 @@ export default function TimesheetPage() {
 
               <div>
                 {entries.length === 0 ? (
-                  <InlineEmptyState title={d.timesheet.noEntries} />
+                  <InlineEmptyState title="ยังไม่มีเวลาที่บันทึก กดเพิ่มเวลาเพื่อเริ่ม" />
                 ) : (
                   <Table>
                     <TableHeader>

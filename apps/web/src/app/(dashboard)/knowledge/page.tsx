@@ -12,6 +12,7 @@ import { api, KnowledgeItem, CaseListItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { PageHeader } from '@/components/samnuan/PageHeader';
+import { getPageGuide } from '@/components/guide/page-guides';
 
 const CATEGORIES = ['', 'SUMMARY', 'CONTRACT', 'COURT_ORDER', 'CORRESPONDENCE', 'OTHER'];
 
@@ -58,20 +59,21 @@ export default function KnowledgePage() {
     <div>
       <PageHeader title={d.knowledge.title} description={d.knowledge.description} />
 
-      <div className="mb-6 flex flex-wrap gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border bg-card p-4">
         <input
           type="text"
           placeholder={d.knowledge.searchPlaceholder}
           aria-label={d.knowledge.searchPlaceholder}
           value={filters.search}
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          className="min-w-0 max-w-full flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm"
+          className="min-h-11 min-w-0 max-w-full flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm"
         />
+        <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/knowledge')?.searchHint}</span>
         <select
           value={filters.caseId}
           aria-label={d.knowledge.allCases}
           onChange={(e) => setFilters({ ...filters, caseId: e.target.value })}
-          className="min-w-0 max-w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+          className="min-h-11 min-w-0 max-w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
         >
           <option value="">{d.knowledge.allCases}</option>
           {cases.map((c) => (
@@ -82,7 +84,7 @@ export default function KnowledgePage() {
           value={filters.category}
           aria-label={d.knowledge.allCategories}
           onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-          className="min-w-0 max-w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+          className="min-h-11 min-w-0 max-w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
         >
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>{c ? CATEGORY_LABELS[c] : d.knowledge.allCategories}</option>

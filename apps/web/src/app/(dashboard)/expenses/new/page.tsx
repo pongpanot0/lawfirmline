@@ -21,6 +21,8 @@ import { MoneyInput } from '@/components/ui/MoneyInput';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatCurrency } from '@/lib/utils';
+import { CheckoutSteps } from '@/components/guide/CheckoutSteps';
+import { SubmitSummary } from '@/components/guide/SubmitSummary';
 
 const RECEIPT_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,application/pdf';
 
@@ -76,6 +78,15 @@ export default function NewExpensePage() {
     setReceiptPreview(null);
   }, [receipt]);
 
+  const amountValid = form.amount !== '' && Number(form.amount) >= MONEY_MIN && Number(form.amount) <= MONEY_MAX;
+  const descriptionValid = !!form.description.trim();
+  const items = [
+    { label: 'จำนวนเงินที่ถูกต้อง', done: amountValid },
+    { label: 'รายละเอียดค่าใช้จ่าย', done: descriptionValid },
+    ...(selectedAdvance ? [{ label: 'ยอดไม่เกินเงินสำรอง', done: !advanceAmountExceeded }] : []),
+  ];
+  const currentStep = !amountValid || !descriptionValid || advanceAmountExceeded ? 0 : submitting ? 2 : 1;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
@@ -116,7 +127,7 @@ export default function NewExpensePage() {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full pb-52 xl:pb-0">
       <Link href="/expenses" className="inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {d.expenses.back}
@@ -126,9 +137,12 @@ export default function NewExpensePage() {
         description={d.expenses.newDescription}
       />
 
-      <Card>
-        <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+      <CheckoutSteps steps={['รายการและจำนวนเงิน', 'ข้อมูลเพิ่มเติม', 'บันทึก'].map((title, index) => ({ title, state: index < currentStep ? 'done' : index === currentStep ? 'current' : 'todo' }))} />
+      <form onSubmit={handleSubmit} className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="space-y-4">
+        <Card>
+        <CardContent className="grid gap-4 p-4 md:grid-cols-2 md:p-6">
+            <h2 className="font-semibold md:col-span-2">1. รายการและจำนวนเงิน</h2>
             <div className="space-y-1.5">
               <label htmlFor="expense-amount" className="block text-sm font-medium">{d.expenses.amount}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
               <MoneyInput
@@ -180,6 +194,11 @@ export default function NewExpensePage() {
               onChange={(e) => setForm({ ...form, expensePurpose: e.target.value })}
             />
 
+        </CardContent>
+        </Card>
+        <Card>
+        <CardContent className="grid gap-4 p-4 md:grid-cols-2 md:p-6">
+            <h2 className="font-semibold md:col-span-2">2. ข้อมูลเพิ่มเติม</h2>
             {advances.length > 0 && (
               <SelectField
                 label={d.expenses.paidFrom}
@@ -248,20 +267,14 @@ export default function NewExpensePage() {
 
             {error && <p role="alert" className="text-sm text-destructive md:col-span-2">{error}</p>}
 
-            <div className="flex flex-wrap justify-end gap-3 border-t pt-4 md:col-span-2">
-              <Button type="button" variant="outline" onClick={() => router.push('/expenses')}>
-                {d.common.cancel}
-              </Button>
-              <Button
-                type="submit"
-                disabled={submitting || !form.amount || !form.description.trim() || advanceAmountExceeded}
-              >
-                {submitting ? d.expenses.submitting : d.expenses.saveDraft}
-              </Button>
+            <div className="md:col-span-2">
+              <Button type="button" variant="outline" onClick={() => router.push('/expenses')}>{d.common.cancel}</Button>
             </div>
-          </form>
         </CardContent>
-      </Card>
+        </Card>
+        </div>
+        <SubmitSummary items={items} loading={submitting} label={d.expenses.saveDraft} loadingLabel={d.expenses.submitting} />
+      </form>
     </div>
   );
 }

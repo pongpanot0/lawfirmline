@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { api, type PortalSubmissionStaffEntry } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
@@ -60,7 +59,7 @@ export default function PortalSubmissionsPage() {
 
   return (
     <div>
-      <PageHeader title="เรื่องจาก Customer Portal" description="เรื่องที่ลูกความส่งผ่านพอร์ทัล รอรับเข้าเป็น F01" />
+      <PageHeader title="เรื่องจากพอร์ทัล" description="ตรวจคำขอที่ลูกความส่งมา แล้วรับเรื่องเข้าระบบ" />
 
       {error && <p role="alert" className="mb-3 text-destructive">{error}</p>}
       <div className="mb-5"><label className="block text-sm">เปิดห้องทำงานของคำขอ (รวมเรื่องที่รับเข้าแล้ว)<select className="mt-1 h-11 w-full rounded-lg border bg-background px-3" value={selected} onChange={e => setSelected(e.target.value)}><option value="">เลือกคำขอ</option>{rooms.map(r => <option key={r.id} value={r.id}>{r.referenceNumber} · {r.title}</option>)}</select></label>{selected && token && <RequestWorkroom key={selected} id={selected} token={token} staff />}</div>
@@ -78,46 +77,22 @@ export default function PortalSubmissionsPage() {
             <EmptyState
               icon={Inbox}
               title="ไม่มีเรื่องรอรับเข้า"
-              description="เมื่อลูกความส่งงานหรือไฟล์จาก Customer Portal รายการจะรอรับเข้าเป็น F01 ที่นี่"
+              description="เมื่อลูกความส่งงานหรือไฟล์ผ่านพอร์ทัล รายการที่รอรับเรื่องจะแสดงที่นี่"
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>เลขอ้างอิง</TableHead>
-                  <TableHead>หัวข้อ</TableHead>
-                  <TableHead>ลูกความ</TableHead>
-                  <TableHead>ผู้ส่ง</TableHead>
-                  <TableHead>วันที่ส่ง</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      {item.referenceNumber}
-                      {item.urgencyFlag && (
-                        <Badge variant="destructive" className="ml-2">
-                          เร่งด่วน
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>{item.title}</TableCell>
-                    <TableCell>{item.client.name}</TableCell>
-                    <TableCell>{item.clientContact.name}</TableCell>
-                    <TableCell>
-                      {new Date(item.submittedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="outline" disabled={converting} onClick={() => handleConvert(item.id)}>
-                        รับเข้า F01
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="divide-y">
+              {items.map((item) => (
+                <article key={item.id} className="flex min-w-0 flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-1 break-words">
+                    <h2 className="font-semibold">{item.title}</h2>
+                    <p className="text-sm text-muted-foreground">{item.referenceNumber} · {item.client.name} · {item.clientContact.name}</p>
+                    <p className="text-sm text-muted-foreground">ส่งเมื่อ {new Date(item.submittedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                    {item.urgencyFlag && <Badge variant="destructive">เร่งด่วน</Badge>}
+                  </div>
+                  <Button className="min-h-11 shrink-0" variant="outline" disabled={converting} onClick={() => handleConvert(item.id)}>รับเรื่อง</Button>
+                </article>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

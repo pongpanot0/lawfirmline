@@ -11,9 +11,11 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { SelectField, TextField, TextareaField } from '@/components/ui/form-fields';
+import { TextField, TextareaField } from '@/components/ui/form-fields';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { CheckoutSteps } from '@/components/guide/CheckoutSteps';
+import { SubmitSummary } from '@/components/guide/SubmitSummary';
 
 const emptyContact = () => ({
   name: '',
@@ -141,20 +143,17 @@ export default function NewClientPage() {
       </Link>
       <PageHeader title={d.clients.newTitle} description={d.clients.newDescription} />
 
-      <Card>
-        <CardContent className="p-6">
+      <CheckoutSteps steps={['ข้อมูลลูกความ', 'ข้อมูลติดต่อและเอกสาร', 'บันทึก'].map((title, index) => ({ title, state: index < (form.name.trim() ? 1 : 0) ? 'done' : index === (form.name.trim() ? 1 : 0) ? 'current' : 'todo' }))} />
           <form onSubmit={handleSubmit} onInvalidCapture={(event) => {
             const details = (event.target as HTMLElement).closest('details');
             if (details) details.open = true;
-          }} className="space-y-5">
-            <SelectField
-              label={d.clients.type}
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
-            >
-              <option value="INDIVIDUAL">{d.clients.individual}</option>
-              <option value="COMPANY">{d.clients.company}</option>
-            </SelectField>
+          }} className="grid gap-4 pb-40 xl:grid-cols-[minmax(0,1fr)_20rem] xl:pb-0">
+            <div className="min-w-0 space-y-4">
+            <Card><CardContent className="space-y-5 p-4 md:p-6">
+            <h2 className="font-semibold">1. ข้อมูลลูกความ</h2>
+            <fieldset><legend className="mb-2 text-sm font-medium">{d.clients.type}</legend><div className="flex flex-wrap gap-2">
+              {([['INDIVIDUAL', d.clients.individual], ['COMPANY', d.clients.company]] as const).map(([value, label]) => <label key={value} className={`flex min-h-11 cursor-pointer items-center rounded-lg border px-4 text-sm ${form.type === value ? 'border-primary bg-primary/5 font-semibold' : 'border-input'}`}><input type="radio" name="clientType" value={value} checked={form.type === value} onChange={() => setForm({ ...form, type: value })} className="mr-2" />{label}</label>)}
+            </div></fieldset>
 
             <TextField
               label={isCompany ? d.clients.companyName : d.clients.name}
@@ -169,6 +168,9 @@ export default function NewClientPage() {
               }
             />
 
+            </CardContent></Card>
+            <Card><CardContent className="space-y-5 p-4 md:p-6">
+            <h2 className="font-semibold">2. ข้อมูลติดต่อและเอกสาร</h2>
             {!isCompany && (
               <div>
                 <label className="flex items-start gap-2 text-sm">
@@ -384,17 +386,13 @@ export default function NewClientPage() {
               </p>
             )}
 
-            <div className="flex flex-wrap justify-end gap-3 border-t pt-4">
-              <Button type="button" variant="outline" onClick={() => router.push('/clients')}>
-                {d.common.cancel}
-              </Button>
-              <Button type="submit" disabled={submitting || !form.name.trim()}>
-                {submitting ? d.clients.saving : d.clients.create}
-              </Button>
+            <Button type="button" variant="outline" className="min-h-11" onClick={() => router.push('/clients')}>
+              {d.common.cancel}
+            </Button>
+            </CardContent></Card>
             </div>
+            <SubmitSummary items={[{ label: isCompany ? d.clients.companyName : d.clients.name, done: !!form.name.trim() }]} loading={submitting} label={d.clients.create} loadingLabel={d.clients.saving} />
           </form>
-        </CardContent>
-      </Card>
     </div>
   );
 }

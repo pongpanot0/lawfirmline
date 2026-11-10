@@ -5,6 +5,8 @@ import { MONEY_HINT, MONEY_MAX, MONEY_MIN } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseListItem } from '@/lib/api';
 import { bangkokDateInputToIso, bangkokDateInputValue } from '@/lib/bangkok';
+import { CheckoutSteps } from '@/components/guide/CheckoutSteps';
+import { SubmitSummary } from '@/components/guide/SubmitSummary';
 import { Button } from '@/components/ui/button';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
@@ -77,7 +79,9 @@ export function TimeEntryForm({
   };
 
   return (
-    <form onSubmit={submit} className="mb-4 space-y-3 rounded-lg border border-border bg-muted/40 p-4">
+    <form onSubmit={submit} className="mb-4 space-y-3 rounded-lg border border-border bg-card p-4 pb-32 xl:pb-4">
+      {!caseId && !entry && <CheckoutSteps steps={[{ title: 'เลือกคดี', state: pickedCaseId ? 'done' : 'current' }, { title: 'ระบุเวลา', state: pickedCaseId ? (valid ? 'done' : 'current') : 'todo' }, { title: 'บันทึก', state: valid ? 'current' : 'todo' }]} />}
+      <h2 className="font-semibold">{entry ? 'แก้ไขเวลาทำงาน' : '1. คดีและเวลาทำงาน'}</h2>
       {!caseId && !entry && (
         <SelectField label="คดี" required value={pickedCaseId} onChange={(e) => setPickedCaseId(e.target.value)}>
           <option value="">เลือกคดี</option>
@@ -114,6 +118,7 @@ export function TimeEntryForm({
           />
         </div>
       </div>
+      <h3 className="pt-2 font-semibold">2. รายละเอียดและการคิดเงิน</h3>
       <TextField label="รายละเอียด" value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} />
       {!entry && (
         <label className="flex min-h-11 items-center gap-2 text-sm sm:min-h-0">
@@ -123,9 +128,10 @@ export function TimeEntryForm({
       )}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
-        <Button type="submit" disabled={!valid || saving}>{saving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
+        {(caseId || entry) && <Button type="submit" disabled={!valid || saving}>{saving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>}
         <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>ยกเลิก</Button>
       </div>
+      {!caseId && !entry && <SubmitSummary items={[{ label: 'เลือกคดี', done: !!pickedCaseId }, { label: 'เลือกวันที่', done: !!date }, { label: 'ระบุเวลา 0.25–24 ชั่วโมง', done: isHoursInRange(hours) }]} loading={saving} label="บันทึกเวลา" loadingLabel="กำลังบันทึก..." />}
     </form>
   );
 }

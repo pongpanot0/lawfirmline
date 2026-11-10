@@ -7,6 +7,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { api, AuditLogItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
+import { PAGE_GUIDES } from '@/components/guide/page-guides';
 import { Card, CardContent } from '@/components/ui/card';
 import { TextField } from '@/components/ui/form-fields';
 import { LoadFailed } from '@/components/ui/LoadFailed';
@@ -50,20 +51,25 @@ export default function AuditLogPage() {
     <div>
       <PageHeader title={d.admin.auditLogTitle} description={d.admin.auditLogDescription} />
 
-      <TextField
-        label={d.admin.auditLogFilterAction}
-        placeholder={d.admin.auditLogAllActions}
-        value={actionFilter}
-        onChange={(e) => setActionFilter(e.target.value.trim())}
-        containerClassName="mb-4 max-w-sm"
-      />
+      <Card className="mb-4">
+        <CardContent className="flex flex-wrap items-end gap-3 p-4">
+          <TextField
+            label={d.admin.auditLogFilterAction}
+            placeholder={d.admin.auditLogAllActions}
+            value={actionFilter}
+            onChange={(e) => setActionFilter(e.target.value.trim())}
+            containerClassName="min-w-0 flex-1"
+          />
+          <span className="inline-flex min-h-11 items-center rounded-lg bg-muted px-3 text-xs text-muted-foreground">{PAGE_GUIDES['/admin/audit-log'].searchHint}</span>
+        </CardContent>
+      </Card>
 
       {error ? (
         <LoadFailed message={d.admin.auditLogLoadFailed} onRetry={() => load(false)} />
       ) : items.length === 0 && loading ? (
         <div role="status" aria-label={d.common.loading} className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>
       ) : items.length === 0 ? (
-        <EmptyState title={d.admin.auditLogEmpty} />
+        <EmptyState title={d.admin.auditLogEmpty} description="ลองล้างคำกรองเพื่อดูรายการทั้งหมด" />
       ) : (
         <>
           <p className="mb-2 text-xs tabular-nums text-muted-foreground">{fmt(d.admin.auditLogTotal, { count: total })}</p>

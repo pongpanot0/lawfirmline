@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { DocumentCategory, hasFirmCapability } from '@lawfirm/shared';
-import { ArrowLeft, CheckCircle2, ChevronDown, X, Zap } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
 import { api, CaseTypeItem } from '@/lib/api';
@@ -17,6 +17,8 @@ import { Badge } from '@/components/ui/badge';
 import { PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageHeader } from '@/components/samnuan/PageHeader';
+import { CheckoutSteps } from '@/components/guide/CheckoutSteps';
+import { SubmitSummary } from '@/components/guide/SubmitSummary';
 import { QuickFlowCanvas } from './QuickFlowCanvas';
 
 const CARGO_PLAYBOOK_KEY = 'CARGO_CLAIM_ASSESSMENT';
@@ -171,7 +173,13 @@ export default function SopFlowEditor() {
   const hasChanges = isNew || !source || name !== source.name || caseTypeId !== (source.caseTypeId ?? '') ||
     JSON.stringify(steps) !== JSON.stringify(source.steps) ||
     JSON.stringify(cargoRequirements) !== JSON.stringify(source.cargoTemplate?.requirements ?? []);
-  const canPublish = hasChanges && !busy;
+  const publishItems = [
+    { label: 'ตั้งชื่อชุดงาน', done: !!name.trim() },
+    { label: 'เพิ่มขั้นตอนและชื่อทุกงาน', done: steps.length > 0 && steps.every(step => !!step.title.trim()) },
+    { label: 'กรอกวิธีทำ ผลที่ต้องส่ง และรายการตรวจของงานประจำ', done: steps.every(step => !step.routine || (!!step.instructions.trim() && !!step.routine.expectedOutput.trim() && step.routine.checks.some(check => check.trim()))) },
+    ...(templateKey === CARGO_PLAYBOOK_KEY ? [{ label: 'กรอกรายการเอกสาร Cargo', done: cargoRequirements.length > 0 && cargoRequirements.every(item => !!item.label.trim()) }] : []),
+    { label: 'มีข้อมูลที่รอเผยแพร่', done: hasChanges },
+  ];
 
   const backTo = (href: string, label: string) => <Link href={href} className="inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden />{label}</Link>;
   if (loading) return <PageLoading variant="detail" title={th ? 'กำลังโหลด SOP' : 'Loading SOP'} lines={2} />;
@@ -185,7 +193,6 @@ export default function SopFlowEditor() {
       <PageHeader
         title={name || (th ? 'SOP ใหม่' : 'New SOP')}
         description={th ? 'เผยแพร่เป็นรุ่นใหม่ งานในคดีเดิมไม่เปลี่ยน' : 'Publishing creates a new version; existing case tasks stay unchanged.'}
-        actions={<Button disabled={!canPublish} onClick={publish}><Zap className="h-4 w-4" aria-hidden />{busy ? (th ? 'กำลังบันทึก…' : 'Saving…') : (th ? 'บันทึกและเผยแพร่' : 'Save and publish')}</Button>}
       />
       <div className="-mt-3 flex flex-wrap items-center gap-2">
         {source && <Badge variant="muted" className="tabular-nums">v{source.version}</Badge>}
@@ -194,7 +201,13 @@ export default function SopFlowEditor() {
       {publishError && <p role="alert" className="mt-2 text-sm text-destructive">{publishError}</p>}
     </div>
 
-    <div className="mx-auto max-w-3xl">
+    <CheckoutSteps steps={[
+      { title: 'ตั้งชื่อชุดงาน', state: name.trim() ? 'done' : 'current' },
+      { title: 'จัดขั้นตอนงาน', state: !name.trim() ? 'todo' : publishItems.slice(1, -1).every(item => item.done) ? 'done' : 'current' },
+      { title: 'ตรวจและเผยแพร่', state: publishItems.slice(0, -1).every(item => item.done) ? 'current' : 'todo' },
+    ]} />
+    <div className="mx-auto max-w-3xl rounded-xl border bg-card p-4">
+      <h2 className="mb-3 font-semibold">1. ตั้งชื่อชุดงาน</h2>
       <TextField id="sop-name" label={th ? 'ชื่อ SOP' : 'SOP name'} error={publishErrors.name} className={publishErrors.name ? 'border-destructive' : undefined} required maxLength={150} value={name} onChange={e => setName(e.target.value)} placeholder={th ? 'เช่น คดีอาญามาตรฐาน' : 'e.g. Criminal litigation'} />
     </div>
     <details ref={settingsRef} key={`settings-${id}`} className="group mx-auto max-w-3xl rounded-xl border bg-card">
@@ -211,29 +224,33 @@ export default function SopFlowEditor() {
           </SelectField>
         </div>
         {creatingCaseType && <div className="flex flex-wrap items-end gap-2">
-          <TextField label={th ? 'ชื่อประเภทคดีใหม่' : 'New case type'} error={caseTypeError} className={caseTypeError ? 'border-destructive' : undefined} maxLength={100} value={newCaseTypeName} onChange={e => { setNewCaseTypeName(e.target.value); setCaseTypeError(''); }} containerClassName="min-w-[220px] flex-1" />
+          <TextField label={th ? 'ชื่อประเภทคดีใหม่' : 'New case type'} error={caseTypeError} className={caseTypeError ? 'border-destructive' : undefined} maxLength={100} value={newCaseTypeName} onChange={e => { setNewCaseTypeName(e.target.value); setCaseTypeError(''); }} containerClassName="min-w-0 flex-1" />
           <Button disabled={busy} onClick={createCaseType}>{th ? 'สร้าง' : 'Create'}</Button>
           <Button variant="ghost" onClick={() => { setCreatingCaseType(false); setCaseTypeError(''); }}>{th ? 'ยกเลิก' : 'Cancel'}</Button>
         </div>}
         {caseTypeId && <div className="space-y-2 border-t pt-4">
           <p className="text-sm font-medium">{th ? 'เอกสารที่ประเภทคดีนี้ต้องมี' : 'Documents required for this case type'} <span className="font-normal text-muted-foreground">{docSaving ? (th ? '· กำลังบันทึก…' : '· Saving…') : (th ? '· เปลี่ยนแล้วบันทึกทันที' : '· Changes save immediately')}</span></p>
           <div className="flex flex-wrap gap-2">
-            {Object.values(DocumentCategory).map(value => <button type="button" key={value} disabled={docSaving} aria-pressed={requiredDocs.includes(value)} onClick={() => toggleDoc(value)} className={`min-h-11 rounded-full border px-3 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:min-h-8 ${requiredDocs.includes(value) ? 'border-primary bg-primary/10 text-primary' : 'border-input text-muted-foreground'}`}>{documentCategoryLabel(value, th ? 'th' : 'en')}</button>)}
-            {requiredDocs.filter(d => !(Object.values(DocumentCategory) as string[]).includes(d)).map(value => <button type="button" key={value} disabled={docSaving} onClick={() => toggleDoc(value)} aria-label={th ? `เอาออก: ${value}` : `Remove ${value}`} className="inline-flex min-h-11 items-center gap-1 rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:min-h-8">{value}<X className="h-3.5 w-3.5" aria-hidden /></button>)}
+            {Object.values(DocumentCategory).map(value => <button type="button" key={value} disabled={docSaving} aria-pressed={requiredDocs.includes(value)} onClick={() => toggleDoc(value)} className={`min-h-11 rounded-full border px-3 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${requiredDocs.includes(value) ? 'border-primary bg-primary/10 text-primary' : 'border-input text-muted-foreground'}`}>{documentCategoryLabel(value, th ? 'th' : 'en')}</button>)}
+            {requiredDocs.filter(d => !(Object.values(DocumentCategory) as string[]).includes(d)).map(value => <button type="button" key={value} disabled={docSaving} onClick={() => toggleDoc(value)} aria-label={th ? `เอาออก: ${value}` : `Remove ${value}`} className="inline-flex min-h-11 items-center gap-1 rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">{value}<X className="h-3.5 w-3.5" aria-hidden /></button>)}
           </div>
-          <div className="flex flex-wrap items-end gap-2"><TextField label={th ? 'เพิ่มเอกสารอื่น' : 'Add another document'} error={customDocError} className={customDocError ? 'border-destructive' : undefined} maxLength={100} value={customDoc} onChange={e => { setCustomDoc(e.target.value); setCustomDocError(''); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (!docSaving) addCustomDoc(); } }} containerClassName="min-w-[220px] flex-1" /><Button variant="outline" disabled={docSaving} onClick={addCustomDoc}>{th ? 'เพิ่ม' : 'Add'}</Button></div>
+          <div className="flex flex-wrap items-end gap-2"><TextField label={th ? 'เพิ่มเอกสารอื่น' : 'Add another document'} error={customDocError} className={customDocError ? 'border-destructive' : undefined} maxLength={100} value={customDoc} onChange={e => { setCustomDoc(e.target.value); setCustomDocError(''); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (!docSaving) addCustomDoc(); } }} containerClassName="min-w-0 flex-1" /><Button variant="outline" disabled={docSaving} onClick={addCustomDoc}>{th ? 'เพิ่ม' : 'Add'}</Button></div>
           {docsError && <p role="alert" className="text-xs text-destructive">{docsError}</p>}
         </div>}
         {templateKey === CARGO_PLAYBOOK_KEY && <div className="space-y-2 border-t pt-4">
           <p className="text-sm font-medium">{th ? 'Checklist เอกสาร Cargo ของรุ่นนี้' : 'Cargo document checklist for this version'}</p>
           <p className="text-xs text-muted-foreground">{th ? 'เรื่องใหม่จะใช้รายการนี้ เรื่องเดิมไม่เปลี่ยนตาม' : 'New matters use this list; existing matters are unchanged.'}</p>
           {publishErrors.cargoSummary && <p id="cargo-requirements" tabIndex={-1} role="alert" className="text-xs text-destructive">{publishErrors.cargoSummary}</p>}
-          {cargoRequirements.map((item, index) => <div key={item.code} className="flex flex-wrap items-center gap-2"><span className="w-6 text-xs text-muted-foreground">{index + 1}</span><div className="min-w-[240px] flex-1"><Input id={`cargo-label-${index}`} aria-label={th ? `เอกสาร Cargo ${index + 1}` : `Cargo document ${index + 1}`} aria-invalid={!!publishErrors.cargo?.[index]} aria-describedby={publishErrors.cargo?.[index] ? `cargo-label-${index}-error` : undefined} maxLength={300} value={item.label} onChange={e => setCargoRequirements(rows => rows.map((row, i) => i === index ? { ...row, label: e.target.value } : row))} className={publishErrors.cargo?.[index] ? 'border-destructive' : undefined} />{publishErrors.cargo?.[index] && <p id={`cargo-label-${index}-error`} role="alert" className="mt-1 text-xs text-destructive">{publishErrors.cargo[index]}</p>}</div><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.requiredByDefault} onChange={e => setCargoRequirements(rows => rows.map((row, i) => i === index ? { ...row, requiredByDefault: e.target.checked } : row))} />{th ? 'ต้องมีตั้งต้น' : 'Required by default'}</label></div>)}
+          {cargoRequirements.map((item, index) => <div key={item.code} className="flex flex-wrap items-center gap-2"><span className="w-6 text-xs text-muted-foreground">{index + 1}</span><div className="min-w-0 flex-1"><Input id={`cargo-label-${index}`} aria-label={th ? `เอกสาร Cargo ${index + 1}` : `Cargo document ${index + 1}`} aria-invalid={!!publishErrors.cargo?.[index]} aria-describedby={publishErrors.cargo?.[index] ? `cargo-label-${index}-error` : undefined} maxLength={300} value={item.label} onChange={e => setCargoRequirements(rows => rows.map((row, i) => i === index ? { ...row, label: e.target.value } : row))} className={publishErrors.cargo?.[index] ? 'border-destructive' : undefined} />{publishErrors.cargo?.[index] && <p id={`cargo-label-${index}-error`} role="alert" className="mt-1 text-xs text-destructive">{publishErrors.cargo[index]}</p>}</div><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.requiredByDefault} onChange={e => setCargoRequirements(rows => rows.map((row, i) => i === index ? { ...row, requiredByDefault: e.target.checked } : row))} />{th ? 'ต้องมีตั้งต้น' : 'Required by default'}</label></div>)}
         </div>}
       </div>
     </details>
 
+    <h2 className="mx-auto max-w-3xl font-semibold">2. จัดขั้นตอนงาน</h2>
     <QuickFlowCanvas key={`flow-${id}`} steps={steps} setSteps={setSteps} th={th} stepsError={publishErrors.steps} titleErrors={publishErrors.stepTitles} />
+    <form className="mx-auto max-w-3xl pb-32 xl:pb-0" onSubmit={event => { event.preventDefault(); void publish(); }}>
+      <SubmitSummary items={publishItems} loading={busy} label={th ? 'บันทึกและเผยแพร่' : 'Save and publish'} loadingLabel={th ? 'กำลังบันทึก…' : 'Saving…'} />
+    </form>
     {success && <SuccessModal success={success} th={th} onClose={() => {
       const publishedId = success.publishedId;
       setSuccess(null);

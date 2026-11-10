@@ -148,7 +148,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
           view === 'day'
             ? 'นัดและงานของคุณ วันนี้และพรุ่งนี้'
             : view === 'agenda'
-              ? 'ใครไปไหนวันไหน เรียงตามวัน พร้อมเตือนเมื่อมีคนถูกจองซ้อน'
+              ? 'ดูนัดเรียงตามวันและผู้รับผิดชอบ พร้อมเตือนเมื่อเวลาซ้อนกัน'
               : d.calendar.description
         }
         actions={
@@ -192,7 +192,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
 
       {view !== 'day' && <div aria-label="สีประจำผู้รับผิดชอบ" className="mb-4 flex flex-wrap items-center gap-2 text-xs">
         <span className="text-muted-foreground">สีประจำผู้รับผิดชอบ:</span>
-        {[...people.entries()].map(([id, name]) => <button key={id} type="button" aria-pressed={personFilter === id} onClick={() => setPersonFilter(personFilter === id ? '' : id)} className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-2.5 ${personFilter === id ? 'border-primary bg-primary/5' : 'border-border'}`}><span aria-hidden className="size-3 rounded-full" style={{ backgroundColor: personColors.get(id) }} />{name}</button>)}
+        {[...people.entries()].map(([id, name]) => <button key={id} type="button" aria-pressed={personFilter === id} onClick={() => setPersonFilter(personFilter === id ? '' : id)} className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-2.5 ${personFilter === id ? 'border-primary bg-primary/5' : 'border-border'}`}><span aria-hidden className="size-3 rounded-full" style={{ backgroundColor: personColors.get(id) }} />{name}</button>)}
         <span className="inline-flex items-center gap-2"><span aria-hidden className="size-3 rounded-full bg-sidebar" />ยังไม่ระบุผู้รับผิดชอบ</span>
       </div>}
       {view === 'day' ? (

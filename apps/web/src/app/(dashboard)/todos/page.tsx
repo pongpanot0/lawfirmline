@@ -18,6 +18,8 @@ import { Badge } from '@/components/ui/badge';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Card, CardContent } from '@/components/ui/card';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
+import { CheckoutSteps } from '@/components/guide/CheckoutSteps';
+import { PAGE_GUIDES } from '@/components/guide/page-guides';
 import { priorityLabel } from '@/lib/task-detail';
 import { PageLoading } from '@/components/ui/misc';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
@@ -343,6 +345,7 @@ function TodosPageContent() {
           <div className="flex flex-wrap items-end gap-3">
             <TextField label={text('ค้นหางาน', 'Search tasks')} placeholder={text('ชื่องาน คดี หรือชื่อคนทำงาน', 'Task, case or assignee')} value={filters.search}
               onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} containerClassName="min-w-0 flex-1 basis-56" />
+            <span className="inline-flex min-h-11 items-center rounded-lg bg-muted px-3 text-xs text-muted-foreground">{PAGE_GUIDES['/todos'].searchHint}</span>
             {scope === 'team' && <SelectField label={text('คนทำงาน', 'Assignee')} value={filters.assigneeId} onChange={event => setFilters(current => ({ ...current, assigneeId: event.target.value }))} containerClassName="w-full sm:w-48">
               <option value="">{text('ทุกคน', 'Everyone')}</option><option value="unassigned">{d.taskDetail.unassigned}</option>
               {users.map(person => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
@@ -394,8 +397,11 @@ function TodosPageContent() {
               </button>
             </div>
             <form id="create-personal-task" onSubmit={handleCreate} className="min-h-0 flex-1 overflow-y-auto p-5">
+              <CheckoutSteps steps={[{ title: text('งานและผู้รับผิดชอบ', 'Task and assignee'), state: newTitle.trim() ? 'done' : 'current' }, { title: text('ไฟล์แนบ', 'Attachments'), state: newTitle.trim() ? 'current' : 'todo' }, { title: text('รายละเอียดเพิ่มเติม', 'More details'), state: 'todo' }]} />
               <fieldset disabled={creating} className="flex min-w-0 flex-col gap-4">
               {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+              <section className="space-y-4 rounded-lg border border-border p-4">
+              <h3 className="font-semibold">1. งานและผู้รับผิดชอบ</h3>
               <TextField
                 label={text('ต้องทำอะไร', 'What needs to be done?')}
                 id="new-task-title"
@@ -434,7 +440,9 @@ function TodosPageContent() {
                   />
                 </div>
               </div>
-              <section className="space-y-2" aria-label={text('ไฟล์แนบสำหรับงานใหม่', 'New task attachments')}>
+              </section>
+              <section className="space-y-2 rounded-lg border border-border p-4" aria-label={text('ไฟล์แนบสำหรับงานใหม่', 'New task attachments')}>
+                <h3 className="font-semibold">2. ไฟล์แนบ (ไม่บังคับ)</h3>
                 <p className="text-sm font-medium">{text('ไฟล์แนบ (ไม่บังคับ)', 'Attachments (optional)')}</p>
                 <DocumentDropZone multiple disabled={creating} label={text('เลือกไฟล์แนบ', 'Choose attachments')} accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.docx,.xlsx,.txt"
                   hint="PDF, รูปภาพ, DOCX, XLSX, TXT · ไม่เกิน 30MB" onFiles={files => setNewFiles(previous => [...previous, ...files])} />
@@ -444,7 +452,7 @@ function TodosPageContent() {
                 {newFiles.length > 0 && <p className="text-xs text-muted-foreground">{text(`จะบันทึก ${newFiles.length} ไฟล์พร้อมงานเมื่อกดสร้างงาน`, `${newFiles.length} files will be uploaded when you create this task`)}</p>}
               </section>
               <details className="rounded-xl border border-border p-3">
-                <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{text('รายละเอียดเพิ่มเติม (ไม่บังคับ)', 'More details (optional)')}</summary>
+                <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{text('3. รายละเอียดเพิ่มเติม (ไม่บังคับ)', '3. More details (optional)')}</summary>
                 <div className="mt-4 space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <SelectField
@@ -580,9 +588,12 @@ function TodosPageContent() {
               </details>
               </fieldset>
             </form>
-            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="shrink-0 space-y-2 border-t border-border bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <p className="text-sm text-muted-foreground" aria-live="polite">{newTitle.trim() ? text('พร้อมสร้างงาน', 'Ready to create') : text('เหลืออีก 1 อย่าง: ระบุสิ่งที่ต้องทำ', '1 item left: describe the task')}</p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
               <Button type="button" variant="outline" disabled={creating} onClick={() => setShowForm(false)}>{text('กลับก่อน', 'Back')}</Button>
               <Button form="create-personal-task" type="submit" disabled={creating || !newTitle.trim()}>{creating ? text('กำลังสร้างงาน…', 'Creating…') : text('สร้างงาน', 'Create task')}</Button>
+              </div>
             </div>
           </aside>
         </div>
@@ -595,7 +606,7 @@ function TodosPageContent() {
       <>
       {visibleTasks.length === 0 ? (
         <div role="status" className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
-          <p className="text-sm font-medium">{filtering ? d.todos.noMatches : completedCount > 0 && !includeCompleted ? d.todos.noOpenTasks : d.todos.noTasks}</p>
+          <p className="text-sm font-medium">{filtering ? d.todos.noMatches : completedCount > 0 && !includeCompleted ? d.todos.noOpenTasks : text('ยังไม่มีงาน — กดเพิ่มงานเพื่อเริ่ม', 'No tasks yet — add a task to get started')}</p>
           {filtering ? (
             <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setFilters(EMPTY_TASK_FILTERS)}>
               {d.todos.clearFilters}
