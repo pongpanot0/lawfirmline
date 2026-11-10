@@ -8,7 +8,8 @@ import { DocumentIntelligenceService } from '../intelligence/document-intelligen
 import { FileStorageService } from '../common/services/file-storage.service';
 import { intakeProgress } from './email-intake-progress';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser, redactForAi, splitQuotedText, stripEmailSignature } from '@lawfirm/shared';
+import { AuthUser, ParticipantRole, ParticipantSide, opponentParticipantRole, redactForAi, splitQuotedText, stripEmailSignature } from '@lawfirm/shared';
+import { addOpponents, ensureOurClientParticipant } from '../cases/party-sync';
 import { AiProposal, cleanIntakeAiSummary, INTAKE_AI_RESPONSE_FORMAT, INTAKE_AI_SYSTEM_PROMPT, IntakeAiSummary, parseIntakeAiResult, parseIntakeAiSummary } from './email-intake-ai';
 import { createHash } from 'crypto';
 
@@ -23,6 +24,7 @@ import {
   FieldProposalStatus,
   IntakeStatus,
   PartyRole,
+  Prisma,
 } from '../generated/prisma';
 import { extractFieldsFromEmailBody, parseIntakeDate } from './field-extraction.util';
 import { AcceptIntakeFromThreadDto, LinkIntakeClientDto, ResolveFieldProposalDto, SeedMockReplyDto } from './dto/email-intake.dto';
@@ -779,11 +781,12 @@ export class EmailIntakeService {
       if (Object.keys(data).length) await tx.intake.update({ where: { id: intakeId }, data });
       // A confirmed contact person belongs on the customer too, so the next matter finds them.
       if (proposal.field === 'contactName' && intake.clientId) await this.addClientContact(tx, intake.clientId, finalValue);
-      // The matter is a case already: keep the case's own copies of the headline values in step.
-      const caseData: Record<string, unknown> = {};
-      if (data.title !== undefined) caseData.title = data.title;
-      if (data.estimatedDamage !== undefined) caseData.claimedAmount = data.estimatedDamage;
-      if (Object.keys(caseData).length) await tx.case.updateMany({ where: { intakeId, ...this.caseAccess.getCaseFilterForUser(user) }, data: caseData });
+      // The matter is a case already (case-first): what the lawyer confirms belongs on the case too.
+      const linked = await tx.case.findFirst({
+        where: { intakeId, ...this.caseAccess.getCaseFilterForUser(user) },
+        select: { id: true, partyRole: true, clientId: true },
+      });
+      if (linked) await syncConfirmedToCase(tx, linked, data);
       return tx.intakeFieldProposal.update({
         where: { id: proposalId },
         data: { status: FieldProposalStatus.CONFIRMED, proposedValue: finalValue, confirmedById: user.id, confirmedAt: new Date() },
@@ -826,5 +829,34 @@ export class EmailIntakeService {
     }
 
     return this.prisma.emailMessage.findUnique({ where: { id: message.id }, include: { attachments: true } });
+  }
+}
+
+/** Intake column → case column for values the lawyer confirmed after the case was opened. */
+const CASE_COLUMN: Record<string, string> = {
+  title: 'title', estimatedDamage: 'claimedAmount', externalCaseNumber: 'blackCaseNumber',
+  customerRef: 'customerRef', description: 'description', partyRole: 'partyRole', caseTypeId: 'caseTypeId',
+};
+
+export async function syncConfirmedToCase(
+  tx: Prisma.TransactionClient,
+  legalCase: { id: string; partyRole: string | null; clientId: string | null },
+  data: Record<string, unknown>,
+) {
+  const caseData: Record<string, unknown> = {};
+  for (const [from, to] of Object.entries(CASE_COLUMN)) if (data[from] !== undefined) caseData[to] = data[from];
+  if (typeof caseData.blackCaseNumber === 'string') caseData.blackCaseNumber = caseData.blackCaseNumber.replace(/^(?:คดี\s*)?(?:หมายเลขคดี(?:ดำ)?\s*(?:ที่)?\s*)?/, '').replace(/\s+/g, '');
+  if (Object.keys(caseData).length) await tx.case.update({ where: { id: legalCase.id }, data: caseData });
+  const partyRole = (caseData.partyRole as string | undefined) ?? legalCase.partyRole;
+  if (caseData.partyRole !== undefined && caseData.partyRole !== legalCase.partyRole) {
+    await ensureOurClientParticipant(tx, legalCase.id, { clientId: legalCase.clientId, partyRole: legalCase.partyRole });
+    // Opponents the sync filed under the old side follow the new one.
+    await tx.caseParticipant.updateMany({
+      where: { caseId: legalCase.id, side: ParticipantSide.OPPONENT, role: legalCase.partyRole ? opponentParticipantRole(legalCase.partyRole) : ParticipantRole.OTHER },
+      data: { role: opponentParticipantRole(partyRole!) },
+    });
+  }
+  if (typeof data.opposingParty === 'string' && data.opposingParty.trim()) {
+    await addOpponents(tx, legalCase.id, partyRole, [{ name: data.opposingParty }]);
   }
 }

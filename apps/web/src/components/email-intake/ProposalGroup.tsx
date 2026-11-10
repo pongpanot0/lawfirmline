@@ -12,7 +12,7 @@ const labels: Record<string, string> = {
   estimatedDamage: 'ยอดเรียกร้อง / ค่าเสียหาย', insurerPaidAmount: 'ประกันจ่ายไปแล้ว', settlementOfferAmount: 'ข้อเสนอไกล่เกลี่ย',
   opposingParty: 'คู่กรณี', insurerName: 'บริษัทประกัน', policyNumber: 'เลขกรมธรรม์', claimNumber: 'เลขเคลม',
   incidentDate: 'วันที่เกิดเหตุ', requestedResponseDate: 'ครบกำหนดตอบ', contactName: 'ผู้ติดต่อ', clientName: 'ชื่อลูกค้า', title: 'ชื่อเรื่อง', description: 'รายละเอียด',
-  matterType: 'ประเภทเรื่อง', customerRef: 'เลขอ้างอิงของผู้ส่ง', externalCaseNumber: 'เลขคดีศาล', deadlineDate: 'วันครบกำหนดตามกฎหมาย / โนติส',
+  matterType: 'ประเภทเรื่อง', customerRef: 'เลขอ้างอิงของผู้ส่ง', externalCaseNumber: 'หมายเลขคดีดำ', deadlineDate: 'วันครบกำหนดตามกฎหมาย / โนติส',
   partyRole: 'บทบาทลูกความ', caseType: 'ประเภทคดีในระบบ', docRequest: 'เอกสารที่ควรขอเพิ่ม',
 };
 const partyRoles: Record<string, string> = { PLAINTIFF: 'โจทก์ / ผู้เรียกร้อง', DEFENDANT: 'จำเลย / ผู้ถูกเรียกร้อง', PETITIONER: 'ผู้ร้อง', RESPONDENT: 'ผู้คัดค้าน' };
