@@ -11,7 +11,8 @@ import { CaseWorkflowBoard } from '@/components/CaseWorkflowBoard';
 import { PageLoading } from '@/components/ui/misc';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { buttonVariants } from '@/components/ui/button';
-import { List, Plus } from 'lucide-react';
+import { Plus, Upload } from 'lucide-react';
+import { CaseViewToggle } from '@/components/cases/CaseViewToggle';
 
 export default function CaseBoardPage() {
   const d = useDashboardT();
@@ -45,13 +46,11 @@ export default function CaseBoardPage() {
   return (
     <div>
       <PageHeader
-        title={d.admin.boardTitle}
-        description="คดีแยกตามสถานะปัจจุบัน"
+        title="เรื่องและคดี"
+        description={d.cases.description}
         actions={
           <>
-            <Link href="/cases" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-              <List aria-hidden="true" className="h-4 w-4" />{d.admin.listView}
-            </Link>
+            {canEdit && <Link href="/cases/import" className={buttonVariants({ variant: 'outline', size: 'sm' })}><Upload aria-hidden="true" className="h-4 w-4" />นำเข้าจาก Excel</Link>}
             {canEdit && (
               <Link href="/cases/new" className={buttonVariants({ size: 'sm' })}>
                 <Plus aria-hidden="true" className="h-4 w-4" />{d.admin.newCase}
@@ -60,6 +59,8 @@ export default function CaseBoardPage() {
           </>
         }
       />
+
+      <div className="mb-4 flex flex-wrap items-center justify-end rounded-lg border bg-card p-4"><CaseViewToggle current="board" /></div>
 
       {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 

@@ -8,6 +8,8 @@ import { canDelegateTask, isEligibleReviewer, TaskPriority, TaskStatus } from '@
 import { useAuth } from '@/lib/auth';
 import { api, CaseDetail, TaskItem, UserItem, WorkloadSummary } from '@/lib/api';
 import { workloadLabel } from '@/lib/workload-label';
+import { caseStageLabel } from '@/lib/stage-labels';
+import { taskStageGroups } from './task-stage-groups';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
@@ -56,6 +58,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
   const visibleTasks = applyTaskFilters(tasks, filters);
   const filtering = hasActiveTaskFilters(filters);
+  const stageGroups = taskStageGroups(visibleTasks, caseDetail?.stage);
   const newTaskDate = newDueDate || bangkokDateInputValue(new Date());
   const newTaskLeaveFlags = useLeaveFlags(token, newTaskDate);
 
@@ -192,14 +195,14 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
         <div>
           <h2 className="font-semibold tracking-tight text-foreground">{d.caseTasks.title}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">งานที่สร้างและมอบหมายในคดีนี้</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <TaskViewToggle layout={layout} onChange={setLayout} />
-          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+          <Button className="min-h-11" onClick={() => setShowForm(!showForm)}>
             <Plus aria-hidden="true" className="h-4 w-4" />
             {d.caseTasks.addTask}
           </Button>
@@ -374,9 +377,10 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
       {filtering && visibleTasks.length === 0 && (
         <p role="status" className="mb-3 text-sm text-muted-foreground">{d.todos.noMatches}</p>
       )}
+      {layout === 'board' || visibleTasks.length === 0 ? (() => { const groupTasks = visibleTasks; return (
       <KanbanBoard
         layout={layout}
-        tasks={visibleTasks}
+        tasks={groupTasks}
         onStatusChange={handleStatusChange}
         currentUserId={user?.id ?? ''}
         caseLeadId={caseDetail?.leadLawyer?.id ?? null}
@@ -388,6 +392,27 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
         onReject={handleReject}
         onOpen={taskParam.open}
       />
+      ); })() : stageGroups.map(([stage, groupTasks]) => {
+        const finished = stage !== caseDetail?.stage && groupTasks.every((task) => task.status === TaskStatus.DONE);
+        return <details key={stage || 'unassigned'} open={!finished} className="mb-3 rounded-lg border bg-card p-4">
+          <summary className="min-h-11 cursor-pointer font-semibold">{stage ? caseStageLabel(stage, 'th') : 'งานที่ไม่ได้ระบุขั้น'} {finished && ` (เสร็จแล้ว ${groupTasks.length} งาน) · แสดงรายละเอียด`}</summary>
+      <KanbanBoard
+        layout={layout}
+        tasks={groupTasks}
+        onStatusChange={handleStatusChange}
+        currentUserId={user?.id ?? ''}
+        caseLeadId={caseDetail?.leadLawyer?.id ?? null}
+        currentUserRole={user?.firmRole}
+        enableHandoff
+        reviewerName={reviewerName}
+        onHandoff={handleHandoff}
+        onAccept={handleAccept}
+        onReject={handleReject}
+        onOpen={taskParam.open}
+      />
+        </details>;
+      })}
+
       </>
       )}
       <TaskDetailDrawer

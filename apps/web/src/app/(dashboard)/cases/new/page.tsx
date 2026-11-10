@@ -87,6 +87,7 @@ function NewCaseForm() {
   const [limitationIncomplete, setLimitationIncomplete] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState<LinkCandidate[]>([]);
   const [blackUnknown, setBlackUnknown] = useState(false);
+  const [leadName, setLeadName] = useState<string | null>(null);
   const [stage, setStage] = useState<CaseStage>(CaseStage.PRE_LITIGATION);
   const [conflict, setConflict] = useState<ConflictMatchItem[] | null>(null);
 
@@ -225,6 +226,15 @@ function NewCaseForm() {
     if (stageError) return stageError;
     return '';
   };
+  const checklist = [
+    ['ประเภทคดี', !!form.caseTypeId],
+    ['ชื่อคดี', !!form.title.trim()],
+    ['ทนายผู้รับผิดชอบ', !!form.leadLawyerId],
+    ['ข้อมูลบังคับของประเภทคดี', !missingRequiredMessage(fieldSchema, { chargeSection: form.chargeSection, customFields: form.customFields, opponents })],
+    ['ข้อมูลศาลและขั้นเริ่มต้น', !openingStageError(stage, form.courtName, form.blackCaseNumber, blackUnknown)],
+    ['วันครบอายุความ', !limitationIncomplete],
+  ] as const;
+  const completed = checklist.filter(([, done]) => done).length;
   const handleSubmit = async (conflictOverrideReason?: string) => {
     if (!token || submittingRef.current) return;
     if (!createdCaseId.current) {
@@ -377,18 +387,18 @@ function NewCaseForm() {
   return (
     <div
       data-hallmark="case-create-flow"
-      className="mx-auto w-full max-w-3xl min-w-0 pb-24 [overflow-wrap:anywhere]"
+      className="w-full min-w-0 pb-28 [overflow-wrap:anywhere]"
     >
       <Link
         href="/cases"
         className="mb-2 inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:text-primary"
       >
         <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-        กลับไปหน้าคดี
+        เรื่องและคดี
       </Link>
       <PageHeader
         title="สร้างคดีใหม่"
-        description={nextOwnRef ? `เลขอ้างอิงคาดการณ์ ${nextOwnRef}` : 'เลขอ้างอิงสร้างอัตโนมัติ'}
+        description="กรอกเท่าที่รู้ — แก้ไขภายหลังได้"
       />
 
       <div className="min-w-0">
@@ -402,7 +412,7 @@ function NewCaseForm() {
               const details = (event.target as HTMLElement).closest('details');
               if (details) details.open = true;
             }}
-            className="min-w-0 space-y-4 text-card-foreground"
+            className="grid min-w-0 gap-4 text-card-foreground xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start"
           >
             <fieldset
               disabled={submitting || !!createdCaseId.current}
@@ -433,7 +443,7 @@ function NewCaseForm() {
             </div>
           )}
 
-            <div className="space-y-5 rounded-2xl border border-border/80 bg-card p-4 sm:p-6">
+            <div className="space-y-5 rounded-lg border bg-card p-4 sm:p-6"><h2 className="border-b pb-3 text-lg font-semibold">1 ประเภทและชื่อคดี</h2>
               <label htmlFor="case-type" className={fieldLabel}>ประเภทคดี <span className="text-destructive">*</span>
                 <select id="case-type" required disabled={loadingTypes} value={form.caseTypeId} className={inputClass}
                   onChange={(event) => setForm((current) => current.caseTypeId === event.target.value ? current : {
@@ -448,6 +458,16 @@ function NewCaseForm() {
                 </select>
               </label>
               <div>
+                <label htmlFor="case-title" className={fieldLabel}>ชื่อคดี <span className="text-destructive">*</span></label>
+                <input id="case-title" required value={form.title} onChange={(event) => { setAutoTitle(false); setForm({ ...form, title: event.target.value }); }} className={inputClass} placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง" />
+                {autoTitle && <p className="mt-1 text-xs text-muted-foreground">ตั้งชื่อจากประเภทคดีและลูกความให้อัตโนมัติ แก้ไขได้</p>}
+              </div>
+              <div><label htmlFor="lead-lawyer" className={fieldLabel}>ทนายผู้รับผิดชอบ <span className="text-destructive">*</span></label>
+                {token && <OwnerPicker id="lead-lawyer" token={token} currentUserId={user?.id} value={form.leadLawyerId} onChange={(leadLawyerId) => setForm((current) => ({ ...current, leadLawyerId }))} onResolvedName={setLeadName} />}
+              </div>
+            </div>
+            <section className="space-y-5 rounded-lg border bg-card p-4 sm:p-6"><h2 className="border-b pb-3 text-lg font-semibold">2 ลูกความ</h2>
+              <div>
                 <label htmlFor="client-combobox" className={fieldLabel}>ลูกความ <span className="font-normal text-muted-foreground">(เติมภายหลังได้)</span></label>
                 <ClientCombobox id="client-combobox" clients={clients} clientId={form.clientId} clientName={form.clientName}
                   disabled={form.useTmpClient || sameCustomer}
@@ -461,23 +481,11 @@ function NewCaseForm() {
                 </div>}
                 {sameCustomer && <p className="mt-1 text-xs text-muted-foreground">ใช้ชื่อเดียวกับผู้ว่าจ้างรายแรก</p>}
               </div>
-              <div>
-                <label htmlFor="case-title" className={fieldLabel}>ชื่อคดี <span className="text-destructive">*</span></label>
-                <input id="case-title" required value={form.title} onChange={(event) => { setAutoTitle(false); setForm({ ...form, title: event.target.value }); }} className={inputClass} placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง" />
-                {autoTitle && <p className="mt-1 text-xs text-muted-foreground">ตั้งชื่อจากประเภทคดีและลูกความให้อัตโนมัติ แก้ไขได้</p>}
-              </div>
-              <div><label htmlFor="lead-lawyer" className={fieldLabel}>ทนายผู้รับผิดชอบ <span className="text-destructive">*</span></label>
-                {token && <OwnerPicker id="lead-lawyer" token={token} currentUserId={user?.id} value={form.leadLawyerId} onChange={(leadLawyerId) => setForm((current) => ({ ...current, leadLawyerId }))} />}
-              </div>
-              <section className="space-y-4 border-t border-border pt-5" aria-label="คู่ความและศาล">
-                <h3 className="text-sm font-semibold">คู่ความและศาล</h3>
+                <fieldset><legend className={fieldLabel}>ฝ่ายเรา</legend><div className="mt-2 flex flex-wrap gap-2">{['', ...Object.values(PartyRole)].map((role) => <label key={role} className={`flex min-h-11 cursor-pointer items-center whitespace-nowrap rounded-lg border px-3 text-sm hover:bg-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${form.partyRole === role ? 'border-primary bg-primary text-primary-foreground' : ''}`}><input type="radio" name="party-role" className="sr-only" checked={form.partyRole === role} onChange={() => setForm({ ...form, partyRole: role })} />{role ? PARTY_ROLE_LABELS[role as PartyRole] : 'ยังไม่ระบุ'}</label>)}</div></fieldset>
+            </section>
+              <section className="space-y-4 rounded-lg border bg-card p-4 sm:p-6" aria-label="คู่ความและศาล">
+                <h2 className="border-b pb-3 text-lg font-semibold">3 คู่ความ ศาล และขั้นปัจจุบัน</h2>
                 <fieldset><legend className={fieldLabel}>ขั้นปัจจุบันของคดี *</legend><div className="mt-2 flex flex-wrap gap-2">{stages.map((item) => <label key={item} className={`flex min-h-11 cursor-pointer items-center rounded-lg border px-3 text-sm hover:bg-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${stage === item ? 'border-primary bg-primary/10' : ''}`}><input type="radio" className="sr-only" name="stage" checked={stage === item} onChange={() => setStage(item)} />{CASE_STAGE_LABELS_TH[item]}</label>)}</div>{stageIndex > 0 && <p className="mt-2 text-sm text-muted-foreground">ขั้นก่อนหน้า {stageIndex} ขั้นจะขึ้นว่า "ข้ามตอนเปิดคดี" — ไม่สร้างงานย้อนหลัง</p>}</fieldset>
-                <label htmlFor="party-role" className={fieldLabel}>เราเป็น
-                  <select id="party-role" value={form.partyRole} onChange={(e) => setForm({ ...form, partyRole: e.target.value })} className={inputClass}>
-                    <option value="">ยังไม่ระบุ</option>
-                    {Object.values(PartyRole).map((role) => <option key={role} value={role}>{PARTY_ROLE_LABELS[role]}</option>)}
-                  </select>
-                </label>
                 <fieldset className="min-w-0 space-y-2">
                   <legend className={fieldLabel}>คู่ความฝ่ายตรงข้าม</legend>
                   {opponents.map((row, index) => (
@@ -527,6 +535,7 @@ function NewCaseForm() {
                   </div>
                 </div>
               </section>
+              <div className="space-y-5 rounded-lg border bg-card p-4 sm:p-6"><h2 className="border-b pb-3 text-lg font-semibold">4 ข้อมูลของประเภทคดีนี้</h2>
               <details className="rounded-lg border border-border p-3">
                 <summary className="min-h-6 cursor-pointer text-sm font-medium">แนบเอกสาร / ช่วยกรอกด้วย AI (ไม่บังคับ){files.length > 0 && ` · ${files.length} ไฟล์`}</summary>
                 <div className="mt-4 space-y-4">
@@ -714,14 +723,21 @@ function NewCaseForm() {
                 </section>
               )}
             </div>
-              <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="font-semibold">อีเมลที่เกี่ยวข้อง (ไม่บังคับ)</h2><p className="text-sm text-muted-foreground">ผูกอีเมลที่มีอยู่แล้วเข้าคดีตอนสร้าง — ไฟล์แนบจะเข้าแท็บเอกสาร · แสดงเฉพาะอีเมลในกล่องของคุณ</p>{token && <EmailLinkCandidates token={token} clientId={form.clientId} selected={selectedEmails} onChange={setSelectedEmails} />}</section>
-              <section className="space-y-1 rounded-lg border bg-card p-4 text-sm" aria-label="สรุป"><h2 className="font-semibold">สรุป</h2><p>ขั้นเริ่มต้น: {CASE_STAGE_LABELS_TH[stage]}</p><p>อีเมลที่จะผูก: {selectedEmails.length} ฉบับ (ไฟล์ {selectedEmails.reduce((sum, row) => sum + row.attachmentCount, 0)})</p></section>
+              <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="border-b pb-3 text-lg font-semibold">5 อีเมลที่เกี่ยวข้อง (ไม่บังคับ)</h2><p className="text-sm text-muted-foreground">ผูกอีเมลที่มีอยู่แล้วเข้าคดีตอนสร้าง — ไฟล์แนบจะเข้าแท็บเอกสาร · แสดงเฉพาะอีเมลในกล่องของคุณ</p>{token && <EmailLinkCandidates token={token} clientId={form.clientId} selected={selectedEmails} onChange={setSelectedEmails} />}</section>
             </fieldset>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card py-3 pl-4 pr-20 sm:px-5">
+            <aside className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t bg-card p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] xl:sticky xl:top-4 xl:block xl:rounded-lg xl:border xl:p-5">
+              <div className="hidden space-y-4 xl:block"><h2 className="border-b pb-3 text-lg font-semibold">สรุปก่อนสร้าง</h2>
+                <dl className="space-y-2 text-sm">{[
+                  ['ประเภท', selectedType?.name], ['ชื่อคดี', form.title], ['ลูกความ', clientLabel], ['ฝ่ายเรา', form.partyRole ? PARTY_ROLE_LABELS[form.partyRole as PartyRole] : ''], ['ทนาย', form.leadLawyerId ? leadName ?? 'เลือกแล้ว' : ''], ['ศาล', form.courtName], ['ขั้นเริ่มต้น', CASE_STAGE_LABELS_TH[stage]], ['อีเมลที่จะผูก', `${selectedEmails.length} ฉบับ · ${selectedEmails.reduce((sum, row) => sum + row.attachmentCount, 0)} ไฟล์`],
+                ].map(([label, value]) => <div key={label} className="flex justify-between gap-3"><dt className="shrink-0 text-muted-foreground">{label}</dt><dd className="min-w-0 break-words text-right">{value || '—'}</dd></div>)}</dl>
+                <div className="border-t pt-4 text-sm"><h3 className="font-semibold">ข้อมูลบังคับขั้นต่ำ · ครบ {completed} จาก {checklist.length}</h3><ul className="mt-2 space-y-1">{checklist.map(([label, done]) => <li key={label}>{done ? '✓' : '○'} {label}</li>)}</ul></div>
+              </div>
+              <span className="text-sm tabular-nums xl:hidden">ครบ {completed} จาก {checklist.length}</span>
+            <div className="flex flex-wrap items-center gap-3 xl:flex-col xl:items-stretch">
           <Button
             type="button"
             variant="outline"
-            className="min-h-11 whitespace-nowrap active:bg-accent/80"
+            className="hidden min-h-11 whitespace-nowrap active:bg-accent/80 xl:inline-flex"
             disabled={submitting}
             onClick={() => router.push(createdCaseId.current ? `/cases/${createdCaseId.current}?tab=documents` : '/cases')}
           >
@@ -744,6 +760,7 @@ function NewCaseForm() {
               : `สร้างคดีที่ขั้น${CASE_STAGE_LABELS_TH[stage]}`}
           </Button>
             </div>
+            </aside>
           </form>
           {contactDialogCustomerIndex != null && (() => {
             const row = customers[contactDialogCustomerIndex];
