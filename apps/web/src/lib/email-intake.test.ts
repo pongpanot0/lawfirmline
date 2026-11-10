@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupProposals, parseOtherAmount, parseDocument, submitHelper, casePath } from './email-intake.ts';
+import { groupProposals, parseOtherAmount, parseDocument, submitHelper, casePath, sourceQuote } from './email-intake.ts';
 import type { IntakeFieldProposalItem, EmailIntakeStep } from './api';
 
 test('groups proposals by matter including general data', () => {
@@ -24,4 +24,11 @@ test('submit helper lists incomplete required steps', () => {
 test('links acceptance and assessment to the linked case', () => {
   assert.equal(casePath('case-123'), '/cases/case-123');
   assert.equal(casePath(null), null);
+});
+
+test('shows only the quoted evidence of an AI proposal', () => {
+  assert.equal(sourceQuote('AI อ่านจากเอกสาร · พญ.พาริชา เชาวลิต — "ค่ารักษาพยาบาลทั้งหมด 3,877,316.00 บาท ค่ะ"'), 'ค่ารักษาพยาบาลทั้งหมด 3,877,316.00 บาท ค่ะ');
+  assert.equal(sourceQuote('AI อ่านจากอีเมล — "Insured : "A" / Policy no. 1"'), 'Insured : "A" / Policy no. 1');
+  assert.equal(sourceQuote('AI แนะนำให้ขอเอกสารนี้จากลูกความ'), 'AI แนะนำให้ขอเอกสารนี้จากลูกความ');
+  assert.equal(sourceQuote(null), null);
 });

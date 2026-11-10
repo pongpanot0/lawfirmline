@@ -26,6 +26,13 @@ export function parseDocument(value: string | null): { documentId: string; filen
   } catch { return null; }
 }
 
+/** The quoted evidence of an AI proposal ("AI อ่านจากเอกสาร · label — "quote"" → quote); other notes pass through. */
+export function sourceQuote(detail: string | null): string | null {
+  if (!detail) return null;
+  const match = /^AI อ่านจาก(?:เอกสาร|อีเมล)(?: · .+?)? — "([\s\S]*)"$/.exec(detail);
+  return match ? match[1].trim() || null : detail;
+}
+
 export function submitHelper(steps: EmailIntakeStep[]) {
   const missing = steps.filter((step) => (step.key === 'CONFIRM' || step.key === 'DOCUMENTS') && step.state !== 'done').map((step) => step.label);
   return missing.length ? 'ต้องทำให้ครบก่อน: ' + missing.join(' และ ') : 'พร้อมสร้างคดีก่อนฟ้อง';

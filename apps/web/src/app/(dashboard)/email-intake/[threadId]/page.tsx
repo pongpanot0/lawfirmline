@@ -38,6 +38,7 @@ export default function EmailThreadDetailPage() {
   const router = useRouter();
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [teamIds, setTeamIds] = useState<string[]>([]);
+  const [confirmingAll, setConfirmingAll] = useState(false);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
 
   useEffect(() => {
@@ -187,6 +188,22 @@ export default function EmailThreadDetailPage() {
     }
   };
 
+  // Values only: document requests and conflicting values still need a person to look at each.
+  const handleConfirmAll = async (ids: string[]) => {
+    if (!token || !data?.thread.intake || !ids.length) return;
+    if (!window.confirm(`ยืนยันข้อมูลที่เหลือทั้งหมด ${ids.length} รายการตามที่ AI เสนอ?`)) return;
+    setConfirmingAll(true);
+    setError('');
+    try {
+      for (const id of ids) await api.resolveFieldProposal(token, data.thread.intake.id, id, { action: 'confirm' });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'ยืนยันบางรายการไม่สำเร็จ');
+    } finally {
+      setConfirmingAll(false);
+      await refresh();
+    }
+  };
+
   const handleResolve = async (proposalId: string, action: 'confirm' | 'reject', overrideValue?: string) => {
     if (!token || !data?.thread.intake) return;
     setResolvingId(proposalId);
@@ -269,6 +286,11 @@ export default function EmailThreadDetailPage() {
 
   const { thread, proposals, documents, progress } = data;
   const documentProposals = proposals.filter((p) => p.field === 'document');
+  const fieldProposals = proposals.filter((p) => p.field !== 'document' && p.status !== 'REJECTED');
+  const fieldTotal = fieldProposals.length;
+  const fieldConfirmed = fieldProposals.filter((p) => p.status === 'CONFIRMED').length;
+  const confirmable = fieldProposals.filter((p) => isPending(p) && p.status !== 'CONFLICT' && p.field !== 'docRequest');
+  const fileNames = new Map(documents.map((d) => [d.id, d.filename]));
   const rejectedDocuments = documentProposals.filter((p) => p.status === 'REJECTED');
   const documentLocked = progress.steps.find((step) => step.key === 'DOCUMENTS')?.state === 'locked';
   const canSubmit = ['CONFIRM', 'DOCUMENTS'].every((key) => progress.steps.some((step) => step.key === key && step.state === 'done'));
@@ -314,7 +336,7 @@ export default function EmailThreadDetailPage() {
 
       <div id="link-case"><LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} /></div>
 
-      <div className="grid gap-6 2xl:grid-cols-2">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* Source email */}
         <Card>
           <CardContent className="p-4">
@@ -408,14 +430,23 @@ export default function EmailThreadDetailPage() {
         <div className="min-w-0 space-y-6">
           {data.clientMatch && <ClientMatchCard key={data.clientMatch.linked?.id ?? 'unlinked'} match={data.clientMatch} busy={linkingClient} onLink={handleLinkClient} />}
           <Card><CardContent className="p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-semibold">ข้อมูลที่ระบบเตรียมให้</h2>
-              {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>{aiReading ? 'AI กำลังอ่าน…' : 'อ่านใหม่ (1 เครดิต)'}</Button>}
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0 space-y-1.5">
+                <h2 className="font-semibold">ข้อมูลที่ระบบเตรียมให้</h2>
+                {fieldTotal > 0 && <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted" aria-hidden><div className="h-full rounded-full bg-primary" style={{ width: `${(fieldConfirmed / fieldTotal) * 100}%` }} /></div>
+                  <span>ยืนยันแล้ว {fieldConfirmed} จาก {fieldTotal} รายการ</span>
+                </div>}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {confirmable.length > 0 && <Button size="sm" variant="outline" disabled={confirmingAll || !!resolvingId} onClick={() => handleConfirmAll(confirmable.map((p) => p.id))}>{confirmingAll ? 'กำลังยืนยัน…' : `ยืนยันทั้งหมดที่เหลือ (${confirmable.length})`}</Button>}
+                {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>{aiReading ? 'AI กำลังอ่าน…' : 'อ่านใหม่ (1 เครดิต)'}</Button>}
+              </div>
             </div>
             {aiNote && <p role="status" className="mb-2 text-xs text-muted-foreground">{aiNote}</p>}
             {data.aiSummary && <AiSummaryCard summary={data.aiSummary} />}
             <div className="space-y-3">
-              {groupProposals(proposals.filter((p) => p.field !== 'document')).sort(([a], [b]) => Number(a === null) - Number(b === null)).map(([label, items], index) => <ProposalGroup key={label ?? ''} title={label ? `เรื่องที่ ${index + 1} · ${label}` : 'ข้อมูลทั่วไป'} items={items} proposals={proposals} onResolve={handleResolve} resolvingId={resolvingId} />)}
+              {groupProposals(proposals.filter((p) => p.field !== 'document')).sort(([a], [b]) => Number(a === null) - Number(b === null)).map(([label, items], index) => <ProposalGroup key={label ?? ''} title={label ? `เรื่องที่ ${index + 1} · ${label}` : 'ข้อมูลทั่วไป'} items={items} proposals={proposals} fileNames={fileNames} onResolve={handleResolve} resolvingId={resolvingId} />)}
               {!proposals.some((p) => p.field !== 'document') && <p className="text-sm text-muted-foreground">ไม่พบข้อมูลที่ต้องยืนยัน</p>}
             </div>
           </CardContent></Card>
