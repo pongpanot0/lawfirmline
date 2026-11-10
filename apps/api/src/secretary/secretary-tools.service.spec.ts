@@ -20,6 +20,7 @@ describe('SecretaryToolsService', () => {
       pettyCashFund: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
     };
     const collections = { getReceivables: jest.fn().mockResolvedValue({ buckets: {}, rows: [] }) };
+    const agenda = { getMyDay: jest.fn() };
     const access = {
       getCaseFilterForUser: jest.fn().mockReturnValue(caseFilter),
       getIntakeFilterForUser: jest.fn().mockResolvedValue(intakeFilter),
@@ -30,8 +31,8 @@ describe('SecretaryToolsService', () => {
       retrieve: jest.fn().mockResolvedValue([]),
       ensureCaseIndexed: jest.fn().mockResolvedValue(undefined),
     };
-    const svc = new SecretaryToolsService(prisma as any, access as any, brief as any, rag as any, collections as any);
-    return { svc, prisma, brief, rag, collections };
+    const svc = new SecretaryToolsService(prisma as any, access as any, brief as any, rag as any, collections as any, agenda as any);
+    return { svc, prisma, brief, rag, collections, agenda };
   }
 
   it('find_matters searches only accessible cases and intakes', async () => {
@@ -125,7 +126,7 @@ describe('SecretaryToolsService', () => {
   it('definitions gives office managers every tool', () => {
     expect(build().svc.definitions(user).map((d) => d.function.name)).toEqual([
       'find_matters', 'case_overview', 'search_documents', 'read_document', 'list_events',
-      'list_leaves', 'search_sops', 'lawyer_licenses', 'receivables', 'petty_cash_balance',
+      'list_leaves', 'search_sops', 'lawyer_licenses', 'receivables', 'petty_cash_balance', 'my_work',
     ]);
   });
 
@@ -175,5 +176,30 @@ describe('SecretaryToolsService', () => {
     const { svc, prisma } = build();
     expect((await svc.run(user, 'petty_cash_balance', {})).content).toEqual({ notSetUp: true });
     expect(prisma.pettyCashFund.upsert).not.toHaveBeenCalled();
+  });
+
+  it('my_work summarises the caller\'s my-day view, caps each section and links distinct cases', async () => {
+    const { svc, agenda } = build();
+    const item = (n: number, caseId: string | null) => ({
+      id: `task:${n}`, entityId: `${n}`, kind: 'TASK', title: `งาน ${n}`, at: '2026-11-10T00:00:00.000Z', endAt: null, allDay: true,
+      urgency: 'normal', caseId, caseRef: caseId ? `R-${caseId}` : null, caseTitle: caseId ? `คดี ${caseId}` : null,
+      location: null, departBy: null, url: '/', assigneeId: 'u2', assigneeName: 'ทนาย ก', assignees: [],
+    });
+    agenda.getMyDay.mockResolvedValue({
+      today: '2026-11-10',
+      overdue: Array.from({ length: 20 }, (_, n) => item(n, n % 2 ? 'c1' : null)),
+      todayItems: [item(100, 'c2')], tomorrow: [], upcoming: [{ date: '2026-11-12', items: [item(200, 'c1')] }],
+      warnings: [{ kind: 'OVERLAP', message: 'นัดชนกัน', itemIds: [] }],
+      reviewQueue: [{ id: 't9', title: 'ตรวจคำฟ้อง', caseId: null, caseRef: null, caseTitle: null, workerName: 'ทนาย ข', submittedAt: null, dueDate: '2026-11-11T00:00:00.000Z' }],
+    });
+    const r = await svc.run(user, 'my_work', {});
+    const c = r.content as any;
+    expect(agenda.getMyDay).toHaveBeenCalledWith(user);
+    expect(c.overdue.total).toBe(20);
+    expect(c.overdue.items).toHaveLength(15);
+    expect(c.upcoming.items[0].title).toBe('งาน 200');
+    expect(c.waitingForMyReview.items[0]).toEqual({ title: 'ตรวจคำฟ้อง', caseRef: null, worker: 'ทนาย ข', dueDate: '2026-11-11' });
+    expect(c.warnings).toEqual(['นัดชนกัน']);
+    expect(r.cards.map((x) => x.id)).toEqual(['c1', 'c2']);
   });
 });

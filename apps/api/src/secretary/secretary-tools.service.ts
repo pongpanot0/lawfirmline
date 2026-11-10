@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LeaveStatus } from '../generated/prisma';
 import { hasFirmCapability, redactForAi } from '@lawfirm/shared';
-import type { AuthUser, FirmCapability, SecretaryCard } from '@lawfirm/shared';
+import type { AgendaItem, AuthUser, FirmCapability, SecretaryCard } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { RagService } from '../rag/rag.service';
 import { CollectionsService } from '../billing/collections.service';
 import { daysToExpiry } from '../lawyer-license/license-milestones';
+import { AgendaService } from '../agenda/agenda.service';
 import { MatterBriefService } from './matter-brief.service';
 
 export interface OpenAiToolDef {
@@ -37,6 +38,8 @@ const canUse = (user: AuthUser, name: string) => {
 const DAY_MS = 86_400_000;
 const MAX_LEAVE_RANGE_DAYS = 62;
 const SOP_CONTENT_CHARS = 2000;
+/** Rows per my_work section: enough to answer "what's on my plate", small enough to keep the prompt cheap. */
+const MY_WORK_ROWS = 15;
 const MAX_LEAVES = 50;
 
 /** Read-only, access-filtered tools for the AI secretary. Every query is scoped by the caller's case/intake filters. */
@@ -50,6 +53,7 @@ export class SecretaryToolsService {
     private readonly brief: MatterBriefService,
     private readonly rag: RagService,
     private readonly collections: CollectionsService,
+    private readonly agenda: AgendaService,
   ) {}
 
   /** Only the tools this user may run — the model never sees an office tool it would be refused. */
@@ -74,6 +78,7 @@ export class SecretaryToolsService {
       tool('receivables', 'Unpaid sent invoices with aging buckets (0-30, 31-60, 61-90, 90+ days overdue), largest overdue first. Max 20 rows.',
         { minDaysOverdue: { type: 'number' } }, []),
       tool('petty_cash_balance', 'Current petty cash fund balance (THB).', {}, []),
+      tool('my_work', 'The caller\'s own work right now, the same as their "my day" screen: overdue items, today, tomorrow, the next days, tasks waiting for their review, and schedule warnings. Use it for broad questions like "what work do I/we have".', {}, []),
     ].filter((d) => canUse(user, d.function.name));
   }
 
@@ -92,6 +97,7 @@ export class SecretaryToolsService {
       case 'lawyer_licenses': result = await this.lawyerLicenses(user, a); break;
       case 'receivables': result = await this.receivables(user, a); break;
       case 'petty_cash_balance': result = await this.pettyCashBalance(user); break;
+      case 'my_work': result = await this.myWork(user); break;
       default: return bad('unknown_tool');
     }
     return { ...result, content: redactContent(result.content) };
@@ -177,6 +183,36 @@ export class SecretaryToolsService {
         })),
       },
       cards: [],
+    };
+  }
+
+  /** Reuses the "my day" projection so the secretary and the screen never disagree about what someone owes. */
+  private async myWork(user: AuthUser): Promise<ToolResult> {
+    const day = await this.agenda.getMyDay(user);
+    const row = (i: AgendaItem) => ({
+      kind: i.kind, title: i.title, date: i.at.slice(0, 10), allDay: i.allDay, urgency: i.urgency,
+      caseRef: i.caseRef, caseTitle: i.caseTitle, assignee: i.assigneeName,
+    });
+    const section = (items: AgendaItem[]) => ({ total: items.length, items: items.slice(0, MY_WORK_ROWS).map(row) });
+    const upcoming = day.upcoming.flatMap((d) => d.items);
+    const all = [...day.overdue, ...day.todayItems, ...day.tomorrow, ...upcoming];
+    const cases = new Map<string, SecretaryCard>();
+    for (const i of all) {
+      if (i.caseId && !cases.has(i.caseId)) cases.set(i.caseId, { type: 'case', id: i.caseId, title: i.caseTitle ?? '', ownRef: i.caseRef });
+    }
+    return {
+      content: {
+        today: day.today,
+        overdue: section(day.overdue),
+        today_items: section(day.todayItems),
+        tomorrow: section(day.tomorrow),
+        upcoming: section(upcoming),
+        waitingForMyReview: { total: day.reviewQueue.length, items: day.reviewQueue.slice(0, MY_WORK_ROWS).map((r) => ({
+          title: r.title, caseRef: r.caseRef, worker: r.workerName, dueDate: r.dueDate?.slice(0, 10) ?? null,
+        })) },
+        warnings: day.warnings.map((w) => w.message),
+      },
+      cards: [...cases.values()].slice(0, 8),
     };
   }
 
