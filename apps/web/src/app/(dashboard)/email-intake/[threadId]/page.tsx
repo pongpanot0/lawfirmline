@@ -318,7 +318,7 @@ export default function EmailThreadDetailPage() {
   };
 
   return (
-    <div className="min-w-0 pb-32">
+    <div className="min-w-0 pb-8">
       <div className="mb-3 flex flex-wrap gap-2 border-b pb-3">
         <Button size="sm" disabled={!unaccepted || linking} onClick={handleCreateIntake}>รับเป็นคดีก่อนฟ้อง</Button>
         <Button size="sm" variant="outline" disabled={!unaccepted || !intakeSuggestions.length} onClick={() => document.getElementById('accept-intake')?.scrollIntoView({ behavior: 'smooth' })}>รวมเข้าคดีเดิม</Button>
@@ -494,23 +494,24 @@ export default function EmailThreadDetailPage() {
             {documents.length === 0 && <p className="text-sm text-muted-foreground">ไม่มีไฟล์แนบ</p>}
             {rejectedDocuments.length > 0 && <button type="button" disabled={documentLocked} className="text-xs text-primary underline" onClick={() => setShowRejectedDocuments(!showRejectedDocuments)}>{showRejectedDocuments ? 'ซ่อนที่ตัดออก' : `แสดงที่ตัดออก (${rejectedDocuments.length})`}</button>}
           </CardContent></Card>
-        </div>
-      </div>
-      <div id="submit-intake" className="sticky bottom-0 z-30 flex min-w-0 flex-wrap items-center justify-end gap-3 border-t bg-card p-3 shadow-lg pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <p className="text-sm text-muted-foreground">{submitHelper(progress.steps)}</p>
-        <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">ผู้รับผิดชอบคดี</span>
-          <div className="w-64 max-w-full">
-            <MultiUserSelect
-              users={user && !lawyers.some((l) => l.id === user.id) ? [user as unknown as UserItem, ...lawyers] : lawyers}
-              value={teamIds.length ? teamIds : user ? [user.id] : []}
-              onChange={setTeamIds}
-              placeholder={leadLocked ? 'เพิ่มคนเข้าทีมคดี (เลือกได้หลายคน)' : 'คนแรกเป็นเจ้าของคดี (เลือกได้หลายคน)'}
-              dropUp
-            />
+          {/* The action lives in the side column: it never covers the e-mail being read. */}
+          <div id="submit-intake" className="z-20 flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-4 shadow-lg xl:sticky xl:bottom-4">
+            <p className="text-sm text-muted-foreground">{submitHelper(progress.steps)}</p>
+            <div className="flex min-w-0 flex-col gap-1 text-sm">
+              <span className="text-muted-foreground">ผู้รับผิดชอบคดี</span>
+              <div className="w-full">
+                <MultiUserSelect
+                  users={user && !lawyers.some((l) => l.id === user.id) ? [user as unknown as UserItem, ...lawyers] : lawyers}
+                  value={teamIds.length ? teamIds : user ? [user.id] : []}
+                  onChange={setTeamIds}
+                  placeholder={leadLocked ? 'เพิ่มคนเข้าทีมคดี (เลือกได้หลายคน)' : 'คนแรกเป็นเจ้าของคดี (เลือกได้หลายคน)'}
+                  dropUp
+                />
+              </div>
+            </div>
+            <Button className="w-full" disabled={accepting || !thread.intake || !canSubmit} onClick={handleAccept}>{accepting ? 'กำลังสร้างคดี...' : 'สร้างคดีก่อนฟ้อง'}</Button>
           </div>
         </div>
-        <Button disabled={accepting || !thread.intake || !canSubmit} onClick={handleAccept}>{accepting ? 'กำลังสร้างคดี...' : 'สร้างคดีก่อนฟ้อง'}</Button>
       </div>
       {preview && <DocumentPreviewModal filename={preview.filename} mimeType={preview.mimeType} url={preview.url} onClose={() => setPreview(null)} />}
       {thread.caseId && (

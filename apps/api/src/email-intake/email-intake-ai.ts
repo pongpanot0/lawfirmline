@@ -7,6 +7,9 @@ export const INTAKE_AI_SYSTEM_PROMPT = [
   'แยก matters ตามผู้ป่วยหรือเรื่อง ใช้ label สั้นๆ จากต้นฉบับ ไม่เติม [label] หน้าค่า',
   'ทุกค่าทั้งข้อความ สรุป วันที่ และเงิน ต้องมี quote ที่คัดลอกตรงจากแหล่งอ้างอิง',
   'ระบุ sourceMessageId หรือ sourceDocumentId เพียงหนึ่งอย่าง อีกอย่างเป็น null ห้ามสร้างข้อมูลที่ไม่มีในแหล่งนั้น',
+  'title คือชื่อเรื่องสั้นๆ บอกว่าพิพาทเรื่องอะไร ห้ามใช้เลขคดีเป็นชื่อเรื่อง เลขคดีศาล เช่น ผบ.181/2569 หรือ พ.123/2567 ใส่ externalCaseNumber ซึ่งคือหมายเลขคดีดำ',
+  'ถ้าคู่กรณีเป็นโจทก์ ลูกความของสำนักงานคือจำเลย ให้ partyRole เป็น DEFENDANT ถ้าคู่กรณีเป็นจำเลย ลูกความคือโจทก์ ให้ partyRole เป็น PLAINTIFF',
+  'ตัวเลขเงินใน quote ต้องเป็นยอดเดียวกับ amount ที่เสนอ ห้ามใช้ประโยคที่พูดถึงยอดอื่นเป็นหลักฐาน',
   'claimedAmount คือยอดเรียกร้อง insurerPaidAmount คือประกันจ่ายไปแล้ว settlementOfferAmount คือข้อเสนอไกล่เกลี่ย ถ้าอีเมลบอกว่ายังไม่จ่าย ให้เป็น null ไม่ใช่ 0',
   'อีเมลส่งถึงสำนักงานกฎหมาย คนที่ถูกเรียนถึง (เช่น "เรียน คุณ…") คือทนายของสำนักงาน ไม่ใช่ลูกความ contactName คือผู้ติดต่อฝั่งผู้ส่ง clientName คือองค์กรหรือบุคคลที่ส่งเรื่องมา',
   'ข้อความที่ fromFirm เป็น true เขียนโดยคนของสำนักงาน (ส่งต่อหรือตอบลูกความ) สำนักงานและลายเซ็นของสำนักงานไม่ใช่ลูกความและไม่ใช่ผู้ติดต่อ ให้หา clientName และ contactName จากฝั่งภายนอก เช่นใน [ข้อความก่อนหน้า] ที่ถูกส่งต่อมา',
@@ -86,6 +89,50 @@ export interface AiProposal extends ExtractedField {
   matterLabel: string | null;
 }
 interface Source { id: string; text: string }
+
+const THAI_DIGITS = '๐๑๒๓๔๕๖๗๘๙';
+const UNITS: Record<string, number> = { 'ล้าน': 1e6, 'แสน': 1e5, 'หมื่น': 1e4, 'พัน': 1e3 };
+/** Every amount written in the text: plain numbers ("1,500,000.00"), and Thai unit words ("10 ล้าน"). */
+export function amountsIn(text: string): number[] {
+  const ascii = text.replace(/[๐-๙]/g, (d) => String(THAI_DIGITS.indexOf(d)));
+  const found: number[] = [];
+  for (const m of ascii.matchAll(/(\d[\d,]*(?:\.\d+)?)\s*(ล้าน|แสน|หมื่น|พัน)?/g)) {
+    const n = Number(m[1].replace(/,/g, ''));
+    if (!Number.isFinite(n)) continue;
+    found.push(m[2] ? n * UNITS[m[2]] : n);
+  }
+  return found;
+}
+/** The quote really states this amount — an AI amount whose quote talks about another figure is not evidence. */
+export function quoteStatesAmount(quote: string, amount: number): boolean {
+  return amountsIn(quote).some((n) => Math.abs(n - amount) < 0.5);
+}
+/** A short stretch of the source that does state the amount, so the lawyer sees the real evidence. */
+export function sentenceWithAmount(source: string, amount: number): string | null {
+  for (const piece of source.split(/(?<=[.!?。\n])\s+|\s{2,}|(?<=บาท)\s+/)) {
+    if (quoteStatesAmount(piece, amount)) return piece.trim().slice(0, 200);
+  }
+  return null;
+}
+// "คดี ผบ.181/2569", "หมายเลขคดีดำที่ พ. 123/2567"
+const CASE_NUMBER_TITLE = /^(?:คดี\s*)?(?:หมายเลขคดี(?:ดำ|แดง)?\s*(?:ที่)?\s*)?([ก-ฮA-Za-z]{1,4}\.?\s?[ก-ฮA-Za-z]{0,2}\.?\s?\d{1,6}\s?\/\s?\d{4})$/;
+export function caseNumberFromTitle(title: string): string | null {
+  const m = title.trim().match(CASE_NUMBER_TITLE);
+  return m ? m[1].replace(/\s+/g, '') : null;
+}
+// The word that follows the other side's name says which side they are on.
+const OPPONENT_ROLE_TO_OURS: [RegExp, PartyRole][] = [
+  [/^\s*(?:\(|,)?\s*โจทก์/, PartyRole.DEFENDANT],
+  [/^\s*(?:\(|,)?\s*จำเลย/, PartyRole.PLAINTIFF],
+  [/^\s*(?:\(|,)?\s*ผู้ร้อง/, PartyRole.RESPONDENT],
+  [/^\s*(?:\(|,)?\s*ผู้คัดค้าน/, PartyRole.PETITIONER],
+];
+export function ourRoleFromOpponentQuote(name: string, quote: string): PartyRole | null {
+  const at = quote.indexOf(name.trim());
+  if (at < 0) return null;
+  const after = quote.slice(at + name.trim().length, at + name.trim().length + 20);
+  return OPPONENT_ROLE_TO_OURS.find(([pattern]) => pattern.test(after))?.[1] ?? null;
+}
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
 const record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 
@@ -109,12 +156,17 @@ export function parseIntakeAiResult(
     const messageId = typeof r.sourceMessageId === 'string' ? r.sourceMessageId : null;
     const documentId = typeof r.sourceDocumentId === 'string' ? r.sourceDocumentId : null;
     if (!!messageId === !!documentId) return;
-    const quote = squash(r.quote);
+    let quote = squash(r.quote);
     const source = documentId ? documentText.get(documentId) : messageText.get(messageId!);
     if (!quote || !source?.includes(quote)) return;
     let value: string;
     if (amount) {
       if (typeof r.amount !== 'number' || !Number.isFinite(r.amount) || r.amount <= 0) return;
+      if (!quoteStatesAmount(quote, r.amount)) {
+        const evidence = sentenceWithAmount(source, r.amount);
+        if (!evidence) return; // the figure is nowhere in the source: not evidence, drop it
+        quote = evidence;
+      }
       if (field === 'otherAmount') {
         if (typeof r.meaning !== 'string' || !r.meaning.trim()) return;
         value = JSON.stringify({ label: squash(r.meaning), amount: r.amount });
@@ -123,6 +175,11 @@ export function parseIntakeAiResult(
       if (typeof r.value !== 'string' || !r.value.trim()) return;
       value = r.value.trim().slice(0, field === 'description' ? 2000 : 500);
       if (field === 'partyRole' && !Object.values(PartyRole).includes(value as PartyRole)) return;
+      if (field === 'title' && caseNumberFromTitle(value)) {
+        // A court number is not a title: file it as the black case number instead.
+        field = 'externalCaseNumber';
+        value = caseNumberFromTitle(value)!;
+      }
       if (field === 'caseType' && !caseTypes.includes(value)) return;
       if (DATE_FIELDS.includes(field)) {
         const date = parseIntakeDate(value);
@@ -144,6 +201,13 @@ export function parseIntakeAiResult(
     for (const other of Array.isArray(matter.otherAmounts) ? matter.otherAmounts.slice(0, 5) : []) add('otherAmount', label, other, true);
     for (const field of textFields) add(field, label, matter[field]);
     if (!matter.description) add('description', label, matter.summary);
+    // "ระหว่าง นาย ก. โจทก์" — the other side is the plaintiff, so our client defends.
+    const opponent = out.find((p) => p.field === 'opposingParty' && p.matterLabel === (Array.isArray(result!.matters) && result!.matters.length > 1 ? label : null));
+    if (opponent && !out.some((p) => p.field === 'partyRole' && p.matterLabel === opponent.matterLabel)) {
+      const quote = opponent.sourceDetail.match(/— "([\s\S]*)"$/)?.[1];
+      const role = quote ? ourRoleFromOpponentQuote(opponent.value, quote) : null;
+      if (role) out.push({ ...opponent, field: 'partyRole', value: role });
+    }
   }
   for (const item of Array.isArray(result.documents) ? result.documents.slice(0, 5) : []) {
     const d = record(item);
@@ -156,7 +220,9 @@ export function parseIntakeAiResult(
       sourceMessageId: null, sourceDocumentId: source.id, matterLabel: null,
       sourceDetail: `AI จัดเอกสาร · ${d.docTypeLabel}` });
   }
-  return out;
+  // A title turned into a case number may repeat the AI's own case-number proposal.
+  const seen = new Set<string>();
+  return out.filter((p) => { const key = `${p.matterLabel}|${p.field}|${p.value}`; if (seen.has(key)) return false; seen.add(key); return true; });
 }
 
 // Field names the model sometimes echoes from the schema, shown to lawyers in Thai instead.
@@ -165,7 +231,7 @@ const FIELD_WORDS: Record<string, string> = {
   insurerPaidAmount: 'ยอดที่ประกันจ่าย', settlementOfferAmount: 'ข้อเสนอไกล่เกลี่ย', otherAmounts: 'ยอดเงินอื่น',
   opposingParty: 'คู่กรณี', insurerName: 'บริษัทประกัน', policyNumber: 'เลขกรมธรรม์', claimNumber: 'เลขเคลม',
   incidentDate: 'วันที่เกิดเหตุ', deadlineDate: 'วันครบกำหนด', requestedResponseDate: 'วันครบกำหนดตอบ',
-  customerRef: 'เลขอ้างอิงของผู้ส่ง', externalCaseNumber: 'เลขคดีศาล', clientName: 'ชื่อลูกความ', contactName: 'ผู้ติดต่อ',
+  customerRef: 'เลขอ้างอิงของผู้ส่ง', externalCaseNumber: 'หมายเลขคดีดำ', clientName: 'ชื่อลูกความ', contactName: 'ผู้ติดต่อ',
 };
 
 export interface IntakeAiSummary {

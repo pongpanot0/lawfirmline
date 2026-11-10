@@ -15,7 +15,7 @@ describe('EmailIntakeService', () => {
     emailThread: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     emailMessage: { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     intake: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), findUniqueOrThrow: jest.fn(), create: jest.fn(), update: jest.fn() },
-    case: { updateMany: jest.fn(), count: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
+    case: { updateMany: jest.fn(), update: jest.fn(), count: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
     intakeFieldProposal: {
       findFirst: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
@@ -393,16 +393,22 @@ describe('EmailIntakeService', () => {
     it('keeps case access on the title sync write', async () => {
       const caseFilter = { firmId: 'firm-1', deletedAt: null, OR: [{ leadLawyerId: user.id }] };
       mockCaseAccess.getCaseFilterForUser.mockReturnValue(caseFilter);
+      mockPrisma.case.findFirst.mockResolvedValueOnce({ id: 'case-1', partyRole: null, clientId: null });
       await confirm('title', 'ชื่อคดี');
-      expect(mockPrisma.case.updateMany).toHaveBeenCalledWith({ where: { intakeId: 'intake-1', ...caseFilter }, data: { title: 'ชื่อคดี' } });
+      expect(mockPrisma.case.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { intakeId: 'intake-1', ...caseFilter } }));
+      expect(mockPrisma.case.update).toHaveBeenCalledWith({ where: { id: 'case-1' }, data: { title: 'ชื่อคดี' } });
     });
 
-    it('a confirmed title or claimed amount also updates the pre-litigation case', async () => {
+    it('confirmed title, amount and court number also update the pre-litigation case', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', partyRole: null, clientId: null });
       await confirm('estimatedDamage', '1000000');
-      expect(mockPrisma.case.updateMany).toHaveBeenCalledWith({ where: { intakeId: 'intake-1', firmId: 'firm-1' }, data: { claimedAmount: 1000000 } });
-      mockPrisma.case.updateMany.mockClear();
+      expect(mockPrisma.case.update).toHaveBeenCalledWith({ where: { id: 'case-1' }, data: { claimedAmount: 1000000 } });
+      mockPrisma.case.update.mockClear();
       await confirm('policyNumber', 'P-1');
-      expect(mockPrisma.case.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.case.update).not.toHaveBeenCalled();
+      await confirm('externalCaseNumber', 'ผบ.181/2569');
+      expect(mockPrisma.case.update).toHaveBeenCalledWith({ where: { id: 'case-1' }, data: { blackCaseNumber: 'ผบ.181/2569' } });
+      mockPrisma.case.findFirst.mockReset();
     });
 
     it('a confirmed contact person is also saved on the customer, once', async () => {
