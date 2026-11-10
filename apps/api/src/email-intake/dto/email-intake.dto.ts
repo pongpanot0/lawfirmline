@@ -21,6 +21,11 @@ export class AcceptIntakeFromThreadDto {
   @IsOptional()
   @IsString()
   relatedCaseId?: string;
+
+  /** Lead lawyer when this accept opens the case — choosing one at creation is not a reassignment. */
+  @IsOptional()
+  @IsUUID()
+  leadLawyerId?: string;
 }
 
 export class AttachThreadToIntakeDto {

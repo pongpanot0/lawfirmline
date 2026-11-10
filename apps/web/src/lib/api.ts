@@ -1377,8 +1377,8 @@ export type EmailIntakeStep = { key: 'ACCEPT' | 'AI_READ' | 'CONFIRM' | 'DOCUMEN
 export interface EmailThreadDetail {
   thread: EmailThreadListItem & {
     messages: EmailMessageItem[];
-    intake: { id: string; status: string; title: string | null; case?: { id: string; ownRef: string; title: string } | null } | null;
-    case?: { id: string; ownRef: string; title: string } | null;
+    intake: { id: string; status: string; title: string | null; receivedById?: string; case?: { id: string; ownRef: string; title: string; leadLawyerId?: string } | null } | null;
+    case?: { id: string; ownRef: string; title: string; leadLawyerId?: string } | null;
   };
   proposals: IntakeFieldProposalItem[];
   documents: { id: string; filename: string; mimeType: string; category: string }[];
@@ -3833,7 +3833,7 @@ export const api = {
   aiExtractEmailThread: (token: string, threadId: string) =>
     request<{ proposals: number; cached?: boolean }>(`/email-intake/threads/${threadId}/ai-extract`, { method: 'POST', token, ai: true }),
 
-  acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
+  acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string; leadLawyerId?: string }) =>
     request<IntakeItem & { caseId: string }>(`/email-intake/threads/${threadId}/accept`, {
       method: 'POST',
       token,

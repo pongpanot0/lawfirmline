@@ -39,6 +39,8 @@
 
 @layer components {
   .samnuan-page { width: 100%; min-width: 0; max-width: 1600px; margin-inline: auto; }
+  /* Multi-pane workspaces (list + reading + side panel) use the whole screen. */
+  .samnuan-page:has(.samnuan-page-full) { max-width: none; }
   .samnuan-sidebar { color: var(--color-nav-text); }
   .samnuan-sidebar :where(a, button):focus-visible { outline-color: var(--color-nav-text); }
   .samnuan-sidebar [aria-label="Language"] { background: var(--color-nav); border-color: var(--color-nav-rule); }
