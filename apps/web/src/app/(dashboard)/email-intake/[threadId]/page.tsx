@@ -225,9 +225,11 @@ export default function EmailThreadDetailPage() {
     setAccepting(true);
     setError('');
     try {
+      // Accepted before every intake opened its case at "ก่อนฟ้อง": open it now — accepting again
+      // is idempotent and only adds the missing case, so the matter appears in เรื่องและคดี.
+      const caseId = data.thread.caseId ?? data.thread.intake.case?.id ?? (await api.acceptEmailThread(token, threadId)).caseId;
       await api.assessIntake(token, data.thread.intake.id, { assessorIds: assessorIds.length ? assessorIds : user ? [user.id] : [] });
       window.dispatchEvent(new Event('email-intake-changed'));
-      const caseId = data.thread.caseId ?? data.thread.intake.case?.id;
       const path = casePath(caseId);
       if (path) router.push(path);
       else setError('ไม่พบคดีที่เชื่อมโยง');
