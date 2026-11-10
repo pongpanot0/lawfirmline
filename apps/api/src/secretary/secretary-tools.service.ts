@@ -37,6 +37,7 @@ const canUse = (user: AuthUser, name: string) => {
 const DAY_MS = 86_400_000;
 const MAX_LEAVE_RANGE_DAYS = 62;
 const SOP_CONTENT_CHARS = 2000;
+const MAX_LEAVES = 50;
 
 /** Read-only, access-filtered tools for the AI secretary. Every query is scoped by the caller's case/intake filters. */
 @Injectable()
@@ -106,10 +107,10 @@ export class SecretaryToolsService {
     const leaves = await this.prisma.leaveRequest.findMany({
       where: { firmId: user.firmId, status: { not: LeaveStatus.REJECTED }, startDate: { lte: to }, endDate: { gte: from } },
       select: { type: true, status: true, startDate: true, endDate: true, user: { select: { firstName: true, lastName: true } } },
-      orderBy: { startDate: 'asc' }, take: 50,
+      orderBy: { startDate: 'asc' }, take: MAX_LEAVES + 1,
     });
     return {
-      content: { leaves: leaves.map((l) => ({
+      content: { truncated: leaves.length > MAX_LEAVES, leaves: leaves.slice(0, MAX_LEAVES).map((l) => ({
         name: `${l.user.firstName} ${l.user.lastName}`, type: l.type, status: l.status,
         startDate: l.startDate.toISOString().slice(0, 10), endDate: l.endDate.toISOString().slice(0, 10),
       })) },
@@ -158,14 +159,17 @@ export class SecretaryToolsService {
   }
 
   private async receivables(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
-    const minDays = typeof a.minDaysOverdue === 'number' ? a.minDaysOverdue : 0;
+    const minDays = typeof a.minDaysOverdue === 'number' && Number.isFinite(a.minDaysOverdue) ? a.minDaysOverdue : 0;
     const { buckets, rows } = await this.collections.getReceivables(user);
     const picked = rows.filter((r) => r.daysOverdue >= minDays).sort((x, y) => y.daysOverdue - x.daysOverdue);
+    const sum = (list: typeof rows) => Math.round(list.reduce((s, r) => s + r.outstanding, 0) * 100) / 100;
     return {
       content: {
+        // buckets/totalOutstanding are firm-wide; matching* answer the filtered question.
         buckets,
-        totalOutstanding: Math.round(rows.reduce((s, r) => s + r.outstanding, 0) * 100) / 100,
+        totalOutstanding: sum(rows),
         matching: picked.length,
+        matchingOutstanding: sum(picked),
         invoices: picked.slice(0, 20).map((r) => ({
           invoiceNumber: r.invoiceNumber, customerName: r.customerName, caseRef: r.caseRef, subject: r.subject,
           outstanding: r.outstanding, dueAt: r.dueAt?.slice(0, 10) ?? null, daysOverdue: r.daysOverdue,

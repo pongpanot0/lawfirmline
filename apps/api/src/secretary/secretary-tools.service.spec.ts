@@ -149,8 +149,9 @@ describe('SecretaryToolsService', () => {
     const row = (n: string, days: number, outstanding: number) => ({ invoiceNumber: n, daysOverdue: days, outstanding, dueAt: null, lastReminderAt: null });
     collections.getReceivables.mockResolvedValue({ buckets: { '0-30': 100 }, rows: [row('A', 10, 100), row('B', 95, 50), row('C', 70, 25)] });
     const r = await svc.run(user, 'receivables', { minDaysOverdue: 60 });
-    const c = r.content as { totalOutstanding: number; matching: number; invoices: Array<{ invoiceNumber: string }> };
+    const c = r.content as { totalOutstanding: number; matchingOutstanding: number; matching: number; invoices: Array<{ invoiceNumber: string }> };
     expect(c.totalOutstanding).toBe(175);
+    expect(c.matchingOutstanding).toBe(75);
     expect(c.matching).toBe(2);
     expect(c.invoices.map((i) => i.invoiceNumber)).toEqual(['B', 'C']);
   });
