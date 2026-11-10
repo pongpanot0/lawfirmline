@@ -37,10 +37,8 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import { RequireCredits } from '../common/decorators/require-credits.decorator';
-import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { AuthUser } from '@lawfirm/shared';
-import { IntakePrecedentAnalysisService, PRECEDENT_ANALYSIS_COST } from './intake-precedent-analysis.service';
+import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 
 @Controller('intake')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -59,8 +57,6 @@ export class IntakeController {
   listResearch(@CurrentUser() user: AuthUser) { return this.precedentAnalysisService.listResearch(user); }
 
   @Post('research')
-  @RequireCredits(PRECEDENT_ANALYSIS_COST)
-  @UseInterceptors(AiCreditsInterceptor)
   research(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
     return this.precedentAnalysisService.research(user, dto.text, dto.intakeId, dto.attachmentIds, false, dto.caseId);
   }
@@ -78,22 +74,16 @@ export class IntakeController {
   }
 
   @Post('research/facts')
-  @RequireCredits(5)
-  @UseInterceptors(AiCreditsInterceptor)
   extractResearchFacts(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
     return this.precedentAnalysisService.research(user, dto.text, dto.intakeId, dto.attachmentIds, true, dto.caseId);
   }
 
   @Post('research/summary')
-  @RequireCredits(5)
-  @UseInterceptors(AiCreditsInterceptor)
   summarizeResearchDocuments(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
     return this.precedentAnalysisService.summarizeDocuments(user, dto.intakeId, dto.caseId, dto.attachmentIds);
   }
 
   @Post('research/cases/:caseId/summary')
-  @RequireCredits(5)
-  @UseInterceptors(AiCreditsInterceptor)
   summarizeCase(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
     return this.precedentAnalysisService.summarizeCase(user, caseId);
   }
@@ -248,8 +238,6 @@ export class IntakeController {
   }
 
   @Post(':id/notice/draft')
-  @RequireCredits(5)
-  @UseInterceptors(AiCreditsInterceptor)
   draftNotice(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -287,8 +275,6 @@ export class IntakeController {
   }
 
   @Post(':id/precedent-analysis')
-  @RequireCredits(PRECEDENT_ANALYSIS_COST)
-  @UseInterceptors(AiCreditsInterceptor)
   runPrecedentAnalysis(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SelectedAttachmentsDto) {
     return this.precedentAnalysisService.analyze(user, id, dto?.attachmentIds);
   }

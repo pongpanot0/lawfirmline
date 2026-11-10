@@ -1,7 +1,5 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Res, UseGuards, UseInterceptors } from '@nestjs/common';
-import { AI_CREDIT_COST, AuthUser, Role } from '@lawfirm/shared';
-import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
-import { RequireCredits } from '../common/decorators/require-credits.decorator';
+import { Body, Controller, Get, NotFoundException, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { AuthUser, Role } from '@lawfirm/shared';
 import { Response } from 'express';
 import { EmailIntakeService } from './email-intake.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -47,8 +45,6 @@ export class EmailIntakeController {
 
   /** Run when a thread is accepted as an intake, or by the button; adds proposals the lawyer still confirms one by one. */
   @Post('threads/:threadId/ai-extract')
-  @RequireCredits(AI_CREDIT_COST.EMAIL_INTAKE_EXTRACTION)
-  @UseInterceptors(AiCreditsInterceptor)
   aiExtract(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string) {
     return this.service.aiExtract(user, threadId);
   }

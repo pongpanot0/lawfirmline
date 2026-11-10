@@ -13,15 +13,13 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import { AI_CREDIT_COST, AuthUser } from '@lawfirm/shared';
+import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
 import { TaskDetailService, TASK_ATTACHMENT_MAX_BYTES } from './task-detail.service';
-import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
-import { RequireCredits } from '../common/decorators/require-credits.decorator';
 import { CreateSubtaskDto, CreateTaskCommentDto, CreateAiFollowUpDto } from './dto/task-detail.dto';
 import { ConfirmTaskPlanDto, DailyTaskUpdateDto } from './dto/task-daily-update.dto';
 import { TaskRoutineProgressDto } from './dto/task-routine.dto';
@@ -46,8 +44,6 @@ export class TaskDetailController {
   }
 
   @Post('ai-analysis')
-  @RequireCredits(AI_CREDIT_COST.TASK_UPDATE_ANALYSIS)
-  @UseInterceptors(AiCreditsInterceptor)
   analyze(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string) {
     return this.detail.analyze(taskId, user);
   }

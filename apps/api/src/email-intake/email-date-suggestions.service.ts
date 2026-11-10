@@ -17,7 +17,7 @@ export class EmailDateSuggestionsService {
 
   /**
    * "ให้ AI หาวันนัด / กำหนดยื่น" on one case email. Runs only when the lawyer presses the button
-   * (the route carries the AI credit charge). Proposals land as PENDING DateSuggestions; no calendar event is created here.
+   * Proposals land as PENDING DateSuggestions; no calendar event is created here.
    */
   async suggestFromMessage(user: AuthUser, caseId: string, messageId: string) {
     const message = await this.prisma.emailMessage.findFirst({

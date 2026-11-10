@@ -71,7 +71,7 @@ describe('IappLegalClient', () => {
       await expect(client.searchPrecedents('คำค้น')).rejects.toThrow('iApp deka/search failed');
     });
 
-    it('throws when no api key is configured, so the caller does not charge credit for an empty result', async () => {
+    it('throws when no api key is configured', async () => {
       mockConfig.get.mockReturnValue(undefined);
       await expect(client.searchPrecedents('คำค้น')).rejects.toThrow(
         'ยังไม่ได้ตั้งค่าบริการค้นหาฎีกา (IAPP_API_KEY)',

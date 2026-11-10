@@ -6,7 +6,6 @@ import { DailyBriefService } from './daily-brief.service';
 import { DailyBriefScheduler } from './daily-brief.scheduler';
 import { SecretaryToolsService } from './secretary-tools.service';
 import { MatterBriefService } from './matter-brief.service';
-import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { SecretaryChatService } from './secretary-chat.service';
 import { SecretaryController } from './secretary.controller';
 
@@ -14,7 +13,7 @@ import { SecretaryController } from './secretary.controller';
 @Module({
   imports: [forwardRef(() => RagModule), forwardRef(() => NotificationsModule), forwardRef(() => BillingModule)],
   controllers: [SecretaryController],
-  providers: [MatterBriefService, SecretaryToolsService, SecretaryChatService, AiCreditsInterceptor, DailyBriefService, DailyBriefScheduler],
+  providers: [MatterBriefService, SecretaryToolsService, SecretaryChatService, DailyBriefService, DailyBriefScheduler],
   exports: [MatterBriefService, SecretaryToolsService],
 })
 export class SecretaryModule {}

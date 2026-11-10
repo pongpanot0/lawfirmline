@@ -62,7 +62,7 @@ export function CaseSummaryPanel({ caseId, onChanged }: { caseId: string; onChan
     finally { lock.current = false; setApplying(''); }
   };
   return <section aria-label="สรุปคดีด้วย AI" className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5">
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">สรุปคดีด้วย AI</h2><Button variant="outline" disabled={loading || busy || !!applying} onClick={() => void summarize()}><Sparkles aria-hidden="true" className="h-4 w-4" />{busy ? 'กำลังสรุปและค้นฎีกา…' : 'สรุปข้อมูลคดีล่าสุด · 5 เครดิต'}</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">สรุปคดีด้วย AI</h2><Button variant="outline" disabled={loading || busy || !!applying} onClick={() => void summarize()}><Sparkles aria-hidden="true" className="h-4 w-4" />{busy ? 'กำลังสรุปและค้นฎีกา…' : 'สรุปข้อมูลคดีล่าสุด'}</Button></div>
     <p className="text-sm text-muted-foreground">สรุปข้อมูลคดีและเอกสาร พร้อมฎีกาที่เกี่ยวข้อง</p>
     {loading && <div role="status" aria-label="กำลังโหลดสรุป" className="space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" /></div>}
     {busy && <p role="status">กำลังสรุปคดีและค้นหาฎีกาที่เกี่ยวข้อง</p>}

@@ -11,7 +11,7 @@ type DocStatus = 'running' | 'done' | 'failed';
 type UnreadCard = Extract<AiTrayCard, { type: 'UNREAD_DOCUMENTS' }>;
 
 /**
- * ถาดงาน AI: เสนองาน ไม่รันเอง — AI ทำงานเมื่อผู้ใช้กด และบอกเครดิตก่อนเสมอ.
+ * ถาดงาน AI: เสนองาน ไม่รันเอง — AI ทำงานเมื่อผู้ใช้กดเท่านั้น.
  * caseId → เฉพาะคดีนั้น (หน้าคดี); ไม่ส่ง → ทุกคดีที่เข้าถึงได้ (AI Assistant).
  */
 export function AiTrayCards({ caseId, compact = false, onChanged }: { caseId?: string; compact?: boolean; onChanged?: () => void }) {
@@ -59,8 +59,6 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
   const [skipError, setSkipError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const chosen = card.documents.filter((d) => !deselected.has(d.id)).map((d) => d.id);
-  const perDoc = card.documents.length ? card.creditCost / card.documents.length : 0;
-  const cost = chosen.length * perDoc;
 
   const toggle = (id: string) =>
     setDeselected((prev) => {
@@ -71,7 +69,7 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
 
   const run = async () => {
     if (!token || !chosen.length) return;
-    if (!confirm(`ให้ AI อ่าน ${chosen.length} ไฟล์ (สรุป + จับวันสำคัญ) ใช้ ${cost} เครดิต?`)) return;
+    if (!confirm(`ให้ AI อ่าน ${chosen.length} ไฟล์ (สรุป + จับวันสำคัญ)?`)) return;
     setBusy(true);
     // ทีละไฟล์: ไฟล์ไหนพังเห็นชัด ไฟล์ที่เหลือยังทำต่อ และไฟล์ที่พังยังอยู่ในถาดให้ลองใหม่
     // สรุปก่อน (สร้าง CaseKnowledge ให้ไฟล์หลุดจากถาด) แล้วค่อยจับวัน กันจับวันซ้ำเมื่อ retry
@@ -134,7 +132,7 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
       </ul>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button size="sm" onClick={run} disabled={busy || !chosen.length}>
-          <Sparkles className="h-4 w-4" aria-hidden />ให้ AI อ่าน ({cost} เครดิต)
+          <Sparkles className="h-4 w-4" aria-hidden />ให้ AI อ่าน ({chosen.length} ไฟล์)
         </Button>
         <Button size="sm" variant="ghost" onClick={skip} disabled={busy || !chosen.length}>ข้าม</Button>
       </div>

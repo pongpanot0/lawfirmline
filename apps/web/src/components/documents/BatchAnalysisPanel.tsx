@@ -1,6 +1,6 @@
 'use client';
 
-import { AI_CREDIT_COST, AI_UPLOAD_MAX_FILES } from '@lawfirm/shared';
+import { AI_UPLOAD_MAX_FILES } from '@lawfirm/shared';
 
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError, DocumentItem, FieldSuggestion } from '@/lib/api';
@@ -273,7 +273,7 @@ export function BatchAnalysisPanel({
           วิเคราะห์รวม {selected.length} ไฟล์
         </Button>
         <span className="text-xs text-muted-foreground">
-          {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิตต่อครั้ง · เลือกได้ 1–{AI_UPLOAD_MAX_FILES} ไฟล์
+          เลือกได้ 1–{AI_UPLOAD_MAX_FILES} ไฟล์
         </span>
       </div>
       {progress && (

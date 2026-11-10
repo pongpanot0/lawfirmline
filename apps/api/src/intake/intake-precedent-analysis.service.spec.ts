@@ -135,7 +135,7 @@ describe('IntakePrecedentAnalysisService', () => {
       expect(result.summaryBullets).toContain('1234/2565');
     });
 
-    it('persists a FAILED record with errorMessage AND still throws (so no credit is charged) when iApp search fails', async () => {
+    it('persists a FAILED record with errorMessage AND still throws when iApp search fails', async () => {
       mockPrisma.intake.findFirst.mockResolvedValue(baseIntake);
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
@@ -147,9 +147,7 @@ describe('IntakePrecedentAnalysisService', () => {
       await expect(service.analyze(user, 'intake-1')).rejects.toThrow('iApp deka/search failed');
 
       // The failure must still be recorded for audit (how many times this was run,
-      // and why it failed) — throwing is only how we avoid charging AI credit
-      // (AiCreditsInterceptor decrements only after a successful handler response),
-      // it must not also mean we lose the audit trail.
+      // and why it failed) even though the call throws.
       expect(mockPrisma.intakePrecedentAnalysis.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           intakeId: 'intake-1',
@@ -261,7 +259,7 @@ describe('IntakePrecedentAnalysisService', () => {
     it('throws BadRequestException (charging nothing) when the only attachment fails to extract and there are no other facts', async () => {
       // Passes the pre-gatherFacts guard (one attachment exists) but every fact
       // field is empty and extraction fails, so factsText ends up blank — the
-      // second guard must stop the pipeline before any credit-worthy call.
+      // second guard must stop the pipeline before any paid API call.
       mockPrisma.intake.findFirst.mockResolvedValue({
         ...baseIntake,
         description: null,

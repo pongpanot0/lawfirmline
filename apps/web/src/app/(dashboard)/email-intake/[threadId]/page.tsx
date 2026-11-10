@@ -228,10 +228,10 @@ export default function EmailThreadDetailPage() {
     try {
       const { proposals: added, cached } = await api.aiExtractEmailThread(token, threadId);
       const note = added ? `AI เสนอเพิ่ม ${added} รายการ — ตรวจและยืนยันทีละรายการ` : 'AI ไม่พบข้อมูลเพิ่มเติมในอีเมลนี้';
-      setAiNote(cached ? `${note} (อีเมลและไฟล์ไม่เปลี่ยน ใช้ผลอ่านเดิม ไม่เสียเครดิต)` : note);
+      setAiNote(cached ? `${note} (อีเมลและไฟล์ไม่เปลี่ยน ใช้ผลอ่านเดิม)` : note);
       await refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? (e.status === 402 ? 'เครดิต AI ไม่พอ' : e.message) : 'AI อ่านอีเมลไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'AI อ่านอีเมลไม่สำเร็จ');
     } finally {
       setAiReading(false);
     }
@@ -440,7 +440,7 @@ export default function EmailThreadDetailPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {confirmable.length > 0 && <Button size="sm" variant="outline" disabled={confirmingAll || !!resolvingId} onClick={() => handleConfirmAll(confirmable.map((p) => p.id))}>{confirmingAll ? 'กำลังยืนยัน…' : `ยืนยันทั้งหมดที่เหลือ (${confirmable.length})`}</Button>}
-                {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>{aiReading ? 'AI กำลังอ่าน…' : 'อ่านใหม่ (1 เครดิต)'}</Button>}
+                {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>{aiReading ? 'AI กำลังอ่าน…' : 'อ่านใหม่'}</Button>}
               </div>
             </div>
             {aiNote && <p role="status" className="mb-2 text-xs text-muted-foreground">{aiNote}</p>}
