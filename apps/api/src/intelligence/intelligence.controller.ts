@@ -16,7 +16,7 @@ import {
   Body,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { AI_CREDIT_COST, KnowledgeCategory } from '@lawfirm/shared';
+import { KnowledgeCategory } from '@lawfirm/shared';
 import { DocumentIntelligenceService } from './document-intelligence.service';
 import { DocumentsService } from '../documents/documents.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -24,8 +24,6 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { RequireCredits } from '../common/decorators/require-credits.decorator';
-import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { AuthUser } from '@lawfirm/shared';
 
 @Controller()
@@ -66,8 +64,7 @@ export class IntelligenceController {
   }
 
   @Post('documents/analyze-batch')
-  @RequireCredits(5)
-  @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 30 * 1024 * 1024, files: 10 } }), AiCreditsInterceptor)
+  @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 30 * 1024 * 1024, files: 10 } }))
   analyzeDraftBatch(@CurrentUser() user: AuthUser, @UploadedFiles() files: Express.Multer.File[]) {
     return this.intelligenceService.analyzeBatch((files ?? []).map((file) => ({ buffer: file.buffer, mimeType: file.mimetype, filename: decodeUploadFilename(file.originalname) })), user.id);
   }
@@ -80,8 +77,6 @@ export class IntelligenceController {
 
   @Post('cases/:caseId/documents/analyze-batch')
   @UseGuards(CaseAccessGuard)
-  @RequireCredits(5)
-  @UseInterceptors(AiCreditsInterceptor)
   async analyzeExistingBatch(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: BatchAnalysisDto) {
     // Resolve all files within this authorized case before reading any content.
     const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePath(user, caseId, id)));
@@ -91,8 +86,6 @@ export class IntelligenceController {
 
   @Post('cases/:caseId/documents/classify-checklist')
   @UseGuards(CaseAccessGuard)
-  @RequireCredits(AI_CREDIT_COST.DOCUMENT_ANALYSIS)
-  @UseInterceptors(AiCreditsInterceptor)
   async classifyCaseChecklist(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -113,8 +106,6 @@ export class IntelligenceController {
   }
 
   @Post('intake/:intakeId/documents/analyze-batch')
-  @RequireCredits(AI_CREDIT_COST.DOCUMENT_ANALYSIS)
-  @UseInterceptors(AiCreditsInterceptor)
   async analyzeIntakeBatch(@CurrentUser() user: AuthUser, @Param('intakeId') intakeId: string, @Body() dto: BatchAnalysisDto) {
     // Resolve every file within this authorized intake before reading content.
     const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePathForIntake(user, intakeId, id)));
@@ -125,8 +116,6 @@ export class IntelligenceController {
   }
 
   @Post('intake/:intakeId/documents/classify-checklist')
-  @RequireCredits(AI_CREDIT_COST.DOCUMENT_ANALYSIS)
-  @UseInterceptors(AiCreditsInterceptor)
   async classifyIntakeChecklist(
     @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,
@@ -148,8 +137,7 @@ export class IntelligenceController {
 
   @Post('cases/:caseId/documents/analyze')
   @UseGuards(CaseAccessGuard)
-  @RequireCredits(5)
-  @UseInterceptors(FileInterceptor('file'), AiCreditsInterceptor)
+  @UseInterceptors(FileInterceptor('file'))
   analyze(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -169,8 +157,7 @@ export class IntelligenceController {
 
   @Post('cases/:caseId/documents/extract-dates')
   @UseGuards(CaseAccessGuard)
-  @RequireCredits(5)
-  @UseInterceptors(FileInterceptor('file'), AiCreditsInterceptor)
+  @UseInterceptors(FileInterceptor('file'))
   extractDates(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -188,8 +175,6 @@ export class IntelligenceController {
 
   @Post('cases/:caseId/documents/:documentId/analyze')
   @UseGuards(CaseAccessGuard)
-  @RequireCredits(5)
-  @UseInterceptors(AiCreditsInterceptor)
   async analyzeExisting(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -209,8 +194,6 @@ export class IntelligenceController {
 
   @Post('cases/:caseId/documents/:documentId/extract-dates')
   @UseGuards(CaseAccessGuard)
-  @RequireCredits(5)
-  @UseInterceptors(AiCreditsInterceptor)
   async extractDatesExisting(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,

@@ -13,7 +13,6 @@ import {
   DocRequestStatus,
   IntakeStage,
   redactForAi,
-  AI_CREDIT_COST,
   AI_UPLOAD_MAX_BYTES,
   canAssignFirmRole,
   FirmRole,
@@ -59,7 +58,6 @@ import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { formatIntakeNotificationReference } from '../notifications/reference-label';
 import { assertCanOpenCases } from '../common/plan-limits';
 
-export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
 const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
 
 /** ค่าที่หน้าจอ checklist ใช้แทน "ได้รับแล้วแต่ไม่ผูกไฟล์" และ "ไม่เกี่ยวข้อง" */
@@ -1026,8 +1024,7 @@ export class IntakeService {
     if (analysisId) {
       const analysis = await this.precedentAnalysisService.getOne(user, id, analysisId);
       // A FAILED/PENDING analysis has an empty noticeFacts — drafting from it would
-      // produce garbage while still charging AI credits. Throwing here also keeps
-      // the credit interceptor from charging, since it only decrements on success.
+      // produce garbage.
       if (analysis.status !== 'COMPLETE') {
         throw new BadRequestException(
           'ผลการวิเคราะห์นี้ยังไม่สำเร็จ ไม่สามารถใช้ร่างหนังสือได้',

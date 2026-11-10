@@ -1,21 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Reflector } from '@nestjs/core';
 import { DateSuggestionStatus } from '@lawfirm/shared';
 import { DateSuggestionsController } from './date-suggestions.controller';
 import { DateSuggestionsService } from './date-suggestions.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
-import { REQUIRE_CREDITS_KEY } from '../common/decorators/require-credits.decorator';
 
 describe('DateSuggestionsController', () => {
   let controller: DateSuggestionsController;
-  let reflector: Reflector;
   const mockService = { listForCase: jest.fn(), confirm: jest.fn(), dismiss: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DateSuggestionsController],
-      providers: [{ provide: DateSuggestionsService, useValue: mockService }, Reflector],
+      providers: [{ provide: DateSuggestionsService, useValue: mockService }],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
@@ -23,12 +20,6 @@ describe('DateSuggestionsController', () => {
       .useValue({ canActivate: () => true })
       .compile();
     controller = module.get(DateSuggestionsController);
-    reflector = module.get(Reflector);
-  });
-
-  it('confirm and dismiss do not cost AI credits', () => {
-    expect(reflector.get(REQUIRE_CREDITS_KEY, controller.confirm)).toBeUndefined();
-    expect(reflector.get(REQUIRE_CREDITS_KEY, controller.dismiss)).toBeUndefined();
   });
 
   it('list delegates to the service with the given case and status', async () => {

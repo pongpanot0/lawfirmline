@@ -1,12 +1,10 @@
 import { BadRequestException, ServiceUnavailableException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { chatModel } from '../common/openai-model';
-import { AI_CREDIT_COST, KnowledgeCategory, EventType, redactForAi, isUnusableAnalysis } from '@lawfirm/shared';
+import { KnowledgeCategory, EventType, redactForAi, isUnusableAnalysis } from '@lawfirm/shared';
 import { PDFParse } from 'pdf-parse';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
-
-const ANALYZE_COST = AI_CREDIT_COST.DOCUMENT_ANALYSIS;
 
 interface ExtractedDateCandidate {
   label: string;
@@ -110,10 +108,6 @@ export class DocumentIntelligenceService {
     private prisma: PrismaService,
     private config: ConfigService,
   ) {}
-
-  getAnalyzeCost() {
-    return ANALYZE_COST;
-  }
 
   /** Postgres text columns reject \u0000, and some PDFs emit it — strip here so every caller is safe. */
   private stripNullChars(text: string): string {

@@ -1,15 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AI_CREDIT_COST, DOCUMENT_ANALYSIS_MIME_TYPES, DateSuggestionSource, DateSuggestionStatus, AuthUser } from '@lawfirm/shared';
+import { DOCUMENT_ANALYSIS_MIME_TYPES, DateSuggestionSource, DateSuggestionStatus, AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 
 export type AiTrayCard =
   | { type: 'UNREAD_DOCUMENTS'; caseId: string; caseTitle: string; caseRef: string | null;
-      documents: { id: string; filename: string; createdAt: string }[]; creditCost: number }
+      documents: { id: string; filename: string; createdAt: string }[] }
   | { type: 'PENDING_DATES'; caseId: string; caseTitle: string; caseRef: string | null; count: number };
-
-/** จับวัน + สรุป ต่อหนึ่งไฟล์ */
-const CREDITS_PER_DOCUMENT = AI_CREDIT_COST.DOCUMENT_ANALYSIS * 2;
 
 /**
  * งานที่ AI เตรียมไว้ให้ — คำนวณสดจากข้อมูลเดิม ไม่รัน AI เอง (ผู้ใช้กดเท่านั้น).
@@ -48,12 +45,11 @@ export class AiTrayService {
       if (!d.caseId || !d.case) continue;
       let card = docCards.get(d.caseId);
       if (!card) {
-        card = { type: 'UNREAD_DOCUMENTS', caseId: d.caseId, caseTitle: d.case.title, caseRef: d.case.ownRef, documents: [], creditCost: 0 };
+        card = { type: 'UNREAD_DOCUMENTS', caseId: d.caseId, caseTitle: d.case.title, caseRef: d.case.ownRef, documents: [] };
         docCards.set(d.caseId, card);
         cards.push(card);
       }
       card.documents.push({ id: d.id, filename: d.filename, createdAt: d.createdAt.toISOString() });
-      card.creditCost += CREDITS_PER_DOCUMENT;
     }
     const dateCards = new Map<string, Extract<AiTrayCard, { type: 'PENDING_DATES' }>>();
     for (const s of pendingDates) {

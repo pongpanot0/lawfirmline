@@ -8,7 +8,7 @@ type Db = Pick<PrismaService, 'firm' | 'case'>;
  * A plan with maxActiveCases (Free) may hold that many cases that are not closed or archived.
  * Every path that creates a case or reopens one calls this first; closed cases never count.
  *
- * 403, not 402: clients read 402 as "out of AI credits" or "subscription inactive". The message
+ * 403, not 402: clients read 402 as "subscription inactive". The message
  * names no price or link, because the iOS app may show it (App Store 3.1.1).
  */
 export async function assertCanOpenCases(db: Db, firmId: string, adding = 1): Promise<void> {

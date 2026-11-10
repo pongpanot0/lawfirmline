@@ -2,7 +2,6 @@ import { CasesModule } from '../cases/cases.module';
 import { forwardRef, Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TasksModule } from '../tasks/tasks.module';
-import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { IntakeService } from './intake.service';
 import { IntakeController, IntakeJourneyController } from './intake.controller';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
@@ -18,7 +17,6 @@ import { CargoClaimsModule } from '../cargo-claims/cargo-claims.module';
   controllers: [IntakeController, IntakeJourneyController],
   providers: [
     IntakeService,
-    AiCreditsInterceptor,
     IntakePrecedentAnalysisService,
     IappLegalClient,
   ],

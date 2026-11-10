@@ -211,10 +211,10 @@ export default function EmailThreadDetailPage() {
     try {
       const { proposals: added, cached } = await api.aiExtractEmailThread(token, threadId);
       const note = added ? `AI เสนอเพิ่ม ${added} รายการ — ตรวจและยืนยันทีละรายการ` : 'AI ไม่พบข้อมูลเพิ่มเติมในอีเมลนี้';
-      setAiNote(cached ? `${note} (อีเมลและไฟล์ไม่เปลี่ยน ใช้ผลอ่านเดิม ไม่เสียเครดิต)` : note);
+      setAiNote(cached ? `${note} (อีเมลและไฟล์ไม่เปลี่ยน ใช้ผลอ่านเดิม)` : note);
       await refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? (e.status === 402 ? 'เครดิต AI ไม่พอ' : e.message) : 'AI อ่านอีเมลไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'AI อ่านอีเมลไม่สำเร็จ');
     } finally {
       setAiReading(false);
     }
@@ -404,7 +404,7 @@ export default function EmailThreadDetailPage() {
           <Card><CardContent className="p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold">ข้อมูลที่ระบบเตรียมให้</h2>
-              {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>{aiReading ? 'AI กำลังอ่าน…' : 'อ่านใหม่ (1 เครดิต)'}</Button>}
+              {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>{aiReading ? 'AI กำลังอ่าน…' : 'อ่านใหม่'}</Button>}
             </div>
             {aiNote && <p role="status" className="mb-2 text-xs text-muted-foreground">{aiNote}</p>}
             {data.aiSummary && <AiSummaryCard summary={data.aiSummary} />}

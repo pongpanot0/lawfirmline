@@ -216,7 +216,7 @@ describe('IntakeService draftNotice with analysisId', () => {
     expect(content).toContain('ข้อเท็จจริงที่เตรียมไว้แล้วจากการวิเคราะห์ฎีกา');
   });
 
-  it('throws BadRequestException when the analysis is not COMPLETE, so no credit is charged', async () => {
+  it('throws BadRequestException when the analysis is not COMPLETE', async () => {
     mockPrisma.intake.findFirst.mockResolvedValue({
       id: 'intake-1',
       clientName: 'คุณสมชาย',
