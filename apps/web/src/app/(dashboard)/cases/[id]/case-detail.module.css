@@ -271,6 +271,13 @@
   font-weight: 600;
 }
 
+/* On a wide screen the tabs share the whole width instead of bunching on the left. */
+@media (min-width: 1024px) {
+  .tabButton {
+    flex: 1 1 auto;
+  }
+}
+
 .tabSelected {
   border-bottom-color: var(--case-color-accent);
   color: var(--case-color-accent);

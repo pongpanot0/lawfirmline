@@ -132,7 +132,7 @@ import {
   TaskItem,
   CaseActivityItem,
   UserItem,
-  WorkloadSummary,
+  type AssigneeLoad,
   CaseTypeItem,
   CourtItem,
   ClientItem,
@@ -271,6 +271,7 @@ export default function CaseDetailPage() {
   const [bannerProposals, setBannerProposals] = useState<StageTaskProposal[]>([]);
   const [stageTaskError, setStageTaskError] = useState('');
   const [editingTeam, setEditingTeam] = useState(false);
+  const [teamPeople, setTeamPeople] = useState<AssigneeLoad[]>([]);
   const [savingTeam, setSavingTeam] = useState(false);
   const [teamError, setTeamError] = useState('');
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
@@ -282,7 +283,6 @@ export default function CaseDetailPage() {
   const quickTaskLeaveFlags = useLeaveFlags(token, quickTaskDate);
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
   const [teamForm, setTeamForm] = useState({ leadLawyerId: '', buddyIds: [] as string[] });
   const [activityForm, setActivityForm] = useState({
     title: '',
@@ -372,23 +372,14 @@ export default function CaseDetailPage() {
       buddyIds: legalCase.assignments.map((a) => a.user.id),
     });
     setTeamError('');
-    if (token && lawyers.length === 0) {
+    if (token && teamPeople.length === 0) {
       setLoadingTeam(true);
-      Promise.all([
-        api.getLawyers(token),
-        api.getWorkloadSummary(token).catch(() => [] as WorkloadSummary[]),
-      ]).then(([l, w]) => {
-        setLawyers(l);
-        setWorkload(w);
-      }).catch((err) => setTeamError(err instanceof Error ? err.message : 'โหลดรายชื่อทีมไม่สำเร็จ')).finally(() => setLoadingTeam(false));
+      api.getAssignees(token)
+        .then(setTeamPeople)
+        .catch((err) => setTeamError(err instanceof Error ? err.message : 'โหลดรายชื่อทีมไม่สำเร็จ'))
+        .finally(() => setLoadingTeam(false));
     }
     setEditingTeam(true);
-  };
-
-  const workloadLabel = (userId: string) => {
-    const w = workload.find((x) => x.userId === userId);
-    if (!w) return '';
-    return ` (Lead ${w.leadCount}, Buddy ${w.buddyCount}, ใกล้ deadline ${w.nearDeadlineCount})`;
   };
 
   const handleSaveTeam = async () => {
@@ -1045,7 +1036,7 @@ export default function CaseDetailPage() {
             {handedOver && <p className="text-sm text-success">ส่งต่อแล้ว — คุณยังอยู่ในทีมคดี</p>}
             {ownerError && <p role="alert" className="text-sm text-destructive">{ownerError}</p>}
             {canChangeOwner(hasFirmCapability(user?.firmRole, 'reassignCaseLead'), user?.id, legalCase.leadLawyer.id, legalCase.intake?.receivedById) && (editingOwner ? <div className="space-y-2"><label htmlFor="case-owner" className="text-sm">เจ้าของคดีคนใหม่</label><OwnerPicker id="case-owner" token={token} value={ownerId} onChange={setOwnerId} currentUserId={user?.id} /><div className="flex flex-wrap gap-2"><Button disabled={ownerBusy || !ownerId || ownerId === legalCase.leadLawyer.id} onClick={() => { setOwnerBusy(true); setOwnerError(''); const receiver = user?.id === legalCase.intake?.receivedById && user?.id === legalCase.leadLawyer.id; void api.updateCase(token, id, { leadLawyerId: ownerId }).then(() => { setEditingOwner(false); if (receiver) setHandedOver(true); return loadCase(); }).catch((e) => setOwnerError(e instanceof Error ? e.message : 'เปลี่ยนเจ้าของคดีไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>{ownerBusy ? 'กำลังบันทึก…' : 'บันทึก'}</Button><Button variant="outline" onClick={() => setEditingOwner(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={() => { setOwnerId(legalCase.leadLawyer.id); setEditingOwner(true); }}>เปลี่ยนเจ้าของคดี</Button>)}
-            {hasFirmCapability(user?.firmRole, 'reassignCaseLead') && (editingTeam ? <div className="space-y-3 border-t pt-3"><p className="text-sm font-medium">ทนายผู้ช่วย</p>{loadingTeam && <p className="text-sm text-muted-foreground">กำลังโหลดรายชื่อ…</p>}{lawyers.filter((l) => l.id !== legalCase.leadLawyer.id).map((l) => <label key={l.id} className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={teamForm.buddyIds.includes(l.id)} onChange={() => setTeamForm((f) => ({ ...f, buddyIds: f.buddyIds.includes(l.id) ? f.buddyIds.filter((x) => x !== l.id) : [...f.buddyIds, l.id] }))} />{l.firstName} {l.lastName}{workloadLabel(l.id)}</label>)}{teamError && <p role="alert" className="text-sm text-destructive">{teamError}</p>}<div className="flex flex-wrap gap-2"><Button disabled={savingTeam || loadingTeam || lawyers.length === 0} onClick={handleSaveTeam}>{savingTeam ? 'กำลังบันทึก…' : 'บันทึกทีมคดี'}</Button><Button variant="outline" onClick={() => setEditingTeam(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={startEditTeam}>+ เพิ่มคนในทีม</Button>)}
+            {(hasFirmCapability(user?.firmRole, 'reassignCaseLead') || user?.id === legalCase.leadLawyer.id) && (editingTeam ? <div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">คนในทีม <span className="font-normal text-muted-foreground">· เลือกได้หลายคน</span></p>{loadingTeam && <p className="text-sm text-muted-foreground">กำลังโหลดรายชื่อ…</p>}<div className="max-h-80 space-y-0.5 overflow-y-auto">{teamPeople.filter((p) => p.userId !== legalCase.leadLawyer.id).map((p) => <label key={p.userId} className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-1 py-2 text-sm hover:bg-muted/50"><input type="checkbox" className="mt-1" checked={teamForm.buddyIds.includes(p.userId)} onChange={() => setTeamForm((f) => ({ ...f, buddyIds: f.buddyIds.includes(p.userId) ? f.buddyIds.filter((x) => x !== p.userId) : [...f.buddyIds, p.userId] }))} /><span className="min-w-0"><span className="block break-words font-medium">{p.firstName} {p.lastName}{p.userId === user?.id ? ' (ฉัน)' : ''}</span><span className="block text-xs text-muted-foreground">เปิดอยู่ {p.openCaseCount} · <span className={p.overdueTaskCount ? 'text-destructive' : ''}>เลยกำหนด {p.overdueTaskCount}</span>{p.leave ? ` · ลา ${p.leave.startDate.slice(8)}/${p.leave.startDate.slice(5, 7)}–${p.leave.endDate.slice(8)}/${p.leave.endDate.slice(5, 7)}` : ''}</span></span></label>)}</div>{teamError && <p role="alert" className="text-sm text-destructive">{teamError}</p>}<div className="flex flex-wrap gap-2"><Button disabled={savingTeam || loadingTeam || teamPeople.length === 0} onClick={handleSaveTeam}>{savingTeam ? 'กำลังบันทึก…' : `บันทึกทีม (${teamForm.buddyIds.filter((x) => x !== legalCase.leadLawyer.id).length} คน)`}</Button><Button variant="outline" onClick={() => setEditingTeam(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={startEditTeam}>{legalCase.assignments.length ? 'แก้ไขทีม' : '+ เพิ่มคนในทีม'}</Button>)}
           </section>
           {legalCase.originThread && <section className="space-y-2 rounded-lg border bg-card p-4"><h2 className="font-semibold">ที่มาของเรื่อง</h2><p className="text-sm">รับจากอีเมล {formatDate(legalCase.originThread.receivedAt)}{legalCase.intake?.receivedBy && ` โดย ${legalCase.intake.receivedBy.firstName} ${legalCase.intake.receivedBy.lastName}`}</p><Link className="inline-block min-h-11 text-sm text-primary underline" href={`/email-intake/${legalCase.originThread.id}`}>เปิดอีเมลต้นทาง →</Link><p className="text-sm text-muted-foreground">ไฟล์แนบ {legalCase.originThread.attachmentCount} ไฟล์ อยู่ในแท็บเอกสาร</p></section>}
         </aside>
