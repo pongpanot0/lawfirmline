@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { PageGuide } from '@/components/guide/PageGuide';
+import { PageTour } from '@/components/onboarding/PageTour';
 import { AppShell } from '@/components/layout/AppShell';
 import { TrialBanner } from '@/components/saas/TrialBanner';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -50,7 +52,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <LogOut className="h-4 w-4" />ออกจากระบบ
           </button>
         </header>
-        <main className="px-4 py-6"><div className="samnuan-page">{children}</div></main>
+        <main className="px-4 py-6"><div className="samnuan-page"><PageGuide pathname={pathname} />{children}</div></main>
+        <PageTour pathname={pathname} />
       </div>
     );
   }

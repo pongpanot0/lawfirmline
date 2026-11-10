@@ -6,6 +6,7 @@ import { SamnuanSidebar } from './SamnuanSidebar';
 import { TopNavbar } from './TopNavbar';
 import { AIAssistantPanel } from '@/components/ai/AIAssistantPanel';
 import { JevDocumentReviewQueue } from '@/components/documents/JevDocumentReviewQueue';
+import { PageGuide } from '@/components/guide/PageGuide';
 import { PageTour } from '@/components/onboarding/PageTour';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 
@@ -65,7 +66,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           onMenuClick={() => setMobileNavOpen(true)}
         />
         <main id="workspace-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 pb-24 md:p-6 md:pb-24 lg:p-8 lg:pb-24 scrollbar-thin">
-          <div className="samnuan-page">{children}</div>
+          <div className="samnuan-page"><PageGuide pathname={pathname} />{children}</div>
         </main>
       </div>
       {pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (
