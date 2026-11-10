@@ -57,7 +57,7 @@ export interface ProceedingActionResult {
   proceeding: CaseProceedingItem | null;
   suggestions: number;
 }
-import { actionSuccessMessage, isActionRequest, publishActionFeedback } from './action-feedback';
+import { actionSuccessMessage, isActionRequest, publishActionFeedback, publishAiBusy } from './action-feedback';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 const TOKEN_KEY = 'lawfirm_access_token';
@@ -118,11 +118,22 @@ export class ApiError extends Error {
   }
 }
 
-export async function request<T>(
-  path: string,
-  options: RequestInit & { token?: string; refreshAuth?: boolean; silent?: boolean } = {},
-): Promise<T> {
-  const { token, refreshAuth = true, silent = false, ...fetchOptions } = options;
+/** `ai: true` marks a slow LLM call so the global "AI กำลังทำงาน" indicator shows while it runs. */
+type RequestOptions = RequestInit & { token?: string; refreshAuth?: boolean; silent?: boolean; ai?: boolean };
+
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  if (!options.ai) return send<T>(path, options);
+  publishAiBusy(1);
+  try {
+    return await send<T>(path, options);
+  } finally {
+    publishAiBusy(-1);
+  }
+}
+
+async function send<T>(path: string, options: RequestOptions): Promise<T> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { token, refreshAuth = true, silent = false, ai: _ai, ...fetchOptions } = options;
   const method = (fetchOptions.method ?? 'GET').toUpperCase();
   const isAction = isActionRequest(method) && !silent;
   const isFormData = fetchOptions.body instanceof FormData;
@@ -3200,7 +3211,7 @@ export const api = {
     const qs = title ? `?title=${encodeURIComponent(title)}` : '';
     return request<KnowledgeItem>(`/cases/${caseId}/documents/analyze${qs}`, {
       method: 'POST',
-      token,
+      token, ai: true,
       body: form,
     });
   },
@@ -3210,7 +3221,7 @@ export const api = {
     form.append('file', file);
     return request<DateSuggestionItem[]>(`/cases/${caseId}/documents/extract-dates`, {
       method: 'POST',
-      token,
+      token, ai: true,
       body: form,
     });
   },
@@ -3220,30 +3231,30 @@ export const api = {
 
   analyzeSelectedDocuments: (token: string, caseId: string, documentIds: string[]) =>
     request<BatchAnalysisResult>(`/cases/${caseId}/documents/analyze-batch`, {
-      method: 'POST', token, body: JSON.stringify({ documentIds }),
+      method: 'POST', token, ai: true, body: JSON.stringify({ documentIds }),
     }),
 
   analyzeIntakeDocuments: (token: string, intakeId: string, documentIds: string[]) =>
     request<BatchAnalysisResult>(`/intake/${intakeId}/documents/analyze-batch`, {
-      method: 'POST', token, body: JSON.stringify({ documentIds }),
+      method: 'POST', token, ai: true, body: JSON.stringify({ documentIds }),
     }),
 
   analyzeDraftFiles: (token: string, files: File[]) => {
     const body = new FormData();
     files.forEach((file) => body.append('files', file));
-    return request<BatchAnalysisResult>('/documents/analyze-batch', { method: 'POST', token, body });
+    return request<BatchAnalysisResult>('/documents/analyze-batch', { method: 'POST', token, ai: true, body });
   },
 
   analyzeExistingDocument: (token: string, caseId: string, documentId: string) =>
     request<KnowledgeItem>(`/cases/${caseId}/documents/${documentId}/analyze`, {
       method: 'POST',
-      token,
+      token, ai: true,
     }),
 
   extractDatesFromDocument: (token: string, caseId: string, documentId: string) =>
     request<DateSuggestionItem[]>(`/cases/${caseId}/documents/${documentId}/extract-dates`, {
       method: 'POST',
-      token,
+      token, ai: true,
     }),
 
   // ถาดงาน AI — งานที่ AI เตรียมไว้ให้ (ไม่รัน AI เอง)
@@ -3345,7 +3356,7 @@ export const api = {
       `/intake/${intakeId}/documents/classify-checklist`,
       {
         method: 'POST',
-        token,
+        token, ai: true,
         body: JSON.stringify({ documentIds, labels }),
       },
     ),
@@ -3353,7 +3364,7 @@ export const api = {
   classifyCaseChecklist: (token: string, caseId: string, documentIds: string[], labels: string[]) =>
     request<ChecklistClassificationSuggestion[]>(`/cases/${caseId}/documents/classify-checklist`, {
       method: 'POST',
-      token,
+      token, ai: true,
       body: JSON.stringify({ documentIds, labels }),
     }),
 
@@ -3413,7 +3424,7 @@ export const api = {
   ) =>
     request<PleadingDraftItem>(`/cases/${caseId}/pleading-drafts`, {
       method: 'POST',
-      token,
+      token, ai: true,
       silent: true,
       body: JSON.stringify(data),
     }),
@@ -3714,7 +3725,7 @@ export const api = {
   draftNoticeIntake: (token: string, id: string, analysisId?: string) =>
     request<{ content: string }>(`/intake/${id}/notice/draft`, {
       method: 'POST',
-      token,
+      token, ai: true,
       body: JSON.stringify(analysisId ? { analysisId } : {}),
     }),
 
@@ -3782,7 +3793,7 @@ export const api = {
   suggestDatesFromEmailMessage: (token: string, caseId: string, messageId: string) =>
     request<{ created: number; suggestions: DateSuggestionItem[] }>(
       `/cases/${caseId}/email/messages/${messageId}/date-suggestions`,
-      { method: 'POST', token },
+      { method: 'POST', token, ai: true },
     ),
 
   createMentionTask: (token: string, caseId: string, messageId: string, body: { assigneeId: string; title: string; dueDate?: string }) =>
@@ -3815,7 +3826,7 @@ export const api = {
     request<{ id: string; name: string }>(`/email-intake/threads/${threadId}/client`, { method: 'POST', token, body: JSON.stringify(data) }),
 
   aiExtractEmailThread: (token: string, threadId: string) =>
-    request<{ proposals: number; cached?: boolean }>(`/email-intake/threads/${threadId}/ai-extract`, { method: 'POST', token }),
+    request<{ proposals: number; cached?: boolean }>(`/email-intake/threads/${threadId}/ai-extract`, { method: 'POST', token, ai: true }),
 
   acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
     request<IntakeItem & { caseId: string }>(`/email-intake/threads/${threadId}/accept`, {
@@ -3898,7 +3909,7 @@ export const api = {
     request<TaskDetail>(`/tasks/${taskId}`, { token }),
 
   analyzeTask: (token: string, taskId: string) =>
-    request<TaskAiInsight>(`/tasks/${taskId}/ai-analysis`, { method: 'POST', token, silent: true }),
+    request<TaskAiInsight>(`/tasks/${taskId}/ai-analysis`, { method: 'POST', token, ai: true, silent: true }),
 
   createAiFollowUp: (token: string, taskId: string, data: {
     sourceCommentId: string; latestCommentId: string; taskUpdatedAt: string;
@@ -3933,11 +3944,11 @@ export const api = {
     request(`/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE', token }),
 
   summarizeResearchDocuments: (token: string, attachmentIds: string[], intakeId?: string, caseId?: string) =>
-    request<IntakePrecedentAnalysisItem>('/intake/research/summary', { method: 'POST', token, body: JSON.stringify({ attachmentIds, intakeId, caseId }) }),
+    request<IntakePrecedentAnalysisItem>('/intake/research/summary', { method: 'POST', token, ai: true, body: JSON.stringify({ attachmentIds, intakeId, caseId }) }),
   summarizeCase: (token: string, caseId: string) =>
-    request<IntakePrecedentAnalysisItem>(`/intake/research/cases/${caseId}/summary`, { method: 'POST', token }),
+    request<IntakePrecedentAnalysisItem>(`/intake/research/cases/${caseId}/summary`, { method: 'POST', token, ai: true }),
   research: (token: string, text: string, intakeId?: string, attachmentIds: string[] = [], factsOnly = false, caseId?: string) =>
-    request<IntakePrecedentAnalysisItem>(`/intake/research${factsOnly ? '/facts' : ''}`, { method: 'POST', token, body: JSON.stringify({ text, intakeId, attachmentIds, caseId }) }),
+    request<IntakePrecedentAnalysisItem>(`/intake/research${factsOnly ? '/facts' : ''}`, { method: 'POST', token, ai: true, body: JSON.stringify({ text, intakeId, attachmentIds, caseId }) }),
   listResearch: (token: string) => request<IntakePrecedentAnalysisItem[]>('/intake/research', { token }),
   reviewResearchFact: (token: string, analysisId: string, index: number, fact: ResearchFact, statement: string, status: ResearchFact['status']) =>
     request<IntakePrecedentAnalysisItem>(`/intake/research/${analysisId}/facts/${index}`, { method: 'PATCH', token, body: JSON.stringify({ statement, status, expectedStatement: fact.statement, expectedStatus: fact.status }) }),
@@ -3945,7 +3956,7 @@ export const api = {
   runPrecedentAnalysis: (token: string, intakeId: string, attachmentIds?: string[]) =>
     request<IntakePrecedentAnalysisItem>(`/intake/${intakeId}/precedent-analysis`, {
       method: 'POST',
-      token,
+      token, ai: true,
       body: JSON.stringify({ attachmentIds }),
     }),
 

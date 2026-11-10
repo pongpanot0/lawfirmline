@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/lib/theme';
 import { LocaleProvider } from '@/components/landing/LocaleProvider';
 import { FacebookPixel } from '@/components/FacebookPixel';
 import { ActionFeedback } from '@/components/feedback/ActionFeedback';
+import { AiWorkingIndicator } from '@/components/feedback/AiWorkingIndicator';
 import './globals.css';
 
 const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'samnuan.com';
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AuthProvider>{children}</AuthProvider>
           </LocaleProvider>
           <ActionFeedback />
+          <AiWorkingIndicator />
           <FacebookPixel />
         </ThemeProvider>
       </body>
