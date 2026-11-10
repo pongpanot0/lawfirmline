@@ -111,7 +111,7 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
                     {step.requiresAttachment && <span className="inline-flex items-center gap-1 rounded-sm bg-muted px-2 py-1 text-muted-foreground"><Paperclip className="h-3.5 w-3.5" aria-hidden />{th ? 'ต้องแนบไฟล์' : 'Attachment'}</span>}
                   </div>}
                 </div>
-                <button type="button" aria-expanded={expandedIndex === index} onClick={() => setExpandedIndex(expandedIndex === index ? null : index)} className="flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-xs text-primary sm:min-h-8 hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{th ? 'รายละเอียด' : 'Details'}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expandedIndex === index ? 'rotate-180' : ''}`} aria-hidden /></button>
+                <button type="button" aria-expanded={expandedIndex === index} onClick={() => setExpandedIndex(expandedIndex === index ? null : index)} className="flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-xs text-primary hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{th ? 'รายละเอียด' : 'Details'}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expandedIndex === index ? 'rotate-180' : ''}`} aria-hidden /></button>
               </div>
 
               {expandedIndex === index && <div className="mt-4 space-y-4 border-t pt-4">
@@ -179,7 +179,7 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
                 <Button type="submit" size="sm">{th ? 'เพิ่ม' : 'Add'}</Button>
                 <Button type="button" size="sm" variant="ghost" onClick={() => { setInsertAfter(null); setInsertTitle(''); setInsertTitleError(''); }}>{th ? 'ยกเลิก' : 'Cancel'}</Button>
                 {insertTitleError && <p id="insert-step-title-error" role="alert" className="w-full text-xs text-destructive">{insertTitleError}</p>}
-              </form> : <><span className="h-2 w-px bg-muted" aria-hidden="true" /><button type="button" disabled={steps.length >= 50} onClick={() => { setInsertAfter(index); setInsertTitle(''); setInsertTitleError(''); }} aria-label={th ? `เพิ่มงานหลังขั้นตอน ${index + 1}` : `Add task after step ${index + 1}`} className="flex h-11 w-11 items-center justify-center rounded-full border border-input sm:h-7 sm:w-7 bg-card text-muted-foreground hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40"><Plus className="h-4 w-4" aria-hidden /></button>{index < steps.length - 1 && <span className="h-2 w-px bg-muted" aria-hidden="true" />}</>}
+              </form> : <><span className="h-2 w-px bg-muted" aria-hidden="true" /><button type="button" disabled={steps.length >= 50} onClick={() => { setInsertAfter(index); setInsertTitle(''); setInsertTitleError(''); }} aria-label={th ? `เพิ่มงานหลังขั้นตอน ${index + 1}` : `Add task after step ${index + 1}`} className="flex h-11 w-11 items-center justify-center rounded-full border border-input bg-card text-muted-foreground hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40"><Plus className="h-4 w-4" aria-hidden /></button>{index < steps.length - 1 && <span className="h-2 w-px bg-muted" aria-hidden="true" />}</>}
             </div>
           </li>)}
         </ol>}

@@ -17,6 +17,7 @@ import { DocumentDropZone, DocumentDropZoneHandle } from '@/components/DocumentD
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { getPageGuide } from '@/components/guide/page-guides';
 
 export default function DocumentsPage() {
   const d = useDashboardT();
@@ -177,9 +178,12 @@ export default function DocumentsPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2 space-y-4">
-          <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3">
+            <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input placeholder={d.documents.searchPlaceholder} aria-label={d.documents.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/documents')?.searchHint}</span>
           </div>
 
           {docResults.length > 0 && (
@@ -192,7 +196,7 @@ export default function DocumentsPage() {
                   <Link
                     key={doc.id}
                     href={doc.case ? `/cases/${doc.case.id}/documents` : '#'}
-                    className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50"
+                    className="flex min-h-11 items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50"
                   >
                     <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <div className="min-w-0 flex-1">
@@ -217,7 +221,7 @@ export default function DocumentsPage() {
                   <Link
                     key={r.documentId}
                     href={`/cases/${r.caseId}/documents`}
-                    className="flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50"
+                    className="flex min-h-11 items-start gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50"
                   >
                     <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <div className="min-w-0 flex-1">
@@ -342,7 +346,7 @@ export default function DocumentsPage() {
                           type="button"
                           onClick={() => handleView(doc)}
                           disabled={viewingId === doc.id}
-                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                          className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
                         >
                           <Eye className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                           <span className="truncate text-primary hover:underline">{doc.filename}</span>

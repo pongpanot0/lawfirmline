@@ -122,6 +122,6 @@ export default function GettingStarted() {
       </div>
     </details>
 
-    <Link href="/playbooks" className="inline-flex min-h-11 items-center gap-1 text-primary underline">{th ? 'ไม่บังคับ: จัดขั้นตอนงานด้วย Playbook' : 'Optional: set up workflow playbooks'}<ChevronRight className="h-4 w-4" aria-hidden /></Link>
+    <Link href="/playbooks" className="inline-flex min-h-11 items-center gap-1 text-primary underline">{th ? 'ไม่บังคับ: จัดขั้นตอนงานอัตโนมัติ' : 'Optional: set up workflow playbooks'}<ChevronRight className="h-4 w-4" aria-hidden /></Link>
   </div>;
 }

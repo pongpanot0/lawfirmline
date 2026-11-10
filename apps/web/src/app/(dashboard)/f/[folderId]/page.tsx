@@ -34,7 +34,7 @@ export default function PaperFileScanPage() {
   if (!legalCase) return <PageLoading title="กำลังค้นหาสำนวน" lines={1} />;
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <PageHeader title="เบิกคืนสำนวน" description={`${legalCase.ownRef} · ${legalCase.title}`}
+      <PageHeader title="เบิกหรือคืนสำนวนกระดาษ" description={`${legalCase.ownRef} · ${legalCase.title}`}
         actions={<Link href={`/cases/${legalCase.id}`} className={buttonVariants({ variant: 'outline' })}>เปิดคดี</Link>} />
       <PaperFileCard key={legalCase.id} caseId={legalCase.id} largeActions />
     </div>

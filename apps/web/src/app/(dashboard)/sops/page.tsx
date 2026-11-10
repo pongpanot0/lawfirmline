@@ -8,6 +8,7 @@ import { api, ApiError, SopItem, type WorkflowTemplate } from '@/lib/api';
 import { FirmRoleStr, latestPlaybookReleases, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { caseStageLabel } from '@/lib/stage-labels';
 import { PageHeader } from '@/components/samnuan/PageHeader';
+import { getPageGuide } from '@/components/guide/page-guides';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -106,7 +107,7 @@ export default function SopsPage() {
               )}
               {canEditFlows && (
                 <Button size="sm" variant="outline" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); }}>
-                  <ArrowRightLeft className="h-4 w-4" aria-hidden />สร้าง Handoff flow
+                  <ArrowRightLeft className="h-4 w-4" aria-hidden />สร้างสายงานส่งต่อ
                 </Button>
               )}
               {canManageContent && (
@@ -119,18 +120,21 @@ export default function SopsPage() {
         }
       />
 
-      <div className="space-y-3">
+      <div className="space-y-3 rounded-lg border bg-card p-4">
+        <div className="flex flex-wrap items-center gap-2">
         <Input
           aria-label="ค้นหาคู่มือหรือขั้นตอน"
-          placeholder="ค้นหา SOP หรือสายงานส่งต่อ"
+          placeholder="ค้นหาคู่มือหรือสายงานส่งต่อ"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="min-w-0 sm:max-w-sm"
+          className="min-w-0 flex-1 sm:max-w-sm"
         />
+        <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/sops')?.searchHint}</span>
+        </div>
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
           <TabsList>
             <TabsTrigger value="all">ทั้งหมด</TabsTrigger>
-            <TabsTrigger value="handoff"><ArrowRightLeft className="mr-1.5 h-4 w-4" aria-hidden />Handoff flow</TabsTrigger>
+            <TabsTrigger value="handoff"><ArrowRightLeft className="mr-1.5 h-4 w-4" aria-hidden />สายงานส่งต่อ</TabsTrigger>
             <TabsTrigger value="auto"><Zap className="mr-1.5 h-4 w-4" aria-hidden />สร้างงานอัตโนมัติ <span className="ml-1 tabular-nums text-muted-foreground">{autoItems.length}</span></TabsTrigger>
             <TabsTrigger value="manual"><BookOpen className="mr-1.5 h-4 w-4" aria-hidden />คู่มือให้อ่าน <span className="ml-1 tabular-nums text-muted-foreground">{manualItems.length}</span></TabsTrigger>
           </TabsList>
@@ -277,7 +281,7 @@ export default function SopsPage() {
       )}
       {!loading && !loadError && (view === 'auto' ? !autoItems.length : view === 'manual' ? !manualItems.length : false) && <EmptyState
         title={search ? 'ไม่พบคู่มือที่ค้นหา' : 'ยังไม่มีคู่มือในหมวดนี้'}
-        description={search ? 'ลองค้นด้วยชื่อคู่มือหรือคำในขั้นตอน' : undefined}
+        description={search ? 'ลองค้นด้วยชื่อคู่มือหรือคำในขั้นตอน' : canManageContent ? 'กดปุ่มด้านล่างเพื่อเพิ่มคู่มือ' : 'ขอให้ผู้ดูแลสำนักงานเพิ่มคู่มือ'}
         action={!search && canManageContent ? (view === 'auto'
           ? <Link href="/playbooks/new" className={buttonVariants({ size: 'sm', variant: 'outline' })}><Zap className="h-4 w-4" aria-hidden />สร้าง SOP อัตโนมัติ</Link>
           : <Button size="sm" variant="outline" onClick={() => { setEditing({}); setError(null); setSaved(''); }}><Plus className="h-4 w-4" aria-hidden />เขียนคู่มือ</Button>) : undefined} />}
