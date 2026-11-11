@@ -35,3 +35,12 @@ test('partially typed dates are partial; empty and complete are not', () => {
   assert.equal(isPartialParts({ d: '', m: '', yBe: '' }), false);
   assert.equal(isPartialParts({ d: '5', m: '3', yBe: '2569' }), false);
 });
+
+test('thaiDateLabel reads date inputs as Thai short dates in the Buddhist year', async () => {
+  const { thaiDateLabel } = await import('./thai-date.ts');
+  assert.equal(thaiDateLabel('2026-11-24'), '24 พ.ย. 2569');
+  assert.equal(thaiDateLabel('2026-11-24T09:05', true), '24 พ.ย. 2569 · 09:05');
+  assert.equal(thaiDateLabel('2026-11-24T09:05'), '24 พ.ย. 2569');
+  assert.equal(thaiDateLabel(''), '');
+  assert.equal(thaiDateLabel('not-a-date'), '');
+});

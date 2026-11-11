@@ -1,23 +1,24 @@
 'use client';
 
+import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import { CasePlaybook } from './CasePlaybook';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, List, Kanban, SlidersHorizontal, ListPlus } from 'lucide-react';
 import { canDelegateTask, isEligibleReviewer, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseDetail, TaskItem, UserItem, WorkloadSummary } from '@/lib/api';
 import { workloadLabel } from '@/lib/workload-label';
-import { caseStageLabel } from '@/lib/stage-labels';
-import { taskStageGroups } from './task-stage-groups';
+import { caseStageOptions } from '@/lib/stage-labels';
 import { KanbanBoard } from '@/components/KanbanBoard';
-import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
+import { useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
 import { useTaskParam } from '@/components/tasks/useTaskParam';
 import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
-import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, TaskFilters } from '@/lib/task-filters';
+import { UndoToast, type UndoAction } from '@/components/ui/UndoToast';
+import { CaseTaskListV2 } from '@/components/case-page/CaseTaskListV2';
+import v2 from '@/components/case-page/v2.module.css';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
@@ -35,6 +36,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
   const router = useRouter();
   const searchParams = useSearchParams();
   const createRequested = searchParams.get('newTask') === '1';
+  const [undo, setUndo] = useState<UndoAction | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [caseDetail, setCaseDetail] = useState<CaseDetail | null>(null);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -49,6 +51,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
   const [newReviewerId, setNewReviewerId] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newRequiresAttachment, setNewRequiresAttachment] = useState(false);
+  const [newStage, setNewStage] = useState<string | null>(null);
   const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
@@ -57,8 +60,9 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
   const taskParam = useTaskParam();
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
   const visibleTasks = applyTaskFilters(tasks, filters);
-  const filtering = hasActiveTaskFilters(filters);
-  const stageGroups = taskStageGroups(visibleTasks, caseDetail?.stage);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showSop, setShowSop] = useState(false);
+  const filterCount = Object.values(filters).filter(Boolean).length;
   const newTaskDate = newDueDate || bangkokDateInputValue(new Date());
   const newTaskLeaveFlags = useLeaveFlags(token, newTaskDate);
 
@@ -102,7 +106,12 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
     if (!token || !caseId) return;
     setError('');
     try {
+      const previous = tasks.find(task => task.id === taskId);
       await api.updateTask(token, caseId, taskId, { status });
+      if (status === TaskStatus.DONE && previous && previous.status !== TaskStatus.DONE) {
+        const next = tasks.find(task => task.id !== taskId && task.status !== TaskStatus.DONE);
+        setUndo({ message: `ทำเสร็จแล้ว: ${previous.title}`, detail: next ? `งานถัดไป: ${next.title}` : undefined, undo: async () => { await api.updateTask(token, caseId, taskId, { status: previous.status }); loadTasks(); } });
+      }
       loadTasks();
     } catch {
       setError(d.caseTasks.updateFailed);
@@ -140,6 +149,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
         assigneeId: newAssigneeId || user?.id,
         dueDate: newDueDate || undefined,
         priority: newPriority,
+        labels: (newStage ?? caseDetail?.stage) ? [`stage:${newStage ?? caseDetail?.stage}`] : undefined,
         observerIds: newObserverIds.length > 0 ? newObserverIds : undefined,
         ...(newRequiresReview ? { requiresReview: true, reviewerId: newReviewerId } : {}),
       });
@@ -152,6 +162,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
       setNewReviewerId('');
       setNewDescription('');
       setNewRequiresAttachment(false);
+      setNewStage(null);
       if (keepOpen) {
         loadTasks();
         document.getElementById('case-task-title')?.focus();
@@ -195,21 +206,19 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
-        <div>
-          <h2 className="font-semibold tracking-tight text-foreground">{d.caseTasks.title}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">งานที่สร้างและมอบหมายในคดีนี้</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <TaskViewToggle layout={layout} onChange={setLayout} />
-          <Button className="min-h-11" onClick={() => setShowForm(!showForm)}>
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            {d.caseTasks.addTask}
-          </Button>
-        </div>
-      </div>
-
-      <div className="mb-4"><CasePlaybook caseId={caseId} caseTypeId={caseDetail?.caseType?.id} initialReleaseId={searchParams.get('sop') ?? ''} onApplied={loadTasks} /></div>
+      <UndoToast action={undo} onDismiss={() => setUndo(null)} />
+      {loadError ? <LoadFailed message={loadError} onRetry={loadTasks} /> : <CaseTaskListV2
+        tasks={visibleTasks}
+        currentStage={caseDetail?.stage}
+        userId={user?.id}
+        onToggle={(task) => void handleStatusChange(task.id, task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE)}
+        onOpen={taskParam.open}
+        onAdd={() => setShowForm(true)}
+        onSkip={async (task, reason) => { if (!token) throw new Error('กรุณาเข้าสู่ระบบ'); await api.skipJourneyTask(token, task.id, reason); loadTasks(); }}
+        controls={<><div role="group" aria-label="มุมมองงาน" className="grid grid-cols-2 rounded-lg border border-[#c9ccc6] bg-white p-0.5 text-sm font-semibold">{([{ value: 'list', label: 'รายการ', Icon: List }, { value: 'board', label: 'บอร์ด', Icon: Kanban }] as const).map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={layout === value} onClick={() => setLayout(value)} className={`inline-flex items-center gap-1 rounded-md px-3 py-2 ${layout === value ? 'bg-[#142e43] text-white' : 'text-[#52616b]'}`}><Icon aria-hidden="true" className="h-4 w-4" />{label}</button>)}</div><button type="button" aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)} className={`${v2.btn} ${v2.outline}`}><SlidersHorizontal aria-hidden="true" className="h-4 w-4" />ตัวกรอง{filterCount ? ` (${filterCount})` : ''}</button><button type="button" aria-expanded={showSop} onClick={() => setShowSop(!showSop)} className={`${v2.btn} ${v2.outline}`}><ListPlus aria-hidden="true" className="h-4 w-4" />ใช้ SOP</button></>}
+        panels={<>{showFilters && <Card><CardContent className="p-3"><TaskFilterBar value={filters} onChange={setFilters} users={users} labels={collectTaskLabels(tasks)} statuses={[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.PENDING_REVIEW, TaskStatus.NEEDS_REVISION, TaskStatus.DONE]} shown={visibleTasks.length} total={tasks.length} /></CardContent></Card>}{showSop && <CasePlaybook caseId={caseId} caseTypeId={caseDetail?.caseType?.id} initialReleaseId={searchParams.get('sop') ?? ''} onApplied={loadTasks} />}</>}
+        board={layout === 'board' ? (shown) => <KanbanBoard layout="board" tasks={shown} onStatusChange={handleStatusChange} currentUserId={user?.id ?? ''} caseLeadId={caseDetail?.leadLawyer?.id ?? null} currentUserRole={user?.firmRole} enableHandoff reviewerName={reviewerName} onHandoff={handleHandoff} onAccept={handleAccept} onReject={handleReject} onOpen={taskParam.open} /> : undefined}
+      />}
 
       {error && !showForm && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -226,47 +235,25 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
             }
           }}
         >
-          <div className="absolute inset-0 bg-black/30" onClick={() => { if (!creating) setShowForm(false); }} />
-          <aside className="relative flex h-dvh w-full max-w-lg flex-col border-l border-border bg-card shadow-xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
-              <h2 className="text-base font-semibold">{d.caseTasks.addTask}</h2>
-              <button
-                type="button"
-                aria-label={d.common.close}
-                onClick={() => { if (!creating) setShowForm(false); }}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <X aria-hidden="true" className="h-5 w-5" />
-              </button>
+          <div className="absolute inset-0 bg-[#101d2a]/45" onClick={() => { if (!creating) setShowForm(false); }} />
+          <aside className="relative flex h-dvh w-full max-w-[520px] flex-col bg-[#fffdfa] shadow-2xl">
+            <div className="flex shrink-0 items-start justify-between border-b border-[#e2e0d8] px-6 py-4">
+              <div>{caseDetail && <p className={v2.label}>{caseDetail.ownRef}</p>}<h2 className="text-xl font-bold">เพิ่มงานในคดีนี้</h2></div>
+              <button type="button" aria-label="ปิดหน้าต่างเพิ่มงาน" onClick={() => { if (!creating) setShowForm(false); }} className={`${v2.btn} ${v2.ghost}`}><X aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button>
             </div>
-            <form id="create-case-task" onSubmit={handleCreate} onInvalidCapture={event => { const details = (event.target as HTMLElement).closest('details'); if (details) details.open = true; }} className="min-h-0 flex-1 overflow-y-auto p-5">
-              <fieldset disabled={creating} className="flex min-w-0 flex-col gap-4">
-                {caseDetail && <p className="break-words text-sm text-muted-foreground">งานในคดี: {caseDetail.title}</p>}
-                {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            <form id="create-case-task" onSubmit={handleCreate} onInvalidCapture={event => { const details = (event.target as HTMLElement).closest('details'); if (details) details.open = true; }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+              <fieldset disabled={creating} className="flex min-w-0 flex-col gap-5">
+                {error && <p role="alert" className={v2.error}>{error}</p>}
+                <label className="block" htmlFor="case-task-title"><span className={v2.flabel}>ต้องทำอะไร *</span><input id="case-task-title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} autoFocus required placeholder="เช่น ขอคัดคำพิพากษา" className={`${v2.field} text-base sm:text-[15px]`} /></label>
                 <div>
-                  <label htmlFor="case-task-title" className="text-sm font-medium">{d.taskDetail.titleField}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
-                  <Input
-                    id="case-task-title"
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    autoFocus
-                    required
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="case-task-description" className="text-sm font-medium">{d.taskDetail.description}</label>
-                  <textarea id="case-task-description" rows={3} maxLength={5000} value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-input bg-card p-2 text-sm" placeholder={d.taskDetail.descriptionPlaceholder} />
-                </div>
-                <div>
-                  <label htmlFor="case-task-assignee" className="text-sm font-medium">{d.taskDetail.assignee}</label>
+                  <label htmlFor="case-task-assignee" className={v2.flabel}>คนทำ</label>
                   <select
                     id="case-task-assignee"
                     value={newAssigneeId}
                     onChange={(e) => { setNewAssigneeId(e.target.value); if ((e.target.value || user?.id) === newReviewerId) setNewReviewerId(''); }}
-                    className="mt-1 h-10 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                    className={`${v2.field} text-base sm:text-[15px]`}
                   >
-                    <option value="">{d.caseTasks.assignToMe}</option>
+                    <option value="">{user ? `${user.firstName} ${user.lastName ?? ''} (ฉัน)` : d.caseTasks.assignToMe}</option>
                     {caseTeam.length > 0 && (
                       <optgroup label={d.caseTasks.caseTeam}>
                         <AssigneeOptions users={caseTeam} flags={newTaskLeaveFlags} nameOf={assigneeName} />
@@ -288,19 +275,21 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                       )}
                     </p>
                   )}
+                  <p className={v2.hint}>คนที่เลือกจะได้รับแจ้งเตือนทันที</p>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block" htmlFor="case-task-due"><span className={v2.flabel}>ครบกำหนด</span><ThaiDateField id="case-task-due" value={newDueDate} onChange={setNewDueDate} /></label>
+                  <label className="block" htmlFor="case-task-stage"><span className={v2.flabel}>อยู่ในขั้น</span><select id="case-task-stage" value={newStage ?? caseDetail?.stage ?? ''} onChange={(e) => setNewStage(e.target.value)} className={`${v2.field} text-base sm:text-[15px]`}><option value="">ไม่ผูกกับขั้น</option>{caseStageOptions('th').map((option) => <option key={option.value} value={option.value}>{option.label}{option.value === caseDetail?.stage ? ' (ขั้นปัจจุบัน)' : ''}</option>)}</select></label>
+                </div>
+                <p className={`${v2.hint} rounded-lg bg-[#f3f1ea] p-3`}>งานในขั้นปัจจุบันต้องเสร็จก่อนจึงย้ายคดีไปขั้นถัดไปได้ — ถ้าเป็นงานที่ไม่บังคับ ให้เลือกขั้น “ไม่ผูกกับขั้น”</p>
+                <details className="rounded-lg border border-[#e2e0d8] p-3">
+                  <summary className="flex min-h-10 cursor-pointer items-center text-sm font-semibold">ตั้งค่าเพิ่ม <span className={`${v2.label} ml-1 font-normal`}>· รายละเอียด · ผู้ตรวจ · ความสำคัญ · ผู้ติดตาม</span></summary>
+                  <div className="mt-3">
                 <div>
-                  <label htmlFor="case-task-due" className="text-sm font-medium">{d.caseTasks.dueDate}</label>
-                  <Input
-                    id="case-task-due"
-                    type="date"
-                    value={newDueDate}
-                    onChange={event => setNewDueDate(event.target.value)}
-                    className="mt-1"
-                  />
+                  <label htmlFor="case-task-description" className="text-sm font-medium">{d.taskDetail.description}</label>
+                  <textarea id="case-task-description" rows={3} maxLength={5000} value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-input bg-card p-2 text-sm" placeholder={d.taskDetail.descriptionPlaceholder} />
                 </div>
-                <details className="rounded-lg border border-border p-3">
-                  <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium">การตรวจงาน / ความสำคัญ / ผู้ติดตาม (ถ้ามี)</summary>
+                  </div>
                   <label className="mt-3 flex min-h-10 items-center gap-2 text-sm">
                     <input type="checkbox" checked={newRequiresReview} onChange={event => { setNewRequiresReview(event.target.checked); if (!event.target.checked) setNewRequiresAttachment(false); setNewReviewerId(reviewers.find(member => member.id === caseDetail?.leadLawyer?.id)?.id ?? ''); }} />
                     ต้องให้ผู้ตรวจยืนยันก่อนปิดงาน
@@ -342,79 +331,18 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                     />
                   </div>
                 </div>
+                  <button type="button" disabled={creating || !newTitle.trim()} onClick={() => void handleCreate(undefined, true)} className={`${v2.btn} ${v2.outline} mt-3`}>บันทึกแล้วเพิ่มงานอีกงาน</button>
                 </details>
               </fieldset>
             </form>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-4">
-              <Button variant="outline" onClick={() => { if (!creating) setShowForm(false); }}>{d.common.cancel}</Button>
-              <Button variant="outline" disabled={creating || !newTitle.trim()} onClick={() => void handleCreate(undefined, true)}>บันทึกแล้วสร้างต่อ</Button>
-              <Button form="create-case-task" type="submit" disabled={creating || !newTitle.trim()}>
-                {creating ? 'กำลังสร้าง…' : d.caseTasks.create}
-              </Button>
+            <div className="flex shrink-0 justify-end gap-2 border-t border-[#e2e0d8] px-6 py-4">
+              <button type="button" onClick={() => { if (!creating) setShowForm(false); }} className={`${v2.btn} ${v2.ghost}`}>ยกเลิก</button>
+              <button form="create-case-task" type="submit" disabled={creating || !newTitle.trim()} className={`${v2.btn} ${v2.primary} disabled:opacity-60`}>{creating ? 'กำลังบันทึก…' : 'บันทึกงาน'}</button>
             </div>
           </aside>
         </div>
       )}
 
-      <Card className="mb-4">
-        <CardContent className="p-3">
-          <TaskFilterBar
-            value={filters}
-            onChange={setFilters}
-            users={users}
-            labels={collectTaskLabels(tasks)}
-            statuses={[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.PENDING_REVIEW, TaskStatus.NEEDS_REVISION, TaskStatus.DONE]}
-            shown={visibleTasks.length}
-            total={tasks.length}
-          />
-        </CardContent>
-      </Card>
-
-      {loadError ? (
-        <LoadFailed message={loadError} onRetry={loadTasks} />
-      ) : (
-      <>
-      {filtering && visibleTasks.length === 0 && (
-        <p role="status" className="mb-3 text-sm text-muted-foreground">{d.todos.noMatches}</p>
-      )}
-      {layout === 'board' || visibleTasks.length === 0 ? (() => { const groupTasks = visibleTasks; return (
-      <KanbanBoard
-        layout={layout}
-        tasks={groupTasks}
-        onStatusChange={handleStatusChange}
-        currentUserId={user?.id ?? ''}
-        caseLeadId={caseDetail?.leadLawyer?.id ?? null}
-        currentUserRole={user?.firmRole}
-        enableHandoff
-        reviewerName={reviewerName}
-        onHandoff={handleHandoff}
-        onAccept={handleAccept}
-        onReject={handleReject}
-        onOpen={taskParam.open}
-      />
-      ); })() : stageGroups.map(([stage, groupTasks]) => {
-        const finished = stage !== caseDetail?.stage && groupTasks.every((task) => task.status === TaskStatus.DONE);
-        return <details key={stage || 'unassigned'} open={!finished} className="mb-3 rounded-lg border bg-card p-4">
-          <summary className="min-h-11 cursor-pointer font-semibold">{stage ? caseStageLabel(stage, 'th') : 'งานที่ไม่ได้ระบุขั้น'} {finished && ` (เสร็จแล้ว ${groupTasks.length} งาน) · แสดงรายละเอียด`}</summary>
-      <KanbanBoard
-        layout={layout}
-        tasks={groupTasks}
-        onStatusChange={handleStatusChange}
-        currentUserId={user?.id ?? ''}
-        caseLeadId={caseDetail?.leadLawyer?.id ?? null}
-        currentUserRole={user?.firmRole}
-        enableHandoff
-        reviewerName={reviewerName}
-        onHandoff={handleHandoff}
-        onAccept={handleAccept}
-        onReject={handleReject}
-        onOpen={taskParam.open}
-      />
-        </details>;
-      })}
-
-      </>
-      )}
       <TaskDetailDrawer
         taskId={taskParam.taskId}
         users={users}

@@ -2,10 +2,10 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { CheckCircle2, Copy } from 'lucide-react';
+import { ArrowRight, Check, Copy } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, type CaseDetail, type CaseJourney, type StageTaskProposal } from '@/lib/api';
-import { buttonVariants } from '@/components/ui/button';
+import styles from '@/components/case-page/v2.module.css';
 import { PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 
@@ -44,8 +44,12 @@ function OpenedContent() {
   if (!next.length && journey.next) next.push(journey.next.text);
   const proposalSop = sop || proposals[0]?.routineSource?.releaseId;
   const firstHref = proposals.length ? `/cases/${id}?tab=tasks${proposalSop ? `&sop=${encodeURIComponent(proposalSop)}` : ''}` : `/cases/${id}`;
-  return <main className="mx-auto max-w-2xl space-y-5 pb-10"><Link href="/cases" className="inline-flex min-h-11 items-center text-sm text-muted-foreground">← กลับไปหน้ารวมคดี</Link><div className="space-y-3 text-center"><CheckCircle2 aria-hidden="true" className="mx-auto h-16 w-16 text-success" /><h1 className="text-2xl font-semibold">เปิดคดีสำเร็จ</h1><div className="inline-flex items-center gap-2 rounded border bg-card px-3 py-2 text-sm">เลขอ้างอิงสำนักงาน <strong>{legalCase.ownRef}</strong><button type="button" aria-label="คัดลอกเลขอ้างอิงสำนักงาน" onClick={() => void navigator.clipboard.writeText(legalCase.ownRef).then(() => setCopied(true))}><Copy className="h-4 w-4" /></button>{copied && <span>คัดลอกแล้ว</span>}</div><p className="font-semibold">{legalCase.title}</p><p className="text-sm text-muted-foreground">เปิดเมื่อ {date(legalCase.openedAt, true)}</p></div>
-    {completed.length > 0 && <section className="rounded-lg border bg-card p-5"><h2 className="border-b pb-3 font-semibold">ระบบดำเนินการให้แล้ว</h2><ul className="space-y-3 pt-4">{completed.map((item) => <li key={item}>✓ {item}</li>)}</ul></section>}
-    <section className="rounded-lg border bg-card p-5"><h2 className="border-b pb-3 font-semibold">ขั้นตอนต่อไปของคดีนี้</h2>{next.length ? <ol className="space-y-3 pt-4">{next.map((item, index) => <li key={item} className="rounded-lg border p-3"><span className="mr-3 font-semibold">{index + 1}</span>{item}</li>)}</ol> : <p className="pt-4 text-sm text-muted-foreground">ตรวจรายละเอียดคดีเพื่อดำเนินการต่อ</p>}</section>
-    <div className="grid gap-3"><Link className={buttonVariants()} href={firstHref}>เริ่มขั้นที่ 1 →</Link><Link className={buttonVariants({ variant: 'outline' })} href={`/cases/${id}`}>ไปหน้าคดี</Link>{sop && !proposals.length && <Link href={`/cases/${id}?tab=tasks&sop=${encodeURIComponent(sop)}`} className="min-h-11 text-center text-sm text-muted-foreground underline">ดู SOP ที่เลือก</Link>}{legalCase.cargoClaim && <Link href={`/cases/${id}?tab=cargo-claim`} className="min-h-11 text-center text-sm text-muted-foreground underline">ไปยัง Cargo Claim</Link>}<Link href="/cases/new" className="min-h-11 text-center text-sm text-muted-foreground underline">เปิดคดีใหม่อีกคดี</Link></div></main>;
+  return <main className="mx-auto max-w-2xl px-6 py-10 text-center">
+    <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#e6f3ec] text-3xl text-[#227052]"><Check aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></div>
+    <h1 className="font-display mt-3 text-[32px]">เปิดคดีสำเร็จ</h1>
+    <p className="mt-1">เลขอ้างอิงสำนักงาน <b className="font-mono">{legalCase.ownRef}</b> <button type="button" className={`${styles.btn} ${styles.ghost} min-w-11 py-1 focus-visible:ring-2 focus-visible:ring-ring`} aria-label="คัดลอกเลขอ้างอิงสำนักงาน" onClick={() => void navigator.clipboard.writeText(legalCase.ownRef).then(() => setCopied(true))}><Copy aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button>{copied && <span>คัดลอกแล้ว</span>}</p>
+    {completed.length > 0 && <section className={`${styles.card} mt-6 p-5 text-left shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><h2 className="font-bold">ระบบดำเนินการให้แล้ว</h2><ul className="mt-3 space-y-2">{completed.map((item) => <li key={item} className="flex items-start gap-1 text-[#227052]"><Check aria-hidden="true" className="mt-1 h-[1.1em] w-[1.1em] shrink-0" /><span className="text-foreground">{item}</span></li>)}</ul></section>}
+    <section className={`${styles.card} mt-4 p-5 text-left shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><h2 className="font-bold">ขั้นต่อไปของคดีนี้</h2>{next.length ? <ol className="mt-3 space-y-2">{next.map((item, index) => <li key={item} className={`rounded-lg border px-4 py-3 ${index === 0 ? 'border-[#c9d6e3] bg-[#f3f7fb]' : 'border-border'}`}><b>{index + 1}</b> {item}</li>)}</ol> : <p className={styles.hint}>ตรวจรายละเอียดคดีเพื่อดำเนินการต่อ</p>}</section>
+    <div className="mt-6 grid gap-3"><Link className={`${styles.btn} ${styles.primary}`} href={firstHref}>เริ่มขั้นที่ 1 <ArrowRight aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></Link><p className={`${styles.hint} -mt-1`}>{proposals.length ? 'เปิดหน้าคดีพร้อมรายการงาน SOP ให้เลือกสร้าง' : 'เปิดหน้าคดีเพื่อดำเนินการต่อ'}</p><Link className={`${styles.btn} ${styles.outline}`} href={`/cases/${id}`}>ไปหน้าคดี</Link>{sop && !proposals.length && <Link href={`/cases/${id}?tab=tasks&sop=${encodeURIComponent(sop)}`} className="min-h-11 text-sm underline">ดู SOP ที่เลือก</Link>}{legalCase.cargoClaim && <Link href={`/cases/${id}?tab=cargo-claim`} className="min-h-11 text-sm underline">ไปยัง Cargo Claim</Link>}<Link href="/cases/new" className="min-h-11 text-sm underline">เปิดคดีใหม่อีกคดี</Link><Link href="/cases" className="min-h-11 text-sm underline">กลับไปหน้ารวมคดี</Link></div>
+  </main>;
 }

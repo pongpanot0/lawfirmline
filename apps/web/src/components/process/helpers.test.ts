@@ -11,3 +11,12 @@ test('due dates include overdue and the seven day boundary', () => {
 test('step position uses current step', () => {
   assert.equal(stepPosition([{ key: 'a', label: 'A', state: 'done' }, { key: 'b', label: 'B', state: 'current' }]).position, 2);
 });
+
+test('daysUntil counts calendar days and rejects invalid dates', async () => {
+  const { daysUntil } = await import('./helpers.ts');
+  const now = new Date(2026, 10, 11, 23, 45);
+  assert.equal(daysUntil('2026-11-11T01:00:00', now), 0);
+  assert.equal(daysUntil('2026-11-10T23:59:00', now), -1);
+  assert.equal(daysUntil('2026-11-13T00:00:00', now), 2);
+  assert.equal(daysUntil('invalid', now), null);
+});

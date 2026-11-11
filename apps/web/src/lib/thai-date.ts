@@ -41,3 +41,13 @@ export function isPartialParts(p: ThaiDateParts): boolean {
   const any = !!p.d || !!p.m || !!p.yBe;
   return any && !(p.d && p.m && p.yBe.length === 4);
 }
+
+/** "24 พ.ย. 2569" (and "· 09:00" with time) from a date / datetime-local input value, whatever the browser locale is. */
+export function thaiDateLabel(value: string, withTime = false): string {
+  if (!value) return '';
+  const [date, time] = value.split('T');
+  const [y, m, d] = date.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const label = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return withTime && time ? `${label} · ${time.slice(0, 5)}` : label;
+}

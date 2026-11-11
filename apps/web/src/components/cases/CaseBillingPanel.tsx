@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   EXPENSE_CATEGORIES,
   ExpenseStatus,
-  FirmRole,
   hasFirmCapability,
   MONEY_HINT,
   MONEY_MAX,
@@ -12,17 +11,18 @@ import {
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { api, TimeEntryItem, ExpenseItem, CustomerShareItem } from '@/lib/api';
+import { api, TimeEntryItem, ExpenseItem, CustomerShareItem, InvoiceItem } from '@/lib/api';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { TimeEntryForm } from '@/components/billing/TimeEntryForm';
-import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 import { MoneyInput } from '@/components/ui/MoneyInput';
-import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Button } from '@/components/ui/button';
 import { SelectField, TextField } from '@/components/ui/form-fields';
-import { Plus } from 'lucide-react';
+import { Plus, Check, Receipt, CircleSlash, Pencil, Trash2, Timer, RotateCcw } from 'lucide-react';
+import { DocsRowMenu } from '@/components/case-page/DocsRowMenu';
+import v2 from '@/components/case-page/v2.module.css';
 
 const WRITE_OFF_MIN_REASON = 5;
 
@@ -39,7 +39,7 @@ const canWriteOffExpense = (e: ExpenseItem) =>
 
 /** ปุ่มตัดทิ้ง → กรอกเหตุผล (อย่างน้อย 5 ตัวอักษร) → ยืนยัน */
 function WriteOffAction({ label, onConfirm }: { label: string; onConfirm: (reason: string) => Promise<void> }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -145,6 +145,11 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
   // ลูกค้า (ผู้ว่าจ้าง) ของคดี — คนที่ใบแจ้งหนี้จะไปถึง ไม่ใช่ลูกความ
   const [customers, setCustomers] = useState<CustomerShareItem[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [agreedFee, setAgreedFee] = useState<number | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [writeOffTarget, setWriteOffTarget] = useState<string | null>(null);
+  const canApprove = hasFirmCapability(user?.firmRole, 'approveExpenses');
 
   const load = () => {
     if (!token || !id) return;
@@ -153,9 +158,12 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       api.getCaseExpenses(token, id),
       api.getExpenseSummary(token, id).catch(() => ({ totalSpent: 0, revenue: 0, profit: 0 })),
       api.getCase(token, id).catch(() => null),
+      api.getInvoices(token, id).catch(() => [] as InvoiceItem[]),
     ])
-      .then(([entries, exps, summary, detail]) => {
+      .then(([entries, exps, summary, detail, invs]) => {
         setCustomers(detail?.customers ?? []);
+        setInvoices(invs);
+        setAgreedFee(detail?.estimatedFee ?? null);
         setTimeEntries(entries);
         setExpenses(exps);
         setTotalSpent(summary.totalSpent);
@@ -237,52 +245,28 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const totalBilled = timeEntries.reduce((sum, e) => (e.writtenOffAt ? sum : sum + e.hours * e.rate), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
+  const issued = invoices.filter((inv) => inv.status !== 'DRAFT' && inv.status !== 'VOID' && inv.status !== 'CANCELLED');
+  const issuedTotal = issued.reduce((sum, inv) => sum + inv.totalAmount, 0);
+  const paidTotal = issued.filter((inv) => inv.status === 'PAID').reduce((sum, inv) => sum + inv.totalAmount, 0);
+  const outstanding = issuedTotal - paidTotal;
+  const card = 'rounded-xl border border-[#e2e0d8] bg-card';
+  const hint = 'mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground';
+  const label = 'text-[.8rem] text-muted-foreground';
+  const shortDate = (value: string) => new Date(value).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' });
+  const invoicePill = (inv: InvoiceItem) => { const amount = formatCurrency(inv.totalAmount); return inv.status === 'PAID' ? <span className="rounded-full bg-[#e6f3ec] px-3 py-1 font-semibold text-[#227052]">ชำระแล้ว {amount}</span> : inv.status === 'DRAFT' ? <span className="rounded-full bg-[#eeebe3] px-3 py-1 font-semibold">ร่าง {amount}</span> : <span className="rounded-full bg-[#fbf3e0] px-3 py-1 font-semibold text-[#6b4f0b]">รอชำระ {amount}</span>; };
+  const expenseState = (e: ExpenseItem) => e.writtenOffAt ? <span className="text-muted-foreground">ตัดทิ้ง</span> : e.status === ExpenseStatus.PAID ? <span className="text-[#227052]">จ่ายแล้ว</span> : e.status === ExpenseStatus.APPROVED ? <span className="text-[#227052]">อนุมัติแล้ว</span> : e.status === ExpenseStatus.REJECTED ? <span className="text-[#a83232]">ไม่อนุมัติ</span> : e.status === ExpenseStatus.PENDING ? <span className="text-[#6b4f0b]">รออนุมัติ</span> : <span className="text-muted-foreground">ร่าง</span>;
   return (
-    <div>
-      <h2 className="mb-6 text-xl font-bold text-foreground">{d.caseBilling.title}</h2>
-
-      <dl className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border md:grid-cols-3 xl:grid-cols-6 [&>div]:bg-card [&>div]:p-4">
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">รายได้</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(caseRevenue)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">ค่าใช้จ่ายอนุมัติ</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalSpent)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">กำไร</dt>
-          <dd className={`mt-1 text-xl font-semibold tabular-nums ${caseProfit < 0 ? 'text-destructive' : ''}`}>
-            {formatCurrency(caseProfit)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.billableHours}</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{totalHours.toFixed(1)}h</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.timeBilled}</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalBilled)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.allExpenses}</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalExpenses)}</dd>
-        </div>
-      </dl>
-
-      {writeOffError && <p role="alert" className="mb-4 text-sm text-destructive">{writeOffError}</p>}
-
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold">{d.caseBilling.expenseClaims}</h2>
-          <Button type="button" size="sm" aria-expanded={showExpenseForm} onClick={() => setShowExpenseForm(!showExpenseForm)}>
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            {d.caseBilling.submitExpense}
-          </Button>
-        </div>
-
-        {showExpenseForm && (
-          <form onSubmit={handleCreateExpense} className="mb-4 space-y-3 rounded-lg border border-border bg-muted/40 p-4">
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className={`${card} p-5`}><div className={label}>ค่าวิชาชีพที่ตกลง</div><div className="text-2xl font-bold">{agreedFee != null ? formatCurrency(agreedFee) : <span className="text-base font-semibold text-muted-foreground">ยังไม่ได้ระบุ</span>}</div></div>
+        <div className={`${card} p-5`}><div className={label}>ออกใบแจ้งหนี้แล้ว</div><div className="text-2xl font-bold">{formatCurrency(issuedTotal)}</div></div>
+        <div className={`${card} p-5`}><div className={label}>รับเงินแล้ว</div><div className="text-2xl font-bold text-[#227052]">{formatCurrency(paidTotal)}</div></div>
+        <div className={`${card} p-5 ${outstanding > 0 ? 'border-2 border-[#e9b9b9]' : ''}`}><div className={label}>ค้างรับจากลูกความ</div><div className={`text-2xl font-bold ${outstanding > 0 ? 'text-[#a83232]' : ''}`}>{formatCurrency(outstanding)}</div></div>
+      </div>
+      {writeOffError && <p role="alert" className="text-sm text-destructive">{writeOffError}</p>}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className={`${v2.card} shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><div className="flex items-center justify-between border-b border-[#e2e0d8] px-5 py-3"><h3 className="text-lg font-bold">ค่าใช้จ่ายของคดี</h3><button type="button" aria-expanded={showExpenseForm} onClick={() => setShowExpenseForm(!showExpenseForm)} className={`${v2.btn} ${v2.outline} min-h-0 py-2`}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />บันทึกค่าใช้จ่าย</button></div>
+        {showExpenseForm && <div className="p-4">          <form onSubmit={handleCreateExpense} className="mb-4 space-y-3 rounded-lg border border-border bg-muted/40 p-4">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
                 <label htmlFor="expense-amount" className="block text-sm font-medium">
@@ -326,156 +310,52 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
             <Button type="submit" disabled={savingExpense}>
               {savingExpense ? d.caseBilling.savingDraft : d.caseBilling.saveDraft}
             </Button>
-          </form>
-        )}
-
-        <div className="space-y-2">
-          {expenses.map((e) => (
-            <div key={e.id} className="rounded-lg border border-border px-3 py-2 text-sm">
-             <div className="flex items-center justify-between">
-              <div className={e.writtenOffAt ? 'line-through opacity-60' : undefined}>
-                <p className="font-medium">{e.description}</p>
-                <p className="text-xs text-muted-foreground">
-                  {e.user.firstName} {e.user.lastName}
-                  {e.category && ` — ${e.category}`}
-                  {' — '}
-                  {formatDate(e.date)}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 text-right">
-                {/* ออกบิลไปแล้วเปลี่ยนไม่ได้ ต้องไปแก้ที่ใบแจ้งหนี้ */}
-                {!e.invoiceId && !e.writtenOffAt && (
-                  <label className="flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground sm:min-h-0">
-                    <input
-                      type="checkbox"
-                      aria-label={`สำนักงานออกเอง: ${e.description}`}
-                      checked={e.billable === false}
-                      onChange={(ev) => handleSetBillable(e.id, !ev.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-input"
-                    />
-                    สำนักงานออกเอง
-                  </label>
-                )}
-                <div className={e.writtenOffAt ? 'line-through opacity-60' : undefined}>
-                  <p className="font-medium tabular-nums">{formatCurrency(e.amount)}</p>
-                  <ExpenseStatusBadge status={e.status} />
-                </div>
-              </div>
-             </div>
-             {e.writtenOffAt ? (
-               <WrittenOffNote
-                 by={e.writtenOffBy}
-                 reason={e.writeOffReason}
-                 onUndo={canWriteOff && !e.invoiceId && token ? () => void handleUndoWriteOff(() => api.undoExpenseWriteOff(e.id, token)) : undefined}
-               />
-             ) : (
-               canWriteOff && canWriteOffExpense(e) && token && (
-                 <WriteOffAction
-                   label={e.description}
-                   onConfirm={async (reason) => { await api.writeOffExpense(e.id, reason, token); load(); }}
-                 />
-               )
-             )}
-            </div>
-          ))}
-          {expenses.length === 0 && (
-            <InlineEmptyState
-              title={d.caseBilling.noExpenses}
-              action={
-                !showExpenseForm && (
-                  <Button type="button" variant="outline" size="sm" onClick={() => setShowExpenseForm(true)}>
-                    {d.caseBilling.submitExpense}
-                  </Button>
-                )
-              }
-            />
-          )}
-        </div>
+          </form></div>}
+        {expenses.length ? <ul className="divide-y divide-[#e2e0d8] text-sm">{expenses.map((e) => <li key={e.id} className="px-5 py-3.5"><div className="flex items-center justify-between gap-3"><div><b>{e.description}</b><div className={v2.label}>{e.user.firstName} · {shortDate(e.date)} · {e.billable === false ? 'ไม่เรียกเก็บจากลูกความ' : 'เรียกเก็บจากลูกความ'}</div></div><div className="flex items-center gap-1 font-semibold">{formatCurrency(e.amount)} · {expenseState(e)}<DocsRowMenu name={e.description} items={[
+          ...(canApprove && e.status === ExpenseStatus.PENDING && token ? [{ label: 'อนุมัติ', hint: 'พร้อมเบิกจ่ายให้คนที่สำรองจ่าย', icon: Check, onClick: () => { setWriteOffError(''); void api.updateExpenseStatus(token!, e.id, 'APPROVED').then(load).catch((err: unknown) => setWriteOffError(err instanceof Error ? err.message : 'อนุมัติไม่สำเร็จ')); } }] : []),
+          ...(!e.invoiceId && !e.writtenOffAt ? [{ label: e.billable === false ? 'เรียกเก็บจากลูกความ' : 'ไม่เรียกเก็บจากลูกความ', hint: 'กำหนดว่าจะรวมในใบแจ้งหนี้หรือไม่', icon: Receipt, onClick: () => void handleSetBillable(e.id, e.billable === false) }] : []),
+          ...(canWriteOff && canWriteOffExpense(e) && token ? [{ label: 'ตัดทิ้ง', hint: 'ระบุเหตุผล ย้อนคืนได้', icon: CircleSlash, onClick: () => setWriteOffTarget(e.id) }] : []),
+          ...(canWriteOff && e.writtenOffAt && !e.invoiceId && token ? [{ label: 'ยกเลิกการตัดทิ้ง', hint: 'นำรายการกลับมา', icon: RotateCcw, onClick: () => void handleUndoWriteOff(() => api.undoExpenseWriteOff(e.id, token!)) }] : []),
+        ]} /></div></div>{e.writtenOffAt && <WrittenOffNote by={e.writtenOffBy} reason={e.writeOffReason} />}{writeOffTarget === e.id && canWriteOffExpense(e) && token && <WriteOffAction label={e.description} onConfirm={async (reason) => { await api.writeOffExpense(e.id, reason, token!); setWriteOffTarget(null); load(); }} />}</li>)}</ul> : <p className={`${v2.hint} px-5 py-4`}>ยังไม่มีค่าใช้จ่ายของคดีนี้</p>}</section>
+        <section className={`${v2.card} shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><div className="flex items-center justify-between border-b border-[#e2e0d8] px-5 py-3"><h3 className="text-lg font-bold">เวลาทำงาน</h3><button type="button" onClick={() => { setShowTimeForm(true); setEditingTimeId(null); }} className={`${v2.btn} ${v2.outline} min-h-0 py-2`}><Timer aria-hidden="true" className="h-[1.1em] w-[1.1em]" />บันทึกเวลา</button></div>
+        {showTimeForm && <div className="p-4"><TimeEntryForm caseId={id} onCancel={() => setShowTimeForm(false)} onDone={() => { setShowTimeForm(false); load(); }} /></div>}{timeError && <p role="alert" className="px-5 text-sm text-destructive">{timeError}</p>}
+        <ul className="divide-y divide-[#e2e0d8] text-sm">{timeEntries.map((e) => editingTimeId === e.id ? <li key={e.id} className="p-4"><TimeEntryForm entry={{ id: e.id, caseId: id, date: e.date, hours: e.hours, rate: e.rate, description: e.description ?? null }} onCancel={() => setEditingTimeId(null)} onDone={() => { setEditingTimeId(null); load(); }} /></li> : <li key={e.id} className="px-5 py-3.5"><div className="flex items-center justify-between gap-3"><div><b>{e.description || d.caseBilling.timeEntry}</b><div className={v2.label}>{e.user.firstName} · {shortDate(e.date)}</div></div><div className="flex items-center font-semibold tabular-nums">{e.hours} ชม. · {formatCurrency(e.hours * e.rate)}<DocsRowMenu name={e.description || d.caseBilling.timeEntry} items={[
+          ...(canEditTime(e, user?.id, canWriteOff) ? [{ label: 'แก้ไข', hint: 'แก้ไขบันทึกเวลา', icon: Pencil, onClick: () => { setEditingTimeId(e.id); setShowTimeForm(false); } }, { label: 'ลบ', hint: 'ลบบันทึกเวลานี้', icon: Trash2, onClick: () => void handleDeleteTime(e.id) }] : []),
+          ...(canWriteOff && canWriteOffTime(e) && token ? [{ label: 'ตัดทิ้ง', hint: 'ระบุเหตุผล ย้อนคืนได้', icon: CircleSlash, onClick: () => setWriteOffTarget(e.id) }] : []),
+          ...(canWriteOff && e.writtenOffAt && !e.invoiceId && token ? [{ label: 'ยกเลิกการตัดทิ้ง', hint: 'นำรายการกลับมา', icon: RotateCcw, onClick: () => void handleUndoWriteOff(() => api.undoTimeEntryWriteOff(id, e.id, token!)) }] : []),
+        ]} /></div></div>{e.writtenOffAt && <WrittenOffNote by={e.writtenOffBy} reason={e.writeOffReason} />}{writeOffTarget === e.id && canWriteOffTime(e) && token && <WriteOffAction label={e.description || d.caseBilling.timeEntry} onConfirm={async (reason) => { await api.writeOffTimeEntry(id, e.id, reason, token!); setWriteOffTarget(null); load(); }} />}</li>)}</ul><p className={`${v2.hint} px-5 pb-4`}>รวม {totalHours.toFixed(1)} ชม. · ยังไม่ได้เรียกเก็บ {formatCurrency(timeEntries.filter((e) => !e.invoiceId && !e.writtenOffAt && e.billable !== false).reduce((sum, e) => sum + e.hours * e.rate, 0))} — ใส่ในใบแจ้งหนี้ถัดไปได้</p></section>
       </div>
-
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-semibold">{d.caseBilling.timeEntries}</h2>
-          <Button type="button" size="sm" variant="outline" onClick={() => { setShowTimeForm(true); setEditingTimeId(null); }}>
-            <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
-            เพิ่มเวลา
-          </Button>
+      <section className={`${v2.card} shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><div className="flex items-center justify-between border-b border-[#e2e0d8] px-5 py-3"><h3 className="text-lg font-bold">ใบแจ้งหนี้</h3><button type="button" aria-expanded={toolsOpen} onClick={() => setToolsOpen(!toolsOpen)} className={`${v2.btn} ${v2.primary} min-h-0 py-2`}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ออกใบแจ้งหนี้</button></div>
+          {invoices.length ? <ul className="divide-y divide-[#e2e0d8] text-sm">{invoices.map((inv) => <li key={inv.id} className="flex items-center justify-between gap-3 px-5 py-3.5"><div><b>{inv.invoiceNumber}</b><div className={label}>{[inv.billToCustomer?.name, inv.status === 'DRAFT' ? 'ยังไม่ส่ง' : null].filter(Boolean).join(' · ') || 'ใบแจ้งหนี้ของคดี'}</div></div>{invoicePill(inv)}</li>)}</ul> : <p className={`${hint} px-5 py-4`}>ยังไม่มีใบแจ้งหนี้ของคดีนี้</p>}
+      {toolsOpen && <div className="p-5"><InvoicePanel target={{ caseId: id }} customers={customers} onChanged={load} /></div>}</section>
+      <dl className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border md:grid-cols-3 xl:grid-cols-6 [&>div]:bg-card [&>div]:p-4">
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">รายได้</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(caseRevenue)}</dd>
         </div>
-        {showTimeForm && (
-          <TimeEntryForm
-            caseId={id}
-            onCancel={() => setShowTimeForm(false)}
-            onDone={() => { setShowTimeForm(false); load(); }}
-          />
-        )}
-        {timeError && <p role="alert" className="mb-2 text-sm text-destructive">{timeError}</p>}
-        <div className="space-y-2">
-          {timeEntries.map((e) => editingTimeId === e.id ? (
-            <TimeEntryForm
-              key={e.id}
-              entry={{ id: e.id, caseId: id, date: e.date, hours: e.hours, rate: e.rate, description: e.description ?? null }}
-              onCancel={() => setEditingTimeId(null)}
-              onDone={() => { setEditingTimeId(null); load(); }}
-            />
-          ) : (
-            <div key={e.id} className="rounded-lg border border-border px-3 py-2 text-sm">
-             <div className="flex items-center justify-between">
-              <div className={e.writtenOffAt ? 'line-through opacity-60' : undefined}>
-                <p className="font-medium">{e.description || d.caseBilling.timeEntry}</p>
-                <p className="text-xs text-muted-foreground">
-                  {e.user.firstName} {e.user.lastName} — {formatDate(e.date)}
-                </p>
-              </div>
-              <div className={`text-right tabular-nums ${e.writtenOffAt ? 'line-through opacity-60' : ''}`}>
-                <p>{e.hours}h @ ฿{e.rate}</p>
-                <p className="text-xs text-muted-foreground">{formatCurrency(e.hours * e.rate)}</p>
-              </div>
-             </div>
-             {canEditTime(e, user?.id, canWriteOff) && (
-               <div className="mt-2 flex gap-2">
-                 <button
-                   type="button"
-                   aria-label={`แก้ไข: ${e.description || d.caseBilling.timeEntry}`}
-                   onClick={() => { setEditingTimeId(e.id); setShowTimeForm(false); }}
-                   className="min-h-11 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent sm:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                 >
-                   แก้ไข
-                 </button>
-                 <button
-                   type="button"
-                   aria-label={`ลบ: ${e.description || d.caseBilling.timeEntry}`}
-                   onClick={() => void handleDeleteTime(e.id)}
-                   className="min-h-11 rounded-lg border px-2.5 py-1 text-xs font-medium text-destructive hover:bg-accent sm:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                 >
-                   ลบ
-                 </button>
-               </div>
-             )}
-             {e.writtenOffAt ? (
-               <WrittenOffNote
-                 by={e.writtenOffBy}
-                 reason={e.writeOffReason}
-                 onUndo={canWriteOff && !e.invoiceId && token ? () => void handleUndoWriteOff(() => api.undoTimeEntryWriteOff(id, e.id, token)) : undefined}
-               />
-             ) : (
-               canWriteOff && canWriteOffTime(e) && token && (
-                 <WriteOffAction
-                   label={e.description || d.caseBilling.timeEntry}
-                   onConfirm={async (reason) => { await api.writeOffTimeEntry(id, e.id, reason, token); load(); }}
-                 />
-               )
-             )}
-            </div>
-          ))}
-          {timeEntries.length === 0 && (
-            <InlineEmptyState
-              title={d.caseBilling.noTimeEntries}
-            />
-          )}
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">ค่าใช้จ่ายอนุมัติ</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalSpent)}</dd>
         </div>
-      </div>
-
-      <InvoicePanel target={{ caseId: id }} customers={customers} onChanged={load} />
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">กำไร</dt>
+          <dd className={`mt-1 text-xl font-semibold tabular-nums ${caseProfit < 0 ? 'text-destructive' : ''}`}>
+            {formatCurrency(caseProfit)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.billableHours}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{totalHours.toFixed(1)}h</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.timeBilled}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalBilled)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.allExpenses}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalExpenses)}</dd>
+        </div>
+      </dl>
     </div>
   );
 }

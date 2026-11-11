@@ -1,9 +1,15 @@
 'use client';
 
+import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import dynamic from 'next/dynamic';
 const CaseMessagesPanel = dynamic(() => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
+import { CaseTabBar } from '@/components/case-page/CaseTabBar';
+import { CaseMoreMenu } from '@/components/case-page/CaseMoreMenu';
 import { CaseSectionContent } from '@/components/case-page/CaseSectionContent';
 import { CaseJourneyPanel } from '@/components/journey/CaseJourneyPanel';
+import { daysUntil } from '@/components/process/helpers';
+import { StepTracker } from '@/components/process/StepTracker';
+import v2 from '@/components/case-page/v2.module.css';
 import { OwnerPicker } from '@/components/cases/OwnerPicker';
 import { canChangeOwner } from '@/components/journey/case-journey-helpers';
 import { allowedStageChange } from '@/components/journey/allowed-stage-change';
@@ -29,7 +35,7 @@ import { leaveWarning } from '@/lib/leave-flags';
 import { bangkokDateInputValue } from '@/lib/bangkok';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { PRE_LITIGATION_STATUS_LABELS } from '@/lib/pre-litigation';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -51,6 +57,8 @@ import {
   ScrollText,
   AlertTriangle,
   ChevronRight,
+  Upload, CircleHelp, GitBranch, Users, Printer, Archive, FolderOpen,
+  ArrowRight, User, Scale, Briefcase, Wallet, Ship,
 } from 'lucide-react';
 import {
   ActivityType,
@@ -95,6 +103,7 @@ import {
   type RequiredDocumentsResult,
   type StageTaskProposal,
   type StageTaskDraft,
+  type CaseJourney,
 } from '@/lib/api';
 import { StageTasksDialog } from '@/components/cases/StageTasksDialog';
 import { caseStageLabel, caseStageOptions, documentCategoryLabel } from '@/lib/stage-labels';
@@ -140,18 +149,26 @@ const ACTIVITY_ICONS: Record<string, typeof Gavel> = {
   EMAIL: Mail,
 };
 
+type CloseReason = 'NOT_RETAINED' | 'DONE' | 'OTHER';
+const CLOSE_REASONS: { value: CloseReason; label: string; hint: string; summary: string }[] = [
+  { value: 'NOT_RETAINED', label: 'ไม่จ้างทำต่อ', hint: 'ลูกความเลิกจ้างกลางทาง', summary: 'ลูกความแจ้งว่าไม่จ้างทำต่อ' },
+  { value: 'DONE', label: 'ให้ปิดคดี — งานจบแล้ว', hint: 'เช่น ได้รับชำระครบ หรือยอมความกันได้', summary: 'ลูกความแจ้งให้ปิดคดี งานจบแล้ว' },
+  { value: 'OTHER', label: 'อื่น ๆ', hint: 'ระบุในหมายเหตุ', summary: 'ปิดคดี' },
+];
+
+const thaiShortDate = (value: string) => new Date(value).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' });
+
 export default function CaseDetailPage() {
   const d = useDashboardT();
   const { id } = useParams<{ id: string }>();
   const { token, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = searchParams.has('task') ? 'tasks' : searchParams.has('tab') ? parseCaseTab(searchParams.get('tab')) : null;
+  const activeTab = searchParams.has('task') ? 'tasks' : parseCaseTab(searchParams.get('tab'));
   const selectTab = (tab: CaseTabId) => {
     router.replace(`/cases/${id}?tab=${tab}`, { scroll: false });
   };
   const [legalCase, setCase] = useState<CaseDetail | null>(null);
-  useEffect(() => { if (activeTab && searchParams.has('tab')) document.getElementById(`case-tab-${activeTab}`)?.scrollIntoView({ block: 'start' }); }, [activeTab, searchParams, legalCase]);
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
   const [emailTimeline, setEmailTimeline] = useState<EmailTimelineItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -225,7 +242,8 @@ export default function CaseDetailPage() {
   const [closingCase, setClosingCase] = useState(false);
   const [reopeningCase, setReopeningCase] = useState(false);
   const [closeError, setCloseError] = useState('');
-  const [closingOutcome, setClosingOutcome] = useState('');
+  const [closingOutcome, setClosingOutcome] = useState('WITHDRAWN');
+  const [closeReason, setCloseReason] = useState<CloseReason>('NOT_RETAINED');
   /** ของค้างตอนกดปิดคดี — โหลดตอนเปิดฟอร์ม ไม่ใช่ทุกครั้งที่หน้า render */
   const [outstanding, setOutstanding] = useState<CaseOutstandingResult | null>(null);
   const [ackOutstanding, setAckOutstanding] = useState(false);
@@ -233,10 +251,15 @@ export default function CaseDetailPage() {
   const [removeFutureEvents, setRemoveFutureEvents] = useState(false);
   const [savingStage, setSavingStage] = useState(false);
   const [pendingStage, setPendingStage] = useState<string | null>(null);
+  const [journeyAdvance, setJourneyAdvance] = useState<{ stage: string; explicit?: 'APPEAL' | 'SUPREME' } | null>(null);
+  const [movedStage, setMovedStage] = useState<string | null>(null);
+  const [journeyState, setJourneyState] = useState<CaseJourney | null>(null);
+  const [menuPanel, setMenuPanel] = useState<'stage' | 'print' | 'paper' | null>(null);
   const [stageTaskProposals, setStageTaskProposals] = useState<StageTaskProposal[]>([]);
   const [bannerProposals, setBannerProposals] = useState<StageTaskProposal[]>([]);
   const [stageTaskError, setStageTaskError] = useState('');
   const [editingTeam, setEditingTeam] = useState(false);
+  const [managingTeam, setManagingTeam] = useState(false);
   const [teamPeople, setTeamPeople] = useState<AssigneeLoad[]>([]);
   const [savingTeam, setSavingTeam] = useState(false);
   const [teamError, setTeamError] = useState('');
@@ -432,17 +455,22 @@ export default function CaseDetailPage() {
     }
   };
 
+  const openCloseCase = () => { setCloseError(''); setCloseReason('NOT_RETAINED'); setClosingOutcome('WITHDRAWN'); setClosingSummary(''); setShowCloseForm(true); setAckOutstanding(false); setRemoveFutureEvents(false); void loadOutstanding(); };
+
   const handleCloseCase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !id) return;
-    if (closingSummary.trim().length < 10) {
-      setCloseError('กรุณาเขียนสรุปคดีอย่างน้อย 10 ตัวอักษร');
-      return;
-    }
+    if (closingCase) return;
+    if (!outstanding && !outstandingFailed) { setCloseError('กำลังตรวจของค้างในคดี รอสักครู่แล้วกดอีกครั้ง'); return; }
+    const reason = CLOSE_REASONS.find((r) => r.value === closeReason);
+    if (!reason) { setCloseError('เลือกว่าลูกความแจ้งว่าอะไรก่อนปิดคดี'); return; }
+    if (!closingOutcome) { setCloseError('เลือกผลของคดีก่อนปิด'); return; }
+    if (closeReason === 'OTHER' && !closingSummary.trim()) { setCloseError('เลือก “อื่น ๆ” แล้ว ใส่หมายเหตุว่าลูกความแจ้งว่าอะไร'); return; }
+    if (outstanding && outstanding.total > 0 && !ackOutstanding) { setCloseError('ติ๊ก “ตรวจแล้ว ปิดคดีได้” ก่อน — ยังมีของค้างในคดีนี้'); return; }
     setClosingCase(true);
     setCloseError('');
     try {
-      await api.closeCase(token, id, closingSummary.trim(), {
+      await api.closeCase(token, id, `${reason.summary}${closingSummary.trim() ? ` — ${closingSummary.trim()}` : ''}`, {
         outcome: closingOutcome,
         acknowledgeOutstanding: ackOutstanding || undefined,
         removeFutureEvents,
@@ -503,7 +531,31 @@ export default function CaseDetailPage() {
     }
   };
 
+  const confirmJourneyAdvance = async (stage: string, explicit?: 'APPEAL' | 'SUPREME') => {
+    if (!token || savingStage) return;
+    setSavingStage(true); setStageTaskError('');
+    try {
+      const proposals = await api.getStageTaskProposals(token, id, stage);
+      if (lawyers.length === 0) api.getLawyers(token).then(setLawyers).catch(() => {});
+      setStageTaskProposals(proposals); setJourneyAdvance({ stage, explicit }); setPendingStage(stage);
+    } catch (err) { setStageTaskError(err instanceof ApiError ? err.message : 'โหลดงานแนะนำไม่สำเร็จ'); }
+    finally { setSavingStage(false); }
+  };
+
+  const movePendingStage = async (stage: string) => {
+    if (journeyAdvance?.stage === stage && token) {
+      await api.advanceCaseJourney(token, id, journeyAdvance.explicit);
+      setJourneyAdvance(null);
+      setMovedStage(stage);
+      loadCase();
+      return true;
+    }
+    return applyStageChange(stage);
+  };
+
   const closeStageTaskDialog = () => {
+    setJourneyAdvance(null);
+    setMovedStage(null);
     setPendingStage(null);
     setStageTaskProposals([]);
     setStageTaskError('');
@@ -513,7 +565,7 @@ export default function CaseDetailPage() {
     if (!token || !id || !pendingStage) return;
     setSavingStage(true);
     try {
-      if (pendingStage !== legalCase?.stage && !(await applyStageChange(pendingStage))) return;
+      if (pendingStage !== legalCase?.stage && pendingStage !== movedStage && !(await movePendingStage(pendingStage))) return;
       await api.dismissStageTasks(token!, id!, pendingStage).catch(console.error);
       loadCase();
       closeStageTaskDialog();
@@ -530,9 +582,9 @@ export default function CaseDetailPage() {
     if (!token || !id || !pendingStage) return;
     setSavingStage(true);
     setStageTaskError('');
-    const moving = pendingStage !== legalCase?.stage;
+    const moving = pendingStage !== legalCase?.stage && pendingStage !== movedStage;
     try {
-      if (moving && !(await applyStageChange(pendingStage))) return;
+      if (moving && !(await movePendingStage(pendingStage))) return;
       try {
         await api.createStageTasks(token, id, pendingStage, tasks);
         loadCase();
@@ -563,14 +615,13 @@ export default function CaseDetailPage() {
   };
 
   const handleReopenCase = async () => {
-    if (!token || !id) return;
-    if (!confirm('เปิดคดีนี้อีกครั้ง?')) return;
+    if (!token || !id || reopeningCase) return;
     setReopeningCase(true);
     try {
       await api.reopenCase(token, id);
       loadCase();
     } catch (err) {
-      console.error(err);
+      window.alert(err instanceof ApiError && err.message ? err.message : 'เปิดคดีอีกครั้งไม่สำเร็จ ลองอีกครั้ง');
     } finally {
       setReopeningCase(false);
     }
@@ -878,16 +929,15 @@ export default function CaseDetailPage() {
   return (
     <div className={styles.workbench}>
       {Number(searchParams.get('emailLinkFailures')) > 0 && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">ผูกอีเมลไม่สำเร็จ {Number(searchParams.get('emailLinkFailures'))} ฉบับ — ผูกได้อีกครั้งจากแท็บอีเมลของคดี</p>}
-      <header className={styles.identity} data-testid="case-identity">
-        <button type="button" onClick={() => router.push('/cases')} className={`${styles.backButton} gap-1.5`}>
+      <header className="border-b border-border bg-card" data-testid="case-identity"><div className="mx-auto max-w-6xl px-6 pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-2"><button type="button" onClick={() => router.push('/cases')} className={`${styles.backButton} gap-1.5`}>
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          กลับไปหน้าคดี
-        </button>
-        <div className={styles.identityGrid}>
-          <div className={styles.identityMain}>
-            <div className="flex flex-wrap items-center gap-2">
-            <p className={styles.identityContext}>
-              แฟ้มคดี ·{' '}
+          เรื่องและคดี
+        </button><button type="button" aria-label="หน้านี้ใช้ทำอะไร" className="flex min-h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { const guide = document.querySelector<HTMLElement>('[aria-label="วิธีใช้หน้านี้"]'); guide?.querySelector<HTMLButtonElement>('button')?.textContent?.includes('แสดงคำแนะนำ') && guide.querySelector<HTMLButtonElement>('button')?.click(); guide?.scrollIntoView({ block: 'start' }); }}><CircleHelp aria-hidden="true" className="h-5 w-5" /></button></div>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+            <p className="inline-flex items-center rounded bg-[#eeebe3] px-3 py-1 font-mono text-sm [&_button]:min-h-0 [&_button]:min-w-0">
               <CaseNumberInline
                 caseId={legalCase.id}
                 ownRef={legalCase.ownRef}
@@ -895,23 +945,44 @@ export default function CaseDetailPage() {
               />
             </p>
 
+            {journeyState && (() => { const overdueCount = journeyState.currentTasks.filter(task => task.status !== 'DONE' && !task.skippedReason && task.dueDate && (daysUntil(task.dueDate) ?? 0) < 0).length; const stageLabel = journeyState.steps.find(step => step.state === 'current')?.label; const [text, tone] = overdueCount ? [`มีงานเลยกำหนด ${overdueCount}`, 'bg-[#fbeaea] text-[#a83232]'] : journeyState.infoMissing.length ? ['ข้อมูลยังไม่ครบ', 'bg-[#fbeaea] text-[#a83232]'] : journeyState.next?.kind === 'ADVANCE' || journeyState.canAdvance ? ['งานครบแล้ว', 'bg-[#e6f3ec] text-[#227052]'] : ['กำลังดำเนินการ', 'bg-[#eeebe3] text-foreground']; return <span className={`rounded-full px-3 py-1 font-semibold ${tone}`}>{[stageLabel, text].filter(Boolean).join(' · ')}</span>; })()}
             </div>
-            <h1 className={styles.title}>{legalCase.title}</h1>
-            <div className={styles.identityMeta}>
-              {legalCase.blackCaseNumber && <span>คดีดำ <strong>{legalCase.blackCaseNumber}</strong></span>}
-              {legalCase.courtName && <span>ศาล <strong>{legalCase.courtName}</strong></span>}
+            <h1 className="mt-2 font-[family-name:var(--case-font-display)] text-[32px] font-semibold leading-snug">{legalCase.title}</h1>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {clientDisplay !== '—' && <span className={v2.chip}><User aria-hidden="true" size="1.1em" /> ลูกความ <b>{clientDisplay}</b></span>}
+              <span className={v2.chip}><Scale aria-hidden="true" size="1.1em" /> {legalCase.courtName || legalCase.blackCaseNumber ? <>{legalCase.courtName ?? 'ศาล'}{legalCase.blackCaseNumber && <> · <b>{legalCase.blackCaseNumber}</b></>}</> : <>ศาล <b>ยังไม่ระบุ</b></>}</span>
+              {legalCase.leadLawyer && <span className={v2.chip}><Briefcase aria-hidden="true" size="1.1em" /> เจ้าของคดี <b>{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</b>{legalCase.assignments.some(a => a.user.id !== legalCase.leadLawyer.id) && ` · ทีมอีก ${legalCase.assignments.filter(a => a.user.id !== legalCase.leadLawyer.id).length} คน`}</span>}
+              <span className={v2.chip}><CalendarDays aria-hidden="true" size="1.1em" /> นัดถัดไป <b>{upcomingEvents[0] ? `${upcomingEvents[0].title} ${new Date(upcomingEvents[0].startAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })} ${new Date(upcomingEvents[0].startAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}` : 'ยังไม่มี'}</b></span>
+              {legalCase.claimedAmount != null && <span className={v2.chip}><Wallet aria-hidden="true" size="1.1em" /> ทุนทรัพย์ <b>{Number(legalCase.claimedAmount).toLocaleString('th-TH')} บาท</b></span>}
             </div>
           </div>
-          <div className={styles.identityActions}>
+          <div><div className="flex flex-wrap gap-2">
+            <Link href={`/cases/${id}?tab=tasks&newTask=1`} className={`${v2.btn} ${v2.outline}`}><Plus aria-hidden="true" className="h-4 w-4" />เพิ่มงาน</Link>
+            <Link href={`/cases/${id}?tab=calendar&new=event`} className={`${v2.btn} ${v2.outline}`}><Plus aria-hidden="true" className="h-4 w-4" />เพิ่มนัด</Link>
+            <Link href={`/cases/${id}?tab=documents&new=upload`} className={`${v2.btn} ${v2.outline}`}><Upload aria-hidden="true" className="h-4 w-4" />แนบเอกสาร</Link>
 
-            <details data-overflow-menu className="relative">
-              <summary aria-label="การดำเนินการเพิ่มเติม" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-md border bg-card text-xl hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">⋯</summary>
-              <div className="absolute right-0 z-30 mt-1 w-[min(90vw,24rem)] max-h-[70vh] overflow-auto rounded-lg border bg-card p-3 shadow-lg">
-                <details><summary className="min-h-11 cursor-pointer py-3 text-sm">ป้ายแฟ้ม</summary><PaperFileCard key={id} caseId={id} /></details>
-                <Button variant="ghost" onClick={() => setRecordingOutcome(true)}><Gavel aria-hidden="true" className="h-4 w-4" />บันทึกผลหลังขึ้นศาล</Button><CasePrintForms key={legalCase.id} legalCase={legalCase} />
-                {legalCase.intake && preFiling && <Button variant="ghost" className="min-h-11" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>}
-            <details className="w-full"><summary className="min-h-11 cursor-pointer py-3 text-sm">เปลี่ยนขั้นตอนเอง…</summary>
-      <div className={styles.stagePanel} data-testid="case-stage-control">
+            <CaseMoreMenu items={[
+              { label: 'เปลี่ยนขั้นเอง', hint: 'ใช้เมื่อต้องข้ามหรือย้อนขั้น เช่น คดีเปลี่ยนแนวทาง', icon: GitBranch, onClick: () => setMenuPanel('stage') },
+              { label: 'จัดการทีมคดี', hint: 'เปลี่ยนเจ้าของคดี เพิ่มหรือลดคนในทีม', icon: Users, onClick: () => { selectTab('overview'); setManagingTeam(true); setTimeout(() => document.getElementById('case-team')?.scrollIntoView({ block: 'start' }), 100); } },
+              { label: 'พิมพ์ปกแฟ้ม', hint: 'ตรวจข้อมูลและจัดพิมพ์ปกสำนวน', icon: Printer, onClick: () => setMenuPanel('print') },
+              { label: 'ป้ายแฟ้ม', hint: 'จัดการฉลากสำนวนกระดาษ', icon: FolderOpen, onClick: () => setMenuPanel('paper') },
+              { label: 'บันทึกผลหลังขึ้นศาล', hint: 'บันทึกผลการพิจารณาของศาล', icon: Gavel, onClick: () => setRecordingOutcome(true) },
+              ...(legalCase.intake && preFiling ? [{ label: 'ออก Notice', hint: 'จัดทำหนังสือทวงถาม', icon: FileText, onClick: () => setNoticeOpen(true) }] : []),
+              ...(legalCase.cargoClaim ? [{ label: 'Cargo Claim', hint: 'ข้อมูลเคลมสินค้า', icon: Ship, href: `/cases/${id}?tab=cargo-claim` }] : []),
+              ...((legalCase.stage === 'CLOSING' || legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED') ? [{ label: 'รายงานปิดงาน', hint: 'ดูรายงานปิดงาน', icon: FileText, href: `/cases/${id}?tab=closing-report` }] : []),
+              { label: 'ถาม AI เรื่องคดีนี้', hint: 'เปิดหน้าถามคำถามเกี่ยวกับคดี', icon: Sparkles, href: `/cases/${id}?tab=ask-ai` },
+              ...(hasFirmCapability(user?.firmRole, 'deleteCase') ? [{ label: 'ลบคดี', hint: 'ลบคดีตามสิทธิ์ที่ได้รับ', icon: Trash2, onClick: () => void deleteCase() }] : []),
+              ...(legalCase.status !== CaseStatus.CLOSED && legalCase.status !== 'ARCHIVED' ? [{ label: 'ปิดคดี', hint: 'บันทึกผลคดีแล้วย้ายไปแท็บ “ปิดแล้ว” เปิดคืนได้', icon: Archive, separator: true, onClick: openCloseCase }] : [
+                { label: 'เปิดคดีอีกครั้ง', hint: 'กลับมาดำเนินคดีต่อ', icon: LockOpen, separator: true, disabled: reopeningCase, onClick: () => void handleReopenCase() },
+                ...(legalCase.status === CaseStatus.CLOSED ? [{ label: 'เก็บเข้าคลัง', hint: 'เก็บคดีที่ปิดแล้วเข้าคลัง', icon: Archive, onClick: () => void handleArchiveCase() }] : []),
+              ]),
+            ]} />
+          </div><p className={`${v2.hint} max-w-[44rem]`}>เพิ่มงาน = มอบงานให้ทีม · เพิ่มนัด = ระบบเตือนก่อนวันนัด · แนบเอกสาร = เก็บเข้าแฟ้มคดี · อื่น ๆ = เปลี่ยนขั้น ปิดคดี พิมพ์ปกแฟ้ม</p></div>
+        </div>
+        {journeyState && <><p className="mt-6 text-xs text-muted-foreground"><b className="text-foreground">ขั้นตอนของคดี</b> · สีเขียว = ผ่านแล้ว · สีน้ำเงินเข้ม = ขั้นปัจจุบัน</p><StepTracker steps={journeyState.steps.map(step => ({ ...step, state: step.state === 'locked' ? 'todo' : step.state }))} /></>}
+      </div></header>
+
+      {menuPanel && <section className="my-4 rounded-lg border bg-card p-4 shadow-sm"><div className="flex items-center justify-between gap-2"><h2 className="font-bold">{menuPanel === 'stage' ? 'เปลี่ยนขั้นเอง' : menuPanel === 'print' ? 'พิมพ์ปกแฟ้ม' : 'ป้ายแฟ้ม'}</h2><Button variant="outline" onClick={() => setMenuPanel(null)}>ปิด</Button></div>{menuPanel === 'stage' ? (      <div className={styles.stagePanel} data-testid="case-stage-control">
         <div className={styles.stageHeader}>
           <p>ขั้นตอนคดี</p>
           <p>{savingStage ? 'กำลังบันทึกขั้นตอน…' : 'เลือกเพื่อเปลี่ยนขั้นตอนคดี'}</p>
@@ -942,57 +1013,21 @@ export default function CaseDetailPage() {
           })}
         </div>
         {stageTaskError && <p role="alert" className="text-sm text-destructive">{stageTaskError}</p>}
-      </div></details>
-        <div className={styles.dangerZone}>
-          {legalCase.status !== CaseStatus.CLOSED && legalCase.status !== 'ARCHIVED' ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async (event) => {
-                setCloseError('');
-                setShowCloseForm(true);
-                // The form opens in the page, not in this menu: close the menu and bring the form into view.
-                event.currentTarget.closest('details[data-overflow-menu]')?.removeAttribute('open');
-                setTimeout(() => document.getElementById('case-close-form')?.scrollIntoView({ block: 'start' }), 50);
-                setAckOutstanding(false);
-                setRemoveFutureEvents(false);
-                await loadOutstanding();
-              }}
-            >
-              <Lock className="h-4 w-4" />ดำเนินการปิดคดี
-            </Button>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">ปิดเมื่อ {legalCase.closedAt ? formatDate(legalCase.closedAt) : '—'}</p>
-              <Button variant="outline" size="sm" onClick={handleReopenCase} disabled={reopeningCase}>
-                <LockOpen className="h-4 w-4" />{reopeningCase ? 'กำลังเปิด...' : 'เปิดคดีอีกครั้ง'}
-              </Button>
-              {legalCase.status === CaseStatus.CLOSED && (
-                <Button variant="ghost" size="sm" onClick={handleArchiveCase}>เก็บเข้าคลัง</Button>
-              )}
-            </>
-          )}
-        </div>
+      </div>) : menuPanel === 'print' ? <><p className="my-2 text-sm text-muted-foreground">ตรวจและแก้ข้อมูลก่อนพิมพ์</p><CasePrintForms key={legalCase.id} legalCase={legalCase} /></> : <PaperFileCard key={id} caseId={id} />}</section>}
 
-                {hasFirmCapability(user?.firmRole, 'deleteCase') && <Button variant="ghost" className="min-h-11 text-destructive" onClick={() => void deleteCase()}><Trash2 aria-hidden="true" className="h-4 w-4" />ลบคดี</Button>}
-              </div>
-            </details>
-          </div>
-        </div>
-      </header>
-
+      {stageTaskError && !menuPanel && <p role="alert" className="my-3 text-sm text-destructive">{stageTaskError}</p>}
       {token && <div className="mb-6 min-w-0 space-y-4">
-        <CaseJourneyPanel token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} stage={legalCase.stage ?? null} tasksVersion={tasks} onChanged={loadCase} onEdit={(missing) => { selectTab('overview'); void startEditOverview(); if (missing?.length) setFocusMissing(missing[0]); }} onOpenTask={(taskId) => router.push(`/cases/${id}?task=${encodeURIComponent(taskId)}`)} />
+        <CaseJourneyPanel compact={activeTab !== 'overview'} openTaskCount={pendingTasks.length} onCloseCase={openCloseCase} onReopenCase={() => void handleReopenCase()} reopening={reopeningCase} closed={legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED' ? { at: legalCase.closedAt ?? null, summary: legalCase.closingSummary ?? null } : null} idleDays={timeline[0] ? Math.max(0, Math.floor((Date.now() - Date.parse(timeline[0].date)) / 86400000)) : null} token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} stage={legalCase.stage ?? null} taskCount={tasks.length} tasksVersion={tasks} onChanged={loadCase} onJourney={setJourneyState} onAdvance={(target, explicit) => void confirmJourneyAdvance(target, explicit)} onEdit={(missing) => { selectTab('overview'); void startEditOverview(); if (missing?.length) setFocusMissing(missing[0]); }} onOpenTask={(taskId) => router.push(`/cases/${id}?task=${encodeURIComponent(taskId)}`)} />
 
 
       </div>}
 
-
-      {(legalCase.calendarEvents?.some(event => event.type === 'COURT_DATE' && new Date(event.startAt) >= new Date()) || legalCase.limitationDeadline) && <p className="mb-5 text-sm text-muted-foreground">ระบบจะแจ้งเตือน: {[(() => { const event = legalCase.calendarEvents?.filter(item => item.type === 'COURT_DATE' && new Date(item.startAt) >= new Date()).sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt))[0]; return event && `นัดศาล ${formatDate(event.startAt)}`; })(), legalCase.limitationDeadline && `อายุความครบ ${formatDate(legalCase.limitationDeadline)}`].filter(Boolean).join(' · ')}</p>}
-
+        {pendingStage && stageTaskError && <p role="alert" className="fixed left-4 top-4 z-[60] rounded-lg border border-destructive/30 bg-card p-3 text-sm text-destructive shadow-lg">{stageTaskError}</p>}
         <StageTasksDialog
           open={pendingStage !== null}
           stageLabel={pendingStage ? caseStageLabel(pendingStage, 'th') : ''}
+          fromLabel={legalCase.stage ? caseStageLabel(legalCase.stage, 'th') : undefined}
+          caseRef={legalCase.ownRef}
           proposals={stageTaskProposals}
           lawyers={lawyers}
           busy={savingStage}
@@ -1003,116 +1038,37 @@ export default function CaseDetailPage() {
         />
 
 
-      {showCloseForm && (
-        <Card id="case-close-form" className="mb-6 scroll-mt-24 border-warning/40 bg-warning/5">
-          <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">ปิดคดี</CardTitle>
-            <Button type="button" variant="ghost" size="icon" aria-label="ปิดแบบฟอร์มปิดคดี" onClick={() => setShowCloseForm(false)}>
-              <X aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCloseCase} className="space-y-3">
-              {outstandingFailed && (
-                <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
-                  <p>ตรวจรายการค้างไม่สำเร็จ — ปิดคดีต่อได้ ระบบจะตรวจอีกครั้งตอนยืนยัน</p>
-                  <Button type="button" size="sm" variant="outline" onClick={() => void loadOutstanding()}>ลองตรวจอีกครั้ง</Button>
-                </div>
-              )}
-              {/* ของค้าง: ปิดคดีทับของค้างเงียบ ๆ คือการซ่อน ไม่ใช่ทำให้เสร็จ */}
-              {outstanding && outstanding.total > 0 && (
-                <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
-                  <p className="font-medium text-warning">
-                    ยังมีของค้าง {outstanding.total} รายการ
-                  </p>
-                  <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                    {outstanding.openTasks.map((t) => (
-                      <li key={t.id}>• งานค้าง: {t.title}</li>
-                    ))}
-                    {outstanding.upcomingEvents.map((e) => (
-                      <li key={e.id}>• วันนัดข้างหน้า: {e.title} ({formatDate(e.startAt)})</li>
-                    ))}
-                    {outstanding.unapprovedDocuments.map((docItem) => (
-                      <li key={docItem.id}>• เอกสารยังไม่อนุมัติ: {docItem.filename}</li>
-                    ))}
-                    <li>• เวลายังไม่เรียกเก็บ: {outstanding.unbilledTime.hours} ชั่วโมง · {formatCurrency(outstanding.unbilledTime.amount)}</li>
-                    <li>• ค่าใช้จ่ายยังไม่เรียกเก็บ: {outstanding.unbilledExpenses.count} รายการ · {formatCurrency(outstanding.unbilledExpenses.amount)}</li>
-                    <li>• ใบแจ้งหนี้ค้างชำระ: {outstanding.unpaidInvoices.count} ใบ · {formatCurrency(outstanding.unpaidInvoices.outstandingAmount)}</li>
-                    <li>• ใบแจ้งหนี้ร่าง: {outstanding.draftInvoices.count} ใบ</li>
-                  </ul>
-                  <label className="mt-2 flex min-h-11 items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={ackOutstanding}
-                      onChange={(e) => setAckOutstanding(e.target.checked)}
-                    />
-                    ตรวจแล้ว และยืนยันจะปิดคดี
-                  </label>
-                </div>
-              )}
+      {showCloseForm && <dialog ref={(el) => { if (el && !el.open) el.showModal(); }} aria-labelledby="close-case-title" onCancel={(e) => { e.preventDefault(); if (!closingCase) setShowCloseForm(false); }} onClose={() => setShowCloseForm(false)} className="m-auto w-[min(36rem,calc(100vw-2rem))] max-w-none rounded-2xl bg-[#fffdfa] p-0 text-foreground shadow-2xl backdrop:bg-[#101d2a]/45">
+        <form onSubmit={handleCloseCase} className="flex max-h-[calc(100dvh-2rem)] flex-col">
+          <div className="flex items-start justify-between border-b border-[#e2e0d8] px-6 py-4"><div><p className={v2.label}>{legalCase.ownRef}</p><h2 id="close-case-title" tabIndex={-1} autoFocus className="text-xl font-bold outline-none">ปิดคดีนี้</h2></div><button type="button" aria-label="ปิดหน้าต่างปิดคดี" disabled={closingCase} onClick={() => setShowCloseForm(false)} className={`${v2.btn} ${v2.ghost}`}><X aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button></div>
+          <div className="min-h-0 space-y-5 overflow-y-auto overscroll-contain px-6 py-5">
+            <fieldset><legend className={v2.flabel}>ลูกความแจ้งว่าอะไร *</legend>
+              <div className="mt-2 grid gap-2">{CLOSE_REASONS.map((reason) => <label key={reason.value} className={`flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${closeReason === reason.value ? 'border-2 border-[#142e43] bg-[#e9eef3]' : 'border border-[#7d847e] bg-white'}`}><input type="radio" name="close-reason" value={reason.value} checked={closeReason === reason.value} onChange={() => { setCloseReason(reason.value); setClosingOutcome(reason.value === 'NOT_RETAINED' ? 'WITHDRAWN' : ''); }} className="h-5 w-5" /><span><b>{reason.label}</b><span className={`${v2.hint} block`}>{reason.hint}</span></span></label>)}</div></fieldset>
+            {closeReason && closeReason !== 'NOT_RETAINED' && <label className="block"><span className={v2.flabel}>ผลของคดี *</span><select value={closingOutcome} onChange={(e) => setClosingOutcome(e.target.value)} required className={`${v2.field} text-base sm:text-[15px]`}><option value="" disabled>เลือกผลคดี</option><option value="WON">ชนะคดี</option><option value="SETTLED">ตกลงกันได้</option><option value="MEDIATED">ไกล่เกลี่ยสำเร็จ</option><option value="LOST">แพ้คดี</option><option value="WITHDRAWN">ถอนฟ้อง / ยุติ</option></select><p className={v2.hint}>ใช้ในรายงานผลคดีของสำนักงาน</p></label>}
+            <label className="block" htmlFor="closing-summary"><span className={v2.flabel}>หมายเหตุ</span><textarea id="closing-summary" value={closingSummary} onChange={(e) => setClosingSummary(e.target.value)} placeholder="เช่น ลูกความโทรมาแจ้ง 11 พ.ย." className={`${v2.field} min-h-[72px] text-base sm:text-[15px]`} /></label>
+            {outstandingFailed && <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#fbf3e0] p-3 text-sm"><p>ตรวจของค้างไม่สำเร็จ — ปิดคดีต่อได้ ระบบจะตรวจอีกครั้งตอนยืนยัน</p><button type="button" onClick={() => void loadOutstanding()} className={`${v2.btn} ${v2.outline} min-h-0 py-1.5`}>ตรวจอีกครั้ง</button></div>}
+            {outstanding && <div className="border-l-4 border-[#b8913a] bg-[#fbf3e0] py-2 pl-3 pr-2 text-sm"><p className="flex items-center gap-1 font-semibold text-[#6b4f0b]"><AlertTriangle aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ตรวจก่อนปิด</p>
+              <ul className="mt-1 space-y-0.5">
+                <li>งานค้าง <b>{outstanding.openTasks.length}</b>{outstanding.openTasks.length > 0 && ` — ${outstanding.openTasks.slice(0, 3).map((t) => t.title).join(', ')}`}</li>
+                <li>ค่าใช้จ่ายยังไม่เรียกเก็บ <b>{formatCurrency(outstanding.unbilledExpenses.amount)}</b></li>
+                {outstanding.unbilledTime.hours > 0 && <li>เวลาทำงานยังไม่เรียกเก็บ <b>{outstanding.unbilledTime.hours} ชม. · {formatCurrency(outstanding.unbilledTime.amount)}</b></li>}
+                <li>ใบแจ้งหนี้ค้างชำระ <b className={outstanding.unpaidInvoices.outstandingAmount > 0 ? 'text-[#a83232]' : ''}>{formatCurrency(outstanding.unpaidInvoices.outstandingAmount)}</b>{outstanding.unpaidInvoices.count > 0 && <> — <Link className="underline" href={`/cases/${id}?tab=billing`}>ดูใบแจ้งหนี้</Link></>}</li>
+                {outstanding.draftInvoices.count > 0 && <li>ใบแจ้งหนี้ร่าง <b>{outstanding.draftInvoices.count} ใบ</b></li>}
+                {outstanding.unapprovedDocuments.length > 0 && <li>เอกสารยังไม่อนุมัติ <b>{outstanding.unapprovedDocuments.length}</b></li>}
+                {outstanding.upcomingEvents.length > 0 && <li>นัดข้างหน้า <b>{outstanding.upcomingEvents.length}</b> — {outstanding.upcomingEvents.slice(0, 2).map((e) => `${e.title} ${formatDate(e.startAt)}`).join(', ')}</li>}
+              </ul>
+              {outstanding.upcomingEvents.length > 0 && <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" checked={removeFutureEvents} onChange={(e) => setRemoveFutureEvents(e.target.checked)} disabled={closingCase} className="h-5 w-5" />ลบนัดข้างหน้า {outstanding.upcomingEvents.length} รายการ <span className={v2.label}>(เปิดคดีคืนจะไม่กู้นัดที่ลบ)</span></label>}
+              {outstanding.total > 0 && <label className="mt-1 flex min-h-11 items-center gap-2 font-semibold"><input type="checkbox" checked={ackOutstanding} onChange={(e) => setAckOutstanding(e.target.checked)} className="h-5 w-5" />ตรวจแล้ว ปิดคดีได้</label>}
+            </div>}
+            <p className={v2.hint}>ปิดแล้วเปิดคืนได้ทุกเมื่อ ข้อมูล งาน เอกสาร และอีเมลยังอยู่ครบ</p>
+            {closeError && <p role="alert" className={v2.error}>{closeError}</p>}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-[#e2e0d8] px-6 py-4"><button type="button" disabled={closingCase} onClick={() => setShowCloseForm(false)} className={`${v2.btn} ${v2.ghost}`}>ยกเลิก</button><button type="submit" disabled={closingCase || (!outstanding && !outstandingFailed)} className={`${v2.btn} ${v2.primary} disabled:opacity-60`}><Archive aria-hidden="true" className="h-[1.1em] w-[1.1em]" />{closingCase ? 'กำลังปิดคดี…' : 'ปิดคดี'}</button></div>
+        </form>
+      </dialog>}
 
-              {outstanding && outstanding.upcomingEvents.length > 0 && (
-                <div className="text-sm">
-                  <label className="flex min-h-11 items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={removeFutureEvents}
-                      onChange={(e) => setRemoveFutureEvents(e.target.checked)}
-                      disabled={closingCase}
-                      aria-describedby="remove-future-events-note"
-                    />
-                    ลบนัดในอนาคต {outstanding.upcomingEvents.length} รายการ
-                  </label>
-                  <p id="remove-future-events-note" className="text-xs text-muted-foreground">เปิดคดีใหม่จะไม่กู้นัดที่ลบ</p>
-                </div>
-              )}
-
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium">ผลของคดี <span className="text-destructive">*</span></span>
-                <select
-                  value={closingOutcome}
-                  onChange={(e) => setClosingOutcome(e.target.value)}
-                  required
-                  className="min-h-11 w-full rounded-lg border border-input bg-card px-3 text-sm"
-                >
-                  <option value="" disabled>เลือกผลคดี</option>
-                  <option value="WON">ชนะคดี</option>
-                  <option value="SETTLED">ตกลงกันได้</option>
-                  <option value="MEDIATED">ไกล่เกลี่ยสำเร็จ</option>
-                  <option value="LOST">แพ้คดี</option>
-                  <option value="WITHDRAWN">ถอนฟ้อง / ยุติ</option>
-                </select>
-              </label>
-              <label htmlFor="closing-summary" className="block text-sm font-medium">สรุปผลคดี <span className="text-destructive">*</span></label>
-              <textarea
-                id="closing-summary"
-                required
-                rows={5}
-                value={closingSummary}
-                onChange={(e) => setClosingSummary(e.target.value)}
-                placeholder="เช่น ศาลพิพากษาให้จำเลยชำระหนี้ 500,000 บาท พร้อมดอกเบี้ย ลูกค้าได้รับชำระครบแล้ว..."
-                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
-              />
-              {closeError && <p role="alert" className="text-sm text-destructive">{closeError}</p>}
-              <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  disabled={(!outstanding && !outstandingFailed) || !closingOutcome || closingCase || (!!outstanding && outstanding.total > 0 && !ackOutstanding)}
-                >
-                  {closingCase ? 'กำลังปิดคดี...' : 'ยืนยันปิดคดี'}
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setShowCloseForm(false)}>
-                  ยกเลิก
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      <div aria-label="พื้นที่ทำงานคดี" className="mb-4 space-y-2">
-        <div>
-          <button type="button" id="case-tab-overview" aria-expanded={activeTab === 'overview'} aria-controls="case-tabpanel-overview" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'overview' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('overview')}><span>{'ข้อมูลคดี'}</span><span aria-hidden>{activeTab === 'overview' ? '−' : '›'}</span></button>
+      <div aria-label="พื้นที่ทำงานคดี" className="mb-4 space-y-4">
+        <CaseTabBar caseId={id} active={activeTab} tasks={tasks.length} overdue={pendingTasks.filter(task => task.dueDate && (daysUntil(task.dueDate) ?? 0) < 0).length} documents={legalCase._count.documents} events={upcomingEvents.length} parties={(legalCase.participants ?? []).length} comments={commentCount} cargo={!!legalCase.cargoClaim} closing={legalCase.stage === 'CLOSING' || legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED'} />
       {activeTab === 'overview' && (
       <div
         role="tabpanel"
@@ -1120,88 +1076,11 @@ export default function CaseDetailPage() {
         aria-labelledby="case-tab-overview"
         className="min-w-0"
       >
-      {legalCase.status === CaseStatus.CLOSED && legalCase.closingSummary && (
-        <Card className="mb-6">
-          <CardHeader><CardTitle className="text-sm">สรุปคดี</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-sm whitespace-pre-wrap text-muted-foreground">{legalCase.closingSummary}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      <AiTrayCards caseId={id} onChanged={loadCase} />
-      <CaseStatusBadge status={legalCase.status} />
-        {bannerProposals.length > 0 && pendingStage === null && legalCase.stage && <div className="min-w-0 text-sm text-muted-foreground xl:col-start-1">มีงานแนะนำจาก SOP {bannerProposals.length} งาน · <button type="button" className="min-h-11 text-primary underline" onClick={openBannerProposals}>ดูและสร้างงาน</button></div>}
-      <div className="mb-5">
-        {suggestedPlaybook && !hasAppliedPlaybook && (
-          <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-            <p className="text-sm">
-              แนะนำ SOP <span className="font-medium">{suggestedPlaybook.name}</span> · {suggestedPlaybook.steps.length} ขั้นตอน
-            </p>
-            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => previewPlaybook(suggestedPlaybook.id)}>
-              ดูรายการงานจาก SOP
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <details className="mb-4"><summary className="min-h-11 cursor-pointer">สัญญาณสำคัญของคดี</summary>
-      <section className={styles.signalStrip} aria-label="สัญญาณสำคัญของคดี" data-testid="case-priority-signals">
-        <button type="button" onClick={() => selectTab('calendar')} className={styles.signalButton}>
-          <span className={styles.signalLabel}>นัดหมายถัดไป</span>
-          <strong className={styles.signalValue}>{priority.nextEvent?.title ?? 'ยังไม่มีนัดถัดไป'}</strong>
-          <span className={styles.signalMeta}>{priority.nextEvent ? formatDateTime(priority.nextEvent.startAt) : 'เปิดไทม์ไลน์เพื่อเพิ่มนัด'}</span>
-        </button>
-        <div className={styles.signal}>
-          <span className={styles.signalLabel}>อายุความ</span>
-          <strong className={`${styles.signalValue} ${priority.limitationDays != null && priority.limitationDays <= 30 ? "text-destructive" : ""}`}>{priority.limitationDays == null ? 'ยังไม่ระบุ' : `อีก ${priority.limitationDays} วัน`}</strong>
-          <span className={styles.signalMeta}>{legalCase.limitationDeadline ? `ครบ ${formatDate(legalCase.limitationDeadline)}` : 'ยังไม่มีวันที่ให้ประเมิน'}</span>
-        </div>
-        <button type="button" onClick={() => selectTab('tasks')} className={styles.signalButton}>
-          <span className={styles.signalLabel}>งานค้าง</span>
-          <strong className={styles.signalValue}>{priority.pendingTaskCount} รายการ</strong>
-          <span className={styles.signalMeta}>{priority.nextPendingTask?.dueDate ? `ใกล้สุด ${formatDate(priority.nextPendingTask.dueDate)}` : priority.nextPendingTask ? 'งานถัดไปยังไม่กำหนดวันส่ง' : 'ไม่มีงานค้าง'}</span>
-        </button>
-        <button type="button" onClick={() => selectTab('documents')} className={styles.signalButton}>
-          <span className={styles.signalLabel}>เอกสารที่ต้องมี</span>
-          <strong className={styles.signalValue}>{priority.presentRequiredDocumentCount}/{priority.requiredDocumentCount}</strong>
-          <span className={styles.signalMeta}>{priority.missingRequiredDocumentCount > 0 ? `ขาด ${priority.missingRequiredDocumentCount} รายการ` : priority.requiredDocumentCount > 0 ? 'ครบตามรายการ' : 'ยังไม่มีรายการบังคับ'}</span>
-        </button>
-      </section>
-
-      </details>
-      <CaseBriefCard caseId={id} />
-              {token && <aside className="min-w-0 space-y-4 xl:col-start-2 xl:row-start-2 xl:row-span-2">
-          <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="font-semibold">ทีมคดี ({1 + legalCase.assignments.length})</h2>
-            <div className="border-t pt-3"><p className="text-xs text-muted-foreground">เจ้าของคดี</p><p className="break-words font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName} {legalCase.intake?.receivedById === legalCase.leadLawyer.id && <span className="text-xs text-muted-foreground">· ผู้รับเรื่อง</span>}</p></div>
-            {legalCase.assignments.map(({ user: member }) => <div key={member.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><span className="min-w-0 break-words">{member.firstName} {member.lastName} {legalCase.intake?.receivedById === member.id && <span className="text-xs text-muted-foreground">· ผู้รับเรื่อง</span>}</span>{member.id === user?.id && member.id !== legalCase.leadLawyer.id && <Button variant="outline" size="sm" disabled={ownerBusy} onClick={() => { if (!confirm('ออกจากทีมคดีนี้?')) return; setOwnerBusy(true); setOwnerError(''); void api.leaveCaseTeam(token, id).then(() => loadCase()).catch((e) => setOwnerError(e instanceof Error ? e.message : 'ออกจากทีมไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>ออกจากทีม</Button>}</div>)}
-            {handedOver && <p className="text-sm text-success">ส่งต่อแล้ว — คุณยังอยู่ในทีมคดี</p>}
-            {ownerError && <p role="alert" className="text-sm text-destructive">{ownerError}</p>}
-            {canChangeOwner(hasFirmCapability(user?.firmRole, 'reassignCaseLead'), user?.id, legalCase.leadLawyer.id, legalCase.intake?.receivedById) && (editingOwner ? <div className="space-y-2"><label htmlFor="case-owner" className="text-sm">เจ้าของคดีคนใหม่</label><OwnerPicker id="case-owner" token={token} value={ownerId} onChange={setOwnerId} currentUserId={user?.id} /><div className="flex flex-wrap gap-2"><Button disabled={ownerBusy || !ownerId || ownerId === legalCase.leadLawyer.id} onClick={() => { setOwnerBusy(true); setOwnerError(''); const receiver = user?.id === legalCase.intake?.receivedById && user?.id === legalCase.leadLawyer.id; void api.updateCase(token, id, { leadLawyerId: ownerId }).then(() => { setEditingOwner(false); if (receiver) setHandedOver(true); return loadCase(); }).catch((e) => setOwnerError(e instanceof Error ? e.message : 'เปลี่ยนเจ้าของคดีไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>{ownerBusy ? 'กำลังบันทึก…' : 'บันทึก'}</Button><Button variant="outline" onClick={() => setEditingOwner(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={() => { setOwnerId(legalCase.leadLawyer.id); setEditingOwner(true); }}>เปลี่ยนเจ้าของคดี</Button>)}
-            {(hasFirmCapability(user?.firmRole, 'reassignCaseLead') || user?.id === legalCase.leadLawyer.id) && (editingTeam ? <div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">คนในทีม <span className="font-normal text-muted-foreground">· เลือกได้หลายคน</span></p>{loadingTeam && <p className="text-sm text-muted-foreground">กำลังโหลดรายชื่อ…</p>}<div className="max-h-80 space-y-0.5 overflow-y-auto">{teamPeople.filter((p) => p.userId !== legalCase.leadLawyer.id).map((p) => <label key={p.userId} className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-1 py-2 text-sm hover:bg-muted/50"><input type="checkbox" className="mt-1" checked={teamForm.buddyIds.includes(p.userId)} onChange={() => setTeamForm((f) => ({ ...f, buddyIds: f.buddyIds.includes(p.userId) ? f.buddyIds.filter((x) => x !== p.userId) : [...f.buddyIds, p.userId] }))} /><span className="min-w-0"><span className="block break-words font-medium">{p.firstName} {p.lastName}{p.userId === user?.id ? ' (ฉัน)' : ''}</span><span className="block text-xs text-muted-foreground">เปิดอยู่ {p.openCaseCount} · <span className={p.overdueTaskCount ? 'text-destructive' : ''}>เลยกำหนด {p.overdueTaskCount}</span>{p.leave ? ` · ลา ${p.leave.startDate.slice(8)}/${p.leave.startDate.slice(5, 7)}–${p.leave.endDate.slice(8)}/${p.leave.endDate.slice(5, 7)}` : ''}</span></span></label>)}</div>{teamError && <p role="alert" className="text-sm text-destructive">{teamError}</p>}<div className="flex flex-wrap gap-2"><Button disabled={savingTeam || loadingTeam || teamPeople.length === 0} onClick={handleSaveTeam}>{savingTeam ? 'กำลังบันทึก…' : `บันทึกทีม (${teamForm.buddyIds.filter((x) => x !== legalCase.leadLawyer.id).length} คน)`}</Button><Button variant="outline" onClick={() => setEditingTeam(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={startEditTeam}>{legalCase.assignments.length ? 'แก้ไขทีม' : '+ เพิ่มคนในทีม'}</Button>)}
-          </section>
-          {legalCase.originThread && <section className="space-y-2 rounded-lg border bg-card p-4"><h2 className="font-semibold">ที่มาของเรื่อง</h2><p className="text-sm">รับจากอีเมล {formatDate(legalCase.originThread.receivedAt)}{legalCase.intake?.receivedBy && ` โดย ${legalCase.intake.receivedBy.firstName} ${legalCase.intake.receivedBy.lastName}`}</p><Link className="inline-block min-h-11 text-sm text-primary underline" href={`/email-intake/${legalCase.originThread.id}`}>เปิดอีเมลต้นทาง →</Link><p className="text-sm text-muted-foreground">ไฟล์แนบ {legalCase.originThread.attachmentCount} ไฟล์ อยู่ในแท็บเอกสาร</p></section>}
-        </aside>}
-      <div className={styles.workspace}>
-        <section className={styles.mainPane} aria-label="ข้อมูลและประวัติคดี">
-          <CaseSummaryPanel caseId={id} onChanged={loadCase} />
-          <Card data-testid="case-information">
-            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-              <CardTitle className="text-base">{editingOverview ? 'แก้ไขข้อมูลคดี' : 'ข้อมูลคดี'}</CardTitle>
-              {!editingOverview && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="min-h-11 px-3 text-sm"
-                  onClick={startEditOverview}
-                >
-                  <Pencil aria-hidden="true" className="h-4 w-4" />
-                  แก้ไขข้อมูลคดี
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-x-8 gap-y-6 text-sm sm:grid-cols-2">
-              {editingOverview ? (
+      <div className="grid min-w-0 gap-5 lg:grid-cols-3">
+        <div className="min-w-0 space-y-5 lg:col-span-2">
+          <section data-testid="case-information" className={`${v2.card} p-5`}>
+            <div className="flex items-center justify-between"><h3 className="text-lg font-bold">{editingOverview ? 'แก้ไขข้อมูลคดี' : 'ข้อมูลคดี'}</h3>{!editingOverview && <button type="button" className={`${v2.btn} ${v2.ghost}`} onClick={startEditOverview}><Pencil aria-hidden="true" className="h-[1.1em] w-[1.1em]" />แก้ไข</button>}</div>
+            {editingOverview ? <div className="mt-3 grid grid-cols-1 gap-x-8 gap-y-6 text-sm sm:grid-cols-2">
                 <CaseOverviewForm
                   value={overviewForm}
                   onChange={setOverviewForm}
@@ -1216,8 +1095,106 @@ export default function CaseDetailPage() {
                   onCancel={() => setEditingOverview(false)}
                   onLimitationIncompleteChange={setLimitationIncomplete}
                 />
-              ) : (
-                <>
+            </div> : (() => {
+              const opponents = (legalCase.participants ?? []).filter((p) => p.side !== 'OURS');
+              const openedItem = timeline.find((item) => item.isOpened);
+              const limitationDays = legalCase.limitationDeadline ? daysUntil(legalCase.limitationDeadline) : null;
+              const facts: [string, ReactNode | null][] = [
+                ['ฝ่ายเรา', legalCase.partyRole ? PARTY_ROLE_LABELS[legalCase.partyRole as PartyRole] : null],
+                ['คู่กรณี', opponents.length ? `${opponents[0].name}${opponents.length > 1 ? ` และอีก ${opponents.length - 1}` : ''}` : null],
+                ['ศาล / เลขคดี', [legalCase.courtName, legalCase.blackCaseNumber].filter(Boolean).join(' · ') || null],
+                ['ทุนทรัพย์', legalCase.claimedAmount ? `${Number(legalCase.claimedAmount).toLocaleString('th-TH')} บาท` : null],
+                ['ข้อหา', chargeSection || null],
+                ['วันครบอายุความ', legalCase.limitationDeadline ? <>{thaiShortDate(legalCase.limitationDeadline)}{limitationDays != null && <span className={v2.label}> · {limitationDays < 0 ? `เลยมา ${-limitationDays} วัน` : `อีก ${limitationDays} วัน`}</span>}</> : null],
+                ['ทนายฝ่ายตรงข้าม', opponents.find((p) => p.opposingLawyer)?.opposingLawyer ?? null],
+                ['เปิดคดี', openedItem ? thaiShortDate(openedItem.date) : null],
+              ];
+              const missing = facts.filter(([, value]) => !value).map(([label]) => label);
+              return <>
+                <dl className="mt-3 grid gap-x-8 gap-y-4 text-[15px] sm:grid-cols-2">{facts.filter(([, value]) => value).map(([label, value]) => <div key={label}><dt className={v2.label}>{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
+                {missing.length > 0 && <p className={`${v2.hint} mt-4`}>ยังไม่ได้กรอก: {missing.join(' · ')} · <button type="button" className="font-semibold text-foreground underline" onClick={startEditOverview}>กรอกเลย</button></p>}
+              </>;
+            })()}
+          </section>
+          <section className={`${v2.card} p-5`}>
+            <div className="flex items-center justify-between"><h3 className="text-lg font-bold">ความเคลื่อนไหวล่าสุด</h3><button type="button" className={`${v2.btn} ${v2.ghost}`} onClick={openActivityForm}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />เพิ่มกิจกรรม</button></div>
+              {showActivityForm && (
+                <form onSubmit={handleAddActivity} className="mb-4 rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium">เพิ่มกิจกรรม</p>
+                    <p className="text-xs text-muted-foreground">บันทึกลงความเคลื่อนไหวและปฏิทิน</p>
+                    <button type="button" aria-label="ยกเลิกเพิ่มกิจกรรม" onClick={() => setShowActivityForm(false)}>
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                  <Input
+                    required
+                    placeholder="หัวข้อ เช่น นัดสืบพยาน"
+                    value={activityForm.title}
+                    onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
+                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">ประเภท</label>
+                      <select
+                        value={activityForm.type}
+                        onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
+                        className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                      >
+                        {Object.entries(ACTIVITY_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs text-muted-foreground">วันที่และเวลา</label>
+                      <ThaiDateTimeInput
+                        required
+                        value={activityForm.activityAt}
+                        onChange={(v) => setActivityForm({ ...activityForm, activityAt: v })}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <textarea
+                    placeholder="รายละเอียด (ไม่บังคับ)"
+                    value={activityForm.description}
+                    onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
+                    rows={2}
+                    className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
+                  />
+                  <Button type="submit" size="sm" disabled={submitting}>
+                    {submitting ? 'กำลังบันทึก...' : 'บันทึกกิจกรรม'}
+                  </Button>
+                </form>
+              )}
+            {timeline.length ? <ol className="mt-3 space-y-3 border-l-2 border-[#e2e0d8] pl-4 text-sm">{(showAllTimeline ? timeline : timeline.slice(0, 4)).map((item) => <li key={item.id}><b>{item.from ?? (item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}`.trim() : 'ระบบ')}</b> {item.label} <span className={v2.label}>· {thaiShortDate(item.date)}</span></li>)}</ol> : <p className={v2.hint}>ยังไม่มีความเคลื่อนไหว</p>}
+            {timeline.length > 4 && <button type="button" className="mt-3 inline-block min-h-11 text-sm underline" onClick={() => setShowAllTimeline((v) => !v)}>{showAllTimeline ? 'แสดงเฉพาะรายการล่าสุด' : `ดูทั้งหมด (${timeline.length})`}</button>}
+          </section>
+        </div>
+        <div className="space-y-5">
+          <section className={`${v2.card} p-5`}><h3 className="text-lg font-bold">นัดถัดไป</h3>
+            {upcomingEvents.length ? upcomingEvents.slice(0, 2).map((event, index) => { const days = daysUntil(event.startAt); return <div key={event.id} className="mt-3 border-t border-[#e2e0d8] px-1 pt-3"><b>{event.title}</b><div className="text-sm">{thaiShortDate(event.startAt)} · {new Date(event.startAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}</div>{index === 0 && days != null && <div className={v2.label}>{days === 0 ? 'วันนี้' : `อีก ${days} วัน`}</div>}</div>; }) : <p className={v2.hint}>ยังไม่มีนัด · <Link href={`/cases/${id}?tab=calendar&new=event`} className="font-semibold text-foreground underline">เพิ่มนัด</Link></p>}
+          </section>
+          <section className={`${v2.card} p-5`}><h3 className="text-lg font-bold">การเงินของคดี</h3><dl className="mt-2 space-y-1 text-sm"><div className="flex justify-between"><dt>ค่าใช้จ่ายที่อนุมัติ</dt><dd className="font-semibold">{formatCurrency(totalSpent)}</dd></div>{legalCase.estimatedFee != null && <div className="flex justify-between"><dt>รายได้โดยประมาณ</dt><dd className="font-semibold">{formatCurrency(legalCase.estimatedFee)}</dd></div>}</dl></section>
+          <section id="case-team" className={`${v2.card} scroll-mt-24 p-5`}><div className="flex items-center justify-between gap-2"><h3 className="text-lg font-bold">ทีมคดี ({new Set([legalCase.leadLawyer.id, ...legalCase.assignments.map(a => a.user.id)]).size})</h3>{!managingTeam && <button type="button" onClick={() => setManagingTeam(true)} className={`${v2.btn} ${v2.ghost}`}><Pencil aria-hidden="true" className="h-[1.1em] w-[1.1em]" />จัดการ</button>}</div>
+            <ul className="mt-2 space-y-2 text-sm"><li><b>{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</b> <span className={v2.label}>· เจ้าของคดี</span></li>{legalCase.assignments.filter(({ user: member }) => member.id !== legalCase.leadLawyer.id).map(({ user: member }) => <li key={member.id}>{member.firstName} {member.lastName}</li>)}</ul>
+            {managingTeam && token && <div className="mt-4 space-y-3 border-t border-[#e2e0d8] pt-3">
+            {legalCase.assignments.map(({ user: member }) => <div key={member.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><span className="min-w-0 break-words">{member.firstName} {member.lastName} {legalCase.intake?.receivedById === member.id && <span className="text-xs text-muted-foreground">· ผู้รับเรื่อง</span>}</span>{member.id === user?.id && member.id !== legalCase.leadLawyer.id && <Button variant="outline" size="sm" disabled={ownerBusy} onClick={() => { if (!confirm('ออกจากทีมคดีนี้?')) return; setOwnerBusy(true); setOwnerError(''); void api.leaveCaseTeam(token, id).then(() => loadCase()).catch((e) => setOwnerError(e instanceof Error ? e.message : 'ออกจากทีมไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>ออกจากทีม</Button>}</div>)}
+            {handedOver && <p className="text-sm text-success">ส่งต่อแล้ว — คุณยังอยู่ในทีมคดี</p>}
+            {ownerError && <p role="alert" className="text-sm text-destructive">{ownerError}</p>}
+            {canChangeOwner(hasFirmCapability(user?.firmRole, 'reassignCaseLead'), user?.id, legalCase.leadLawyer.id, legalCase.intake?.receivedById) && (editingOwner ? <div className="space-y-2"><label htmlFor="case-owner" className="text-sm">เจ้าของคดีคนใหม่</label><OwnerPicker id="case-owner" token={token} value={ownerId} onChange={setOwnerId} currentUserId={user?.id} /><div className="flex flex-wrap gap-2"><Button disabled={ownerBusy || !ownerId || ownerId === legalCase.leadLawyer.id} onClick={() => { setOwnerBusy(true); setOwnerError(''); const receiver = user?.id === legalCase.intake?.receivedById && user?.id === legalCase.leadLawyer.id; void api.updateCase(token, id, { leadLawyerId: ownerId }).then(() => { setEditingOwner(false); if (receiver) setHandedOver(true); return loadCase(); }).catch((e) => setOwnerError(e instanceof Error ? e.message : 'เปลี่ยนเจ้าของคดีไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>{ownerBusy ? 'กำลังบันทึก…' : 'บันทึก'}</Button><Button variant="outline" onClick={() => setEditingOwner(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={() => { setOwnerId(legalCase.leadLawyer.id); setEditingOwner(true); }}>เปลี่ยนเจ้าของคดี</Button>)}
+            {(hasFirmCapability(user?.firmRole, 'reassignCaseLead') || user?.id === legalCase.leadLawyer.id) && (editingTeam ? <div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">คนในทีม <span className="font-normal text-muted-foreground">· เลือกได้หลายคน</span></p>{loadingTeam && <p className="text-sm text-muted-foreground">กำลังโหลดรายชื่อ…</p>}<div className="max-h-80 space-y-0.5 overflow-y-auto">{teamPeople.filter((p) => p.userId !== legalCase.leadLawyer.id).map((p) => <label key={p.userId} className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-1 py-2 text-sm hover:bg-muted/50"><input type="checkbox" className="mt-1" checked={teamForm.buddyIds.includes(p.userId)} onChange={() => setTeamForm((f) => ({ ...f, buddyIds: f.buddyIds.includes(p.userId) ? f.buddyIds.filter((x) => x !== p.userId) : [...f.buddyIds, p.userId] }))} /><span className="min-w-0"><span className="block break-words font-medium">{p.firstName} {p.lastName}{p.userId === user?.id ? ' (ฉัน)' : ''}</span><span className="block text-xs text-muted-foreground">เปิดอยู่ {p.openCaseCount} · <span className={p.overdueTaskCount ? 'text-destructive' : ''}>เลยกำหนด {p.overdueTaskCount}</span>{p.leave ? ` · ลา ${p.leave.startDate.slice(8)}/${p.leave.startDate.slice(5, 7)}–${p.leave.endDate.slice(8)}/${p.leave.endDate.slice(5, 7)}` : ''}</span></span></label>)}</div>{teamError && <p role="alert" className="text-sm text-destructive">{teamError}</p>}<div className="flex flex-wrap gap-2"><Button disabled={savingTeam || loadingTeam || teamPeople.length === 0} onClick={handleSaveTeam}>{savingTeam ? 'กำลังบันทึก…' : `บันทึกทีม (${teamForm.buddyIds.filter((x) => x !== legalCase.leadLawyer.id).length} คน)`}</Button><Button variant="outline" onClick={() => setEditingTeam(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={startEditTeam}>{legalCase.assignments.length ? 'แก้ไขทีม' : <><Plus aria-hidden="true" className="h-4 w-4" />เพิ่มคนในทีม</>}</Button>)}
+              <button type="button" className={`${v2.btn} ${v2.ghost}`} onClick={() => { setManagingTeam(false); setEditingTeam(false); setEditingOwner(false); }}>เสร็จ</button>
+            </div>}
+          </section>
+          {legalCase.originThread && <section className={`${v2.card} space-y-2 p-5`}><h3 className="text-lg font-bold">ที่มาของเรื่อง</h3><p className="text-sm">รับจากอีเมล {formatDate(legalCase.originThread.receivedAt)}{legalCase.intake?.receivedBy && ` โดย ${legalCase.intake.receivedBy.firstName} ${legalCase.intake.receivedBy.lastName}`}</p><Link className="inline-block min-h-11 text-sm text-primary underline" href={`/email-intake/${legalCase.originThread.id}`}>เปิดอีเมลต้นทาง <ArrowRight aria-hidden="true" className="inline h-4 w-4" /></Link><p className="text-sm text-muted-foreground">ไฟล์แนบ {legalCase.originThread.attachmentCount} ไฟล์ อยู่ในแท็บเอกสาร</p></section>}
+        </div>
+      </div>
+      <details className={`${v2.card} mt-5`}>
+        <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">ข้อมูลและเครื่องมือเพิ่มเติม <span className={v2.label}>· ข้อมูลอื่นของคดี สรุปคดี เครื่องคำนวณ หนังสือทวงถาม</span></summary>
+        <div className="space-y-5 border-t border-[#e2e0d8] p-5">
+          <dl className="grid grid-cols-1 gap-x-8 gap-y-4 text-sm sm:grid-cols-2">
                   <div>
                     <p className="text-xs text-muted-foreground">หมายเลขคดีดำ</p>
                     <p className="font-medium">{legalCase.blackCaseNumber ?? '—'}</p>
@@ -1252,13 +1229,6 @@ export default function CaseDetailPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">ศาล</p>
                     <p className="font-medium">{legalCase.courtName ?? '—'}</p>
-                  </div>
-                  <div className="col-span-full border-t border-border pt-6">
-                    <CaseParticipantsSection
-                      caseId={legalCase.id}
-                      initialParticipants={legalCase.participants}
-                      onChanged={(participants) => setCase(current => current ? { ...current, participants } : current)}
-                    />
                   </div>
                   <div className="col-span-full rounded-lg border border-border bg-muted/30 p-4">
                     <p className="text-xs text-muted-foreground">ข้อหาหรือฐานความผิด</p>
@@ -1322,17 +1292,63 @@ export default function CaseDetailPage() {
                   <p className="font-medium">{k === 'incidentDate' ? formatDate(v) : k === 'estimatedDamage' ? formatCurrency(Number(v)) : v}</p>
                 </div>
               ))}
-                </>
-              )}
-              {editingOverview && <div className="col-span-full border-t border-border pt-4">
-                <CaseParticipantsSection
-                  caseId={legalCase.id}
-                  initialParticipants={legalCase.participants}
-                  onChanged={(participants) => setCase(current => current ? { ...current, participants } : current)}
-                />
-              </div>}
-            </CardContent>
-          </Card>
+          </dl>
+      {legalCase.status === CaseStatus.CLOSED && legalCase.closingSummary && (
+        <Card className="mb-6">
+          <CardHeader><CardTitle className="text-sm">สรุปคดี</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-sm whitespace-pre-wrap text-muted-foreground">{legalCase.closingSummary}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      <AiTrayCards caseId={id} onChanged={loadCase} />
+      <CaseStatusBadge status={legalCase.status} />
+        {bannerProposals.length > 0 && pendingStage === null && legalCase.stage && <div className="min-w-0 text-sm text-muted-foreground xl:col-start-1">มีงานแนะนำจาก SOP {bannerProposals.length} งาน · <button type="button" className="min-h-11 text-primary underline" onClick={openBannerProposals}>ดูและสร้างงาน</button></div>}
+      <div className="mb-5">
+        {suggestedPlaybook && !hasAppliedPlaybook && (
+          <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+            <p className="text-sm">
+              แนะนำ SOP <span className="font-medium">{suggestedPlaybook.name}</span> · {suggestedPlaybook.steps.length} ขั้นตอน
+            </p>
+            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => previewPlaybook(suggestedPlaybook.id)}>
+              ดูรายการงานจาก SOP
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <details className="mb-4"><summary className="min-h-11 cursor-pointer">สัญญาณสำคัญของคดี</summary>
+      <section className={styles.signalStrip} aria-label="สัญญาณสำคัญของคดี" data-testid="case-priority-signals">
+        <button type="button" onClick={() => selectTab('calendar')} className={styles.signalButton}>
+          <span className={styles.signalLabel}>นัดหมายถัดไป</span>
+          <strong className={styles.signalValue}>{priority.nextEvent?.title ?? 'ยังไม่มีนัดถัดไป'}</strong>
+          <span className={styles.signalMeta}>{priority.nextEvent ? formatDateTime(priority.nextEvent.startAt) : 'เปิดไทม์ไลน์เพื่อเพิ่มนัด'}</span>
+        </button>
+        <div className={styles.signal}>
+          <span className={styles.signalLabel}>อายุความ</span>
+          <strong className={`${styles.signalValue} ${priority.limitationDays != null && priority.limitationDays <= 30 ? "text-destructive" : ""}`}>{priority.limitationDays == null ? 'ยังไม่ระบุ' : `อีก ${priority.limitationDays} วัน`}</strong>
+          <span className={styles.signalMeta}>{legalCase.limitationDeadline ? `ครบ ${formatDate(legalCase.limitationDeadline)}` : 'ยังไม่มีวันที่ให้ประเมิน'}</span>
+        </div>
+        <button type="button" onClick={() => selectTab('tasks')} className={styles.signalButton}>
+          <span className={styles.signalLabel}>งานค้าง</span>
+          <strong className={styles.signalValue}>{priority.pendingTaskCount} รายการ</strong>
+          <span className={styles.signalMeta}>{priority.nextPendingTask?.dueDate ? `ใกล้สุด ${formatDate(priority.nextPendingTask.dueDate)}` : priority.nextPendingTask ? 'งานถัดไปยังไม่กำหนดวันส่ง' : 'ไม่มีงานค้าง'}</span>
+        </button>
+        <button type="button" onClick={() => selectTab('documents')} className={styles.signalButton}>
+          <span className={styles.signalLabel}>เอกสารที่ต้องมี</span>
+          <strong className={styles.signalValue}>{priority.presentRequiredDocumentCount}/{priority.requiredDocumentCount}</strong>
+          <span className={styles.signalMeta}>{priority.missingRequiredDocumentCount > 0 ? `ขาด ${priority.missingRequiredDocumentCount} รายการ` : priority.requiredDocumentCount > 0 ? 'ครบตามรายการ' : 'ยังไม่มีรายการบังคับ'}</span>
+        </button>
+      </section>
+
+      </details>
+      <CaseBriefCard caseId={id} />
+
+      <div className={styles.workspace}>
+        <section className={styles.mainPane} aria-label="ข้อมูลและประวัติคดี">
+          <CaseSummaryPanel caseId={id} onChanged={loadCase} />
+
 
           <CaseProceedingsCard
             caseId={legalCase.id}
@@ -1386,106 +1402,7 @@ export default function CaseDetailPage() {
               <SavedCaseCostCalculator key={legalCase.id} caseId={id} customFields={customFields} onSaved={loadCase} />
             </div>
           </details>
-          <Card>
-            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-sm">ความเคลื่อนไหวคดี</CardTitle>
-              <Button variant="outline" size="sm" onClick={openActivityForm}>
-                <Plus aria-hidden="true" className="h-4 w-4" />เพิ่มกิจกรรม
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {showActivityForm && (
-                <form onSubmit={handleAddActivity} className="mb-4 rounded-lg border border-border bg-muted/30 p-4 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium">เพิ่มกิจกรรม</p>
-                    <p className="text-xs text-muted-foreground">บันทึกลงความเคลื่อนไหวและปฏิทิน</p>
-                    <button type="button" aria-label="ยกเลิกเพิ่มกิจกรรม" onClick={() => setShowActivityForm(false)}>
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  </div>
-                  <Input
-                    required
-                    placeholder="หัวข้อ เช่น นัดสืบพยาน"
-                    value={activityForm.title}
-                    onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
-                  />
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground">ประเภท</label>
-                      <select
-                        value={activityForm.type}
-                        onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
-                        className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
-                      >
-                        {Object.entries(ACTIVITY_LABELS).map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-xs text-muted-foreground">วันที่และเวลา</label>
-                      <ThaiDateTimeInput
-                        required
-                        value={activityForm.activityAt}
-                        onChange={(v) => setActivityForm({ ...activityForm, activityAt: v })}
-                        className="mt-1"
-                      />
-                    </div>
-                  </div>
-                  <textarea
-                    placeholder="รายละเอียด (ไม่บังคับ)"
-                    value={activityForm.description}
-                    onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
-                    rows={2}
-                    className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
-                  />
-                  <Button type="submit" size="sm" disabled={submitting}>
-                    {submitting ? 'กำลังบันทึก...' : 'บันทึกกิจกรรม'}
-                  </Button>
-                </form>
-              )}
 
-              <div className="space-y-4">
-                {(showAllTimeline ? timeline : timeline.slice(0, 6)).map((item) => {
-                  const Icon = item.isOpened ? Gavel : (ACTIVITY_ICONS[item.type] ?? FileText);
-                  const isCourt = item.type === 'COURT_DATE' || item.type === 'CLIENT_MEETING';
-                  return (
-                    <div key={item.id} className="flex gap-3">
-                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                        item.isOpened ? 'bg-primary/10' : isCourt ? 'bg-warning/10' : 'bg-muted'
-                      }`}>
-                        <Icon className={`h-4 w-4 ${item.isOpened ? 'text-primary' : isCourt ? 'text-warning' : 'text-muted-foreground'}`} aria-hidden="true" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{item.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.isOpened ? formatDate(item.date) : formatDateTime(item.date)}
-                          {!item.isOpened && ` — ${ACTIVITY_LABELS[item.type] ?? item.type}`}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.from
-                            ? `จาก: ${item.from}`
-                            : `โดย: ${item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}`.trim() : 'ไม่ปรากฏข้อมูล'}`}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-                {timeline.length > 6 && (
-                  <button
-                    type="button"
-                    className="text-sm text-primary hover:underline"
-                    onClick={() => setShowAllTimeline((v) => !v)}
-                  >
-                    {showAllTimeline ? 'แสดงเฉพาะรายการล่าสุด' : `ดูทั้งหมด (${timeline.length} รายการ)`}
-                  </button>
-                )}
-                {timeline.length <= 1 && (
-                  <InlineEmptyState title="ยังไม่มีกิจกรรม" action={<Button variant="outline" size="sm" onClick={openActivityForm}><Plus aria-hidden="true" className="h-4 w-4" />เพิ่มกิจกรรม</Button>} />
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
           {legalCase.description && (
             <Card>
@@ -1745,7 +1662,7 @@ export default function CaseDetailPage() {
                   <option value="">ฉันเอง</option>
                   <AssigneeOptions users={lawyers} flags={quickTaskLeaveFlags} nameOf={(u) => u.firstName} />
                 </select>
-                <ThaiDateInput value={quickTaskDue} onChange={setQuickTaskDue} />
+                <ThaiDateField className="w-48" ariaLabel="วันครบกำหนด" value={quickTaskDue ?? ''} onChange={setQuickTaskDue} />
                 <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={addQuickTask} disabled={!quickTaskTitle.trim() || quickTaskBusy}>
                   เพิ่มงาน
                 </Button>
@@ -1809,56 +1726,13 @@ export default function CaseDetailPage() {
 
         </aside>
       </div>
-
-      <div className="mt-6 space-y-6">
-        <details className="rounded-xl border border-border bg-card">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-            สายติดต่อลูกความ
-          </summary>
-          <div className="border-t border-border p-4">
-            <CaseMessagesPanel caseId={id} />
-          </div>
-        </details>
-      </div>
+        </div>
+      </details>
       </div>
       )}
-        </div>
-        <div>
-          <button type="button" id="case-tab-documents" aria-expanded={activeTab === 'documents'} aria-controls="case-tabpanel-documents" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'documents' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('documents')}><span>{'เอกสาร' + ` (${legalCase._count.documents})`}</span><span aria-hidden>{activeTab === 'documents' ? '−' : '›'}</span></button>
-      {activeTab === 'documents' && <CaseSectionContent tab="documents" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        </div>
-        <div>
-          <button type="button" id="case-tab-billing" aria-expanded={activeTab === 'billing'} aria-controls="case-tabpanel-billing" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'billing' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('billing')}><span>{'บัญชี'}</span><span aria-hidden>{activeTab === 'billing' ? '−' : '›'}</span></button>
-      {activeTab === 'billing' && <CaseSectionContent tab="billing" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        </div>
-        <div>
-          <button type="button" id="case-tab-comments" aria-expanded={activeTab === 'comments'} aria-controls="case-tabpanel-comments" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'comments' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('comments')}><span>{'ข้อความ'}{commentCount !== null && ` (${commentCount})`}</span><span aria-hidden>{activeTab === 'comments' ? '−' : '›'}</span></button>
-      {activeTab === 'comments' && <CaseSectionContent tab="comments" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        </div>
-        <div>
-          <button type="button" id="case-tab-tasks" aria-expanded={activeTab === 'tasks'} aria-controls="case-tabpanel-tasks" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'tasks' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('tasks')}><span>{CASE_TAB_LABELS['tasks'] + ` (${tasks.length})`}</span><span aria-hidden>{activeTab === 'tasks' ? '−' : '›'}</span></button>
-      {activeTab === 'tasks' && <CaseSectionContent tab="tasks" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        </div>
-        <div>
-          <button type="button" id="case-tab-calendar" aria-expanded={activeTab === 'calendar'} aria-controls="case-tabpanel-calendar" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'calendar' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('calendar')}><span>{'ปฏิทิน'}</span><span aria-hidden>{activeTab === 'calendar' ? '−' : '›'}</span></button>
-      {activeTab === 'calendar' && <CaseSectionContent tab="calendar" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        </div>
-        <div>
-          <button type="button" id="case-tab-email" aria-expanded={activeTab === 'email'} aria-controls="case-tabpanel-email" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'email' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('email')}><span>{CASE_TAB_LABELS['email']}</span><span aria-hidden>{activeTab === 'email' ? '−' : '›'}</span></button>
-      {activeTab === 'email' && <CaseSectionContent tab="email" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        </div>
-        {(!!legalCase.cargoClaim) && <div>
-          <button type="button" id="case-tab-cargo-claim" aria-expanded={activeTab === 'cargo-claim'} aria-controls="case-tabpanel-cargo-claim" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'cargo-claim' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('cargo-claim')}><span>{CASE_TAB_LABELS['cargo-claim']}</span><span aria-hidden>{activeTab === 'cargo-claim' ? '−' : '›'}</span></button>
-      {activeTab === 'cargo-claim' && <CaseSectionContent tab="cargo-claim" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        </div>}
-        <div>
-          <button type="button" id="case-tab-ask-ai" aria-expanded={activeTab === 'ask-ai'} aria-controls="case-tabpanel-ask-ai" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'ask-ai' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('ask-ai')}><span>{CASE_TAB_LABELS['ask-ai']}</span><span aria-hidden>{activeTab === 'ask-ai' ? '−' : '›'}</span></button>
-      {activeTab === 'ask-ai' && <CaseSectionContent tab="ask-ai" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        </div>
-        {(legalCase.stage === 'CLOSING' || legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED') && <div>
-          <button type="button" id="case-tab-closing-report" aria-expanded={activeTab === 'closing-report'} aria-controls="case-tabpanel-closing-report" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'closing-report' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('closing-report')}><span>{CASE_TAB_LABELS['closing-report']}</span><span aria-hidden>{activeTab === 'closing-report' ? '−' : '›'}</span></button>
-      {activeTab === 'closing-report' && <CaseSectionContent tab="closing-report" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        </div>}
+        {activeTab === 'parties' && <div role="tabpanel" id="case-tabpanel-parties" aria-labelledby="case-tab-parties"><CaseParticipantsSection caseId={legalCase.id} client={clientDisplay !== '—' ? { name: clientDisplay, role: legalCase.partyRole ? PARTY_ROLE_LABELS[legalCase.partyRole as PartyRole] : null } : undefined} initialParticipants={legalCase.participants} onChanged={(participants) => setCase(current => current ? { ...current, participants } : current)} /></div>}
+        {activeTab !== 'overview' && activeTab !== 'parties' && (activeTab !== 'cargo-claim' || !!legalCase.cargoClaim) && (activeTab !== 'closing-report' || legalCase.stage === 'CLOSING' || legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED') && <CaseSectionContent tab={activeTab} caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        {activeTab === 'tasks' && token && <details className={`${v2.card} mt-5`}><summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">ข้ามงานที่ไม่จำเป็น <span className={v2.label}>· ระบุเหตุผลแล้วข้ามงานในขั้นนี้ · รายการตรวจก่อนฟ้อง</span></summary><div className="border-t border-[#e2e0d8] p-5"><CaseJourneyPanel tasksOnly token={token} caseId={id} intakeId={legalCase.intake?.id} stage={legalCase.stage ?? null} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} tasksVersion={tasks} onChanged={loadCase} onAdvance={() => {}} onEdit={() => { selectTab('overview'); void startEditOverview(); }} onOpenTask={() => {}} /></div></details>}
       </div>
 
       {legalCase.intake && preFiling && <>

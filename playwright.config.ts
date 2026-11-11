@@ -29,6 +29,7 @@ export default defineConfig({
     { name: 'workflow-usability', testMatch: /workflow-usability\.spec\.ts/ },
     { name: 'sop-ui', testMatch: /sop-ui\.spec\.ts/ },
     { name: 'process-clarity', testMatch: /process-clarity\.spec\.ts/ },
+    { name: 'case-page-v2', testMatch: /case-page-v2\.spec\.ts/ },
     { name: 'simple-forms', testMatch: /simple-forms\.spec\.ts/ },
     { name: 'practice-setup', testMatch: /practice-setup\.spec\.ts/ },
     { name: 'court-offline', testMatch: /court-offline\.spec\.ts/ },

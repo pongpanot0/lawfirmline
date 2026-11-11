@@ -6,7 +6,7 @@ import { OutlookChangesPanel } from './OutlookChangesPanel';
 import { AvailabilityPanel } from './AvailabilityPanel';
 import { DURATION_OPTIONS, DEFAULT_DURATION, closestDuration } from '@/lib/availability';
 import { useEffect, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, X, Scale, Users, AlarmClock, Check, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime } from '@/lib/utils';
@@ -30,6 +30,7 @@ interface CalendarEventDialogProps {
   caseId?: string;
   /** The court that case sits in, so a court date fills it in already. */
   caseCourtName?: string | null;
+  caseOwnerId?: string;
   /** Cases to choose between when the dialog is opened outside a case. */
   cases?: CaseListItem[];
   /** Lawyers who can be named as attending. */
@@ -53,6 +54,7 @@ interface CalendarEventDialogProps {
 export function CalendarEventDialog({
   caseId,
   caseCourtName,
+  caseOwnerId,
   cases,
   users = [],
   event,
@@ -64,8 +66,13 @@ export function CalendarEventDialog({
   const { token, user } = useAuth();
 
   const [form, setForm] = useState(() =>
-    initialForm(event, caseId, caseCourtName, defaultDate, user?.id),
+    initialForm(event, caseId, caseCourtName, defaultDate, caseOwnerId ?? user?.id),
   );
+  const [createPrep, setCreatePrep] = useState(true);
+  const [reminders, setReminders] = useState([10080, 1440, 60]);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [peopleQuery, setPeopleQuery] = useState('');
+  const [prepPending, setPrepPending] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -131,12 +138,12 @@ export function CalendarEventDialog({
   }, [token, form.onlineMeeting, form.caseId]);
 
   useEffect(() => {
-    setForm(initialForm(event, caseId, caseCourtName, defaultDate));
+    setForm(initialForm(event, caseId, caseCourtName, defaultDate, caseOwnerId ?? user?.id));
     setSavedId(event?.id ?? null);
     setMode(event ? 'view' : 'edit');
     setError('');
     setTravelPreview(null);
-  }, [event, caseId, caseCourtName, defaultDate]);
+  }, [event, caseId, caseCourtName, caseOwnerId, defaultDate, user?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,11 +174,18 @@ export function CalendarEventDialog({
       courtEventKind: form.type === 'COURT_DATE' ? form.courtEventKind || null : null,
       // An empty list means "nobody named", which the API reads as the lead lawyer.
       assigneeIds: form.assigneeIds,
+      ...(!savedId ? { reminderMinutes: reminders.map(n => n === 60 ? Math.max(0, Number(form.startAt.slice(11, 13)) * 60 + Number(form.startAt.slice(14, 16)) - 8 * 60) : n) } : {}),
       onlineMeeting: form.type === 'CLIENT_MEETING' ? form.onlineMeeting : false,
       inviteeEmails: form.type === 'CLIENT_MEETING' && form.onlineMeeting ? inviteeEmails : [],
     };
 
     try {
+      if (savedId && prepPending) {
+        await api.updateCalendarEvent(token, savedId, payload);
+        const due = new Date(`${eventDate}T00:00:00Z`); due.setUTCDate(due.getUTCDate() - 3);
+        await api.createTask(token, form.caseId, { title: `เตรียมตัวไปศาล: ${form.title}`, assigneeId: (form.assigneeIds.find(id => id !== user?.id) ?? form.assigneeIds[0] ?? caseOwnerId ?? user?.id), dueDate: due.toISOString().slice(0, 10), createRequestId: `court-prep-${savedId}` });
+        setPrepPending(false); onSaved(); onClose(); return;
+      }
       if (savedId) {
         await api.updateCalendarEvent(token, savedId, payload);
         onSaved();
@@ -182,6 +196,11 @@ export function CalendarEventDialog({
       const created = await api.createCalendarEvent(token, { ...payload, caseId: form.caseId });
       setSavedId(created.id);
       onSaved();
+      if (form.type === 'COURT_DATE' && createPrep) {
+        const due = new Date(`${eventDate}T00:00:00Z`); due.setUTCDate(due.getUTCDate() - 3);
+        try { await api.createTask(token, form.caseId, { title: `เตรียมตัวไปศาล: ${form.title}`, assigneeId: (form.assigneeIds.find(id => id !== user?.id) ?? form.assigneeIds[0] ?? caseOwnerId ?? user?.id), dueDate: due.toISOString().slice(0, 10), createRequestId: `court-prep-${created.id}` }); }
+        catch { setPrepPending(true); setError('บันทึกนัดแล้ว แต่สร้างงานเตรียมตัวไม่สำเร็จ'); return; }
+      }
 
       if (form.type === 'COURT_DATE' && form.courtName) {
         // The estimate is a courtesy; losing it must not lose the court date.
@@ -381,10 +400,7 @@ export function CalendarEventDialog({
             />
           </label>
 
-          <div role="group" aria-labelledby="event-type-label" className="space-y-2">
-            <p id="event-type-label" className="text-sm text-muted-foreground">{d.calendar.eventType}</p>
-            <div className="flex flex-wrap gap-2">{([['COURT_DATE', d.calendar.typeCourtDate], ['CLIENT_MEETING', d.calendar.typeClientMeeting], ['DEADLINE', d.calendar.typeDeadline], ['OTHER', d.calendar.typeOther]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={form.type === value} onClick={() => setForm({ ...form, type: value })} className={`min-h-11 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.type === value ? 'border-primary bg-primary/10 font-medium text-primary' : 'border-border hover:bg-muted'}`}>{label}</button>)}</div>
-          </div>
+          <fieldset className="space-y-2"><legend className="text-sm text-muted-foreground">นัดอะไร</legend><div className="flex flex-wrap gap-2">{([['COURT_DATE', 'นัดศาล', Scale], ['CLIENT_MEETING', 'นัดลูกความ', Users], ['DEADLINE', 'กำหนดส่ง', AlarmClock], ...(!caseId || event?.type === 'OTHER' ? [['OTHER', d.calendar.typeOther, AlarmClock] as const] : [])] as const).map(([value, label, Icon]) => <label key={value} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border-2 px-3 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${form.type === value ? 'border-primary bg-primary/10 font-medium text-primary' : 'border-border'}`}><input className="sr-only" type="radio" name="event-type" checked={form.type === value} onChange={() => setForm({ ...form, type: value })} /><Icon aria-hidden="true" className="h-4 w-4" />{label}{form.type === value && <Check aria-hidden="true" className="h-4 w-4" />}</label>)}</div></fieldset>
 
           {form.type === 'COURT_DATE' && (
             <>
@@ -467,43 +483,10 @@ export function CalendarEventDialog({
           )}
 
           <div className="block text-sm">
-            <span className="mb-1 block text-muted-foreground">{d.calendar.assignee}</span>
-            <div className="space-y-1 rounded-lg border border-input bg-card p-2">
-              {users.map((u) => {
-                const checked = form.assigneeIds.includes(u.id);
-                const isPrimary = form.assigneeIds[0] === u.id;
-                const flag = leaveFlags.get(u.id);
-                return (
-                  <label key={u.id} className="flex min-h-11 items-center gap-2 py-0.5">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleAssignee(u.id)}
-                    />
-                    <span className="flex-1">{u.firstName} {u.lastName}</span>
-                    {isPrimary && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                        หลัก
-                      </span>
-                    )}
-                    {flag && (
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs ${
-                          flag.kind === 'ON_LEAVE'
-                            ? 'bg-amber-100 font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {flag.label}
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-            <span className="mt-1 block text-xs text-muted-foreground">
-              {d.calendar.assigneeHint}
-            </span>
+            <span className="mb-1 block text-muted-foreground">ใครไปนัดนี้ (เลือกได้หลายคน · ไม่ต้องเป็นคุณก็ได้)</span>
+            <div className="flex flex-wrap gap-2">{form.assigneeIds.map(id => { const person = users.find(u => u.id === id); if (!person) return null; const name = `${person.firstName} ${person.lastName}`; return <span key={id} className="flex items-center gap-2 rounded-full border pl-2"><span aria-hidden="true" className="rounded-full bg-muted p-1">{person.firstName.slice(0, 1)}</span>{name}<button type="button" aria-label={`เอา ${name} ออก`} className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:ring-ring" onClick={() => toggleAssignee(id)}><X aria-hidden="true" className="h-4 w-4" /></button></span>; })}<Button type="button" variant="outline" aria-expanded={peopleOpen} onClick={() => setPeopleOpen(v => !v)}><UserPlus aria-hidden="true" className="h-4 w-4" />เพิ่มคน</Button></div>
+            {peopleOpen && <div className="mt-2 max-h-60 overflow-y-auto rounded-lg border p-2"><Input aria-label="ค้นหาคน" placeholder="ค้นหาคน" value={peopleQuery} onChange={e => setPeopleQuery(e.target.value)} />{users.filter(u => `${u.firstName} ${u.lastName}`.toLowerCase().includes(peopleQuery.toLowerCase())).map(u => <label key={u.id} className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={form.assigneeIds.includes(u.id)} onChange={() => toggleAssignee(u.id)} />{u.firstName} {u.lastName}</label>)}</div>}
+            <span className="mt-1 block text-xs text-muted-foreground">คนที่เลือกจะเห็นนัดนี้ในปฏิทินของตัวเองและได้รับแจ้งเตือน</span>
             {form.assigneeIds
               .filter((id) => leaveFlags.has(id))
               .map((id) => {
@@ -518,6 +501,8 @@ export function CalendarEventDialog({
               })}
           </div>
 
+          {!event && form.type === 'COURT_DATE' && <div className="space-y-1"><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={createPrep} onChange={e => setCreatePrep(e.target.checked)} />สร้างงาน “เตรียมตัวไปศาล” ให้ {(() => { const person = users.find(u => u.id === ((form.assigneeIds.find(id => id !== user?.id) ?? form.assigneeIds[0] ?? caseOwnerId ?? user?.id))); return person ? `${person.firstName} ${person.lastName}` : 'ผู้รับผิดชอบ'; })()}</label><p className="text-xs text-muted-foreground">ครบก่อนวันนัด 3 วัน — เช่น เตรียมแฟ้ม เอกสารพยาน ใบมอบอำนาจ</p></div>}
+          {!event && <fieldset><legend className="text-sm">เตือนทีมก่อนวันนัด</legend><p className="text-xs text-muted-foreground">เช้าวันนัดแจ้งเวลา 08:00 น. หรือเวลานัดหากนัดก่อน 08:00 น.</p><div className="flex flex-wrap gap-3">{([[10080, '7 วัน'], [1440, '1 วัน'], [60, 'เช้าวันนัด']] as const).map(([minutes, label]) => <label key={minutes} className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={reminders.includes(minutes)} onChange={e => setReminders(e.target.checked ? [...reminders, minutes] : reminders.filter(n => n !== minutes))} />{label}</label>)}</div></fieldset>}
           {form.type === 'CLIENT_MEETING' && (
             <>
               <label className="flex items-center gap-2 text-sm">
@@ -619,7 +604,7 @@ export function CalendarEventDialog({
         <p className="mt-4 text-sm text-muted-foreground" aria-live="polite">{(() => { const missing = [!form.caseId && !caseId ? 'เลือกคดี' : '', !form.title ? 'ระบุชื่อนัด' : '', !form.startAt ? 'ระบุวันและเวลา' : '', form.type === 'CLIENT_MEETING' && form.onlineMeeting && inviteDraft.trim() && !EMAIL_PATTERN.test(inviteDraft.trim().toLowerCase()) ? 'แก้ไขอีเมลผู้รับเชิญ' : ''].filter(Boolean); return missing.length ? `เหลืออีก ${missing.length} อย่าง: ${missing.join(', ')}` : 'ตรวจข้อมูลแล้วกดบันทึก'; })()}</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="submit" disabled={saving}>
-            {saving ? d.calendar.saving : event ? d.common.save : d.calendar.addEvent}
+            {saving ? d.calendar.saving : prepPending ? 'ลองสร้างงานอีกครั้ง' : event ? d.common.save : 'บันทึกนัด'}
           </Button>
           <Button type="button" variant="outline" onClick={() => (event ? setMode('view') : onClose())}>
             {event ? d.common.cancel : d.common.close}

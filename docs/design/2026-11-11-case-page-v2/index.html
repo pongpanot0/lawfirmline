@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Case Page v2 Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root { --paper:#f4f1ea; --ink:#142e43; --muted:#52616b; --rule:#e2e0d8; }
+  body { margin:0; background:#e9e5dc; color:var(--ink); font-family:"IBM Plex Sans Thai", system-ui, sans-serif; }
+  header { padding:32px 24px 8px; max-width:1480px; margin:0 auto; }
+  h1 { margin:0; font-size:28px; }
+  header p { margin:6px 0 0; color:var(--muted); }
+  nav { position:sticky; top:0; z-index:5; background:#e9e5dc; border-bottom:1px solid var(--rule); padding:10px 24px; display:flex; gap:8px; overflow-x:auto; }
+  nav a { flex:none; padding:6px 12px; border-radius:999px; background:#fff; color:var(--ink); text-decoration:none; font-size:14px; font-weight:600; border:1px solid var(--rule); }
+  h2.group { max-width:1480px; margin:40px auto 0; padding:0 24px; font-size:22px; }
+  section { max-width:1480px; margin:20px auto 0; padding:0 24px; scroll-margin-top:64px; }
+  section h3 { margin:0 0 8px; font-size:17px; }
+  section h3 span { color:var(--muted); font-weight:400; font-size:14px; margin-left:8px; }
+  iframe { display:block; width:100%; height:900px; border:0; border-radius:12px; background:#fff; box-shadow:0 8px 28px rgba(20,46,67,.12); }
+  footer { height:80px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Case page v2 — ทุกฉาก</h1>
+  <p>เลื่อนลงเพื่อดูทีละฉาก หรือกดชื่อกลุ่มด้านล่างเพื่อข้ามไป</p>
+</header>
+<nav id="nav"></nav>
+<main id="list"></main>
+<footer></footer>
+<script>
+  const GROUPS = [
+    ['รอบ 2 — รอตรวจ', [
+      ['case-waiting', 'งานครบแล้ว แต่ลูกความยังไม่แจ้ง', 'คดีพักไว้ ไม่บังคับปิด — ปิดเมื่อลูกความบอก'],
+      ['act-close-case', 'กด “ปิดคดี”', 'ถามว่าลูกความแจ้งว่าอะไร และตรวจของค้างก่อนปิด'],
+      ['case-closed', 'คดีที่ปิดแล้ว', 'เปิดคดีอีกครั้งได้ในคลิกเดียว'],
+      ['tools-tasks', 'แท็บงาน — เครื่องมือครบ', 'บอร์ด ตัวกรอง SOP สายงานส่งต่อ และเมนูของแต่ละงาน'],
+      ['tools-docs', 'แท็บเอกสาร — เครื่องมือครบ', 'แม่แบบ AI ร่าง OneDrive เอกสารที่ต้องมี และเมนูของแต่ละไฟล์'],
+      ['tools-calendar', 'แท็บนัด — เครื่องมือครบ', 'ปฏิทินเดือน คำนวณวันครบกำหนด และวันที่ที่ระบบพบในเอกสาร'],
+      ['tools-finance', 'แท็บการเงิน — เครื่องมือครบ', 'อนุมัติ ไม่เรียกเก็บ ตัดทิ้ง และเวลาทำงาน'],
+      ['tools-emails', 'แท็บอีเมล — เครื่องมือครบ', 'เขียนอีเมล และ folder Outlook ที่ซิงก์อยู่'],
+    ]],
+    ['เปิดคดีใหม่', [
+      ['create-error', 'ยังกรอกไม่ครบ แล้วกด “เปิดคดี”', 'ขึ้น error บอกว่าขาดช่องไหน กดลิงก์ไปที่ช่องนั้นได้'],
+      ['create-filled', 'กรอกครบแล้ว', 'เลือกได้ว่าฟ้องแล้วหรือยัง ใส่ทีมคดีได้หลายคน'],
+      ['create-more', 'ข้อมูลเพิ่มเติม (ไม่บังคับ)', 'แบ่งเป็นกลุ่ม กรอกตอนนี้หรือทีหลังก็ได้'],
+      ['act-create-saving', 'กด “เปิดคดี” — กำลังบันทึก', ''],
+      ['act-create-success', 'เปิดคดีสำเร็จ', 'บอกว่าระบบทำอะไรให้แล้ว และขั้นต่อไปต้องทำอะไร'],
+    ]],
+    ['หน้าคดี', [
+      ['case-heavy', 'ข้อมูลเยอะ มีงานเลยกำหนด', 'การ์ดสีแดงบอกงานที่ต้องทำตอนนี้'],
+      ['case-ready', 'งานในขั้นครบแล้ว', 'พร้อมไปขั้นถัดไป'],
+      ['case-missing', 'ข้อมูลคดียังไม่ครบ', 'บอกว่าขาดอะไร และกรอกได้ทันที'],
+    ]],
+    ['แท็บในหน้าคดี', [
+      ['tab-tasks', 'แท็บงาน', ''],
+      ['tab-docs', 'แท็บเอกสาร', ''],
+      ['tab-calendar', 'แท็บนัดและปฏิทิน', ''],
+      ['tab-parties', 'แท็บคู่ความ', ''],
+      ['tab-finance', 'แท็บการเงิน', ''],
+      ['tab-emails', 'แท็บอีเมล', 'มีแถบแจ้งอีเมลใหม่ที่น่าจะเกี่ยวกับคดี'],
+      ['tab-messages', 'แท็บข้อความ', ''],
+    ]],
+    ['หลังกดปุ่ม', [
+      ['act-open-task', 'กด “เปิดงานนี้”', ''],
+      ['act-done', 'กด “ทำเสร็จแล้ว”', 'ขึ้นงานถัดไปให้ และมีปุ่มเลิกทำ'],
+      ['act-add-task', 'กด “เพิ่มงาน”', ''],
+      ['act-add-appt', 'กด “เพิ่มนัด”', 'เลือกได้ว่าใครไปนัด หลายคนได้ และไม่ต้องเป็นตัวเอง'],
+      ['act-upload', 'กด “แนบเอกสาร”', ''],
+      ['act-menu', 'กด “อื่น ๆ”', ''],
+      ['act-advance', 'กดไปขั้นถัดไป', 'ยืนยันและเลือกงานของขั้นใหม่'],
+      ['act-missing-saved', 'กรอกข้อมูลที่ขาดแล้วบันทึก', ''],
+      ['act-doc-received', 'กด “ได้รับแล้ว” เอกสารจากลูกความ', ''],
+      ['act-link-email', 'กดผูกอีเมลเข้าคดี', 'ระบบเลือกอีเมลที่น่าจะเกี่ยวไว้ให้แล้ว'],
+      ['act-link-email-search', 'ค้นหาอีเมลเอง', 'ค้นจากชื่อหรืออีเมลผู้ส่ง ถ้าผูกกับคดีอื่นอยู่จะถามก่อนย้าย'],
+    ]],
+  ];
+  const nav = document.getElementById('nav');
+  const list = document.getElementById('list');
+  let n = 0;
+  GROUPS.forEach(([group, scenes], gi) => {
+    nav.insertAdjacentHTML('beforeend', `<a href="#g${gi}">${group} (${scenes.length})</a>`);
+    list.insertAdjacentHTML('beforeend', `<h2 class="group" id="g${gi}">${group}</h2>`);
+    scenes.forEach(([id, title, note]) => {
+      n += 1;
+      list.insertAdjacentHTML('beforeend',
+        `<section id="${id}"><h3>${n}. ${title}${note ? `<span>${note}</span>` : ''}</h3>` +
+        `<iframe loading="lazy" title="${title}" src="scenes.html?scene=${id}&embed=1"></iframe></section>`);
+    });
+  });
+  // size each frame to its scene so the page scrolls as one long document
+  document.querySelectorAll('iframe').forEach((f) => f.addEventListener('load', () => {
+    const fit = () => { try { f.style.height = Math.max(700, f.contentDocument.documentElement.scrollHeight) + 'px'; } catch (e) {} };
+    fit(); setTimeout(fit, 800);
+  }));
+</script>
+</body>
+</html>
