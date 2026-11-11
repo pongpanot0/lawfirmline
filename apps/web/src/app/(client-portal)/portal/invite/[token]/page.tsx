@@ -50,17 +50,17 @@ export default function PortalInviteAcceptPage() {
 
   if (!invite) {
     return (
-      <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกค้า">
+      <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกความ">
         <p role="status" className="mt-2 text-sm text-muted-foreground">กำลังโหลดคำเชิญ...</p>
       </PortalAuthCard>
     );
   }
 
   return (
-    <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกค้า" description="สำนักงานกฎหมายของคุณเปิดพอร์ทัลให้ติดตามคดี เอกสาร และข้อความได้ที่นี่">
+    <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกความ" description="สำนักงานกฎหมายของคุณเปิดพอร์ทัลให้ติดตามคดี เอกสาร และข้อความได้ที่นี่">
       <dl className="mb-5 space-y-3 rounded-lg border border-border p-4">
         <div>
-          <dt className="text-sm text-muted-foreground">บริษัท / ลูกค้า</dt>
+          <dt className="text-sm text-muted-foreground">บริษัท / ลูกความ</dt>
           <dd className="font-semibold">{invite.clientName}</dd>
         </div>
         <div>

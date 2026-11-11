@@ -7,7 +7,7 @@ import { useLocale } from '@/components/landing/LocaleProvider';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
 export function RequestWorkroom({ id, token, staff = false }: { id: string; token: string; staff?: boolean }) {
-  const { locale } = useLocale(); const th = locale === 'th';
+  const { locale } = useLocale(); const th = !staff || locale === 'th';
   const [data, setData] = useState<Workroom | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [body, setBody] = useState(''); const [file, setFile] = useState<File | null>(null); const input = useRef<HTMLInputElement>(null);
   const retryKey = useRef(''); const [scope, setScope] = useState(''); const [date, setDate] = useState(''); const [proposing, setProposing] = useState(false);
