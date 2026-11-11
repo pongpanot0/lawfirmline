@@ -549,12 +549,15 @@ for (const width of [320, 375, 414, 768, 1440]) {
         await f.open(page, `/court-day/${f.event.id}`, locale);
         await expect(page.getByTestId('court-day')).toBeVisible();
         for (const stage of [0, 1, 2]) {
-          await page
-            .locator('nav[aria-label]')
-            .filter({ has: page.locator('[aria-current="step"]') })
-            .getByRole('button')
-            .nth(stage)
-            .click();
+          // The stepper is read-only; the footer's primary button moves forward.
+          if (stage > 0) {
+            const th = locale === 'th';
+            const next =
+              stage === 1
+                ? th ? 'บันทึกแล้วไปต่อ' : 'Save and continue'
+                : th ? 'ตรวจรายการก่อนบันทึก' : 'Review before recording';
+            await page.getByRole('button', { name: next, exact: true }).click();
+          }
           if (stage === 1) {
             const th = locale === 'th';
             await page
@@ -582,7 +585,7 @@ for (const width of [320, 375, 414, 768, 1440]) {
               '2027-01-20T09:00');
           }
           await expect(page.locator('[aria-current="step"]')).toContainText(
-            `0${stage + 1}`,
+            `${stage + 1}`,
           );
           await expect
             .poll(() =>
@@ -716,7 +719,8 @@ test('court day restores unsaved navigation drafts and clears them on logout', a
     expect(await f.db.courtDay.count({ where: { eventId: f.event.id } })).toBe(
       0,
     );
-    await page.getByRole('button', { name: 'ออกจากระบบ', exact: true }).click();
+    await page.getByRole('button', { name: 'เมนูบัญชี', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'ออกจากระบบ', exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     expect(
       await page.evaluate(() =>

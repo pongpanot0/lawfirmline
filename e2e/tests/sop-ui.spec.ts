@@ -93,7 +93,7 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
     await expect(editing.getByLabel('ชื่อขั้นที่ 2', { exact: true })).toHaveValue('ส่งผลให้ลูกความ');
     await editing.getByLabel('รายละเอียดขั้นที่ 2', { exact: true }).click();
     await editing.getByLabel('วิธีทำขั้นที่ 2', { exact: true }).fill('แนบเอกสารที่ตรวจแล้ว');
-    await editing.getByRole('button', { name: 'บันทึก', exact: true }).click();
+    await editing.getByRole('button', { name: 'บันทึกแม่แบบ', exact: true }).click();
     await expect(editing).toHaveCount(0);
     const updated = await data.db.workflowTemplate.findUniqueOrThrow({ where: { id: template.id } });
     expect(updated.isDefault).toBe(true);
@@ -135,7 +135,8 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
         firmMembers: { create: { firmId: auth.user.firmId, role } },
       } });
       const session = await (await request.post(`${API}/auth/login`, { data: { email: staff.email, password: data.password } })).json();
-      await page.getByRole('button', { name: 'ออกจากระบบ', exact: true }).click();
+      await page.getByRole('button', { name: 'เมนูบัญชี', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'ออกจากระบบ', exact: true }).click();
       await expect(page).toHaveURL(/\/login$/);
       await signIn(session);
       await page.locator('#workspace-content').getByRole('button', { name: /^สายงานส่งต่อ/ }).click();
@@ -273,7 +274,7 @@ for (const width of [375, 1440]) {
       await page.getByRole('link', { name: 'ใช้กับคดี', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'เลือกคดีที่จะใช้ SOP', exact: true })).toBeVisible();
       if (width < 768) await page.locator(`a[href="/cases/${legalCase.id}?tab=tasks&sop=${second.id}"]:visible`).click();
-      else await page.getByRole('row').filter({ hasText: data.tag }).click();
+      await page.locator(`a[href="/cases/${legalCase.id}?tab=tasks&sop=${second.id}"]:visible`).first().click();
       await expect(page).toHaveURL(`${origin}/cases/${legalCase.id}?tab=tasks&sop=${second.id}`);
       const select = page.getByRole('combobox', { name: 'SOP อัตโนมัติ', exact: true });
       await expect(select).toBeVisible(); // SOP and case context arrive with the preview open.

@@ -107,9 +107,13 @@ describe('ClientsService.update contact upsert', () => {
     ]);
     const out = await service.findAll(user);
     expect(out).toEqual([
-      { id: 'a', openCaseCount: 1, openTaskCount: 3 },
+      { id: 'a', openCaseCount: 1, openTaskCount: 2 },
       { id: 'b', openCaseCount: 1, openTaskCount: 0 },
     ]);
+    // Closed cases and skipped journey steps are not backlog.
+    const where = mockPrisma.task.groupBy.mock.calls[0][0].where.AND[0];
+    expect(where.caseId).toEqual({ in: ['c1', 'c3'] });
+    expect(where).toMatchObject({ skippedAt: null, skippedReason: null });
     expect(mockPrisma.case.findMany).toHaveBeenCalledTimes(1);
     expect(mockPrisma.task.groupBy).toHaveBeenCalledTimes(1);
   });

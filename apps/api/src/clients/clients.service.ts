@@ -45,12 +45,20 @@ export class ClientsService {
       where: { AND: [{ clientId: { in: clients.map((c) => c.id) } }, this.caseAccess.getCaseFilterForUser(user)] },
       select: { id: true, clientId: true, status: true },
     });
-    const taskCounts = cases.length
+    const isOpen = (c: { status: string }) => c.status !== 'CLOSED' && c.status !== 'ARCHIVED';
+    const openCases = cases.filter(isOpen);
+    const taskCounts = openCases.length
       ? await this.prisma.task.groupBy({
           by: ['caseId'],
           where: {
             AND: [
-              { caseId: { in: cases.map((c) => c.id) }, parentId: null, status: { not: 'DONE' } },
+              {
+                caseId: { in: openCases.map((c) => c.id) },
+                parentId: null,
+                status: { not: 'DONE' },
+                skippedAt: null,
+                skippedReason: null,
+              },
               { OR: [this.caseAccess.getTaskFilterForUser(user), { createdById: user.id }] },
             ],
           },
@@ -59,10 +67,10 @@ export class ClientsService {
       : [];
     const tasksByCase = new Map(taskCounts.map((row) => [row.caseId, row._count._all]));
     return clients.map((client) => {
-      const own = cases.filter((c) => c.clientId === client.id);
+      const own = openCases.filter((c) => c.clientId === client.id);
       return {
         ...client,
-        openCaseCount: own.filter((c) => c.status !== 'CLOSED' && c.status !== 'ARCHIVED').length,
+        openCaseCount: own.length,
         openTaskCount: own.reduce((sum, c) => sum + (tasksByCase.get(c.id) ?? 0), 0),
       };
     });
