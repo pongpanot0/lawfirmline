@@ -32,6 +32,9 @@ export default function NewExpensePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const caseIdParam = searchParams.get('caseId') ?? '';
+  // ?edit=<id> แก้ร่างเดิม (รวมถึงรายการที่ไม่อนุมัติแล้วนำกลับมาแก้)
+  const editId = searchParams.get('edit') ?? '';
+  const [existingReceipt, setExistingReceipt] = useState('');
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [advances, setAdvances] = useState<CashAdvanceItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -52,8 +55,31 @@ export default function NewExpensePage() {
   useEffect(() => {
     if (!token) return;
     api.getCases(token).then(setCases).catch(() => setCases([]));
-    api.listMyCashAdvances(token).then(setAdvances).catch(() => setAdvances([]));
-  }, [token]);
+    if (!editId) api.listMyCashAdvances(token).then(setAdvances).catch(() => setAdvances([]));
+  }, [token, editId]);
+
+  useEffect(() => {
+    if (!token || !editId) return;
+    api.getExpenses(token, { status: ExpenseStatus.DRAFT })
+      .then((rows) => {
+        const draft = rows.find((row) => row.id === editId && !row.claimId);
+        if (!draft) {
+          setError('ไม่พบรายการร่างนี้ หรือรายการถูกส่งเบิกไปแล้ว');
+          return;
+        }
+        setExistingReceipt(draft.receiptFilename ?? '');
+        setForm((current) => ({
+          ...current,
+          amount: String(draft.amount),
+          description: draft.description,
+          category: draft.category ?? current.category,
+          expensePurpose: draft.expensePurpose ?? '',
+          caseId: draft.case?.id ?? '',
+          officialReceiptNo: draft.officialReceiptNo ?? '',
+        }));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : d.expenses.loadFailed));
+  }, [token, editId, d.expenses.loadFailed]);
 
   const selectedAdvance = advances.find((a) => a.id === form.paidFromAdvanceId);
   const advanceAmountExceeded =
@@ -98,6 +124,24 @@ export default function NewExpensePage() {
     setSubmitting(true);
     setError('');
     try {
+      if (editId) {
+        await api.updateDraftExpense(
+          token,
+          editId,
+          {
+            amount: parseFloat(form.amount),
+            description: form.description,
+            category: form.category,
+            officialReceiptNo: form.category === 'ค่าธรรมเนียมศาล'
+              ? form.officialReceiptNo.trim() || undefined : undefined,
+            expensePurpose: form.expensePurpose || undefined,
+            caseId: form.caseId || undefined,
+          },
+          receipt ?? undefined,
+        );
+        setSaved(true);
+        return;
+      }
       await api.createStandaloneExpense(
         token,
         {
@@ -127,7 +171,7 @@ export default function NewExpensePage() {
     }
   };
 
-  if (saved) return <div role="status" className="space-y-4 rounded-lg border bg-card p-6"><h1 className="text-xl font-semibold">บันทึกแล้ว</h1><p>{form.paidFromAdvanceId ? 'บันทึกค่าใช้จ่ายจากเงินทดรองแล้ว' : 'ต่อไป: เลือกรายการแล้วกดส่งเบิก'}</p><Button onClick={() => router.push('/expenses')}>ไปหน้าค่าใช้จ่าย →</Button></div>;
+  if (saved) return <div role="status" className="space-y-4 rounded-lg border bg-card p-6"><h1 className="text-xl font-semibold">{editId ? 'บันทึกการแก้ไขแล้ว' : 'บันทึกแล้ว'}</h1><p>{editId ? 'ต่อไป: เลือกรายการนี้ในแท็บ "ต้องทำ" แล้วกดส่งเบิกอีกครั้ง' : form.paidFromAdvanceId ? 'บันทึกค่าใช้จ่ายจากเงินทดรองแล้ว' : 'ต่อไป: เลือกรายการแล้วกดส่งเบิก'}</p><Button onClick={() => router.push('/expenses')}>ไปหน้าค่าใช้จ่าย →</Button></div>;
 
   return (
     <div className="w-full pb-52 xl:pb-0">
@@ -136,8 +180,8 @@ export default function NewExpensePage() {
         {d.expenses.back}
       </Link>
       <PageHeader
-        title={d.expenses.newTitle}
-        description={d.expenses.newDescription}
+        title={editId ? 'แก้ไขค่าใช้จ่าย' : d.expenses.newTitle}
+        description={editId ? 'แก้ไขแล้วบันทึกเป็นร่าง จากนั้นส่งเบิกอีกครั้ง' : d.expenses.newDescription}
       />
 
       <CheckoutSteps steps={['รายการและจำนวนเงิน', 'ข้อมูลเพิ่มเติม', 'บันทึก'].map((title, index) => ({ title, state: index < currentStep ? 'done' : index === currentStep ? 'current' : 'todo' }))} />
@@ -202,7 +246,7 @@ export default function NewExpensePage() {
         <Card>
         <CardContent className="grid gap-4 p-4 md:grid-cols-2 md:p-6">
             <h2 className="font-semibold md:col-span-2">2. ข้อมูลเพิ่มเติม</h2>
-            {advances.length > 0 && (
+            {!editId && advances.length > 0 && (
               <SelectField
                 label={d.expenses.paidFrom}
                 containerClassName="md:col-span-2"
@@ -241,7 +285,7 @@ export default function NewExpensePage() {
                 <DocumentDropZone
                   accept={RECEIPT_ACCEPT}
                   disabled={submitting}
-                  label={receipt ? receipt.name : 'ลากรูปใบเสร็จมาวาง หรือคลิกเลือกไฟล์'}
+                  label={receipt ? receipt.name : existingReceipt ? `ใบเสร็จเดิม: ${existingReceipt} — ลากไฟล์ใหม่มาวางเพื่อเปลี่ยน` : 'ลากรูปใบเสร็จมาวาง หรือคลิกเลือกไฟล์'}
                   hint={d.expenses.receiptHint}
                   onFile={(file) => setReceipt(file)}
                 />

@@ -2004,6 +2004,9 @@ model Expense {
   writtenOffAt       DateTime?
   writtenOffById     String?
   writeOffReason     String?
+  /// Why the approver turned this line down; cleared when the author takes it
+  /// back to draft to fix and resubmit.
+  rejectionReason    String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 

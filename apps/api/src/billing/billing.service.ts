@@ -22,6 +22,7 @@ import {
   CreateInvoiceDto,
   UpdateExpenseStatusDto,
   UpdateExpenseClaimStatusDto,
+  UpdateDraftExpenseDto,
 } from './dto/billing.dto';
 
 const RECEIPT_MIME_TYPES = new Set([
@@ -723,11 +724,13 @@ export class BillingService {
       return claim.expenses.find((row) => row.id === expense.id) ?? claim.expenses[0];
     }
 
+    const rejectionReason = dto.status === ExpenseStatus.REJECTED ? dto.reason || null : null;
     const data: {
       status: ExpenseStatus;
       paidAt?: Date;
       paidById?: string;
-    } = { status: dto.status };
+      rejectionReason: string | null;
+    } = { status: dto.status, rejectionReason };
 
     if (dto.status === ExpenseStatus.PAID) {
       data.paidAt = new Date();
@@ -760,12 +763,94 @@ export class BillingService {
         firmId: user.firmId,
         userIds: [expense.userId],
         actorUserId: user.id,
-        summaryText: copy,
+        summaryText: rejectionReason ? `${copy}\nเหตุผล: ${rejectionReason}` : copy,
         entityPath: '/expenses',
       });
     }
 
     return updated;
+  }
+
+  /**
+   * The author takes a rejected line back to draft so they can fix it and
+   * claim it again. It leaves its rejected claim, which stays as the record of
+   * the rejection; the audit log keeps the reason that is cleared here.
+   */
+  async reviseRejectedExpense(user: AuthUser, expenseId: string) {
+    const expense = await this.prisma.expense.findFirst({
+      where: { id: expenseId, ...this.getFirmExpenseFilter(user.firmId) },
+    });
+    if (!expense) throw new NotFoundException('ไม่พบค่าใช้จ่ายนี้');
+    if (expense.userId !== user.id) {
+      throw new ForbiddenException('แก้ไขได้เฉพาะรายการของตัวเอง');
+    }
+    if (expense.status !== ExpenseStatus.REJECTED) {
+      throw new BadRequestException('แก้ไขแล้วส่งใหม่ได้เฉพาะรายการที่ไม่อนุมัติ');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const changed = await tx.expense.updateMany({
+        where: { id: expenseId, status: ExpenseStatus.REJECTED },
+        data: { status: ExpenseStatus.DRAFT, claimId: null, rejectionReason: null },
+      });
+      if (!changed.count) throw new ConflictException('สถานะค่าใช้จ่ายเปลี่ยนแล้ว กรุณาโหลดล่าสุด');
+      await tx.auditLog.create({
+        data: {
+          firmId: user.firmId,
+          userId: user.id,
+          action: 'expense.revise',
+          metadata: {
+            expenseId,
+            claimId: expense.claimId,
+            rejectionReason: expense.rejectionReason,
+          },
+        },
+      });
+      return tx.expense.findUniqueOrThrow({ where: { id: expenseId }, include: this.expenseInclude });
+    });
+  }
+
+  /** The author edits a draft that is not in any claim yet. */
+  async updateDraftExpense(
+    user: AuthUser,
+    expenseId: string,
+    dto: UpdateDraftExpenseDto,
+    receipt?: Express.Multer.File,
+  ) {
+    const expense = await this.prisma.expense.findFirst({
+      where: { id: expenseId, ...this.getFirmExpenseFilter(user.firmId) },
+    });
+    if (!expense) throw new NotFoundException('ไม่พบค่าใช้จ่ายนี้');
+    if (expense.userId !== user.id) {
+      throw new ForbiddenException('แก้ไขได้เฉพาะรายการของตัวเอง');
+    }
+    if (expense.status !== ExpenseStatus.DRAFT || expense.claimId) {
+      throw new BadRequestException('แก้ไขได้เฉพาะรายการที่ยังเป็นร่าง');
+    }
+    if (dto.caseId) {
+      const legalCase = await this.prisma.case.findFirst({
+        where: { id: dto.caseId, firmId: user.firmId },
+      });
+      if (!legalCase) throw new NotFoundException('Case not found');
+    }
+
+    const changed = await this.prisma.expense.updateMany({
+      where: { id: expenseId, status: ExpenseStatus.DRAFT, claimId: null },
+      data: {
+        caseId: dto.caseId ?? null,
+        amount: dto.amount,
+        description: dto.description,
+        category: dto.category ?? null,
+        officialReceiptNo: dto.officialReceiptNo ?? null,
+        expensePurpose: dto.expensePurpose ?? null,
+        ...(dto.date ? { date: new Date(dto.date) } : {}),
+        // The hearing link only holds while the cost stays on that hearing's case.
+        ...((dto.caseId ?? null) !== expense.caseId ? { sourceEventId: null } : {}),
+      },
+    });
+    if (!changed.count) throw new ConflictException('สถานะค่าใช้จ่ายเปลี่ยนแล้ว กรุณาโหลดล่าสุด');
+    if (receipt) await this.attachReceipt(expenseId, receipt);
+    return this.prisma.expense.findUniqueOrThrow({ where: { id: expenseId }, include: this.expenseInclude });
   }
 
   async submitExpensesForApproval(user: AuthUser, expenseIds: string[]) {
@@ -902,6 +987,7 @@ export class BillingService {
     }
 
     const now = new Date();
+    const rejectionReason = next === ExpenseClaimStatus.REJECTED ? dto.reason || null : null;
     const expenseStatus =
       next === ExpenseClaimStatus.APPROVED
         ? ExpenseStatus.APPROVED
@@ -924,6 +1010,7 @@ export class BillingService {
         where: { claimId },
         data: {
           status: expenseStatus,
+          rejectionReason,
           ...(next === ExpenseClaimStatus.PAID
             ? { paidAt: now, paidById: user.id }
             : {}),
@@ -959,7 +1046,7 @@ export class BillingService {
         firmId: user.firmId,
         userIds: [claim.submittedById],
         actorUserId: user.id,
-        summaryText: copy,
+        summaryText: rejectionReason ? `${copy}\nเหตุผล: ${rejectionReason}` : copy,
         entityPath: '/expenses/claim',
         appPath: `/expenses/claim/${claim.id}`,
       });

@@ -24,6 +24,8 @@ import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { StepTracker } from '@/components/process/StepTracker';
 
+const REJECT_REASON_PROMPT = 'เหตุผลที่ไม่อนุมัติ (ไม่บังคับ) — ผู้เบิกจะเห็นข้อความนี้เพื่อแก้ไขแล้วส่งใหม่';
+
 const FILTERS = ['', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
 type TeamMember = {
@@ -94,12 +96,12 @@ export default function ReimbursementsPage() {
     load();
   }, [token, requesterFilter]);
 
-  const updateClaim = async (id: string, status: ExpenseClaimStatus) => {
+  const updateClaim = async (id: string, status: ExpenseClaimStatus, reason?: string) => {
     const authToken = token ?? getStoredToken();
     if (!authToken) return;
     setActionError('');
     try {
-      await api.updateExpenseClaimStatus(authToken, id, status);
+      await api.updateExpenseClaimStatus(authToken, id, status, reason);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : d.reimbursements.loadFailed);
       return;
@@ -110,8 +112,10 @@ export default function ReimbursementsPage() {
 
   const rejectClaim = (claim: ExpenseClaimSummary) => {
     const name = `${claim.submittedBy.firstName} ${claim.submittedBy.lastName}`.trim();
-    if (!window.confirm(`${d.reimbursements.reject}: ${name} ${formatCurrency(claim.totalAmount)}?`)) return;
-    void updateClaim(claim.id, 'REJECTED' as ExpenseClaimStatus);
+    // ช่องเหตุผลทำหน้าที่ยืนยันไปด้วย กดยกเลิก = ไม่ทำอะไร
+    const reason = window.prompt(`${d.reimbursements.reject}: ${name} ${formatCurrency(claim.totalAmount)}\n${REJECT_REASON_PROMPT}`);
+    if (reason === null) return;
+    void updateClaim(claim.id, 'REJECTED' as ExpenseClaimStatus, reason.trim().slice(0, 500) || undefined);
   };
 
   const issueAdvance = async (e: React.FormEvent) => {

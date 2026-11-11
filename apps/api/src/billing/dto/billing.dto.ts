@@ -137,6 +137,47 @@ export class CreateExpenseDto {
   status?: ExpenseStatus.DRAFT | ExpenseStatus.PENDING;
 }
 
+/** Edit of a draft the author still owns — same fields as creating one. */
+export class UpdateDraftExpenseDto {
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(100)
+  officialReceiptNo?: string;
+
+  @Type(() => Number)
+  @IsNumber(money)
+  @Min(MONEY_MIN)
+  @Max(MONEY_MAX)
+  amount!: number;
+
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  description!: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(100)
+  category?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  expensePurpose?: string;
+
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+
+  @IsOptional()
+  @IsUUID()
+  caseId?: string;
+}
+
 export class CreateStandaloneExpenseDto extends CreateExpenseDto {
   @IsOptional()
   @IsUUID()
@@ -172,6 +213,13 @@ export class IssueCashAdvanceDto {
 export class UpdateExpenseStatusDto {
   @IsEnum(ExpenseStatus)
   status!: ExpenseStatus;
+
+  /** Optional note to the requester when rejecting — shown on their to-do list. */
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class SettleCashAdvanceDto {
@@ -214,6 +262,13 @@ export class UpdateExpenseClaimStatusDto {
     | ExpenseClaimStatus.APPROVED
     | ExpenseClaimStatus.PAID
     | ExpenseClaimStatus.REJECTED;
+
+  /** Optional note to the requester when rejecting — shown on their to-do list. */
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class SubmitExpensesDto {

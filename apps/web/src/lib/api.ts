@@ -742,6 +742,8 @@ export interface ExpenseItem {
   writtenOffAt?: string | null;
   writtenOffBy?: { id: string; firstName: string; lastName: string } | null;
   writeOffReason?: string | null;
+  /** เหตุผลที่ผู้อนุมัติแจ้งตอนไม่อนุมัติ — ล้างเมื่อเจ้าของรายการนำกลับไปแก้ */
+  rejectionReason?: string | null;
 }
 
 export interface CreateExpenseInput {
@@ -2971,12 +2973,16 @@ export const api = {
   getExpenseClaim: (token: string, claimId: string) =>
     request<ExpenseClaimSummary>(`/expense-claims/${claimId}`, { token }),
 
-  updateExpenseClaimStatus: (token: string, claimId: string, status: string) =>
+  updateExpenseClaimStatus: (token: string, claimId: string, status: string, reason?: string) =>
     request<ExpenseClaimSummary>(`/expense-claims/${claimId}/status`, {
       method: 'PATCH',
       token,
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, ...(reason ? { reason } : {}) }),
     }),
+
+  /** นำรายการที่ไม่อนุมัติกลับเป็นร่าง (ออกจากใบเบิกเดิม) เพื่อแก้แล้วส่งใหม่ */
+  reviseRejectedExpense: (token: string, expenseId: string) =>
+    request<ExpenseItem>(`/expenses/${expenseId}/revise`, { method: 'POST', token }),
 
   getDocuments: (
     token: string,
@@ -3129,6 +3135,23 @@ export const api = {
       return request('/expenses', { method: 'POST', token, body: form });
     }
     return request('/expenses', { method: 'POST', token, body: JSON.stringify(data) });
+  },
+
+  updateDraftExpense: (
+    token: string,
+    expenseId: string,
+    data: Pick<CreateExpenseInput, 'amount' | 'description' | 'category' | 'expensePurpose' | 'caseId' | 'officialReceiptNo'>,
+    receipt?: File,
+  ) => {
+    if (receipt) {
+      const form = new FormData();
+      for (const [key, value] of Object.entries(data)) {
+        if (value !== undefined && value !== null && value !== '') form.append(key, String(value));
+      }
+      form.append('receipt', receipt);
+      return request<ExpenseItem>(`/expenses/${expenseId}`, { method: 'PATCH', token, body: form });
+    }
+    return request<ExpenseItem>(`/expenses/${expenseId}`, { method: 'PATCH', token, body: JSON.stringify(data) });
   },
 
   downloadExpenseReceipt: (token: string, expenseId: string) =>
