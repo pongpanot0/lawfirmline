@@ -1,10 +1,26 @@
 import { CaseStage } from '@lawfirm/shared';
-import { caseJourney, MAIN_JOURNEY_STAGES, nextJourneyStage } from './case-journey';
+import { caseJourney, MAIN_JOURNEY_STAGES, nextJourneyStage, preLitChecklist } from './case-journey';
 
 const legalCase = { stage: 'FILING', partyRole: null };
 const task = (patch: Partial<Parameters<typeof caseJourney>[1][number]> = {}) => ({ id: 't1', title: 'ยื่นฟ้อง', status: 'TODO', parentId: null, labels: ['stage:FILING'], assignee: null, dueDate: null, skippedReason: null, ...patch });
 
 describe('caseJourney', () => {
+  it('prioritizes missing case info over the pre-lit checklist and tasks', () => {
+    const preLit = preLitChecklist({ title: 'คดี', clientId: 'client' }, null, []);
+    const result = caseJourney({ ...legalCase, stage: 'PRE_LITIGATION' }, [task({ labels: ['stage:PRE_LITIGATION'] })], [], preLit, ['ข้อหา', 'คู่ความ']);
+    expect(result).toMatchObject({
+      infoMissing: ['ข้อหา', 'คู่ความ'], canAdvance: false,
+      next: { kind: 'INFO', text: 'เติมข้อมูลคดีให้ครบ (ข้อหา, คู่ความ)', done: 0, total: 1 },
+      blockers: ['ข้อมูลคดียังไม่ครบ: ข้อหา, คู่ความ', expect.any(String), expect.any(String)],
+    });
+  });
+  it('prioritizes the pre-lit next over pending tasks and labels every next action', () => {
+    const preLit = preLitChecklist({ title: 'คดี', clientId: 'client' }, null, []);
+    expect(caseJourney({ ...legalCase, stage: 'PRE_LITIGATION' }, [task({ labels: ['stage:PRE_LITIGATION'] })], [], preLit).next)
+      .toEqual({ ...preLit.next, kind: 'PRELIT' });
+    expect(caseJourney(legalCase, [task()], []).next).toMatchObject({ kind: 'TASK', done: 0, total: 1 });
+    expect(caseJourney(legalCase, [], [])).toMatchObject({ infoMissing: [], next: { kind: 'ADVANCE', done: 0, total: 0 } });
+  });
   it.each(MAIN_JOURNEY_STAGES)('marks stages before %s done, itself current and later stages locked', (stage) => {
     const result = caseJourney({ ...legalCase, stage }, [], []);
     const current = MAIN_JOURNEY_STAGES.indexOf(stage);

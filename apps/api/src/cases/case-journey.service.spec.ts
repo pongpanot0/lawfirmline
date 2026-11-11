@@ -51,11 +51,11 @@ describe('Case journey endpoints', () => {
   it('checks tenant and deletion again on the journey data query', async () => {
     prisma.case.findFirst.mockResolvedValueOnce({ id: 'case' }).mockResolvedValueOnce(null);
     await expect(service.journey(user, 'case')).rejects.toThrow(NotFoundException);
-    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { id: 'case', firmId: 'f1', deletedAt: null }, select: { stage: true, openedAtStage: true, partyRole: true, intakeId: true, title: true, clientId: true, clientName: true } });
+    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { id: 'case', firmId: 'f1', deletedAt: null }, select: { stage: true, openedAtStage: true, partyRole: true, intakeId: true, title: true, clientId: true, clientName: true, courtName: true, customFields: true, caseType: { select: { fieldSchema: true } }, participants: { select: { name: true, side: true, role: true } } } });
     expect(prisma.appliedPlaybook.findMany).not.toHaveBeenCalled();
   });
 
-  const preLitCase = { id: 'case', stage: CaseStage.PRE_LITIGATION, intakeId: 'intake', status: 'OPEN', partyRole: null, courtLevel: 'FIRST_INSTANCE', blackCaseNumber: null, redCaseNumber: null };
+  const preLitCase = { id: 'case', stage: CaseStage.PRE_LITIGATION, intakeId: 'intake', status: 'OPEN', partyRole: null, courtName: 'ศาลแพ่ง', courtLevel: 'FIRST_INSTANCE', blackCaseNumber: null, redCaseNumber: null };
   const preLitIntake = { title: 'เรื่องใหม่', clientId: 'client', clientName: null, decision: 'FILE_SUIT', status: 'CONVERTED' };
   const arrangePreLit = () => {
     prisma.case.findFirst.mockResolvedValue(preLitCase);
@@ -105,7 +105,7 @@ describe('Case journey endpoints', () => {
   });
 
   it.each(['PRE_LITIGATION', 'INTAKE_REVIEW', 'FACT_GATHERING'])('builds the checklist for a form-created %s case', async (stage) => {
-    prisma.case.findFirst.mockResolvedValue({ stage, title: 'คดีจากฟอร์ม', clientId: 'client', clientName: null, intakeId: null, partyRole: null });
+    prisma.case.findFirst.mockResolvedValue({ stage, title: 'คดีจากฟอร์ม', clientId: 'client', clientName: null, intakeId: null, partyRole: null, courtName: 'ศาลแพ่ง' });
     prisma.conflictCheck.findFirst.mockResolvedValue({ result: 'CLEAR' });
     prisma.intakeDocumentRequest.findMany.mockResolvedValue([]);
     const result = await service.journey(user, 'case');
@@ -116,14 +116,14 @@ describe('Case journey endpoints', () => {
   });
 
   it('loads stage tasks and only releases from the same firm', async () => {
-    prisma.case.findFirst.mockResolvedValue({ id: 'case', stage: 'FILING', partyRole: null });
+    prisma.case.findFirst.mockResolvedValue({ id: 'case', stage: 'FILING', partyRole: null, courtName: 'ศาลแพ่ง' });
     await service.journey(user, 'case');
     expect(prisma.task.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { caseId: 'case' } }));
     expect(prisma.appliedPlaybook.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { caseId: 'case', release: { firmId: 'f1' } } }));
   });
 
   it('refuses advance with Thai blockers and does not call the existing update path', async () => {
-    prisma.case.findFirst.mockResolvedValue({ id: 'case', stage: 'FILING', partyRole: null });
+    prisma.case.findFirst.mockResolvedValue({ id: 'case', stage: 'FILING', partyRole: null, courtName: 'ศาลแพ่ง' });
     prisma.task.findMany.mockResolvedValue([{ id: 't', title: 'ยื่นฟ้อง', status: 'TODO', parentId: null, labels: ['stage:FILING'], assignee: null, dueDate: null, skippedReason: null }]);
     const update = jest.spyOn(service, 'update');
     await expect(service.advanceJourney(user, 'case', {})).rejects.toMatchObject({ response: { blockers: ['งานยังไม่เสร็จหรือข้าม: ยื่นฟ้อง'] }, status: 400 });
@@ -131,7 +131,7 @@ describe('Case journey endpoints', () => {
   });
 
   it('advances through the real update path, preserving stageChangedAt and activity logging', async () => {
-    const row = { id: 'case', stage: CaseStage.FILING, status: 'OPEN', partyRole: null, courtLevel: 'FIRST_INSTANCE', blackCaseNumber: null, redCaseNumber: null };
+    const row = { id: 'case', stage: CaseStage.FILING, status: 'OPEN', partyRole: null, courtName: 'ศาลแพ่ง', courtLevel: 'FIRST_INSTANCE', blackCaseNumber: null, redCaseNumber: null };
     prisma.case.findFirst.mockImplementation(async () => ({ ...row }));
     prisma.case.findUnique.mockImplementation(async () => ({ ...row }));
     prisma.case.update.mockImplementation(async ({ data }) => { Object.assign(row, data); return { ...row }; });
@@ -152,22 +152,44 @@ describe('Case journey endpoints', () => {
   });
 
   it.each([[CaseStage.AWAITING_JUDGMENT, CaseStage.APPEAL], [CaseStage.APPEAL, CaseStage.SUPREME], [CaseStage.PRE_LITIGATION, CaseStage.CLOSING]])('sends %s → %s through the existing stage update', async (fromStage, toStage) => {
-    prisma.case.findFirst.mockResolvedValue({ stage: fromStage, partyRole: null, title: 'คดี', clientId: 'client' });
+    prisma.case.findFirst.mockResolvedValue({ stage: fromStage, partyRole: null, courtName: 'ศาลแพ่ง', title: 'คดี', clientId: 'client' });
     const update = jest.spyOn(service, 'update').mockResolvedValue({} as any);
     await service.advanceJourney(user, 'case', { toStage });
     expect(update).toHaveBeenCalledWith(user, 'case', { stage: toStage }, fromStage);
   });
 
   it('refuses invalid explicit stage and advancing past CLOSING', async () => {
-    prisma.case.findFirst.mockResolvedValue({ stage: 'FILING', partyRole: null });
+    prisma.case.findFirst.mockResolvedValue({ stage: 'FILING', partyRole: null, courtName: 'ศาลแพ่ง' });
     await expect(service.advanceJourney(user, 'case', { toStage: CaseStage.HEARING })).rejects.toThrow(BadRequestException);
-    prisma.case.findFirst.mockResolvedValue({ stage: 'CLOSING', partyRole: null });
+    prisma.case.findFirst.mockResolvedValue({ stage: 'CLOSING', partyRole: null, courtName: 'ศาลแพ่ง' });
     await expect(service.advanceJourney(user, 'case', {})).rejects.toThrow(BadRequestException);
     expect(prisma.case.update).not.toHaveBeenCalled();
   });
 
   const pendingTask = { id: 't', title: 'ยื่นฟ้อง', status: 'TODO', parentId: null, labels: ['stage:FILING'], assignee: null, dueDate: null, skippedReason: null };
-  const row = { id: 'case', stage: CaseStage.FILING, status: 'OPEN', partyRole: null, courtLevel: 'TRIAL', blackCaseNumber: null, redCaseNumber: null };
+  const row = { id: 'case', stage: CaseStage.FILING, status: 'OPEN', partyRole: null, courtName: 'ศาลแพ่ง', courtLevel: 'TRIAL', blackCaseNumber: null, redCaseNumber: null };
+
+  it.each(['PATCH', 'advance'])('%s checks required case info before any stage write', async (path) => {
+    const incomplete = { ...row, customFields: { claim: ' ' }, caseType: { fieldSchema: [{ key: 'claim', label: 'คำขอ', required: true }] } };
+    prisma.case.findFirst.mockResolvedValue(incomplete);
+    prisma.case.findUnique.mockResolvedValue(incomplete);
+    const result = await service.journey(user, 'case');
+    expect(result).toMatchObject({ infoMissing: ['คำขอ'], next: { kind: 'INFO' }, canAdvance: false });
+    const request = path === 'PATCH' ? service.update(user, 'case', { stage: CaseStage.ANSWER }) : service.advanceJourney(user, 'case', {});
+    await expect(request).rejects.toMatchObject({ status: 400, response: { blockers: ['ข้อมูลคดียังไม่ครบ: คำขอ'] } });
+    expect(prisma.case.updateMany).not.toHaveBeenCalled();
+    expect(prisma.case.update).not.toHaveBeenCalled();
+  });
+
+  it('rechecks case info on the transaction client when it changes after the initial read', async () => {
+    prisma.case.findFirst.mockResolvedValue(row);
+    prisma.case.findUnique.mockResolvedValue(row);
+    const tx = { ...prisma, case: { ...prisma.case, findFirst: jest.fn().mockResolvedValue({ ...row, courtName: ' ' }) } };
+    prisma.$transaction.mockImplementation((fn) => fn(tx));
+    await expect(service.advanceJourney(user, 'case', {})).rejects.toMatchObject({ status: 400, response: { blockers: ['ข้อมูลคดียังไม่ครบ: ศาล'] } });
+    expect(prisma.case.updateMany).not.toHaveBeenCalled();
+    expect(caseFeed.log).not.toHaveBeenCalled();
+  });
 
   it.each([CaseStage.ANSWER, CaseStage.CLOSING])('PATCH refuses %s while stage tasks are unresolved', async (stage) => {
     prisma.case.findFirst.mockResolvedValue(row);

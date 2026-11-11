@@ -16,7 +16,7 @@ describe('case stages', () => {
   let service: CasesService;
   let prisma: any;
   const feed = { log: jest.fn() };
-  const base = { id: 'case-1', status: 'IN_PROGRESS', stage: 'HEARING', title: 'คดี', ownRef: 'C-1', leadLawyerId: 'lead-1' };
+  const base = { id: 'case-1', status: 'IN_PROGRESS', stage: 'HEARING', title: 'คดี', ownRef: 'C-1', leadLawyerId: 'lead-1', courtName: 'ศาลแพ่ง' };
 
   beforeEach(async () => {
     jest.clearAllMocks();
