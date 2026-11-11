@@ -1869,7 +1869,8 @@ export interface AddinCaseSuggestion {
 
 export type JourneyStep = { key: string; label: string; state: 'done' | 'current' | 'locked'; summary?: string | null; unlockHint?: string | null; skippedAtOpen?: boolean };
 export type Journey = { steps: JourneyStep[]; next: { text: string; done: number; total: number } | null; canAdvance: boolean; blockers: string[] };
-export type CaseJourney = Journey & { preLitSteps: JourneyStep[]; preLitNext: Journey['next']; currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] };
+export type CaseProgress = { caseId: string; bucket: 'TODO' | 'WAITING_CLIENT' | 'WAITING_COURT' | 'CLOSED'; stepIndex: number; stepTotal: number; stepLabel: string; done: number; total: number; next: { kind: 'INFO' | 'PRELIT' | 'TASK' | 'ADVANCE' | 'SET_NEXT'; text: string; taskId?: string; dueDate?: string; assigneeName?: string } | null; nextCourtDate: string | null };
+export type CaseJourney = Omit<Journey, 'next'> & { next: (NonNullable<Journey['next']> & { kind: 'INFO' | 'PRELIT' | 'TASK' | 'ADVANCE' }) | null; infoMissing: string[]; preLitSteps: JourneyStep[]; preLitNext: Journey['next']; currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] };
 export type SkippedTask = { id: string; status: string; skippedReason: string; skippedAt: string; skippedById: string };
 
 export const api = {
@@ -2107,6 +2108,8 @@ export const api = {
   /** เงียบ — เรียกทีละใบระหว่างทวงหลายใบพร้อมกัน ให้ toast สรุปรวมทำหน้าที่แจ้งผลแทน */
   remindInvoice: (token: string, invoiceId: string) =>
     request<RemindInvoiceResult>(`/invoices/${invoiceId}/remind`, { method: 'POST', token, silent: true }),
+
+  getCaseProgress: (token: string) => request<CaseProgress[]>('/cases/progress', { token }),
 
   getCases: (
     token: string,
