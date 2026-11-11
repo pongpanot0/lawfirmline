@@ -713,7 +713,7 @@ function NewCaseForm() {
               <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="border-b pb-3 text-lg font-semibold">5 อีเมลที่เกี่ยวข้อง (ไม่บังคับ)</h2><p className="text-sm text-muted-foreground">ผูกอีเมลที่มีอยู่แล้วเข้าคดีตอนสร้าง — ไฟล์แนบจะเข้าแท็บเอกสาร · แสดงเฉพาะอีเมลในกล่องของคุณ</p>{token && <EmailLinkCandidates token={token} clientId={form.clientId} selected={selectedEmails} onChange={setSelectedEmails} />}</section>
             </details>
             </fieldset>
-            <aside className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t bg-card p-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
+            <aside aria-label="สรุปก่อนเปิดคดี" className="sticky bottom-0 z-[45] flex items-center justify-between gap-3 rounded-lg border bg-card p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] shadow-lg">
               <span className="text-sm tabular-nums">กรอกครบ {completed} จาก {checklist.length}</span>
               <Button type="submit" className="min-h-11" disabled={submitting || analysisBusy || loadingTypes || !caseTypes.length}>{submitting ? 'กำลังบันทึก…' : uploadFailures.length ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)` : 'เปิดคดี'}</Button>
             </aside>

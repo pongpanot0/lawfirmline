@@ -223,7 +223,7 @@ export default function ExpensesPage() {
           {tab === 'APPROVE' && e.claimId && <div className="flex gap-2"><Button disabled={!!busyClaim} onClick={() => decideClaim(e.claimId!, 'APPROVED')}>อนุมัติทั้งใบเบิก</Button><Button variant="outline" disabled={!!busyClaim} onClick={() => decideClaim(e.claimId!, 'REJECTED')}>ไม่อนุมัติ</Button></div>}
         </article>)}
       </div>
-      {selectedDraftIds.length > 0 && <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-lg"><span>เลือกแล้ว {selectedDraftIds.length} รายการ · {formatCurrency(selectedTotal)}</span><Button onClick={openClaimSheet}>ส่งเบิก →</Button></div>}
+      {selectedDraftIds.length > 0 && <div className="sticky bottom-0 z-[45] flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-lg"><span>เลือกแล้ว {selectedDraftIds.length} รายการ · {formatCurrency(selectedTotal)}</span><Button onClick={openClaimSheet}>ส่งเบิก →</Button></div>}
 
     </div>
   );
