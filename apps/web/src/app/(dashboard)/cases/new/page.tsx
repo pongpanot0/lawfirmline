@@ -3,6 +3,7 @@
 // Hallmark · genre: modern-minimal · fingerprint: hanging / single-column / hairline / solid-primary / no-imagery / no-reveal · tone: soft · anchor: Samnuan blue
 // Hallmark · contrast: pass (40–41) · responsive: pass (34, 49–57) · pre-emit: P5 H5 E4 S5 R5 V5
 
+import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import { ClientCombobox } from './ClientCombobox';
 import { missingFields } from './validation';
 import { latestPlaybookReleases, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
@@ -557,7 +558,7 @@ function NewCaseForm() {
                   <label htmlFor="red-case-number" className={fieldLabel}>หมายเลขคดีแดง (ไม่บังคับ)<input id="red-case-number" value={form.redCaseNumber} onChange={(e) => setForm({ ...form, redCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label>
                   <div role="group" aria-labelledby="limitation-deadline-label" className={fieldLabel}>
                     <span id="limitation-deadline-label">วันครบอายุความ</span>
-                    <ThaiDateInput id="limitation-deadline" className="mt-1" value={form.limitationDeadline} onChange={(limitationDeadline) => setForm((current) => ({ ...current, limitationDeadline }))} onIncompleteChange={setLimitationIncomplete} />
+                    <ThaiDateField id="limitation-deadline" ariaLabel="วันครบอายุความ" value={form.limitationDeadline ?? ''} onChange={(limitationDeadline) => setForm((current) => ({ ...current, limitationDeadline }))} />
                     <span className="mt-1 block text-xs font-normal text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน</span>
                   </div>
 
@@ -572,7 +573,7 @@ function NewCaseForm() {
               </div>
               <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
                 <label className={fieldLabel}>วันเกิดเหตุ
-                  <input type="date" value={form.customFields.incidentDate?.slice(0, 10) ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, incidentDate: event.target.value } }))} className={inputClass} />
+                  <ThaiDateField ariaLabel="วันเกิดเหตุ" value={form.customFields.incidentDate?.slice(0, 10) ?? ''} onChange={(incidentDate) => setForm((current) => ({ ...current, customFields: { ...current.customFields, incidentDate } }))} />
                 </label>
                 <label className={fieldLabel}>ทุนทรัพย์ที่เรียกร้อง (บาท)
                   <MoneyInput min={0} max={FEE_MAX} value={form.claimedAmount} onValueChange={(next) => setForm((current) => ({ ...current, claimedAmount: next }))} className={inputClass} />

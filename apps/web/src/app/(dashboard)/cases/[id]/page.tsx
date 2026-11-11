@@ -1,5 +1,6 @@
 'use client';
 
+import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import dynamic from 'next/dynamic';
 const CaseMessagesPanel = dynamic(() => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
 import { CaseTabBar } from '@/components/case-page/CaseTabBar';
@@ -1727,7 +1728,7 @@ export default function CaseDetailPage() {
                   <option value="">ฉันเอง</option>
                   <AssigneeOptions users={lawyers} flags={quickTaskLeaveFlags} nameOf={(u) => u.firstName} />
                 </select>
-                <ThaiDateInput value={quickTaskDue} onChange={setQuickTaskDue} />
+                <ThaiDateField className="w-48" ariaLabel="วันครบกำหนด" value={quickTaskDue ?? ''} onChange={setQuickTaskDue} />
                 <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={addQuickTask} disabled={!quickTaskTitle.trim() || quickTaskBusy}>
                   เพิ่มงาน
                 </Button>

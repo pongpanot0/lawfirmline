@@ -1,5 +1,6 @@
 'use client';
 
+import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import { CasePlaybook } from './CasePlaybook';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -275,7 +276,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                   <p className={v2.hint}>คนที่เลือกจะได้รับแจ้งเตือนทันที</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <label className="block" htmlFor="case-task-due"><span className={v2.flabel}>ครบกำหนด</span><input id="case-task-due" type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} className={`${v2.field} text-base sm:text-[15px]`} /></label>
+                  <label className="block" htmlFor="case-task-due"><span className={v2.flabel}>ครบกำหนด</span><ThaiDateField id="case-task-due" value={newDueDate} onChange={setNewDueDate} /></label>
                   <label className="block" htmlFor="case-task-stage"><span className={v2.flabel}>อยู่ในขั้น</span><select id="case-task-stage" value={newStage ?? caseDetail?.stage ?? ''} onChange={(e) => setNewStage(e.target.value)} className={`${v2.field} text-base sm:text-[15px]`}><option value="">ไม่ผูกกับขั้น</option>{caseStageOptions('th').map((option) => <option key={option.value} value={option.value}>{option.label}{option.value === caseDetail?.stage ? ' (ขั้นปัจจุบัน)' : ''}</option>)}</select></label>
                 </div>
                 <p className={`${v2.hint} rounded-lg bg-[#f3f1ea] p-3`}>งานในขั้นปัจจุบันต้องเสร็จก่อนจึงย้ายคดีไปขั้นถัดไปได้ — ถ้าเป็นงานที่ไม่บังคับ ให้เลือกขั้น “ไม่ผูกกับขั้น”</p>
