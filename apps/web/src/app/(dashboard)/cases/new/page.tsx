@@ -24,6 +24,7 @@ import {
   FieldSuggestion,
   SuggestibleField,
   type LinkCandidate,
+  type UserItem,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { PageLoading } from '@/components/ui/misc';
@@ -34,6 +35,7 @@ import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
 import { litigationPayload, openingStageError, type OpponentRow } from '@/lib/case-create';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Checkbox } from '@/components/ui/checkbox';
+import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { ArrowLeft, Plus, X } from 'lucide-react';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import type { CaseFieldSchema } from '@lawfirm/shared';
@@ -84,6 +86,9 @@ function NewCaseForm() {
   const [uploadFailures, setUploadFailures] = useState<string[]>([]);
   const [opponents, setOpponents] = useState<OpponentRow[]>([{ name: '', role: '', personType: '' }]);
   const [courts, setCourts] = useState<CourtItem[]>([]);
+  const [lawyers, setLawyers] = useState<UserItem[]>([]);
+  const [teamIds, setTeamIds] = useState<string[]>([]);
+  useEffect(() => { if (token) api.getLawyers(token).then(setLawyers).catch(() => setLawyers([])); }, [token]);
   const [limitationIncomplete, setLimitationIncomplete] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState<LinkCandidate[]>([]);
   const [blackUnknown, setBlackUnknown] = useState(false);
@@ -267,6 +272,7 @@ function NewCaseForm() {
         }),
         ...(conflictOverrideReason ? { conflictOverrideReason } : {}),
         leadLawyerId: form.leadLawyerId,
+        ...(teamIds.filter((id) => id !== form.leadLawyerId).length ? { buddyIds: teamIds.filter((id) => id !== form.leadLawyerId) } : {}),
         caseTypeId: form.caseTypeId,
         customFields: {
           ...form.customFields,
@@ -474,6 +480,10 @@ function NewCaseForm() {
               </div>
               <div><label htmlFor="lead-lawyer" className={fieldLabel}>ทนายผู้รับผิดชอบ <span className="text-destructive">*</span></label>
                 {token && <OwnerPicker id="lead-lawyer" token={token} currentUserId={user?.id} value={form.leadLawyerId} onChange={(leadLawyerId) => setForm((current) => ({ ...current, leadLawyerId }))}  />}
+              </div>
+              <div><span className={fieldLabel}>ทีมคดี <span className="font-normal text-muted-foreground">(ไม่บังคับ · เลือกได้หลายคน)</span></span>
+                <div className="mt-1"><MultiUserSelect users={lawyers.filter((lawyer) => lawyer.id !== form.leadLawyerId)} value={teamIds.filter((id) => id !== form.leadLawyerId)} onChange={setTeamIds} placeholder="เพิ่มคนที่ทำคดีนี้ด้วย" /></div>
+                <p className="mt-1 text-xs text-muted-foreground">ทุกคนในทีมเห็นคดีและติ๊กงานในขั้นได้ ระบบแจ้งเตือนให้ทุกคน</p>
               </div>
               <fieldset><legend className={fieldLabel}>ตอนนี้คดีอยู่ขั้นไหน *</legend><div className="mt-2 flex flex-wrap gap-2">{[{ label: 'ยังไม่ถึงชั้นศาล', value: false }, { label: 'อยู่ในชั้นศาลแล้ว', value: true }].map((option) => <label key={option.label} className={`flex min-h-11 cursor-pointer items-center rounded-lg border px-3 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${(stageIndex > 0) === option.value ? 'bg-primary text-primary-foreground' : ''}`}><input type="radio" name="court-status" className="sr-only" checked={(stageIndex > 0) === option.value} onChange={() => setStage(option.value ? CaseStage.FILING : CaseStage.PRE_LITIGATION)} />{option.label}</label>)}</div></fieldset>
               {stageIndex > 0 && <>
@@ -713,7 +723,7 @@ function NewCaseForm() {
               <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="border-b pb-3 text-lg font-semibold">5 อีเมลที่เกี่ยวข้อง (ไม่บังคับ)</h2><p className="text-sm text-muted-foreground">ผูกอีเมลที่มีอยู่แล้วเข้าคดีตอนสร้าง — ไฟล์แนบจะเข้าแท็บเอกสาร · แสดงเฉพาะอีเมลในกล่องของคุณ</p>{token && <EmailLinkCandidates token={token} clientId={form.clientId} selected={selectedEmails} onChange={setSelectedEmails} />}</section>
             </details>
             </fieldset>
-            <aside aria-label="สรุปก่อนเปิดคดี" className="sticky bottom-0 z-[45] flex items-center justify-between gap-3 rounded-lg border bg-card p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] shadow-lg">
+            <aside aria-label="สรุปก่อนเปิดคดี" className="flex items-center justify-between gap-3 rounded-lg border bg-card p-4">
               <span className="text-sm tabular-nums">กรอกครบ {completed} จาก {checklist.length}</span>
               <Button type="submit" className="min-h-11" disabled={submitting || analysisBusy || loadingTypes || !caseTypes.length}>{submitting ? 'กำลังบันทึก…' : uploadFailures.length ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)` : 'เปิดคดี'}</Button>
             </aside>

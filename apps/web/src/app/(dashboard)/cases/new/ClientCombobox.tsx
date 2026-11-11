@@ -119,8 +119,8 @@ export function ClientCombobox({
               <button
                 type="button"
                 className={cn(
-                  'block w-full px-3 py-2 text-left hover:bg-sidebar-accent',
-                  i === highlight && 'bg-sidebar-accent',
+                  'block w-full px-3 py-2 text-left text-foreground hover:bg-accent',
+                  i === highlight && 'bg-accent font-medium',
                 )}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(c)}
