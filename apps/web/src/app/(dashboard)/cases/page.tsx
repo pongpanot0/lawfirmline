@@ -33,7 +33,7 @@ const PAGE_SIZE = 10;
 
 /** Columns a lawyer can hide — mostly-empty in practice, so they crowd the table by default. */
 const OPTIONAL_COLUMNS = [
-  { key: 'customerRef', label: 'เลขอ้างอิงลูกค้า' },
+  { key: 'customerRef', label: 'เลขอ้างอิงผู้ว่าจ้าง' },
   { key: 'courtNumbers', label: 'หมายเลขคดีดำ / แดง' },
   { key: 'parties', label: 'โจทก์ / จำเลย' },
   { key: 'description', label: 'หมายเหตุ' },

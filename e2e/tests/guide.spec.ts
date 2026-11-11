@@ -12,7 +12,7 @@ const SIDEBAR = (href: string) => `aside a[href="${href}"]`;
 /** Nav bits that are on every dashboard screen — reused as the first callouts. */
 const CHROME = [
   { selector: 'aside nav', label: 'เมนูหลัก ใช้สลับหน้าจอทั้งระบบ', place: 'right' as const },
-  { selector: 'input[placeholder*="ค้นหาคดี"]', label: 'ช่องค้นหาด่วน คดี/ลูกค้า', place: 'bottom' as const },
+  { selector: 'input[placeholder*="ค้นหาคดี"]', label: 'ช่องค้นหาด่วน คดี', place: 'bottom' as const },
 ];
 
 async function goto(page: Page, route: string) {
@@ -171,36 +171,36 @@ test('10 — การเงินรายคดี', async ({ page }) => {
   });
 });
 
-test('11 — ลูกค้า', async ({ page }) => {
+test('11 — ลูกความ', async ({ page }) => {
   await goto(page, '/clients');
   await capture(page, {
     id: '11-clients',
-    title: 'ลูกค้า — ทะเบียนลูกค้าและผู้ติดต่อ',
+    title: 'ลูกความ — ทะเบียนลูกความและผู้ติดต่อ',
     route: '/clients',
-    description: 'รายชื่อลูกค้าทั้งหมด ค้นหาได้จากชื่อ และเปิดดูผู้ติดต่อ คดีที่เกี่ยวข้อง และสิทธิ์เข้าใช้ Client Portal',
+    description: 'รายชื่อลูกความทั้งหมด ค้นหาได้จากชื่อ และเปิดดูผู้ติดต่อ คดีที่เกี่ยวข้อง และสิทธิ์เข้าใช้ Client Portal',
     callouts: [
       ...CHROME,
-      { selector: 'input[placeholder*="ค้นหาลูกค้า"]', label: 'ค้นหาลูกค้า', place: 'bottom' },
-      { selector: 'button:has-text("เพิ่มลูกค้า")', label: 'เพิ่มลูกค้าใหม่', place: 'left' },
+      { selector: 'input[placeholder*="ค้นหาชื่อ"]', label: 'ค้นหาลูกความ', place: 'bottom' },
+      { selector: 'button:has-text("เพิ่มลูกความ")', label: 'เพิ่มลูกความใหม่', place: 'left' },
     ],
   });
 });
 
-test('12 — เพิ่มลูกค้า', async ({ page }) => {
+test('12 — เพิ่มลูกความ', async ({ page }) => {
   await goto(page, '/clients/new');
   await capture(page, {
     id: '12-clients-new',
-    title: 'เพิ่มลูกค้า — พร้อมผู้ติดต่อหลายคน',
+    title: 'เพิ่มลูกความ — พร้อมผู้ติดต่อหลายคน',
     route: '/clients/new',
     description:
-      'สร้างลูกค้าใหม่ เลือกประเภทบุคคล/นิติบุคคล และเพิ่มผู้ติดต่อได้หลายคน เบอร์โทรต้องเป็นตัวเลข และต้องเลือกผู้ติดต่อหลัก 1 คน',
+      'สร้างลูกความใหม่ เลือกประเภทบุคคล/นิติบุคคล และเพิ่มผู้ติดต่อได้หลายคน เบอร์โทรต้องเป็นตัวเลข และต้องเลือกผู้ติดต่อหลัก 1 คน',
     callouts: [
-      { selector: 'input[placeholder*="บริษัท ABC"]', label: 'ชื่อลูกค้า (บังคับ)', place: 'right' },
+      { selector: 'input[placeholder*="บริษัท ABC"]', label: 'ชื่อลูกความ (บังคับ)', place: 'right' },
       { selector: 'main select', label: 'ประเภท บุคคล หรือ นิติบุคคล', place: 'right' },
       { selector: 'input[placeholder*="ชื่อผู้ติดต่อ"]', label: 'ชื่อผู้ติดต่อ (บังคับ)', place: 'right' },
       { selector: 'input[placeholder*="Phone"]', label: 'เบอร์โทร ตัวเลข 9-10 หลัก', place: 'right' },
       { selector: 'button:has-text("Add Contact")', label: 'เพิ่มผู้ติดต่อคนถัดไป', place: 'left' },
-      { selector: 'button:has-text("Create Client")', label: 'บันทึกลูกค้า', place: 'right' },
+      { selector: 'button:has-text("Create Client")', label: 'บันทึกลูกความ', place: 'right' },
     ],
   });
 });

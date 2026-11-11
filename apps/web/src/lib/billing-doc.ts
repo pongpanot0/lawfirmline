@@ -80,7 +80,7 @@ export function buildBillingDocHtml(data: BillingDocData): string {
           ? `<p>${[data.billTo.billingEmail, data.billTo.billingPhone].filter(Boolean).map((v) => escapeHtml(v!)).join(' · ')}</p>`
           : '',
       ].join('')
-    : '<p class="strong">(ยังไม่ระบุลูกค้า)</p>';
+    : '<p class="strong">(ยังไม่ระบุผู้ว่าจ้าง)</p>';
   const meta = [
     ['เลขที่', data.invoiceNumber],
     ['วันที่ออก', thaiDate(data.issuedAt)],

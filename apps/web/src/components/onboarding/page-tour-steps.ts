@@ -22,11 +22,11 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
   ],
   '/court-schedule': [
     { selector: 'main h1', title: 'ตารางศาล', body: 'ใครไปไหนวันไหน เรียงตามวัน พร้อมเตือนเมื่อมีคนถูกจองซ้อน', placement: 'right' },
-    { selector: 'text:เพิ่มนัด', title: 'เพิ่มนัดใหม่', body: 'เพิ่มนัดศาลหรือนัดลูกค้าใหม่จากปุ่มนี้', placement: 'left' },
+    { selector: 'text:เพิ่มนัด', title: 'เพิ่มนัดใหม่', body: 'เพิ่มนัดศาลหรือนัดลูกความใหม่จากปุ่มนี้', placement: 'left' },
   ],
 
   '/cases': [
-    { selector: 'placeholder:Own Ref', title: 'ค้นหาคดี', body: 'ค้นหาด้วย Own Ref, Customer Ref, หมายเลขคดีดำ, หมายเลขคดีแดง หรือชื่อลูกค้า', placement: 'bottom' },
+    { selector: 'placeholder:Own Ref', title: 'ค้นหาคดี', body: 'ค้นหาด้วย Own Ref, Customer Ref, หมายเลขคดีดำ, หมายเลขคดีแดง หรือชื่อลูกความ', placement: 'bottom' },
     { selector: 'text:สร้างคดีใหม่', title: 'สร้างคดีใหม่', body: 'เปิดคดีใหม่ได้จากปุ่มนี้', placement: 'left' },
   ],
   '/cases/board': [
@@ -43,12 +43,12 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
   ],
 
   '/clients': [
-    { selector: 'placeholder:ค้นหาลูกค้า', title: 'ค้นหาลูกค้า', body: 'ค้นหาลูกค้าจากชื่อได้ที่นี่', placement: 'bottom' },
-    { selector: 'text:เพิ่มลูกค้า', title: 'เพิ่มลูกค้าใหม่', body: 'สร้างลูกค้าใหม่พร้อมผู้ติดต่อได้จากปุ่มนี้', placement: 'left' },
+    { selector: 'placeholder:ค้นหาชื่อ', title: 'ค้นหาลูกความ', body: 'ค้นหาลูกความจากชื่อได้ที่นี่', placement: 'bottom' },
+    { selector: 'text:เพิ่มลูกความ', title: 'เพิ่มลูกความใหม่', body: 'สร้างลูกความใหม่พร้อมผู้ติดต่อได้จากปุ่มนี้', placement: 'left' },
   ],
   '/clients/new': [
-    { selector: 'main h1', title: 'เพิ่มลูกค้า', body: 'เริ่มจากชื่อลูกค้าหรือชื่อบริษัท ผู้ติดต่อและข้อมูลอื่นเติมภายหลังได้', placement: 'right' },
-    { selector: 'placeholder:นายสมชาย', title: 'ชื่อลูกค้า', body: 'กรอกชื่อลูกค้า แล้วเลือกประเภทบุคคลธรรมดา/นิติบุคคลด้านบน', placement: 'right' },
+    { selector: 'main h1', title: 'เพิ่มลูกความ', body: 'เริ่มจากชื่อลูกความหรือชื่อบริษัท ผู้ติดต่อและข้อมูลอื่นเติมภายหลังได้', placement: 'right' },
+    { selector: 'placeholder:นายสมชาย', title: 'ชื่อลูกความ', body: 'กรอกชื่อลูกความ แล้วเลือกประเภทบุคคลธรรมดา/นิติบุคคลด้านบน', placement: 'right' },
   ],
 
   '/documents': [
@@ -100,10 +100,10 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
   ],
 
   '/intake': [
-    { selector: 'text:สร้างใหม่', title: 'รับเรื่อง', body: 'คัดกรองเรื่องที่ลูกค้าติดต่อเข้ามาก่อนตัดสินใจเปิดเป็นคดี', placement: 'left' },
+    { selector: 'text:สร้างใหม่', title: 'รับเรื่อง', body: 'คัดกรองเรื่องที่ลูกความติดต่อเข้ามาก่อนตัดสินใจเปิดเป็นคดี', placement: 'left' },
   ],
   '/intake/new': [
-    { selector: 'placeholder:เลขเคลม', title: 'รับเรื่องใหม่', body: 'กรอกหัวข้อเรื่องและวางข้อความจากอีเมล/แชทของลูกค้า ระบบช่วยสรุปข้อเท็จจริงให้', placement: 'right' },
+    { selector: 'placeholder:เลขเคลม', title: 'รับเรื่องใหม่', body: 'กรอกหัวข้อเรื่องและวางข้อความจากอีเมล/แชทของลูกความ ระบบช่วยสรุปข้อเท็จจริงให้', placement: 'right' },
   ],
   '/intake/portal-submissions': [
     { selector: 'main h1', title: 'เรื่องจากพอร์ทัลลูกความ', body: 'ตรวจคำขอที่ลูกความส่งผ่านพอร์ทัลก่อนรับเข้าเป็นคดี', placement: 'right' },

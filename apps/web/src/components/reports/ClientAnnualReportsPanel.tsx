@@ -171,7 +171,7 @@ export function ClientAnnualReportsPanel({
           <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">1</span>
           <div>
             <h3 id="annual-scope" className="font-semibold">กำหนดขอบเขตรายงาน</h3>
-            <p className="text-sm text-muted-foreground">ปีปฏิทินไทย และบทบาทที่ลูกค้ารายนี้เกี่ยวข้องกับคดี</p>
+            <p className="text-sm text-muted-foreground">ปีปฏิทินไทย และบทบาทที่ลูกความรายนี้เกี่ยวข้องกับคดี</p>
           </div>
         </div>
         <div className="mt-5 flex flex-wrap items-end gap-3">
@@ -224,7 +224,7 @@ export function ClientAnnualReportsPanel({
             </div>
             {availableCases.length === 0 ? (
               <p className="mt-4 rounded-lg bg-muted p-4 text-sm">
-                ไม่พบคดีในปีและบทบาทนี้ ลองเปลี่ยนบทบาทลูกค้าหรือปี แล้วค้นหาใหม่
+                ไม่พบคดีในปีและบทบาทนี้ ลองเปลี่ยนบทบาทลูกความหรือปี แล้วค้นหาใหม่
               </p>
             ) : (
               <>
@@ -364,7 +364,7 @@ export function ClientAnnualReportsPanel({
       <section className="rounded-xl border bg-card p-5 sm:p-6" aria-labelledby="annual-history">
         <h3 id="annual-history" className="font-semibold">รายงานที่เคยเผยแพร่</h3>
         {reports.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">ยังไม่มีรายงานที่เผยแพร่ให้ลูกค้ารายนี้</p>
+          <p className="mt-2 text-sm text-muted-foreground">ยังไม่มีรายงานที่เผยแพร่ให้ลูกความรายนี้</p>
         ) : (
           <ul className="mt-3 divide-y">
             {reports.map((item) => (

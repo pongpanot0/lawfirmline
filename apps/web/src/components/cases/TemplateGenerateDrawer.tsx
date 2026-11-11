@@ -9,7 +9,7 @@ import { publishActionFeedback } from '@/lib/action-feedback';
 const VARIABLE_LABELS: Record<string, string> = {
   ownRef: 'เลขอ้างอิงสำนักงาน',
   caseNumber: 'เลขคดี',
-  customerRef: 'เลขอ้างอิงลูกค้า',
+  customerRef: 'เลขอ้างอิงผู้ว่าจ้าง',
   clientName: 'ตัวความ',
   courtName: 'ศาล',
   folderId: 'รหัสโฟลเดอร์',
