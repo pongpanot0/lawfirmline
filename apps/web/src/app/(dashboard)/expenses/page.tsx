@@ -174,10 +174,7 @@ export default function ExpensesPage() {
             label={d.expenses.filterStatus}
             containerClassName="min-w-0 sm:w-48"
             value={statusFilter}
-            onChange={(e) => {
-              setLoading(true);
-              setStatusFilter(e.target.value);
-            }}
+            onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="">{d.expenses.allStatuses}</option>
             {STATUS_FILTERS.filter(Boolean).map((status) => (

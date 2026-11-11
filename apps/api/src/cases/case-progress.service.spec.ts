@@ -100,7 +100,7 @@ describe('case progress endpoint', () => {
   it('keeps intake-linked requests after filing without adding pre-lit checks', async () => {
     prisma.case.findMany.mockResolvedValue([{ ...row('case'), stage: 'FILING', courtName: 'ศาลแพ่ง' }]);
     prisma.intakeDocumentRequest.findMany.mockResolvedValue([{ caseId: null, intakeId: 'intake-case', required: true, status: 'MISSING' }]);
-    expect(await service.progress(user)).toMatchObject([{ bucket: 'WAITING_CLIENT', done: 0, total: 0, next: { kind: 'ADVANCE' } }]);
+    expect(await service.progress(user)).toMatchObject([{ bucket: 'WAITING_CLIENT', done: 0, total: 0, next: { kind: 'WAIT_CLIENT', text: 'รอเอกสารจากลูกความ' } }]);
     expect(prisma.conflictCheck.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { firmId: 'firm', OR: [{ caseId: { in: [] } }, { intakeId: { in: [] } }] } }));
   });
 

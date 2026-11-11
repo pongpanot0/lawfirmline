@@ -11,7 +11,7 @@ export interface CaseProgress {
   done: number;
   total: number;
   next: {
-    kind: 'INFO' | 'PRELIT' | 'TASK' | 'ADVANCE' | 'SET_NEXT';
+    kind: 'INFO' | 'PRELIT' | 'TASK' | 'ADVANCE' | 'SET_NEXT' | 'WAIT_CLIENT';
     text: string;
     taskId?: string;
     dueDate?: string;
@@ -44,6 +44,8 @@ export function caseProgress(
     ...(pendingTask.dueDate ? { dueDate: pendingTask.dueDate } : {}),
     ...(pendingTask.assigneeName ? { assigneeName: pendingTask.assigneeName } : {}),
   };
+  // Nothing for the firm to do while required documents are still out with the client.
+  else if (bucket === 'WAITING_CLIENT') next = { kind: 'WAIT_CLIENT', text: 'รอเอกสารจากลูกความ' };
   else next = nextStage ? { kind: 'ADVANCE', text: `ไปขั้น${CASE_STAGE_LABELS_TH[nextStage]}` } : { kind: 'SET_NEXT', text: 'กำหนดขั้นถัดไป' };
   const stepIndex = journey.steps.findIndex((step) => step.state === 'current');
   return {

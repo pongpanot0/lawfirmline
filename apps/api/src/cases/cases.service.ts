@@ -407,7 +407,8 @@ export class CasesService {
       db.task.findMany({
         where: { caseId: id },
         select: JOURNEY_TASK_SELECT,
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        // Same order as progress(): the case page and the case list must name the same next task.
+        orderBy: [{ dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }, { id: 'asc' }],
       }),
       db.appliedPlaybook.findMany({
         where: { caseId: id, release: { firmId: user.firmId } },
