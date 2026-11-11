@@ -460,6 +460,8 @@ export default function CaseDetailPage() {
   const handleCloseCase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !id) return;
+    if (closingCase) return;
+    if (!outstanding && !outstandingFailed) { setCloseError('กำลังตรวจของค้างในคดี รอสักครู่แล้วกดอีกครั้ง'); return; }
     const reason = CLOSE_REASONS.find((r) => r.value === closeReason);
     if (!reason) { setCloseError('เลือกว่าลูกความแจ้งว่าอะไรก่อนปิดคดี'); return; }
     if (!closingOutcome) { setCloseError('เลือกผลของคดีก่อนปิด'); return; }
@@ -613,7 +615,7 @@ export default function CaseDetailPage() {
   };
 
   const handleReopenCase = async () => {
-    if (!token || !id) return;
+    if (!token || !id || reopeningCase) return;
     setReopeningCase(true);
     try {
       await api.reopenCase(token, id);
@@ -1015,7 +1017,7 @@ export default function CaseDetailPage() {
 
       {stageTaskError && !menuPanel && <p role="alert" className="my-3 text-sm text-destructive">{stageTaskError}</p>}
       {token && <div className="mb-6 min-w-0 space-y-4">
-        <CaseJourneyPanel compact={activeTab !== 'overview'} onCloseCase={openCloseCase} onReopenCase={() => void handleReopenCase()} reopening={reopeningCase} closed={legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED' ? { at: legalCase.closedAt ?? null, summary: legalCase.closingSummary ?? null } : null} idleDays={timeline[0] ? Math.max(0, Math.floor((Date.now() - Date.parse(timeline[0].date)) / 86400000)) : null} token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} stage={legalCase.stage ?? null} taskCount={tasks.length} tasksVersion={tasks} onChanged={loadCase} onJourney={setJourneyState} onAdvance={(target, explicit) => void confirmJourneyAdvance(target, explicit)} onEdit={(missing) => { selectTab('overview'); void startEditOverview(); if (missing?.length) setFocusMissing(missing[0]); }} onOpenTask={(taskId) => router.push(`/cases/${id}?task=${encodeURIComponent(taskId)}`)} />
+        <CaseJourneyPanel compact={activeTab !== 'overview'} openTaskCount={pendingTasks.length} onCloseCase={openCloseCase} onReopenCase={() => void handleReopenCase()} reopening={reopeningCase} closed={legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED' ? { at: legalCase.closedAt ?? null, summary: legalCase.closingSummary ?? null } : null} idleDays={timeline[0] ? Math.max(0, Math.floor((Date.now() - Date.parse(timeline[0].date)) / 86400000)) : null} token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} stage={legalCase.stage ?? null} taskCount={tasks.length} tasksVersion={tasks} onChanged={loadCase} onJourney={setJourneyState} onAdvance={(target, explicit) => void confirmJourneyAdvance(target, explicit)} onEdit={(missing) => { selectTab('overview'); void startEditOverview(); if (missing?.length) setFocusMissing(missing[0]); }} onOpenTask={(taskId) => router.push(`/cases/${id}?task=${encodeURIComponent(taskId)}`)} />
 
 
       </div>}
@@ -1036,7 +1038,7 @@ export default function CaseDetailPage() {
         />
 
 
-      {showCloseForm && <dialog ref={(el) => { if (el && !el.open) el.showModal(); }} aria-labelledby="close-case-title" onCancel={(e) => { e.preventDefault(); if (!closingCase) setShowCloseForm(false); }} className="m-auto w-[min(36rem,calc(100vw-2rem))] max-w-none rounded-2xl bg-[#fffdfa] p-0 text-foreground shadow-2xl backdrop:bg-[#101d2a]/45">
+      {showCloseForm && <dialog ref={(el) => { if (el && !el.open) el.showModal(); }} aria-labelledby="close-case-title" onCancel={(e) => { e.preventDefault(); if (!closingCase) setShowCloseForm(false); }} onClose={() => setShowCloseForm(false)} className="m-auto w-[min(36rem,calc(100vw-2rem))] max-w-none rounded-2xl bg-[#fffdfa] p-0 text-foreground shadow-2xl backdrop:bg-[#101d2a]/45">
         <form onSubmit={handleCloseCase} className="flex max-h-[calc(100dvh-2rem)] flex-col">
           <div className="flex items-start justify-between border-b border-[#e2e0d8] px-6 py-4"><div><p className={v2.label}>{legalCase.ownRef}</p><h2 id="close-case-title" tabIndex={-1} autoFocus className="text-xl font-bold outline-none">ปิดคดีนี้</h2></div><button type="button" aria-label="ปิดหน้าต่างปิดคดี" disabled={closingCase} onClick={() => setShowCloseForm(false)} className={`${v2.btn} ${v2.ghost}`}><X aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button></div>
           <div className="min-h-0 space-y-5 overflow-y-auto overscroll-contain px-6 py-5">
@@ -1061,7 +1063,7 @@ export default function CaseDetailPage() {
             <p className={v2.hint}>ปิดแล้วเปิดคืนได้ทุกเมื่อ ข้อมูล งาน เอกสาร และอีเมลยังอยู่ครบ</p>
             {closeError && <p role="alert" className={v2.error}>{closeError}</p>}
           </div>
-          <div className="flex justify-end gap-2 border-t border-[#e2e0d8] px-6 py-4"><button type="button" disabled={closingCase} onClick={() => setShowCloseForm(false)} className={`${v2.btn} ${v2.ghost}`}>ยกเลิก</button><button type="submit" disabled={closingCase} className={`${v2.btn} ${v2.primary} disabled:opacity-60`}><Archive aria-hidden="true" className="h-[1.1em] w-[1.1em]" />{closingCase ? 'กำลังปิดคดี…' : 'ปิดคดี'}</button></div>
+          <div className="flex justify-end gap-2 border-t border-[#e2e0d8] px-6 py-4"><button type="button" disabled={closingCase} onClick={() => setShowCloseForm(false)} className={`${v2.btn} ${v2.ghost}`}>ยกเลิก</button><button type="submit" disabled={closingCase || (!outstanding && !outstandingFailed)} className={`${v2.btn} ${v2.primary} disabled:opacity-60`}><Archive aria-hidden="true" className="h-[1.1em] w-[1.1em]" />{closingCase ? 'กำลังปิดคดี…' : 'ปิดคดี'}</button></div>
         </form>
       </dialog>}
 

@@ -9,9 +9,9 @@ import { daysUntil } from '@/components/process/helpers';
 import { UndoToast, type UndoAction } from '@/components/ui/UndoToast';
 import { CasePreLitigation } from './CasePreLitigation';
 
-type Props = { token: string; caseId: string; intakeId?: string | null; partyNames: string[]; stage: string | null; tasksVersion: unknown; onChanged: () => void; onEdit: (missing?: string[]) => void; onOpenTask: (id: string) => void; onAdvance: (stage: string, explicit?: 'APPEAL' | 'SUPREME') => void; onJourney?: (journey: CaseJourney) => void; tasksOnly?: boolean; taskCount?: number; compact?: boolean; onCloseCase?: () => void; onReopenCase?: () => void; reopening?: boolean; closed?: { at: string | null; summary: string | null } | null; idleDays?: number | null };
+type Props = { token: string; caseId: string; intakeId?: string | null; partyNames: string[]; stage: string | null; tasksVersion: unknown; onChanged: () => void; onEdit: (missing?: string[]) => void; onOpenTask: (id: string) => void; onAdvance: (stage: string, explicit?: 'APPEAL' | 'SUPREME') => void; onJourney?: (journey: CaseJourney) => void; tasksOnly?: boolean; taskCount?: number; compact?: boolean; onCloseCase?: () => void; onReopenCase?: () => void; reopening?: boolean; closed?: { at: string | null; summary: string | null } | null; idleDays?: number | null; openTaskCount?: number };
 
-export function CaseJourneyPanel({ token, caseId, intakeId, partyNames, stage, tasksVersion, onChanged, onEdit, onOpenTask, onAdvance, onJourney, tasksOnly, taskCount, compact, onCloseCase, onReopenCase, reopening, closed, idleDays }: Props) {
+export function CaseJourneyPanel({ token, caseId, intakeId, partyNames, stage, tasksVersion, onChanged, onEdit, onOpenTask, onAdvance, onJourney, tasksOnly, taskCount, compact, onCloseCase, onReopenCase, reopening, closed, idleDays, openTaskCount }: Props) {
   const [journey, setJourney] = useState<CaseJourney | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -57,7 +57,7 @@ export function CaseJourneyPanel({ token, caseId, intakeId, partyNames, stage, t
     <div className="min-w-0"><p className="text-sm font-semibold text-muted-foreground">คดีปิดแล้ว{closed.at ? ` · ${new Date(closed.at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' })}` : ''}</p><h2 className="mt-1 text-2xl font-bold">{closed.summary?.split(' — ')[0] || 'ปิดคดีแล้ว'}</h2>{closed.summary?.includes(' — ') && <p className={hint}>“{closed.summary.split(' — ').slice(1).join(' — ')}”</p>}</div>
     {onReopenCase && <div><button type="button" disabled={reopening} onClick={onReopenCase} className={outlineBtn}><RotateCcw aria-hidden="true" className="h-[1.1em] w-[1.1em]" />{reopening ? 'กำลังเปิดคืน…' : 'เปิดคดีอีกครั้ง'}</button><p className={`${hint} max-w-[14rem]`}>ลูกความกลับมา? เปิดคืนแล้วทำต่อจากขั้นเดิมได้เลย</p></div>}
   </section>;
-  const resting = !tasksOnly && !pending.length && journey.next?.kind !== 'INFO' && journey.next?.kind !== 'PRELIT' && (!next || next.key === 'CLOSING');
+  const resting = !tasksOnly && !pending.length && !(openTaskCount ?? 0) && journey.next?.kind !== 'INFO' && journey.next?.kind !== 'PRELIT' && journey.next?.kind !== 'TASK' && (!next || next.key === 'CLOSING');
   if (resting) return <section aria-label="เส้นทางคดี" className="rounded-xl border-2 border-[#c9d6e3] bg-[#f3f7fb] p-5 shadow-[0_6px_20px_rgba(20,46,67,.08)]">
     <p className="text-sm font-semibold text-[#2b5a8a]">ตอนนี้ไม่มีงานค้าง</p>
     <div className="mt-1 flex flex-wrap items-start justify-between gap-4">
