@@ -68,7 +68,7 @@ export function IntakeFollowUpPanel({
       await load();
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : th ? 'บันทึกไม่สำเร็จ' : 'Could not save');
+      setError(e instanceof Error ? e.message : th ? 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง' : 'Could not save');
     } finally {
       setBusy(false);
     }
@@ -82,7 +82,7 @@ export function IntakeFollowUpPanel({
       setNote('');
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : th ? 'บันทึกไม่สำเร็จ' : 'Could not save');
+      setError(e instanceof Error ? e.message : th ? 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง' : 'Could not save');
     } finally {
       setBusy(false);
     }
@@ -133,7 +133,7 @@ export function IntakeFollowUpPanel({
           <ThaiDateInput value={nextDueAt} onChange={setNextDueAt} />
         </label>
         <label className="text-xs">
-          <span className="mb-1 block text-muted-foreground">{th ? 'ผู้ถือเรื่อง' : 'Owner'}</span>
+          <span className="mb-1 block text-muted-foreground">{th ? 'ผู้รับผิดชอบเรื่อง' : 'Owner'}</span>
           <select value={nextOwnerId} onChange={(e) => setNextOwnerId(e.target.value)} className={SELECT_CLASS}>
             <option value="">{th ? 'ไม่ระบุ' : 'Unassigned'}</option>
             {lawyers.map((l) => (

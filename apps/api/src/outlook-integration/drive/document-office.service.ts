@@ -96,7 +96,7 @@ export class DocumentOfficeService {
       const buffer = await this.fileStorage.getBuffer(doc.storagePath);
       const item = await this.uploadCopy(token, caseId, doc.case.ownRef, doc.filename, buffer, doc.mimeType);
       const driveId = item.parentReference?.driveId;
-      if (!driveId) throw new BadRequestException('OneDrive ไม่ได้ส่งรหัส drive กลับมา');
+      if (!driveId) throw new BadRequestException('เปิดไฟล์ใน Office ออนไลน์ไม่สำเร็จ ลองใหม่อีกครั้ง');
       const data = {
         connectionId,
         driveId,

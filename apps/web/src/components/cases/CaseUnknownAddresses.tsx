@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 
 type Kind = 'CONTACT' | 'PARTICIPANT';
 
-const errorText = (error: unknown) => (error instanceof ApiError ? error.message : 'บันทึกไม่สำเร็จ');
+const errorText = (error: unknown) => (error instanceof ApiError ? error.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
 
 /** Addresses on this email thread that the case does not know yet; each can be added with one tap. */
 export function CaseUnknownAddresses({ caseId, threadId }: { caseId: string; threadId: string }) {
@@ -89,7 +89,7 @@ export function CaseUnknownAddresses({ caseId, threadId }: { caseId: string; thr
   if (loadFailed) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        โหลดผู้ติดต่อในอีเมลไม่สำเร็จ
+        โหลดผู้ติดต่อในอีเมลไม่สำเร็จ ลองโหลดหน้าใหม่
       </p>
     );
   }

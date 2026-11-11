@@ -97,7 +97,7 @@ export default function PortalCaseDetailPage() {
       setMessageBody('');
       loadMessages();
     } catch (e) {
-      setMessageError(e instanceof PortalApiError ? e.message : 'ส่งข้อความไม่สำเร็จ');
+      setMessageError(e instanceof PortalApiError ? e.message : 'ส่งข้อความไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSendingMessage(false);
     }
@@ -131,7 +131,7 @@ export default function PortalCaseDetailPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      setUploadError('ดาวน์โหลดไม่สำเร็จ');
+      setUploadError('ดาวน์โหลดไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -158,7 +158,7 @@ export default function PortalCaseDetailPage() {
       setUploadKeyDateLabel('');
       loadDetail();
     } catch (e) {
-      setUploadError(e instanceof PortalApiError ? e.message : 'อัปโหลดเอกสารไม่สำเร็จ');
+      setUploadError(e instanceof PortalApiError ? e.message : 'อัปโหลดเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setUploading(false);
     }

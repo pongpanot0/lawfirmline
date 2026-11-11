@@ -58,7 +58,7 @@ export function PublishDocumentDialog({
         setSelected(active.map((entry) => entry.clientContactId));
       })
       .catch((err) =>
-        setLoadError(err instanceof Error ? err.message : 'โหลดรายชื่อผู้รับไม่สำเร็จ'),
+        setLoadError(err instanceof Error ? err.message : 'โหลดรายชื่อผู้รับไม่สำเร็จ ลองโหลดหน้าใหม่'),
       )
       .finally(() => setLoading(false));
   }, [token, caseId]);
@@ -83,7 +83,7 @@ export function PublishDocumentDialog({
       onPublished();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เผยแพร่ไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'เผยแพร่ไม่สำเร็จ ลองใหม่อีกครั้ง');
       setPublishing(false);
     }
   };
@@ -158,7 +158,7 @@ export function PublishDocumentDialog({
 
       <div className="mt-5 flex flex-wrap gap-2">
         <Button onClick={handlePublish} disabled={publishing || loading}>
-          {publishing ? 'กำลังเผยแพร่...' : 'เผยแพร่ให้ที่เลือก'}
+          {publishing ? 'กำลังเผยแพร่...' : 'เผยแพร่ให้คนที่เลือก'}
         </Button>
         <Button variant="outline" onClick={onClose} disabled={publishing}>
           ยกเลิก

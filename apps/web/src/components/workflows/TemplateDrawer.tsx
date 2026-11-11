@@ -46,7 +46,7 @@ export function TemplateDrawer({
       onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ');
+      setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }

@@ -54,13 +54,13 @@ export function TeamRadar({ canManage = false, onShowDaily, children }: { canMan
     if (!token) return;
     const request = ++version.current; setLoading(true); setError('');
     try { const data = await api.getTeamRadar(token, start); if (request === version.current) setRadar(data); }
-    catch (err) { if (request === version.current) { setRadar(null); setError(err instanceof Error ? err.message : 'โหลดข้อมูลทีมไม่ได้'); } }
+    catch (err) { if (request === version.current) { setRadar(null); setError(err instanceof Error ? err.message : 'โหลดข้อมูลทีมไม่สำเร็จ ลองโหลดหน้าใหม่'); } }
     finally { if (request === version.current) setLoading(false); }
   }, [token, start]);
   const loadBoard = useCallback(async () => {
     if (!token || !canManage) return;
     setBoardError('');
-    try { setBoard(await api.getDailyWorkboard(token, today)); } catch { setBoard(null); setBoardError('โหลดงานวันนี้ไม่สำเร็จ'); }
+    try { setBoard(await api.getDailyWorkboard(token, today)); } catch { setBoard(null); setBoardError('โหลดงานวันนี้ไม่สำเร็จ ลองโหลดหน้าใหม่'); }
   }, [token, today, canManage]);
   useEffect(() => { void load(); return () => { version.current++; }; }, [load]);
   useEffect(() => { void loadBoard(); }, [loadBoard]);

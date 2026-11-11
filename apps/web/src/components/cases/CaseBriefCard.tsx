@@ -80,7 +80,7 @@ export function CaseBriefCard({ caseId }: { caseId: string }) {
             }
           />
           <Row
-            label="ขั้นตอนตอนนี้"
+            label="ขั้นปัจจุบัน"
             value={stage ? `${stage}${brief.stageChangedAt ? ` (ตั้งแต่ ${fmtDate(brief.stageChangedAt)})` : ''}` : null}
           />
           <Row

@@ -48,7 +48,7 @@ export class PleadingDraftService {
     dto: { kind: PleadingKind; instructions?: string; documentIds?: string[] },
   ): Promise<PleadingDraftView> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
-    if (!apiKey) throw new BadRequestException('ตั้งค่า OPENAI_API_KEY เพื่อใช้งานร่างเอกสารด้วย AI');
+    if (!apiKey) throw new BadRequestException('ยังไม่ได้เปิดใช้ AI ร่างเอกสาร — ติดต่อผู้ดูแลระบบ');
     const legalCase = await this.findCase(user, caseId);
     const kindTh = KIND_TH[dto.kind];
 

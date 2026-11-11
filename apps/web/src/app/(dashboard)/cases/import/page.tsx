@@ -61,7 +61,7 @@ export default function CaseImportPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ดาวน์โหลด template ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'ดาวน์โหลดแบบฟอร์มไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy('');
     }
@@ -80,7 +80,7 @@ export default function CaseImportPage() {
       setNoKeyRows(preview.noKeyRows);
     } catch (e) {
       setRows([]);
-      setError(e instanceof ApiError ? e.message : 'อ่านไฟล์ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'อ่านไฟล์ไม่สำเร็จ ตรวจว่าเป็นไฟล์ .xlsx จากแบบฟอร์มแล้วลองใหม่');
     } finally {
       setBusy('');
     }
@@ -95,7 +95,7 @@ export default function CaseImportPage() {
       const titles = new Map(selected.map((r) => [r.rowNumber, r.title]));
       setResults(done.map((r) => ({ ...r, title: titles.get(r.rowNumber) ?? '' })));
       const createdRows = new Set(done.filter((r) => r.status === 'CREATED').map((r) => r.rowNumber));
-      const failure = new Map(done.filter((r) => r.status === 'FAILED').map((r) => [r.rowNumber, r.message ?? 'สร้างคดีไม่สำเร็จ']));
+      const failure = new Map(done.filter((r) => r.status === 'FAILED').map((r) => [r.rowNumber, r.message ?? 'สร้างคดีไม่สำเร็จ ลองใหม่อีกครั้ง']));
       // Created rows leave the list; failed ones are unticked with their reason shown, so pressing again
       // doesn't just repeat the failure — but they can be re-ticked after a fix or a temporary error.
       setRows((list) =>
@@ -104,7 +104,7 @@ export default function CaseImportPage() {
           .map((r) => (failure.has(r.rowNumber) ? { ...r, selected: false, createError: failure.get(r.rowNumber) } : { ...r, createError: undefined })),
       );
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'สร้างคดีไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'สร้างคดีไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy('');
     }
@@ -115,11 +115,11 @@ export default function CaseImportPage() {
       <Link href="/cases" className="mb-4 inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground">← เรื่องและคดี</Link>
       <PageHeader
         title="นำเข้าคดีจาก Excel"
-        description="ดาวน์โหลด template กรอกหนึ่งแถวต่อหนึ่งคดี แล้วอัปโหลดกลับมาตรวจก่อนสร้างคดี"
-        actions={<Button variant="outline" disabled={busy === 'template'} onClick={downloadTemplate}>{busy === 'template' ? 'กำลังสร้างไฟล์…' : 'ดาวน์โหลด template'}</Button>}
+        description="ดาวน์โหลดแบบฟอร์ม กรอกหนึ่งแถวต่อหนึ่งคดี แล้วอัปโหลดกลับมาตรวจก่อนสร้างคดี"
+        actions={<Button variant="outline" disabled={busy === 'template'} onClick={downloadTemplate}>{busy === 'template' ? 'กำลังสร้างไฟล์…' : 'ดาวน์โหลดแบบฟอร์ม'}</Button>}
       />
       <ol aria-label="ขั้นตอนนำเข้าคดี" className="mb-4 flex flex-wrap gap-2 text-sm">
-        {['ดาวน์โหลด template', 'อัปโหลดไฟล์', 'ตรวจและเลือกแถวที่จะสร้าง'].map((label, i) => (
+        {['ดาวน์โหลดแบบฟอร์ม', 'อัปโหลดไฟล์', 'ตรวจและเลือกแถวที่จะสร้าง'].map((label, i) => (
           <li key={label} aria-current={(rows.length > 0 ? 2 : 1) === i ? 'step' : undefined} className={`rounded-full px-3 py-2 ${(rows.length > 0 ? 2 : 1) === i ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'}`}>
             {i + 1} {label}
           </li>
@@ -129,7 +129,7 @@ export default function CaseImportPage() {
         <div className="min-w-0 text-sm">
           <p className="break-words font-medium">{fileName || 'อัปโหลดไฟล์ที่กรอกแล้ว (.xlsx)'}</p>
           {fileName && <p className="mt-1 text-xs tabular-nums text-muted-foreground">{(fileSize / 1024).toFixed(1)} KB · {rows.length} แถว</p>}
-          {!fileName && <p className="mt-1 text-xs text-muted-foreground">template มี dropdown ประเภทคดี รายชื่อทนาย และแผ่นวิธีกรอก</p>}
+          {!fileName && <p className="mt-1 text-xs text-muted-foreground">แบบฟอร์มมีตัวเลือกประเภทคดี รายชื่อทนายความ และชีตวิธีกรอก</p>}
           {busy === 'preview' && <p role="status" className="mt-1 text-xs text-muted-foreground">กำลังอ่าน {fileName}…</p>}
         </div>
         <label htmlFor="case-import-file" className="inline-flex min-h-11 cursor-pointer items-center whitespace-nowrap rounded-lg border px-4 text-sm font-semibold hover:bg-accent focus-within:ring-2 focus-within:ring-ring">
@@ -245,7 +245,7 @@ export default function CaseImportPage() {
                     )}
                     {r.opponents.length > 0 && <div><dt className="inline">คู่ความฝ่ายตรงข้าม: </dt><dd className="inline">{r.opponents.join(', ')}</dd></div>}
                     {r.courtName && <div><dt className="inline">ศาล: </dt><dd className="inline">{r.courtName}</dd></div>}
-                    {r.ownRef && <div><dt className="inline">เลขอ้างอิงภายใน: </dt><dd className="inline">{r.ownRef}</dd></div>}
+                    {r.ownRef && <div><dt className="inline">เลขอ้างอิงสำนักงาน: </dt><dd className="inline">{r.ownRef}</dd></div>}
                     {r.buddyIds.length > 0 && <div><dt className="inline">ทีม: </dt><dd className="inline">{r.buddyIds.map((id) => lawyerName.get(id) ?? 'สมาชิก').join(', ')}</dd></div>}
                     {!r.closed && r.stage && <div><dt className="inline">ขั้นตอนคดี: </dt><dd className="inline">{CASE_STAGE_LABELS_TH[r.stage as CaseStage]}</dd></div>}
                     {r.openedAt && <div><dt className="inline">วันเปิดคดี: </dt><dd className="inline">{thaiDate(r.openedAt)}</dd></div>}

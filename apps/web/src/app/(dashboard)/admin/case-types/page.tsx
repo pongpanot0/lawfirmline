@@ -166,7 +166,7 @@ export default function CaseTypesPage() {
           <div className="sm:col-span-2 lg:col-span-3">
             <EmptyState
               title="ยังไม่มีประเภทคดี"
-              description="ประเภทคดีใช้เลือกตอนเปิดคดีและตั้ง deadline rule เฉพาะประเภท"
+              description="ประเภทคดีใช้เลือกตอนเปิดคดีและตั้งกฎวันครบกำหนดเฉพาะประเภท"
               action={<Button size="sm" variant="outline" onClick={() => setShowForm(true)}><Plus className="h-4 w-4" aria-hidden />{d.admin.addCaseType}</Button>}
             />
           </div>

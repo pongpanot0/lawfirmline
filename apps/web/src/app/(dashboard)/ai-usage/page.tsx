@@ -13,8 +13,8 @@ import { NoAccess } from '@/components/ui/NoAccess';
 
 const OPERATION_LABELS: Record<string, string> = {
   rag_qa: 'ถาม-ตอบจากสำนวน',
-  embed_document: 'ทำดัชนีเอกสาร',
-  embed_query: 'ค้นหา (embedding)',
+  embed_document: 'เตรียมเอกสารให้ AI ค้นได้',
+  embed_query: 'ค้นหาเอกสารด้วย AI',
   ocr: 'OCR เอกสารสแกน',
   secretary_chat: 'เลขา AI (ถาม-ตอบ)',
   secretary_transcribe: 'เลขา AI (ถอดเสียง)',
@@ -46,8 +46,8 @@ function BucketTable({
         <tr className="text-left text-xs text-muted-foreground">
           <th className="pb-2 font-medium"><span className="sr-only">รายการ</span></th>
           <th className="pb-2 text-right font-medium">ครั้ง</th>
-          <th className="pb-2 text-right font-medium">Tokens เข้า</th>
-          <th className="pb-2 text-right font-medium">Tokens ออก</th>
+          <th className="pb-2 text-right font-medium">ข้อความเข้า (tokens)</th>
+          <th className="pb-2 text-right font-medium">ข้อความตอบ (tokens)</th>
           <th className="pb-2 text-right font-medium">ค่าใช้จ่ายโดยประมาณ</th>
         </tr>
       </thead>
@@ -96,7 +96,7 @@ export default function AiUsagePage() {
   const header = (
     <PageHeader
       title="การใช้งาน AI"
-      description="ค่าใช้จ่ายประมาณจาก tokens ตามราคาโมเดล โมเดลที่ไม่ทราบราคาแสดงเฉพาะ tokens"
+      description="คิดค่าใช้จ่ายโดยประมาณจากปริมาณข้อความ (tokens) ถ้าไม่ทราบราคาของโมเดลใด จะแสดงแค่จำนวน tokens"
       actions={
         <div role="group" aria-label="ช่วงเวลา" className="flex rounded-lg border border-border p-0.5">
           {WINDOWS.map((w) => (
@@ -127,8 +127,8 @@ export default function AiUsagePage() {
 
       <KpiStrip items={[
         { label: 'จำนวนครั้ง', value: String(summary.total.runs) },
-        { label: 'Tokens เข้า', value: formatTokens(summary.total.inputTokens) },
-        { label: 'Tokens ออก', value: formatTokens(summary.total.outputTokens) },
+        { label: 'ข้อความเข้า (tokens)', value: formatTokens(summary.total.inputTokens) },
+        { label: 'ข้อความตอบ (tokens)', value: formatTokens(summary.total.outputTokens) },
         { label: 'ค่าใช้จ่ายโดยประมาณ', value: formatUsd(summary.total.estimatedUsd) },
       ]} />
 

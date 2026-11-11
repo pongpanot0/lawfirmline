@@ -46,7 +46,7 @@ export function CustomerSelect({
       setName('');
       setCreating(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เพิ่มผู้ว่าจ้างไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'เพิ่มผู้ว่าจ้างไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }

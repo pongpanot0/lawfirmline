@@ -97,7 +97,7 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
       await api.markAiTrayHandled(token, chosen);
       onDone();
     } catch (err) {
-      setSkipError(err instanceof Error ? err.message : 'ข้ามไม่สำเร็จ');
+      setSkipError(err instanceof Error ? err.message : 'ข้ามไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }

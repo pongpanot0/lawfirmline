@@ -45,7 +45,7 @@ export function PaperFileCard({ caseId, largeActions = false }: { caseId: string
     void api.getPaperFile(token, caseId).then((result) => {
       if (!cancelled) setData(result);
     }).catch((err) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : 'โหลดสำนวนไม่สำเร็จ');
+      if (!cancelled) setError(err instanceof Error ? err.message : 'โหลดสำนวนไม่สำเร็จ ลองโหลดหน้าใหม่');
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [token, caseId, revision]);
@@ -84,7 +84,7 @@ export function PaperFileCard({ caseId, largeActions = false }: { caseId: string
       setSaved(true);
       setRevision((value) => value + 1);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
+      setSaveError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }
@@ -115,7 +115,7 @@ export function PaperFileCard({ caseId, largeActions = false }: { caseId: string
           {saved && <p role="status" className="text-sm text-success">บันทึกแล้ว</p>}
           <div>
             <h4 className="mb-2 text-sm font-medium">ประวัติ 10 รายการล่าสุด</h4>
-            {data.history.length === 0 ? <p className="text-sm text-muted-foreground">ยังไม่มีการเบิกคืน</p> : (
+            {data.history.length === 0 ? <p className="text-sm text-muted-foreground">ยังไม่มีประวัติการเบิกหรือคืน</p> : (
               <ol className="divide-y text-sm">
                 {data.history.slice(0, 10).map((item) => (
                   <li key={item.id} className="space-y-1 py-3">

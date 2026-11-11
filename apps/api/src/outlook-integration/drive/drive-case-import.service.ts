@@ -71,9 +71,9 @@ export class DriveCaseImportService {
     const { itemId } = row;
     try {
       const item = await this.drive.getItem(token, requestDriveId, itemId);
-      if (!item.folder) return { itemId, status: 'FAILED', message: 'เลือกได้เฉพาะ folder' };
+      if (!item.folder) return { itemId, status: 'FAILED', message: 'เลือกได้เฉพาะโฟลเดอร์ ไม่ใช่ไฟล์' };
       const driveId = item.parentReference?.driveId ?? (requestDriveId !== 'me' ? requestDriveId : undefined);
-      if (!driveId) return { itemId, status: 'FAILED', message: 'ไม่พบ drive ของ folder นี้' };
+      if (!driveId) return { itemId, status: 'FAILED', message: 'ไม่พบที่เก็บไฟล์ของโฟลเดอร์นี้ เลือกโฟลเดอร์ใหม่อีกครั้ง' };
 
       const existing = await this.prisma.caseExternalLink.findFirst({
         where: { firmId: user.firmId, kind: DRIVE_FOLDER, driveId, externalId: item.id },

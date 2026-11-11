@@ -16,7 +16,7 @@ import { RecordPaymentForm } from '@/components/billing/RecordPaymentForm';
 import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
 import { KpiStrip } from '@/components/reports/KpiStrip';
 
-const REMINDER_THROTTLE_MESSAGE = 'ทวงใบนี้ไปแล้วภายใน 24 ชม.';
+const REMINDER_THROTTLE_MESSAGE = 'ทวงใบนี้ไปแล้วใน 24 ชั่วโมงที่ผ่านมา รอครบ 24 ชั่วโมงแล้วค่อยทวงอีกครั้ง';
 
 type BucketKey = keyof ReceivablesResult['buckets'];
 

@@ -19,3 +19,8 @@ Branch `claude/check-session-thai-ui-c52f0e` (uncommitted). Report + 31 Stitch m
 - E2E: all branch-owned tests pass. Still failing, owned by other sessions: cases/[id] 'บันทึกผลหลังขึ้นศาล' + SOP combobox, cases/new 'สร้างคดี'/charge, practice-setup playbook apply (0 tasks).
 - Not filed (outside this branch): portal 401 doesn't clear the session, CaseEmailPanel undo hidden after thread switch, UndoToast state carry-over, clients search race.
 - Prod speed test blocked: the office FortiGate returns its 403 page for every samnuan.com path. Script: `.claude/prod-speed.mjs` (run on a hotspot).
+
+## Round 4 — case info, clickable case cards, email back link, Thai copy pass
+- Case page "ข้อมูลคดี" shows every field (empty ones say ยังไม่ได้กรอก + one "กรอกอีก n ช่อง" button; เปิดคดี uses the case's openedAt). Case list cards open the case anywhere (stretched title link; "ทำเลย" still goes to the next task). Email thread page: the queue dropdown is now "← กลับไปรายการอีเมล (n)".
+- Thai copy review of the whole web app (5,598 unique strings, 4 chunks + a clarity pass) and 505 API error messages, with the thai-translate skill: ~880 replacements. Glossary decisions: SOP/Playbook → ชุดงานอัตโนมัติ, Notice → หนังสือทวงถาม, folder → โฟลเดอร์, ซิงก์ → ดึงอีเมล, Admin → ผู้ดูแลสำนักงาน, Owner → เจ้าของสำนักงาน, Own/Customer Ref → เลขอ้างอิงสำนักงาน/ผู้ว่าจ้าง; fallback errors end with "ลองใหม่อีกครั้ง"/"ลองโหลดหน้าใหม่". Kept หมายเลขคดีดำ/แดง, เลขา AI, เทมเพลต, แม่แบบ.
+- Tool: SCRATCH/thai/apply.py replaces exact literals across web src, API src and e2e specs (keeps specs in step). Watch: substring assertions (toContainText) get the full new string — revert those to the shared prefix.

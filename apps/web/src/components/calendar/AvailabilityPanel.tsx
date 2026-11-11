@@ -83,7 +83,7 @@ export function AvailabilityPanel({
     setError('');
     fetchDay(date)
       .then((r) => !cancelled && setData(r))
-      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'โหลดเวลาว่างไม่สำเร็จ'))
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'โหลดเวลาว่างไม่สำเร็จ ลองใหม่อีกครั้ง'))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
@@ -112,7 +112,7 @@ export function AvailabilityPanel({
       }
       setNotFound(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'โหลดเวลาว่างไม่สำเร็จ');
+      setError(e instanceof Error ? e.message : 'โหลดเวลาว่างไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setFinding(false);
     }

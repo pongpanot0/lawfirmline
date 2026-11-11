@@ -13,7 +13,7 @@ export class StripeService {
   }
 
   get client(): Stripe {
-    if (!this.stripe) throw new ServiceUnavailableException('ระบบชำระเงินยังไม่ได้ตั้งค่า (STRIPE_SECRET_KEY)');
+    if (!this.stripe) throw new ServiceUnavailableException('ระบบชำระเงินยังไม่พร้อมใช้งาน ติดต่อผู้ดูแลระบบ');
     return this.stripe;
   }
 

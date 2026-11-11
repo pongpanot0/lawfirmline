@@ -83,7 +83,7 @@ export function TemplateGenerateDrawer({
     api
       .renderTemplate(token, caseId, selectedId)
       .then(setRendered)
-      .catch((e) => setError(e instanceof ApiError ? e.message : 'โหลดแม่แบบไม่สำเร็จ'))
+      .catch((e) => setError(e instanceof ApiError ? e.message : 'โหลดแม่แบบไม่สำเร็จ ลองโหลดหน้าใหม่'))
       .finally(() => setLoading(false));
   }, [selectedId, token, caseId]);
 
@@ -97,7 +97,7 @@ export function TemplateGenerateDrawer({
       onGenerated();
       onClose();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'สร้างเอกสารไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'สร้างเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setGenerating(false);
     }
@@ -169,7 +169,7 @@ export function TemplateGenerateDrawer({
                   disabled={generating}
                   className="min-h-11 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
-                  {generating ? 'กำลังสร้าง...' : 'สร้าง .docx'}
+                  {generating ? 'กำลังสร้าง...' : 'สร้างไฟล์ Word'}
                 </button>
               </div>
 

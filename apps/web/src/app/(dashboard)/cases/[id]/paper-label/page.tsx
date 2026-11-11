@@ -32,7 +32,7 @@ export default function PaperLabelPage() {
       });
       if (!cancelled) setData({ legalCase, qr });
     }).catch((err) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : 'สร้างฉลากไม่สำเร็จ');
+      if (!cancelled) setError(err instanceof Error ? err.message : 'สร้างฉลากไม่สำเร็จ ลองใหม่อีกครั้ง');
     });
     return () => { cancelled = true; };
   }, [token, id, revision]);

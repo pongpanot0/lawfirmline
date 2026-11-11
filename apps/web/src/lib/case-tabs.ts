@@ -21,7 +21,7 @@ export const CASE_TAB_LABELS: Record<CaseTabId, string> = {
   calendar: 'ไทม์ไลน์',
   documents: 'เอกสาร',
   email: 'อีเมล',
-  comments: 'ความเห็น',
+  comments: 'บันทึก',
   'cargo-claim': 'Cargo Claim',
   billing: 'ค่าใช้จ่าย',
   'ask-ai': 'ข้อเท็จจริงและฎีกา',

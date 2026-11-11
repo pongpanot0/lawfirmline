@@ -55,7 +55,7 @@ export class PortalWorkroomService {
         const s = await this.authorized(actor, id, db);
         const existing = await db.portalRequestMessage.findUnique({ where: { submissionId_authorId_requestKey: { submissionId: id, authorId, requestKey: dto.requestKey } } });
         if (existing) {
-          if (existing.contentHash !== hash) throw new ConflictException('ใช้รหัสส่งซ้ำกับเนื้อหาต่างกัน / Retry content changed');
+          if (existing.contentHash !== hash) throw new ConflictException('ข้อความเปลี่ยนระหว่างส่ง โหลดหน้าใหม่แล้วส่งอีกครั้ง / Retry content changed');
           return { id: existing.id, duplicate: true };
         }
         if (s.withdrawnByClient) throw new BadRequestException('คำขอถูกถอนแล้ว / Request withdrawn');
@@ -77,8 +77,8 @@ export class PortalWorkroomService {
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "PortalIntakeSubmission" WHERE "id" = ${id} FOR UPDATE`;
       const s = await this.authorized({ staff: user }, id, db);
-      if (!(s.intakeId || s.caseId) || s.withdrawnByClient || s.deliveredAt) throw new BadRequestException('รับเข้า F01 หรือเปิดเป็นคดีก่อน และตรวจสถานะ / Receive into Intake or open a case before proposing scope');
-      if (s.commitmentVersion !== dto.version) throw new ConflictException('ข้อเสนอเปลี่ยนแล้ว / Proposal changed');
+      if (!(s.intakeId || s.caseId) || s.withdrawnByClient || s.deliveredAt) throw new BadRequestException('รับเรื่องเข้าหรือเปิดเป็นคดีก่อน แล้วจึงเสนอขอบเขตงาน / Receive into Intake or open a case before proposing scope');
+      if (s.commitmentVersion !== dto.version) throw new ConflictException('ข้อเสนอเปลี่ยนแล้ว โหลดหน้าใหม่แล้วตรวจอีกครั้ง / Proposal changed');
       if (!dto.scopeText.trim()) throw new BadRequestException('ระบุขอบเขตงาน / Scope required');
       const updated = await db.portalIntakeSubmission.update({ where: { id }, data: { scopeText: dto.scopeText.trim(), proposedDate: new Date(dto.proposedDate), officeOwnerId: user.id, commitmentVersion: { increment: 1 }, acceptedCommitmentVersion: null, agreementAcceptedAt: null, agreedDate: null } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PORTAL_SCOPE_PROPOSED', metadata: { submissionId: id, version: updated.commitmentVersion, scopeText: updated.scopeText, proposedDate: dto.proposedDate, previousScope: s.scopeText, previousAgreedDate: s.agreedDate?.toISOString() ?? null } } });
@@ -110,7 +110,7 @@ export class PortalWorkroomService {
     });
   }
   async handover(user: AuthUser, id: string, dto: { fromContactId: string; toContactId: string }) {
-    if (!['OWNER', 'SENIOR_LAWYER'].includes(user.firmRole)) throw new ForbiddenException('เจ้าของหรือทนายอาวุโสเท่านั้น / Owner or senior lawyer required');
+    if (!['OWNER', 'SENIOR_LAWYER'].includes(user.firmRole)) throw new ForbiddenException('ทำได้เฉพาะเจ้าของสำนักงานหรือทนายอาวุโส / Owner or senior lawyer required');
     if (dto.fromContactId === dto.toContactId) throw new BadRequestException('เลือกผู้ติดต่อคนใหม่ / Select a different contact');
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "PortalIntakeSubmission" WHERE "id" = ${id} FOR UPDATE`;

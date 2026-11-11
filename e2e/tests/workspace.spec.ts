@@ -272,7 +272,7 @@ test('creates a payer contact in the case form and selects the new contact', asy
   await page.locator('#case-customer-0').selectOption('payer-1');
   await page.getByRole('button', { name: 'เพิ่มผู้ติดต่อ' }).click();
 
-  const dialog = page.getByRole('dialog', { name: 'เพิ่มคนติดต่อ' });
+  const dialog = page.getByRole('dialog', { name: 'เพิ่มผู้ติดต่อ' });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('ชื่อ *', { exact: true }).fill('กมลวรรณ');
   await dialog.getByLabel('นามสกุล *', { exact: true }).fill('ศรีสุข');

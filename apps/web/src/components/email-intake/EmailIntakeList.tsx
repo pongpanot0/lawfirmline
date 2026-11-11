@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { mailDateGroup } from '@/lib/journey-mail';
-import { ChevronDown, Mail, Paperclip } from 'lucide-react';
+import { ArrowLeft, Mail, Paperclip } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, EmailThreadListItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,6 @@ function formatDateTime(date: string) {
 
 export function EmailIntakeList() {
   const pathname = usePathname();
-  const router = useRouter();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
   const { token } = useAuth();
@@ -59,7 +58,7 @@ export function EmailIntakeList() {
       setReloadKey((key) => key + 1);
       window.dispatchEvent(new CustomEvent('email-intake-thread-changed', { detail: threadId }));
     } catch (error) {
-      setLinkError(error instanceof ApiError ? error.message : 'รวมเข้าเรื่องเดิมไม่สำเร็จ');
+      setLinkError(error instanceof ApiError ? error.message : 'รวมเข้าเรื่องเดิมไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally { setLinkingId(null); }
   };
 
@@ -82,12 +81,10 @@ export function EmailIntakeList() {
 
   const visibleThreads = threads.filter((thread) => (filter === 'ALL' || thread.status === filter) && [thread.subject, thread.fromName, thread.fromAddress, thread.bodyExcerpt].some((value) => value?.toLowerCase().includes(search.toLowerCase())));
 
-  if (pathname !== '/email-intake') return <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3 shadow-sm">
-    <Mail className="h-5 w-5" aria-hidden />
-    <details className="relative"><summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md border bg-muted px-3 text-sm font-medium">อีเมลในคิว ({threads.length}) <ChevronDown className="h-4 w-4" aria-hidden /></summary><div className="absolute left-0 z-30 mt-1 max-h-72 w-72 max-w-[80vw] overflow-y-auto rounded-lg border bg-card p-1 shadow-lg">{threads.map((thread) => <button key={thread.id} type="button" onClick={() => router.push(`/email-intake/${thread.id}`)} className="block min-h-11 w-full rounded px-3 text-left text-sm hover:bg-muted">{thread.subject || '(ไม่มีหัวเรื่อง)'}</button>)}</div></details>
-    <span className="text-sm text-muted-foreground">กดเพื่อเลือกอีเมลเรื่องอื่น</span>
-    {loadError && <button type="button" onClick={() => setReloadKey((k) => k + 1)}>โหลดคิวอีกครั้ง</button>}
-  </div>;
+  // On a thread, the queue is one click away: back to the full list (not a dropdown).
+  if (pathname !== '/email-intake') return <Link href="/email-intake" className="flex min-h-11 w-fit items-center gap-2 rounded-lg border bg-card px-3 text-sm font-medium shadow-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <ArrowLeft className="h-4 w-4" aria-hidden />กลับไปรายการอีเมล{threads.length > 0 && <span className="text-muted-foreground">({threads.length})</span>}
+  </Link>;
 
   return (
     <div>

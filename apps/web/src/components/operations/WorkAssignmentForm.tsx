@@ -97,7 +97,7 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
           </SelectField>
         </div>
         <TextareaField label="รายละเอียด / ผลงานที่ต้องส่ง" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-        <DateTimeField label="กำหนดส่ง (ถ้ามี)" value={due} onChange={(e) => setDue(e.target.value)} hint="เวลาไทย · ไม่ใช้กำหนดส่งเพื่อคำนวณชั่วโมงว่าง" />
+        <DateTimeField label="กำหนดส่ง (ถ้ามี)" value={due} onChange={(e) => setDue(e.target.value)} hint="เวลาไทย · กำหนดส่งไม่มีผลต่อการคำนวณชั่วโมงว่าง" />
       </>}
       <SelectField label="ขนาดงาน" value={size} onChange={(e) => { setSize(e.target.value as TaskSize); setConfirmed(false); }} hint="ใช้คิดแต้มภาระงาน: เล็ก 1 · กลาง 2 · ใหญ่ 4">
         {TASK_SIZES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -105,7 +105,7 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
       {selected && <div className="rounded-lg border bg-muted/40 p-3 text-sm">
         <p className="font-medium">งานเดิมของ {selected.member.firstName} · {selected.points} แต้ม</p>
         {selected.reviews.length > 0 && <p className="mt-1 text-amber-700">ยังมีงานรอตรวจ {selected.reviews.length} งาน: {selected.reviews.map((t) => t.title).join(', ')}</p>}
-        {selected.queue.length === 0 ? <p className="mt-1 text-muted-foreground">ยังไม่มีงานในคิวที่บันทึกไว้ ต้องยืนยันความพร้อมกับผู้รับผิดชอบ</p> : <ol className="mt-2 space-y-1">
+        {selected.queue.length === 0 ? <p className="mt-1 text-muted-foreground">ยังไม่มีงานในคิวของคนนี้ — ควรถามความพร้อมกับผู้รับผิดชอบก่อน</p> : <ol className="mt-2 space-y-1">
           {selected.queue.map((t, i) => <li key={t.id} className="flex gap-2"><span className="text-muted-foreground">{placeFirst ? i + 2 : i + 1}.</span><span>{t.title}{t.dueDate && <span className="block text-xs text-muted-foreground">ส่ง {formatDateTime(t.dueDate)}</span>}</span></li>)}
         </ol>}
         {placeFirst && selected.queue.length > 0 && <p className="mt-2 text-amber-700">งานใหม่ขึ้นลำดับ 1 งานเดิมขยับลง กำหนดส่งยังคงเดิม</p>}
@@ -122,14 +122,14 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
         </SelectField>
       </div>}
       {!task && review === 'YES' && <SelectField label="ผู้ตรวจ" required value={reviewerId} onChange={(e) => setReviewerId(e.target.value)}>
-        <option value="">เลือก Owner / ทนายอาวุโส</option>
+        <option value="">เลือกเจ้าของสำนักงาน / ทนายอาวุโส</option>
         {board.members.filter((m) => ['OWNER', 'SENIOR_LAWYER'].includes(m.role) && m.userId !== assigneeId).map((m) => <option key={m.userId} value={m.userId}>{m.firstName} {m.lastName}</option>)}
       </SelectField>}
         </div>
       </details>
       {risks.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
         <p className="font-medium">ตรวจสอบก่อนมอบหมาย</p><ul className="mt-1 list-inside list-disc">{risks.map((r) => <li key={String(r)}>{r}</li>)}</ul>
-        <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-1" />รับทราบข้อมูลและยืนยันการจัดงานนี้</label>
+        <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-1" />รับทราบและยืนยันมอบหมายงานนี้</label>
       </div>}
     </fieldset>
     {availabilityLoading && <p role="status" className="text-sm text-muted-foreground">กำลังตรวจวันลาและนัดหมาย…</p>}

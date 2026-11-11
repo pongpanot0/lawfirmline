@@ -60,7 +60,7 @@ export function InsurerSelect({
       onChange(created.name);
       setOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'สร้างบริษัทประกันไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'สร้างบริษัทประกันไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setCreating(false);
     }

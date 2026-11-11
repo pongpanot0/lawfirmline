@@ -108,7 +108,7 @@ describe('case stages', () => {
   });
 
   it.each(['CLOSED', 'ARCHIVED'])('PATCH cannot set status %s', async (status) => {
-    await expect(service.update(user, 'case-1', { status } as any)).rejects.toThrow('ใช้ปุ่มปิดคดี');
+    await expect(service.update(user, 'case-1', { status } as any)).rejects.toThrow('ปิดคดีด้วยปุ่ม "ปิดคดี"');
   });
 
   it('closing records the stage it left', async () => {
@@ -160,7 +160,7 @@ describe('case stages', () => {
   it.each(['CLOSED', 'ARCHIVED'])('PATCH cannot change the status of a %s case (use reopen)', async (current) => {
     prisma.case.findUnique.mockResolvedValue({ ...base, status: current, stage: 'CLOSING' });
     await expect(service.update(user, 'case-1', { status: 'IN_PROGRESS' } as any)).rejects.toThrow(
-      'ใช้ปุ่มเปิดคดีอีกครั้ง',
+      'เปิดคดีใหม่ด้วยปุ่ม "เปิดคดีอีกครั้ง"',
     );
     expect(prisma.case.update).not.toHaveBeenCalled();
   });

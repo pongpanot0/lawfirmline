@@ -13,7 +13,7 @@ export function UndoToast({ action, onDismiss }: { action: UndoAction | null; on
     if (!action || busy) return;
     setBusy(true); setError('');
     try { await action.undo(); onDismiss(); }
-    catch { setError('เลิกทำไม่สำเร็จ ลองอีกครั้ง'); }
+    catch { setError('เลิกทำไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     finally { setBusy(false); }
   };
   return <div role="status" aria-live="polite">{action && <div className="fixed bottom-6 left-1/2 z-50 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-4 rounded-xl bg-[#142e43] px-5 py-3.5 text-white shadow-2xl">

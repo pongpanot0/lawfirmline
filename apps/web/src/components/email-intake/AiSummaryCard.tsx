@@ -16,6 +16,6 @@ export function AiSummaryCard({ summary }: { summary: EmailIntakeAiSummary }) {
     {summary.clientRequest && <div><p className="text-xs font-medium text-muted-foreground">ลูกความขอให้ทำอะไร</p><p className="break-words">{summary.clientRequest}</p></div>}
     {summary.overview.length > 0 && <div><p className="text-xs font-medium text-muted-foreground">สาระสำคัญ</p><ul className="list-disc space-y-0.5 pl-5">{summary.overview.map((line, i) => <li key={i} className="break-words">{line}</li>)}</ul></div>}
     {summary.nextActions.length > 0 && <div><p className="text-xs font-medium text-muted-foreground">ทนายควรทำต่อ</p><ol className="list-decimal space-y-0.5 pl-5">{summary.nextActions.map((line, i) => <li key={i} className="break-words">{line}</li>)}</ol></div>}
-    <p className="text-xs text-muted-foreground">AI สรุปจากอีเมลและไฟล์ — ตรวจกับต้นฉบับก่อนใช้ ค่าที่จะบันทึกอยู่ในรายการด้านล่าง</p>
+    <p className="text-xs text-muted-foreground">AI สรุปจากอีเมลและไฟล์ — ตรวจกับต้นฉบับก่อนใช้ ข้อมูลที่จะบันทึกอยู่ในรายการด้านล่าง</p>
   </section>;
 }

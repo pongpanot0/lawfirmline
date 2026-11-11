@@ -143,7 +143,7 @@ describe('DocumentPublicationService', () => {
       const err = await service.publish(user, 'case-1', 'doc-1', {}).catch((e) => e);
 
       expect(err).toBeInstanceOf(BadRequestException);
-      expect(err.message).toBe('เอกสารนี้ยังไม่มีเวอร์ชันให้เผยแพร่');
+      expect(err.message).toBe('เอกสารนี้ยังไม่มีไฟล์ที่เผยแพร่ได้ อัปโหลดไฟล์ก่อน');
       expect(mockPrisma.documentPublication.create).not.toHaveBeenCalled();
     });
   });

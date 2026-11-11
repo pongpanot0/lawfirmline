@@ -40,7 +40,7 @@ export function ClientAnnualReportsPanel({
   }, [token, client.id]);
 
   useEffect(() => {
-    void loadReports().catch(() => setError('โหลดรายงานเดิมไม่สำเร็จ'));
+    void loadReports().catch(() => setError('โหลดรายงานเดิมไม่สำเร็จ ลองโหลดหน้าใหม่'));
   }, [loadReports]);
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export function ClientAnnualReportsPanel({
       setPreview(null);
     } catch (e) {
       resetSelection();
-      setError(e instanceof Error ? e.message : 'โหลดคดีไม่สำเร็จ');
+      setError(e instanceof Error ? e.message : 'โหลดคดีไม่สำเร็จ ลองโหลดหน้าใหม่');
     } finally {
       setBusy(false);
     }
@@ -84,7 +84,7 @@ export function ClientAnnualReportsPanel({
       setPreview(await api.previewClientAnnualReport(token, client.id, { year, audience, caseIds }));
     } catch (e) {
       setPreview(null);
-      setError(e instanceof Error ? e.message : 'ตรวจรายงานไม่สำเร็จ');
+      setError(e instanceof Error ? e.message : 'ตรวจรายงานไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }
@@ -102,7 +102,7 @@ export function ClientAnnualReportsPanel({
       setNotice('เผยแพร่รายงานให้ผู้ติดต่อที่เลือกแล้ว');
       setPreview(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'เผยแพร่ไม่สำเร็จ');
+      setError(e instanceof Error ? e.message : 'เผยแพร่ไม่สำเร็จ ลองใหม่อีกครั้ง');
       setPreview(null);
     } finally {
       setBusy(false);
@@ -120,7 +120,7 @@ export function ClientAnnualReportsPanel({
       await loadReports();
       setNotice('ถอนรายงานจากพอร์ทัลแล้ว');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'ถอนไม่สำเร็จ');
+      setError(e instanceof Error ? e.message : 'ถอนรายงานไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }
@@ -233,7 +233,7 @@ export function ClientAnnualReportsPanel({
                     <span className="sr-only">ค้นหาคดีในรายการ</span>
                     <input
                       type="search" value={caseSearch} onChange={(e) => setCaseSearch(e.target.value)}
-                      placeholder="ค้นชื่อคดี เลขสำนักงาน หรือ Customer Ref"
+                      placeholder="ค้นชื่อคดี เลขอ้างอิงสำนักงาน หรือเลขอ้างอิงผู้ว่าจ้าง"
                       className="h-10 w-full rounded-md border bg-background px-3"
                     />
                   </label>

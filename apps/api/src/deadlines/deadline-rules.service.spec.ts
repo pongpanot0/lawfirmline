@@ -560,7 +560,7 @@ describe('DeadlineRulesService', () => {
     });
 
     it('rejects a blank label on create', async () => {
-      await expect(service.create(owner, { ...dto, label: '   ' })).rejects.toThrow('ต้องระบุชื่อกำหนด');
+      await expect(service.create(owner, { ...dto, label: '   ' })).rejects.toThrow('ใส่ชื่อวันครบกำหนด');
       expect(mockPrisma.deadlineRule.create).not.toHaveBeenCalled();
     });
 

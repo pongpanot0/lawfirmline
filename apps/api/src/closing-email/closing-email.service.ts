@@ -198,7 +198,7 @@ export class ClosingEmailService {
     if (!draft) throw new NotFoundException('ไม่พบร่างอีเมลนี้');
     if (draft.status === ClosingEmailDraftStatus.APPROVED) throw new BadRequestException('ร่างนี้อนุมัติไปแล้ว');
     if (!this.email.isConfigured()) throw new BadRequestException('ระบบยังไม่ได้ตั้งค่าการส่งอีเมล ติดต่อผู้ดูแลระบบ');
-    if (!draft.recipientClientId) throw new BadRequestException('ร่างนี้ไม่มีลูกความผู้รับ');
+    if (!draft.recipientClientId) throw new BadRequestException('ร่างนี้ยังไม่มีผู้รับ เลือกผู้ติดต่อของลูกความก่อน');
 
     const contacts = await this.prisma.clientContact.findMany({
       where: { id: { in: dto.contactIds }, clientId: draft.recipientClientId, email: { not: null } },

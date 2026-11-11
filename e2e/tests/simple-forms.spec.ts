@@ -115,7 +115,7 @@ for (const width of [375, 1440]) {
       await dialog.getByRole('textbox', { name: 'ชื่องาน', exact: true }).fill(`งานพร้อมรายละเอียด ${data.tag}`);
       await dialog.getByRole('combobox', { name: 'ผู้รับผิดชอบ', exact: true }).selectOption(auth.user.id);
       await expect(dialog.getByRole('button', { name: 'สร้างงาน', exact: true })).toBeDisabled();
-      await dialog.getByRole('checkbox', { name: 'รับทราบข้อมูลและยืนยันการจัดงานนี้', exact: true }).check();
+      await dialog.getByRole('checkbox', { name: 'รับทราบและยืนยันมอบหมายงานนี้', exact: true }).check();
       await expect(dialog.getByRole('button', { name: 'สร้างงาน', exact: true })).toBeEnabled();
       await dialog.getByRole('combobox', { name: 'ผู้รับผิดชอบ', exact: true }).selectOption('');
       const advanced = dialog.getByText('รายละเอียด / กำหนดส่ง / การจัดคิว', { exact: true });

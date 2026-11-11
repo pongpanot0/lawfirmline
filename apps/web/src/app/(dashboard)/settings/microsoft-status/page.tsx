@@ -62,7 +62,7 @@ export default function MicrosoftStatusPage() {
       await api.remindM365Reconnect(token, c.id);
       setNotice({ ok: true, text: `ส่งแจ้งเตือนถึง ${connName(c)} แล้ว` });
     } catch (e) {
-      setNotice({ ok: false, text: e instanceof ApiError ? e.message : 'ส่งแจ้งเตือนไม่สำเร็จ' });
+      setNotice({ ok: false, text: e instanceof ApiError ? e.message : 'ส่งแจ้งเตือนไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
       setReminding(null);
     }
@@ -159,7 +159,7 @@ export default function MicrosoftStatusPage() {
                 <CardContent className="space-y-1 p-4">
                   <p className="text-base font-semibold break-words">{[l.ownRef, l.caseTitle].filter(Boolean).join(' · ')}</p>
                   <p className="text-sm text-muted-foreground break-all">
-                    {l.kind === 'OUTLOOK_FOLDER' ? 'Folder อีเมล' : 'Folder OneDrive'}{l.displayPath ? `: ${l.displayPath}` : ''} ({l.mailboxAddress})
+                    {l.kind === 'OUTLOOK_FOLDER' ? 'โฟลเดอร์อีเมล' : 'Folder OneDrive'}{l.displayPath ? `: ${l.displayPath}` : ''} ({l.mailboxAddress})
                   </p>
                   {l.lastErrorThai && <p className="text-sm">{l.lastErrorThai}</p>}
                   <Link
@@ -189,11 +189,11 @@ export default function MicrosoftStatusPage() {
                   <HealthBadge health={c.health} />
                 </div>
                 <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm sm:grid-cols-3">
-                  <div><dt className="text-muted-foreground">ซิงก์ล่าสุด</dt><dd>{relativeTimeTh(c.lastSyncedAt)}</dd></div>
+                  <div><dt className="text-muted-foreground">ดึงข้อมูลล่าสุด</dt><dd>{relativeTimeTh(c.lastSyncedAt)}</dd></div>
                   <div><dt className="text-muted-foreground">อีเมลเข้าคิวรับเรื่อง</dt><dd>{onOff(c.syncInboxToIntake)}</dd></div>
                   <div><dt className="text-muted-foreground">ปฏิทิน</dt><dd>{onOff(c.syncCalendar)}</dd></div>
                   <div>
-                    <dt className="text-muted-foreground">Folder ที่ผูก</dt>
+                    <dt className="text-muted-foreground">โฟลเดอร์ที่ผูก</dt>
                     <dd className="tabular-nums">{c.folderLinks.total}{c.folderLinks.failing > 0 && <span className="text-destructive"> (ผิดพลาด {c.folderLinks.failing})</span>}</dd>
                   </div>
                   <div><dt className="text-muted-foreground">OneDrive ที่ผูก</dt><dd className="tabular-nums">{c.driveLinks}</dd></div>
@@ -224,9 +224,9 @@ export default function MicrosoftStatusPage() {
         <h2 className="mb-2 font-bold">อีเมลไม่เข้า? ตรวจตามนี้</h2>
         <ol className="list-decimal space-y-1 pl-5">
           <li>บัญชีของคนนั้นขึ้น &quot;หลุด&quot; ให้กดแจ้งให้เชื่อมต่อใหม่</li>
-          <li>folder ผูกกับคดีหรือยัง (<Link href="/settings/outlook-folders" className="text-primary underline">หน้าจับคู่ folder</Link>)</li>
+          <li>โฟลเดอร์ผูกกับคดีหรือยัง (<Link href="/settings/outlook-folders" className="text-primary underline">หน้าจับคู่โฟลเดอร์</Link>)</li>
           <li>ซิงก์ล่าสุดนานเกิน 2 ชม. ให้เจ้าของบัญชีกด ซิงก์ตอนนี้ ในหน้าตั้งค่าของตน</li>
-          <li>error ว่า &quot;ไม่มีสิทธิ์เข้าถึง&quot; ผู้ดูแล Microsoft ขององค์กรต้องกด admin consent</li>
+          <li>ถ้าขึ้นข้อความ &quot;ไม่มีสิทธิ์เข้าถึง&quot; ผู้ดูแล Microsoft ขององค์กรต้องกดอนุมัติ admin consent</li>
         </ol>
       </section>
     </div>

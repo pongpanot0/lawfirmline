@@ -128,7 +128,7 @@ export class DeadlineRulesService {
     const firmId = dto.global ? null : user.firmId;
     this.assertCanEdit(user, firmId);
     const label = dto.label.trim();
-    if (!label) throw new BadRequestException('ต้องระบุชื่อกำหนด');
+    if (!label) throw new BadRequestException('ใส่ชื่อวันครบกำหนด');
     const clash = await this.prisma.deadlineRule.findFirst({
       where: { firmId, trigger: dto.trigger, label },
       select: { id: true },

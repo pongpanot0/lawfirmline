@@ -30,7 +30,7 @@ export function MoneyInput({ value, onValueChange, min, max, ...props }: Props) 
   useEffect(() => {
     const amount = Number(value);
     const invalid = String(value) !== '' && ((min !== undefined && amount < min) || (max !== undefined && amount > max));
-    ref.current?.setCustomValidity(invalid ? `จำนวนเงินต้องอยู่ระหว่าง ${formatMoneyInput(min ?? 0)} และ ${formatMoneyInput(max ?? 100000000)} บาท` : '');
+    ref.current?.setCustomValidity(invalid ? `จำนวนเงินต้องอยู่ระหว่าง ${formatMoneyInput(min ?? 0)} ถึง ${formatMoneyInput(max ?? 100000000)} บาท` : '');
   }, [value, min, max]);
 
   return <Input {...props} ref={ref} type="text" inputMode="decimal" value={formatMoneyInput(value)}

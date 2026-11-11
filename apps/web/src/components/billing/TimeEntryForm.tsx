@@ -47,7 +47,7 @@ export function TimeEntryForm({
 
   useEffect(() => {
     if (!token || caseId || entry) return;
-    api.getCases(token).then(setCases).catch(() => setError('โหลดรายการคดีไม่สำเร็จ'));
+    api.getCases(token).then(setCases).catch(() => setError('โหลดรายการคดีไม่สำเร็จ ลองโหลดหน้าใหม่'));
   }, [token, caseId, entry]);
 
   useEffect(() => {

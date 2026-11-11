@@ -78,7 +78,7 @@ function AskSection({ caseId }: { caseId: string }) {
       const documentIds = selectedDocs.size < readable.length ? [...selectedDocs] : undefined;
       setResult(await api.askCase(token, caseId, q.trim(), documentIds));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ไม่สามารถถาม AI ได้');
+      setError(err instanceof Error ? err.message : 'ถาม AI ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setLoading(false);
     }
@@ -246,7 +246,7 @@ function FactsReviewSection({
       await api.reviewCaseKnowledge(token, caseId, id);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ยืนยันไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'ยืนยันไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusyId(null);
     }
@@ -260,7 +260,7 @@ function FactsReviewSection({
             <Badge variant={verified ? 'success' : 'warning'}>{verified ? 'ตรวจแล้ว' : 'รอทนายตรวจ'}</Badge>
             {item.title}
           </p>
-          <p className="mt-1 whitespace-pre-wrap text-sm">{isUnusableAnalysis(item.summary) ? 'อ่านเอกสารไม่สำเร็จ — ผลเดิมไม่ใช่สรุปที่พร้อมใช้งาน กรุณาวิเคราะห์เอกสารใหม่' : item.summary}</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm">{isUnusableAnalysis(item.summary) ? 'ผลสรุปเดิมใช้ไม่ได้ — กรุณาวิเคราะห์เอกสารใหม่' : item.summary}</p>
           {item.citations && item.citations.length > 0 && (
             <p className="mt-1 text-xs text-muted-foreground">
               อ้างอิง {item.citations.length} จุด:{' '}

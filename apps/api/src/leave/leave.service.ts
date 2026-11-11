@@ -146,13 +146,13 @@ export class LeaveService {
       include: { user: { select: { firstName: true, lastName: true, lineUserId: true } } },
     });
     if (!leave) throw new NotFoundException('ไม่พบรายการลา');
-    if (leave.status !== LeaveStatus.PENDING) throw new BadRequestException('คำขอนี้ตัดสินไปแล้ว');
+    if (leave.status !== LeaveStatus.PENDING) throw new BadRequestException('คำขอลานี้พิจารณาไปแล้ว');
     if (!hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('ไม่มีสิทธิ์อนุมัติการลา');
     if (leave.userId === user.id && user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('อนุมัติการลาของตนเองไม่ได้');
     // Claim only while still PENDING so two owners deciding at once can't both win.
     const data = { status: decision, decidedById: user.id, decidedAt: new Date() };
     const claimed = await this.prisma.leaveRequest.updateMany({ where: { id: leaveId, firmId: user.firmId, status: LeaveStatus.PENDING }, data });
-    if (!claimed.count) throw new BadRequestException('คำขอนี้ตัดสินไปแล้ว');
+    if (!claimed.count) throw new BadRequestException('คำขอลานี้พิจารณาไปแล้ว');
     const decided = { ...leave, ...data };
     const verdict = decision === LeaveStatus.APPROVED ? 'อนุมัติ' : 'ปฏิเสธ';
     await this.notifier.notifyAssigned({

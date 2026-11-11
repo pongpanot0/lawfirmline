@@ -37,7 +37,7 @@ export class DocumentPublicationService {
     const documentVersion = await this.prisma.documentVersion.findFirst({
       where: { documentId, version: document.version },
     });
-    if (!documentVersion) throw new BadRequestException('เอกสารนี้ยังไม่มีเวอร์ชันให้เผยแพร่');
+    if (!documentVersion) throw new BadRequestException('เอกสารนี้ยังไม่มีไฟล์ที่เผยแพร่ได้ อัปโหลดไฟล์ก่อน');
     if (!document.caseId) throw new NotFoundException('Case not found');
 
     if (dto.recipientContacts && dto.recipientContacts.length > 0) {

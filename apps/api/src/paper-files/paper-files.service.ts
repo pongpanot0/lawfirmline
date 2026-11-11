@@ -63,7 +63,7 @@ export class PaperFilesService {
         select: stateSelect,
       }).catch((err) => {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-          throw new ConflictException('สำนวนถูกเบิกไปพร้อมกัน กรุณาโหลดใหม่');
+          throw new ConflictException('มีคนเบิกสำนวนนี้ไปพร้อมกัน โหลดหน้าใหม่เพื่อดูสถานะล่าสุด');
         }
         throw err;
       });

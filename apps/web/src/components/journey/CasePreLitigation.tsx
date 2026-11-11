@@ -25,13 +25,13 @@ export function CasePreLitigation({ token, caseId, intakeId, partyNames, steps, 
         intakeId ? api.getIntake(token, intakeId) : Promise.resolve(null),
       ]);
       setRequests(docs); setIntake(item); setError('');
-    } catch (e) { setError(e instanceof Error ? e.message : 'โหลดรายการก่อนฟ้องไม่สำเร็จ'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'โหลดรายการก่อนฟ้องไม่สำเร็จ ลองโหลดหน้าใหม่'); }
   }, [token, caseId, intakeId]);
   useEffect(() => { void load(); }, [load]);
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true); setError('');
     try { await action(); await load(); onChanged(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     finally { setBusy(false); }
   };
   const pending = (intake?.fieldProposals ?? []).filter((p) => p.field !== 'document' && isPending(p));

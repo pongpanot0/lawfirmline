@@ -90,7 +90,7 @@ function SopsContent() {
       setView('manual');
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally { setSaving(false); }
   };
 

@@ -21,24 +21,24 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'text:เพิ่มนัด', title: 'ปฏิทินสำนักงาน', body: 'ดูนัดรวมทุกคดีทุกทนาย เพิ่มนัดใหม่ได้จากปุ่มนี้', placement: 'bottom' },
   ],
   '/court-schedule': [
-    { selector: 'main h1', title: 'ตารางศาล', body: 'ใครไปไหนวันไหน เรียงตามวัน พร้อมเตือนเมื่อมีคนถูกจองซ้อน', placement: 'right' },
+    { selector: 'main h1', title: 'ตารางศาล', body: 'ใครไปไหนวันไหน เรียงตามวัน พร้อมเตือนเมื่อมีคนติดนัดซ้อนกัน', placement: 'right' },
     { selector: 'text:เพิ่มนัด', title: 'เพิ่มนัดใหม่', body: 'เพิ่มนัดศาลหรือนัดลูกความใหม่จากปุ่มนี้', placement: 'left' },
   ],
 
   '/cases': [
-    { selector: 'placeholder:Own Ref', title: 'ค้นหาคดี', body: 'ค้นหาด้วย Own Ref, Customer Ref, หมายเลขคดีดำ, หมายเลขคดีแดง หรือชื่อลูกความ', placement: 'bottom' },
+    { selector: 'placeholder:Own Ref', title: 'ค้นหาคดี', body: 'ค้นหาด้วยเลขอ้างอิงสำนักงาน เลขอ้างอิงผู้ว่าจ้าง หมายเลขคดีดำ หมายเลขคดีแดง หรือชื่อลูกความ', placement: 'bottom' },
     { selector: 'text:สร้างคดีใหม่', title: 'สร้างคดีใหม่', body: 'เปิดคดีใหม่ได้จากปุ่มนี้', placement: 'left' },
   ],
   '/cases/board': [
     { selector: 'main h1', title: 'บอร์ดสถานะคดี', body: 'แยกคดีตามสถานะปัจจุบัน ลากการ์ดคดีข้ามคอลัมน์เพื่อเปลี่ยนสถานะ หรือกดเพื่อเปิดคดี', placement: 'right' },
   ],
   '/cases/new': [
-    { selector: '#case-type', title: 'สร้างคดีใหม่', body: 'เลือกประเภทคดี ตั้งชื่อ และเลือกทนายผู้รับผิดชอบ ข้อมูลอื่นกางเพิ่มได้ด้านล่าง', placement: 'right' },
+    { selector: '#case-type', title: 'สร้างคดีใหม่', body: 'เลือกประเภทคดี ตั้งชื่อ และเลือกทนายผู้รับผิดชอบ ข้อมูลอื่นกดเปิดเพิ่มได้ด้านล่าง', placement: 'right' },
   ],
   '/cases/:id': [
     { selector: 'main h1', title: 'รายละเอียดคดี', body: 'ชื่อคดี เลขอ้างอิง สถานะ และผู้รับผิดชอบของคดีนี้', placement: 'right' },
     { selector: 'text:งาน', title: 'แท็บงาน', body: 'ดูและมอบหมายงานย่อยของคดีนี้', placement: 'bottom' },
-    { selector: 'text:เอกสาร', title: 'แท็บเอกสาร', body: 'อัปโหลดและจัดเวอร์ชันเอกสารของคดีนี้', placement: 'bottom' },
+    { selector: 'text:เอกสาร', title: 'แท็บเอกสาร', body: 'อัปโหลดเอกสารของคดีนี้ และเก็บทุกฉบับที่แก้ไข', placement: 'bottom' },
     { selector: 'text:ค่าใช้จ่าย', title: 'แท็บการเงิน', body: 'บันทึกเวลาทำงาน ค่าใช้จ่าย และออกใบแจ้งหนี้ของคดีนี้', placement: 'bottom' },
   ],
 
@@ -84,13 +84,13 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'text:สมัคร', title: 'แพ็กเกจและการชำระเงิน', body: 'ดูแพ็กเกจปัจจุบันและเปลี่ยนแพ็กเกจได้ที่นี่', placement: 'right' },
   ],
   '/ai-usage': [
-    { selector: 'main h1', title: 'การใช้งาน AI', body: 'ติดตามว่าใครในทีมเรียกใช้ฟีเจอร์ AI มากน้อยแค่ไหน', placement: 'right' },
+    { selector: 'main h1', title: 'การใช้งาน AI', body: 'ดูว่าใครในทีมใช้ AI มากน้อยแค่ไหน', placement: 'right' },
   ],
   '/sops': [
-    { selector: 'placeholder:ค้นหาคู่มือ', title: 'คู่มือการทำงาน', body: 'คลังขั้นตอนมาตรฐานของสำนักงาน ค้นหาได้จากตรงนี้', placement: 'bottom' },
+    { selector: 'placeholder:ค้นหาคู่มือ', title: 'คู่มือการทำงาน', body: 'คลังคู่มือการทำงานของสำนักงาน ค้นหาได้จากตรงนี้', placement: 'bottom' },
   ],
   '/playbooks': [
-    { selector: 'main h1', title: 'ชุดงานอัตโนมัติ', body: 'กำหนดชุดงานมาตรฐานของคดีแต่ละประเภท แล้วนำไปใช้ตอนเปิดคดีใหม่ได้', placement: 'right' },
+    { selector: 'main h1', title: 'ชุดงานอัตโนมัติ', body: 'กำหนดชุดงานอัตโนมัติของคดีแต่ละประเภท แล้วนำไปใช้ตอนเปิดคดีใหม่ได้', placement: 'right' },
   ],
   '/operations': [
     { selector: 'main h1', title: 'ภาระงานทีม', body: 'ดูภาระงานของทุกคนในทีม แล้วมอบหมายงานเพิ่มให้สมดุลได้จากหน้านี้', placement: 'right' },
@@ -113,22 +113,22 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
   ],
 
   '/admin/case-types': [
-    { selector: 'text:เพิ่มประเภท', title: 'ประเภทคดี', body: 'จัดการหมวดหมู่คดีของสำนักงาน กำหนดฟิลด์เฉพาะที่จะให้กรอกตอนสร้างคดีใหม่', placement: 'bottom' },
+    { selector: 'text:เพิ่มประเภท', title: 'ประเภทคดี', body: 'จัดการประเภทคดีของสำนักงาน กำหนดช่องข้อมูลที่ต้องกรอกตอนสร้างคดีใหม่', placement: 'bottom' },
   ],
   '/admin/courts': [
     { selector: 'main h1', title: 'ทะเบียนศาล', body: 'จัดการรายชื่อศาลที่ใช้เลือกตอนสร้างคดีและตั้งนัด', placement: 'right' },
   ],
   '/admin/deadline-rules': [
-    { selector: 'main h1', title: 'กฎวันครบกำหนด', body: 'ตั้งกฎให้ระบบคำนวณเดดไลน์อัตโนมัติตามประเภทคดี/เหตุการณ์', placement: 'right' },
+    { selector: 'main h1', title: 'กฎวันครบกำหนด', body: 'ตั้งกฎให้ระบบคำนวณวันครบกำหนดอัตโนมัติตามประเภทคดี/เหตุการณ์', placement: 'right' },
   ],
   '/admin/holidays': [
     { selector: 'main h1', title: 'วันหยุดราชการ', body: 'รายการวันหยุดที่ระบบใช้นับวันทำการตอนคำนวณกำหนดส่งงาน', placement: 'right' },
   ],
   '/admin/reimbursements': [
-    { selector: 'main h1', title: 'เบิกค่าใช้จ่าย', body: 'ตรวจสอบและอนุมัติค่าใช้จ่ายที่ทีมส่งเข้ามา รวมถึงให้เงินสำรองจ่ายล่วงหน้าได้', placement: 'right' },
+    { selector: 'main h1', title: 'เบิกค่าใช้จ่าย', body: 'ตรวจสอบและอนุมัติค่าใช้จ่ายที่ทีมส่งเข้ามา รวมถึงจ่ายเงินทดรองล่วงหน้าได้', placement: 'right' },
     { selector: 'text:รออนุมัติ', title: 'กรองตามสถานะ', body: 'กรองรายการเบิกจ่ายตามสถานะได้', placement: 'bottom' },
   ],
   '/admin/audit-log': [
-    { selector: 'main h1', title: 'บันทึกการใช้งาน', body: 'ประวัติการกระทำสำคัญในระบบ ใครทำอะไรเมื่อไหร่', placement: 'right' },
+    { selector: 'main h1', title: 'บันทึกการใช้งาน', body: 'ประวัติการใช้งานสำคัญในระบบ ใครทำอะไรเมื่อไหร่', placement: 'right' },
   ],
 };

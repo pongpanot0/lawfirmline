@@ -86,17 +86,17 @@ export class OutlookOAuthService {
 
   private verify(token: string, kind: Signed['kind'], maxAgeMs: number): Signed {
     const [json, sig] = (token ?? '').split('.');
-    if (!json || !sig) throw new BadRequestException('state ไม่ถูกต้อง');
+    if (!json || !sig) throw new BadRequestException('ลิงก์เชื่อมต่อไม่ถูกต้อง เริ่มเชื่อมต่อใหม่จากหน้าตั้งค่า');
     const expected = Buffer.from(crypto.createHmac('sha256', this.stateSecret()).update(json).digest('base64url'));
     const given = Buffer.from(sig);
     // timingSafeEqual throws on mismatched lengths rather than returning
     // false, so a forged token of the "wrong" length must be rejected
     // before reaching it — not fall through as an unhandled 500.
     if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
-      throw new BadRequestException('state ไม่ถูกต้อง');
+      throw new BadRequestException('ลิงก์เชื่อมต่อไม่ถูกต้อง เริ่มเชื่อมต่อใหม่จากหน้าตั้งค่า');
     }
     const payload = JSON.parse(Buffer.from(json, 'base64url').toString('utf8')) as Signed;
-    if (payload.kind !== kind) throw new BadRequestException('state ไม่ถูกต้อง');
+    if (payload.kind !== kind) throw new BadRequestException('ลิงก์เชื่อมต่อไม่ถูกต้อง เริ่มเชื่อมต่อใหม่จากหน้าตั้งค่า');
     if (Date.now() - payload.issuedAt > maxAgeMs) throw new BadRequestException('ลิงก์เชื่อมต่อหมดอายุ กรุณาลองใหม่');
     return payload;
   }
@@ -157,7 +157,7 @@ export class OutlookOAuthService {
       error_description?: string;
     };
     if (!res.ok || !json.access_token) {
-      throw new BadRequestException(`เชื่อมต่อ Microsoft ไม่สำเร็จ: ${json.error_description ?? json.error ?? res.statusText}`);
+      throw new BadRequestException(`เชื่อมต่อ Microsoft ไม่สำเร็จ ลองเชื่อมต่อใหม่ (${json.error_description ?? json.error ?? res.statusText})`);
     }
     return {
       accessToken: json.access_token,

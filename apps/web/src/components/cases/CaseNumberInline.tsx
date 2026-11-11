@@ -33,7 +33,7 @@ export function CaseNumberInline({
       onSaved(next);
       setEditing(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'บันทึกเลขคดีไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'บันทึกเลขคดีไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }

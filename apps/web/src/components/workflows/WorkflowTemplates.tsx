@@ -33,7 +33,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
 
   const remove = async (t: WorkflowTemplate) => {
     if (!window.confirm(`ลบแม่แบบ "${t.name}"? สายงานที่เริ่มไปแล้วไม่ได้รับผลกระทบ`)) return;
-    try { await api.deleteWorkflowTemplate(token, t.id); load(); } catch (e) { setError(e instanceof Error ? e.message : 'ลบไม่สำเร็จ'); }
+    try { await api.deleteWorkflowTemplate(token, t.id); load(); } catch (e) { setError(e instanceof Error ? e.message : 'ลบไม่สำเร็จ ลองใหม่อีกครั้ง'); }
   };
 
   const defaultTemplate = templates?.find(t => t.isDefault);
@@ -59,7 +59,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
       {templates && <div className="grid min-w-0 gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
         <div>
           <p className="text-sm font-semibold">สายงานเริ่มต้น</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">เลือกให้เมื่อกดเริ่มสายงานในคดี ตรวจผู้รับแต่ละขั้นก่อนยืนยันเริ่ม ใช้ร่วมกันทั้งสำนักงาน</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">ระบบเลือกแม่แบบนี้ให้เมื่อเริ่มสายงานในคดี ยังตรวจผู้รับแต่ละขั้นได้ก่อนเริ่ม ใช้ร่วมกันทั้งสำนักงาน</p>
         </div>
         {canEdit ? <label className="min-w-0 text-xs text-muted-foreground">แม่แบบเริ่มต้นของสำนักงาน
           <select aria-label="แม่แบบเริ่มต้นของสำนักงาน" className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-input bg-card px-3 text-sm text-foreground"
@@ -75,7 +75,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
       {!templates && !error && <div role="status" aria-label="กำลังโหลดสายงานส่งต่อ" className="space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-28 w-full rounded-lg" />)}</div>}
       {visible && !visible.length && <EmptyState
         title={query ? 'ไม่พบสายงานส่งต่อที่ค้นหา' : 'ยังไม่มีแม่แบบ'}
-        description={query ? undefined : 'แม่แบบที่สร้างครั้งเดียวใช้ซ้ำได้กับทุกคดี'}
+        description={query ? undefined : 'สร้างแม่แบบครั้งเดียว ใช้ซ้ำได้ทุกคดี'}
 
       />}
       {visible?.map((t) => (

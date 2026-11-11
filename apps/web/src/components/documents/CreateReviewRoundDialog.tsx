@@ -52,7 +52,7 @@ export function CreateReviewRoundDialog({
     api
       .getReviewEligibleMembers(token, caseId, documentId)
       .then(setMembers)
-      .catch(() => setLoadError('โหลดรายชื่อสมาชิกไม่สำเร็จ'))
+      .catch(() => setLoadError('โหลดรายชื่อสมาชิกไม่สำเร็จ ลองโหลดหน้าใหม่'))
       .finally(() => setLoading(false));
   }, [token, caseId, documentId]);
 
@@ -74,7 +74,7 @@ export function CreateReviewRoundDialog({
       });
       onCreated();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ส่งตรวจไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'ส่งตรวจไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }

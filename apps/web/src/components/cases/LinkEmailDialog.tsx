@@ -20,10 +20,10 @@ export function LinkEmailDialog({ token, caseId, caseRef, threads = [], onClose,
   const [error, setError] = useState('');
   const [hidden, setHidden] = useState<string[]>([]);
   useEffect(() => { const previous = document.activeElement as HTMLElement | null; dialog.current?.showModal(); return () => previous?.focus(); }, []);
-  useEffect(() => { let active = true; api.getCaseEmailLinkCandidates(token, caseId).then(data => { if (active) { setSuggestions(data.suggested); setSelected(data.suggested); } }).catch(() => { if (active) setError('โหลดอีเมลแนะนำไม่สำเร็จ'); }); return () => { active = false; }; }, [token, caseId]);
+  useEffect(() => { let active = true; api.getCaseEmailLinkCandidates(token, caseId).then(data => { if (active) { setSuggestions(data.suggested); setSelected(data.suggested); } }).catch(() => { if (active) setError('โหลดอีเมลแนะนำไม่สำเร็จ ลองโหลดหน้าใหม่'); }); return () => { active = false; }; }, [token, caseId]);
   useEffect(() => {
     if (!search || q.trim().length < 2) { setResults(null); return; }
-    let active = true; const timer = setTimeout(() => { api.getCaseEmailLinkCandidates(token, caseId, q.trim()).then(data => { if (active) setResults(data); }).catch(() => { if (active) setError('ค้นหาอีเมลไม่สำเร็จ'); }); }, 300);
+    let active = true; const timer = setTimeout(() => { api.getCaseEmailLinkCandidates(token, caseId, q.trim()).then(data => { if (active) setResults(data); }).catch(() => { if (active) setError('ค้นหาอีเมลไม่สำเร็จ ลองค้นอีกครั้ง'); }); }, 300);
     return () => { active = false; clearTimeout(timer); };
   }, [search, q, token, caseId]);
   const link = async () => {
@@ -57,7 +57,7 @@ export function LinkEmailDialog({ token, caseId, caseRef, threads = [], onClose,
   const sender = (row: { fromName: string | null; fromAddress: string | null }) => <><Highlight value={row.fromName || 'ไม่ทราบผู้ส่ง'} query={qq} />{row.fromAddress && <> · <span className="break-all text-muted-foreground">{qq.length >= 2 && row.fromAddress.toLocaleLowerCase().includes(qq.toLocaleLowerCase()) ? <Mark value={row.fromAddress} query={qq} /> : row.fromAddress}</span></>}</>;
   return <dialog ref={dialog} onClose={onClose} onCancel={e => { if (busy) e.preventDefault(); }} aria-labelledby="link-email-title" className="m-auto w-[min(42rem,calc(100vw-2rem))] max-w-none rounded-2xl bg-[#fffdfa] p-0 text-foreground shadow-2xl backdrop:bg-[#101d2a]/45">
     <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
-    <div className="flex items-start justify-between border-b border-[#e2e0d8] px-6 py-4"><div><h2 id="link-email-title" tabIndex={-1} autoFocus={!search} className="text-xl font-bold outline-none">{search ? 'ค้นหาอีเมลเพื่อผูกเข้าคดี' : 'ผูกอีเมลเข้าคดี'}</h2><p className={hint}>{search ? 'ค้นได้จากชื่อผู้ส่ง อีเมลผู้ส่ง หัวเรื่อง หรือเลขคดี · ค้นเฉพาะอีเมลในกล่องของคุณ' : 'เลือกได้หลายฉบับ — ทั้งเรื่อง (ทุกข้อความในเธรด) จะเข้าคดีนี้'}</p><span className="sr-only">{caseRef}</span></div><button type="button" disabled={busy} aria-label="ปิดหน้าต่างผูกอีเมล" onClick={() => dialog.current?.close()} className={`${btn} text-muted-foreground`}><X aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button></div>
+    <div className="flex items-start justify-between border-b border-[#e2e0d8] px-6 py-4"><div><h2 id="link-email-title" tabIndex={-1} autoFocus={!search} className="text-xl font-bold outline-none">{search ? 'ค้นหาอีเมลเพื่อผูกเข้าคดี' : 'ผูกอีเมลเข้าคดี'}</h2><p className={hint}>{search ? 'ค้นได้จากชื่อผู้ส่ง อีเมลผู้ส่ง หัวเรื่อง หรือเลขคดี · ค้นเฉพาะอีเมลในกล่องของคุณ' : 'เลือกได้หลายฉบับ — อีเมลทุกฉบับในเรื่องเดียวกันจะเข้าคดีนี้ด้วย'}</p><span className="sr-only">{caseRef}</span></div><button type="button" disabled={busy} aria-label="ปิดหน้าต่างผูกอีเมล" onClick={() => dialog.current?.close()} className={`${btn} text-muted-foreground`}><X aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button></div>
     <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
       {search ? <>
         <button type="button" className="inline-flex items-center gap-1 text-sm font-semibold underline" onClick={() => { setSearch(false); setQ(''); }}><ArrowLeft aria-hidden="true" className="h-[1.1em] w-[1.1em]" />กลับไปอีเมลที่ระบบแนะนำ ({suggestions.length})</button>
@@ -73,7 +73,7 @@ export function LinkEmailDialog({ token, caseId, caseRef, threads = [], onClose,
       </ul>}
       {!search && !rows.length && <p className={hint}>ยังไม่มีอีเมลที่ระบบแนะนำ — ลองค้นหาเองด้านล่าง</p>}
       {!search && <button type="button" className="text-sm font-semibold underline" onClick={() => setSearch(true)}>หาอีเมลอื่นไม่เจอ? ค้นหาเอง</button>}
-      <p className={hint}>{search ? 'ไม่เจอเลย? อีเมลอาจอยู่ในกล่องของคนอื่น — ให้คนนั้นเปิดหน้าคดีนี้แล้วกดผูกจากกล่องของเขา' : 'อีเมล 1 เรื่องอยู่ได้คดีเดียว — ถ้าผูกกับคดีอื่นอยู่แล้วจะบอกชื่อคดีนั้นก่อน และถามยืนยันก่อนย้ายมาคดีนี้'}</p>
+      <p className={hint}>{search ? 'ไม่เจอเลย? อีเมลอาจอยู่ในกล่องของคนอื่น — ให้คนนั้นเปิดหน้าคดีนี้แล้วกดผูกจากกล่องของเขา' : 'อีเมล 1 เรื่องผูกได้คดีเดียว — ถ้าผูกคดีอื่นอยู่ ระบบจะบอกชื่อคดีและถามก่อนย้าย'}</p>
       {error && <p role="alert" className="text-[.85rem] font-semibold text-[#a83232]">{error}</p>}
     </div>
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e2e0d8] px-6 py-4"><p className={hint}>{selected.length ? `เลือก ${selected.length} อีเมล · ` : ''}ไฟล์แนบ {selected.reduce((sum, row) => sum + row.attachmentCount, 0)} ไฟล์จะเข้าแท็บเอกสาร</p><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => dialog.current?.close()} className={`${btn} text-muted-foreground`}>ยกเลิก</button><button type="button" disabled={busy || !selected.length} onClick={() => void link()} className={`${btn} bg-[#142e43] text-[#fffdfa]`}>{busy ? 'กำลังผูก…' : `ผูก ${selected.length} อีเมลเข้าคดี`}</button></div></div>

@@ -83,7 +83,7 @@ export function StartWorkflowDrawer({
       onStarted();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'เริ่มสายงานไม่สำเร็จ');
+      setError(e instanceof Error ? e.message : 'เริ่มสายงานไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }
@@ -102,9 +102,9 @@ export function StartWorkflowDrawer({
         </SelectField>
         <TextField label="ชื่อสายงาน" placeholder="เช่น คำให้การพยาน นาย ก." value={name} onChange={(e) => setName(e.target.value)} required />
         <div>
-          <label className="mb-1 block text-sm font-medium">วันที่สัญญากับลูกความ (ไม่บังคับ)</label>
+          <label className="mb-1 block text-sm font-medium">กำหนดเสร็จที่แจ้งลูกความ (ไม่บังคับ)</label>
           <ThaiDateInput value={promisedAt} onChange={setPromisedAt} />
-          <p className="mt-1 text-xs text-muted-foreground">ระบบจะเตือนในหน้าสายงานถ้าคาดว่าจะเสร็จช้ากว่าวันนี้</p>
+          <p className="mt-1 text-xs text-muted-foreground">ระบบจะเตือนในหน้าสายงานถ้าคาดว่าจะเสร็จไม่ทันวันที่ระบุ</p>
         </div>
 
         {!templateId && <StepsEditor steps={customSteps} onChange={setCustomSteps} />}

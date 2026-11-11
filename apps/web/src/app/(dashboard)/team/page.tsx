@@ -56,7 +56,7 @@ function WorkSettingsRow({ member, token }: { member: TeamMember; token: string 
       });
       setMsg('บันทึกแล้ว');
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
+      setMsg(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }
@@ -371,7 +371,7 @@ export default function TeamPage() {
                   <TableRow>
                     <TableHead>{d.team.member}</TableHead>
                     <TableHead>{d.team.role}</TableHead>
-                    <TableHead>ใบอนุญาตว่าความ</TableHead>
+                    <TableHead>ใบอนุญาตทนายความ</TableHead>
                     <TableHead>เป้าชั่วโมง/เดือน</TableHead>
                     <TableHead className="w-[100px]">{d.team.actions}</TableHead>
                   </TableRow>

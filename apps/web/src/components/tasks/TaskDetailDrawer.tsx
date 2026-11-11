@@ -84,7 +84,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     return () => media.removeEventListener('change', update);
   }, [splitDesktop]);
 
-  // ตัวเลือก "รอ task อื่นเสร็จก่อน" — เฉพาะงานในคดีเดียวกัน
+  // ตัวเลือก "รองานอื่นเสร็จก่อน" — เฉพาะงานในคดีเดียวกัน
   useEffect(() => {
     if (!token || !task?.caseId) {
       setSiblingTasks([]);

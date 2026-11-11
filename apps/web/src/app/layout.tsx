@@ -10,7 +10,7 @@ import './globals.css';
 const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'samnuan.com';
 const title = 'Samnuan — ระบบจัดการสำนักงานกฎหมาย';
 const description =
-  'จัดการคดี นัดหมายศาล เอกสาร และการแจ้งเตือนลูกความในระบบเดียว — ไม่พลาดนัดศาล ลดงาน Admin';
+  'จัดการคดี นัดหมายศาล เอกสาร และการแจ้งเตือนลูกความในระบบเดียว — ไม่พลาดนัดศาล ลดงานธุรการ';
 
 export const metadata: Metadata = {
   metadataBase: new URL(`https://${rootDomain}`),

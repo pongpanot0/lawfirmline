@@ -175,8 +175,7 @@ export function BatchAnalysisPanel({
       </p>
       {!caseId && (
         <p className="text-xs text-muted-foreground">
-          ไฟล์จะถูกเก็บเมื่อบันทึกข้อมูลสำเร็จ หากออกจากหน้านี้ก่อน
-          ไฟล์ที่เลือกจะไม่ถูกเก็บ
+          ไฟล์จะเก็บเข้าระบบเมื่อบันทึกสำเร็จ ถ้าออกจากหน้านี้ก่อน ไฟล์ที่เลือกจะหายไป
         </p>
       )}
       <DocumentDropZone

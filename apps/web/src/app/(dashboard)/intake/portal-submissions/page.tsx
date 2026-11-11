@@ -52,7 +52,7 @@ export default function PortalSubmissionsPage() {
     } catch (e) {
       const matches = conflictMatchesFrom(e);
       if (matches) setConflict({ matches, retry: (r) => void handleConvert(id, r) });
-      else { setConflict(null); setError(e instanceof Error ? e.message : 'รับเรื่องไม่สำเร็จ'); }
+      else { setConflict(null); setError(e instanceof Error ? e.message : 'รับเรื่องไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     } finally {
       setConverting(false);
     }
@@ -80,7 +80,7 @@ export default function PortalSubmissionsPage() {
             <EmptyState
               icon={Inbox}
               title="ไม่มีเรื่องรอรับเข้า"
-              description="เมื่อลูกความส่งงานหรือไฟล์ผ่านพอร์ทัล รายการที่รอรับเรื่องจะแสดงที่นี่"
+              description="เมื่อลูกความส่งเรื่องหรือไฟล์ผ่านพอร์ทัล รายการที่รอรับจะแสดงที่นี่"
             />
           ) : (
             <div className="divide-y">

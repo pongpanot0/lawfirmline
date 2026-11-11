@@ -26,16 +26,16 @@ describe('readCaseImportSheet', () => {
 
   it('rejects a sheet missing a required header', async () => {
     const buf = await workbook(['ชื่อคดี *', 'ชั้นศาล *'], [['คดี A', 'ศาลชั้นต้น']]);
-    await expect(readCaseImportSheet(buf)).rejects.toThrow(new BadRequestException('ไม่พบคอลัมน์ "ทนายหลัก (อีเมล) *" — ใช้ template ของระบบ'));
+    await expect(readCaseImportSheet(buf)).rejects.toThrow(new BadRequestException('ไม่พบคอลัมน์ "ทนายหลัก (อีเมล) *" — ใช้แบบฟอร์มของระบบ'));
   });
 
   it('rejects a file without sheet คดี', async () => {
     const buf = await workbook(CASE_IMPORT_HEADERS, [], 'Sheet1');
-    await expect(readCaseImportSheet(buf)).rejects.toThrow('ไม่พบแผ่นงาน "คดี" — ใช้ template ของระบบ');
+    await expect(readCaseImportSheet(buf)).rejects.toThrow('ไม่พบแผ่นงาน "คดี" — ใช้แบบฟอร์มของระบบ');
   });
 
   it('rejects something that is not an xlsx file', async () => {
-    await expect(readCaseImportSheet(Buffer.from('not a zip'))).rejects.toThrow('อ่านไฟล์ไม่ได้ — ใช้ไฟล์ .xlsx จาก template ของระบบ');
+    await expect(readCaseImportSheet(Buffer.from('not a zip'))).rejects.toThrow('อ่านไฟล์ไม่ได้ — ดาวน์โหลดแบบฟอร์มของระบบ (.xlsx) แล้วกรอกใหม่');
   });
 
   it('skips empty rows', async () => {
@@ -53,7 +53,7 @@ describe('readCaseImportSheet', () => {
   it('rejects an unknown column header instead of dropping its data', async () => {
     const headers = [...CASE_IMPORT_HEADERS.slice(0, 15), 'วันหมดอายุความ'];
     await expect(readCaseImportSheet(await workbook(headers, [['คดี A', 'a@x.co', 'ศาลชั้นต้น']]))).rejects.toThrow(
-      'ไม่รู้จักคอลัมน์ "วันหมดอายุความ" — ใช้ชื่อคอลัมน์ตาม template ของระบบ',
+      'ไม่รู้จักคอลัมน์ "วันหมดอายุความ" — ใช้ชื่อคอลัมน์ตามแบบฟอร์มของระบบ',
     );
   });
 
@@ -65,7 +65,7 @@ describe('readCaseImportSheet', () => {
     for (let i = 0; i < 3000; i++) s.addRow([`${i} ${'ก'.repeat(5000)}`, 'a@x.co', 'ศาลชั้นต้น']); // unique, so shared strings can't dedupe
     const buf = Buffer.from(await book.xlsx.writeBuffer());
     expect(buf.length).toBeLessThan(2 * 1024 * 1024);
-    await expect(readCaseImportSheet(buf)).rejects.toThrow('ไฟล์ใหญ่เกินไปเมื่อแตกไฟล์ — ใช้ template ของระบบ ไม่เกิน 300 แถว');
+    await expect(readCaseImportSheet(buf)).rejects.toThrow('ไฟล์ใหญ่เกินไป — ใช้แบบฟอร์มของระบบ และกรอกไม่เกิน 300 แถว');
   });
 
   it('reads formula results and rich text as text', async () => {

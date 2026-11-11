@@ -59,14 +59,14 @@ export function CasePlaybook({ caseId, caseTypeId, initialReleaseId = '', onAppl
   }, [token, caseId, releaseId, reload]);
   const readyPreview = preview?.release.id === releaseId ? preview : null;
   return <details open={Boolean(initialReleaseId)} className="mb-4 rounded-xl border bg-card p-4">
-    <summary className="flex min-h-11 cursor-pointer items-center font-medium">{th ? 'นำ SOP ไปใช้กับคดี' : 'Apply an SOP to this case'}</summary>
+    <summary className="flex min-h-11 cursor-pointer items-center font-medium">{th ? 'นำชุดงานอัตโนมัติไปใช้กับคดี' : 'Apply an SOP to this case'}</summary>
     <div className="mt-3 space-y-3">
-      <p className="text-xs text-muted-foreground">{th ? 'เลือก SOP แล้วตรวจรายการด้านล่าง ระบบจะเพิ่มงานเมื่อคุณยืนยันเท่านั้น' : 'Choose an SOP and check the steps below. Tasks are added only after confirmation.'}</p>
+      <p className="text-xs text-muted-foreground">{th ? 'เลือกชุดงาน แล้วตรวจรายการด้านล่าง ระบบจะเพิ่มงานเมื่อคุณยืนยันเท่านั้น' : 'Choose an SOP and check the steps below. Tasks are added only after confirmation.'}</p>
       {(loadError || error) && <div role="alert" className="text-sm text-destructive">{loadError || error}<Button variant="outline" className="ml-2" disabled={busy || previewBusy} onClick={() => setReload(value => value + 1)}>{th ? 'ลองโหลดรายการงานอีกครั้ง' : 'Retry loading tasks'}</Button></div>}
-      {applied && <p role="status">{th ? 'เพิ่มงานจาก SOP แล้ว' : 'SOP tasks added'}</p>}
-      <label className="block text-sm">{th ? 'SOP อัตโนมัติ' : 'Automated SOP'}
+      {applied && <p role="status">{th ? 'เพิ่มงานจากชุดงานแล้ว' : 'SOP tasks added'}</p>}
+      <label className="block text-sm">{th ? 'ชุดงานอัตโนมัติ' : 'Automated SOP'}
         <select disabled={busy} value={releaseId} onChange={e => { manuallySelected.current = true; setReleaseId(e.target.value); setPreview(null); setApplied(false); }} className="h-11 w-full rounded-lg border bg-background px-2">
-          <option value="">{th ? 'เลือก SOP' : 'Choose an SOP'}</option>
+          <option value="">{th ? 'เลือกชุดงานอัตโนมัติ' : 'Choose an SOP'}</option>
           {releases.map(r => <option key={r.id} value={r.id}>{r.name} · v{r.version}{caseTypeId && r.caseTypeId === caseTypeId ? (th ? ' · แนะนำสำหรับคดีนี้' : ' · Recommended') : ''}</option>)}
         </select>
       </label>
@@ -80,8 +80,8 @@ export function CasePlaybook({ caseId, caseTypeId, initialReleaseId = '', onAppl
           {s.instructions && <p className="text-xs text-muted-foreground">{s.instructions}</p>}
         </li>)}
       </ol>}
-      {readyPreview?.steps.some(step => step.stage) && <p className="text-xs text-muted-foreground">{th ? 'งานจะถูกจัดเป็นกลุ่มตามขั้นคดีที่กำหนดใน SOP' : 'Tasks will be grouped by their configured case stage.'}</p>}
-      {readyPreview?.existing && <p>{th ? 'คดีนี้ใช้ SOP นี้แล้ว จะไม่เพิ่มงานซ้ำ' : 'This SOP is already applied; no duplicate tasks will be created.'}</p>}
+      {readyPreview?.steps.some(step => step.stage) && <p className="text-xs text-muted-foreground">{th ? 'ระบบจัดงานเป็นกลุ่มตามขั้นคดีที่กำหนดในชุดงาน' : 'Tasks will be grouped by their configured case stage.'}</p>}
+      {readyPreview?.existing && <p>{th ? 'คดีนี้ใช้ชุดงานนี้แล้ว ระบบจะไม่เพิ่มงานซ้ำ' : 'This SOP is already applied; no duplicate tasks will be created.'}</p>}
       <Button disabled={busy || previewBusy || !readyPreview || !!readyPreview.existing || applied || !!loadError} onClick={async () => {
         if (!token) return; setBusy(true); setError('');
         try {

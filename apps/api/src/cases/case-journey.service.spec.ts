@@ -231,7 +231,7 @@ describe('Case journey endpoints', () => {
     prisma.case.findFirst.mockResolvedValue(before);
     prisma.case.findUnique.mockResolvedValue(before);
     prisma.case.updateMany.mockResolvedValue({ count: 0 });
-    await expect(service.advanceJourney(user, 'case', {})).rejects.toMatchObject({ status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า' });
+    await expect(service.advanceJourney(user, 'case', {})).rejects.toMatchObject({ status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง' });
     expect(prisma.case.update).not.toHaveBeenCalled();
     expect(caseFeed.log).not.toHaveBeenCalled();
   });
@@ -240,7 +240,7 @@ describe('Case journey endpoints', () => {
     const before = { ...row, stage: CaseStage.AWAITING_JUDGMENT };
     prisma.case.findFirst.mockResolvedValue(before);
     prisma.case.findUnique.mockResolvedValue({ ...row, stage: CaseStage.APPEAL });
-    await expect(service.advanceJourney(user, 'case', {})).rejects.toMatchObject({ status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า' });
+    await expect(service.advanceJourney(user, 'case', {})).rejects.toMatchObject({ status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง' });
     expect(prisma.case.update).not.toHaveBeenCalled();
     expect(caseFeed.log).not.toHaveBeenCalled();
   });
@@ -250,7 +250,7 @@ describe('Case journey endpoints', () => {
     prisma.case.findUnique.mockResolvedValue(row);
     const tx = { ...prisma, case: { ...prisma.case, findFirst: jest.fn().mockResolvedValue({ ...row, stage: CaseStage.APPEAL }) } };
     prisma.$transaction.mockImplementation((fn) => fn(tx));
-    await expect(service.update(user, 'case', { stage: CaseStage.ANSWER })).rejects.toMatchObject({ status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า' });
+    await expect(service.update(user, 'case', { stage: CaseStage.ANSWER })).rejects.toMatchObject({ status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง' });
     expect(prisma.case.update).not.toHaveBeenCalled();
   });
 
@@ -259,7 +259,7 @@ describe('Case journey endpoints', () => {
     prisma.case.findUnique.mockResolvedValue(row);
     const tx = { ...prisma, case: { ...prisma.case, findFirst: jest.fn().mockResolvedValue({ ...row, stage: CaseStage.ANSWER }) } };
     prisma.$transaction.mockImplementation((fn) => fn(tx));
-    await expect(service.update(user, 'case', { stage: CaseStage.FILING, title: 'ชื่อใหม่' })).rejects.toMatchObject({ status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า' });
+    await expect(service.update(user, 'case', { stage: CaseStage.FILING, title: 'ชื่อใหม่' })).rejects.toMatchObject({ status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง' });
     expect(prisma.case.update).not.toHaveBeenCalled();
   });
 
@@ -282,7 +282,7 @@ describe('Case journey endpoints', () => {
       service.advanceJourney(user, 'case', {}),
     ]);
     expect(results[0]).toMatchObject({ status: 'fulfilled', value: { canAdvance: false, blockers: ['งานยังไม่เสร็จหรือข้าม: เตรียมอุทธรณ์'] } });
-    expect(results[1]).toMatchObject({ status: 'rejected', reason: { status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า' } });
+    expect(results[1]).toMatchObject({ status: 'rejected', reason: { status: 409, message: 'สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง' } });
     expect(current.stage).toBe('APPEAL');
     expect(caseFeed.log).toHaveBeenCalledTimes(1);
   });

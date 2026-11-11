@@ -195,7 +195,7 @@ export function SavedCaseCostCalculator({
       setDirty(false);
       onSaved();
     } catch (error) {
-      setMessage(error instanceof ApiError ? error.message : 'บันทึกไม่สำเร็จ');
+      setMessage(error instanceof ApiError ? error.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }

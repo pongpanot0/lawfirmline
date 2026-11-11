@@ -70,8 +70,8 @@ describe('draftProblem', () => {
 
   it('names what is missing', () => {
     assert.equal(draftProblem({ ...ok, leadLawyerId: '' }), 'ยังไม่ได้เลือกทนายหลัก');
-    assert.equal(draftProblem({ ...ok, title: '  ' }), 'ชื่อคดีว่าง');
-    assert.equal(draftProblem({ ...ok, blackCaseNumber: 'พ264.69' }), 'เลขคดีไม่ถูกรูปแบบ');
+    assert.equal(draftProblem({ ...ok, title: '  ' }), 'ยังไม่ได้ใส่ชื่อคดี');
+    assert.equal(draftProblem({ ...ok, blackCaseNumber: 'พ264.69' }), 'รูปแบบเลขคดีไม่ถูกต้อง');
     assert.equal(draftProblem({ ...ok, closed: true, outcome: undefined }), 'เลือกผลคดี');
     assert.equal(draftProblem({ ...ok, closed: true, outcome: 'WON', closingSummary: 'สั้น' }), 'สรุปตอนปิดต้องยาวอย่างน้อย 10 ตัวอักษร');
   });

@@ -47,7 +47,7 @@ export default function PortalSetPasswordPage() {
       await refreshContact();
       router.replace('/portal');
     } catch (err) {
-      setError(err instanceof PortalApiError ? err.message : 'ตั้งรหัสผ่านไม่สำเร็จ');
+      setError(err instanceof PortalApiError ? err.message : 'ตั้งรหัสผ่านไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }

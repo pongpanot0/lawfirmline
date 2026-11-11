@@ -50,7 +50,7 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
   const load = useCallback(async () => {
     if (!token || !userId) return;
     try { setData(await api.getPersonWorkload(token, userId, from)); setError(''); }
-    catch (err) { setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่ได้'); }
+    catch (err) { setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ ลองโหลดหน้าใหม่'); }
   }, [token, userId, from]);
   useEffect(() => {
     setData(null); setError(''); setActionError(''); setReassign(null); setTypes(null);
@@ -62,7 +62,7 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
     if (busy) return;
     setBusy(true); setActionError('');
     try { await action(); await changed(); }
-    catch (err) { setActionError(err instanceof Error ? err.message : 'ทำรายการไม่ได้'); }
+    catch (err) { setActionError(err instanceof Error ? err.message : 'จัดคิวงานไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     finally { setBusy(false); }
   };
   const openReassign = (taskId: string) => act(async () => {
@@ -113,7 +113,7 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
             {dayTasks.length > 0 && <ul className="divide-y rounded-lg border bg-card">
               {dayTasks.map((t) => <li key={t.id} className="px-3 py-2 text-sm"><div className="flex items-start justify-between gap-2"><span className="min-w-0 break-words font-medium">{t.title}</span>{sizeBadge(t)}</div>{taskMeta(t)}</li>)}
             </ul>}
-            {!dayLeave && dayEvents.length === 0 && dayTasks.length === 0 && <p className="text-sm text-muted-foreground">ไม่มีงานหรือนัดที่ลงวันนี้ไว้{data.tasks.some((t) => !taskDayKey(t)) ? ' (มีงานที่ยังไม่ได้ลงวันอยู่ในคิวด้านล่าง)' : ''}</p>}
+            {!dayLeave && dayEvents.length === 0 && dayTasks.length === 0 && <p className="text-sm text-muted-foreground">ไม่มีงานหรือนัดที่ลงวันนี้ไว้{data.tasks.some((t) => !taskDayKey(t)) ? ' (มีงานที่ยังไม่กำหนดวันอยู่ในคิวด้านล่าง)' : ''}</p>}
           </section>}
 
           {!focusDay && data.leaves.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">

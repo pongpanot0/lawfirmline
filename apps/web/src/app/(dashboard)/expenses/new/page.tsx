@@ -84,7 +84,7 @@ export default function NewExpensePage() {
   const items = [
     { label: 'จำนวนเงินที่ถูกต้อง', done: amountValid },
     { label: 'รายละเอียดค่าใช้จ่าย', done: descriptionValid },
-    ...(selectedAdvance ? [{ label: 'ยอดไม่เกินเงินสำรอง', done: !advanceAmountExceeded }] : []),
+    ...(selectedAdvance ? [{ label: 'ยอดไม่เกินเงินทดรอง', done: !advanceAmountExceeded }] : []),
   ];
   const currentStep = !amountValid || !descriptionValid || advanceAmountExceeded ? 0 : submitting ? 2 : 1;
 
@@ -223,7 +223,7 @@ export default function NewExpensePage() {
             <SelectField
               label={d.expenses.caseField}
               containerClassName="md:col-span-2"
-              hint={caseIdParam && form.caseId === caseIdParam ? 'เลือกคดีจากหน้าที่แล้วให้อัตโนมัติ' : undefined}
+              hint={caseIdParam && form.caseId === caseIdParam ? 'เลือกคดีจากหน้าก่อนหน้าให้แล้ว' : undefined}
               value={form.caseId}
               onChange={(e) => setForm({ ...form, caseId: e.target.value })}
             >

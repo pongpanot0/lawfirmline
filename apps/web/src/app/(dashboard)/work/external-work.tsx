@@ -58,7 +58,7 @@ function StepCard({ step, token, onChanged }: { step: ExternalStep; token: strin
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true); setError('');
     try { await fn(); onChanged(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     finally { setBusy(false); }
   };
   const download = (attachmentId: string, filename: string) =>

@@ -79,7 +79,7 @@ export function FirmMetricsSection({ token }: { token: string }) {
         </select>
       </CardHeader>
       <CardContent className="space-y-3 overflow-x-auto">
-        {!billed && <p className="text-sm text-muted-foreground">สำนักงานไม่ได้วางบิลจากเวลา</p>}
+        {!billed && <p className="text-sm text-muted-foreground">สำนักงานไม่ได้คิดค่าบริการตามชั่วโมง</p>}
         <Table>
           <TableHeader>
             <TableRow>

@@ -46,7 +46,7 @@ export function IntakeStageBar({
       setNote('');
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : th ? 'ย้ายขั้นตอนไม่สำเร็จ' : 'Could not move stage');
+      setError(e instanceof Error ? e.message : th ? 'ย้ายขั้นตอนไม่สำเร็จ ลองใหม่อีกครั้ง' : 'Could not move stage');
     } finally {
       setBusy(false);
     }
@@ -65,7 +65,7 @@ export function IntakeStageBar({
             {stale ? <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> : <Clock className="h-3.5 w-3.5" aria-hidden />}
             {th ? `ค้างขั้นนี้ ${daysInStage} วัน` : `${daysInStage}d in this stage`}
             {typeof intake.ageDays === 'number' &&
-              (th ? ` · อายุเรื่อง ${intake.ageDays} วัน` : ` · ${intake.ageDays}d old`)}
+              (th ? ` · รับเรื่องมาแล้ว ${intake.ageDays} วัน` : ` · ${intake.ageDays}d old`)}
           </span>
         )}
       </div>

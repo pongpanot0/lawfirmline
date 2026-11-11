@@ -64,7 +64,7 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
       setDueDate('');
       reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เพิ่มงานไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'เพิ่มงานไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }
@@ -86,7 +86,7 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">งานของเรื่องนี้ (To-do)</CardTitle>
+        <CardTitle className="text-base">งานของเรื่องนี้</CardTitle>
         <p className="text-sm text-muted-foreground">เปิดคดีแล้วงานทั้งหมดจะย้ายไปอยู่ในคดีให้เอง</p>
       </CardHeader>
       <CardContent className="space-y-3">

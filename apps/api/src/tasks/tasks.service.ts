@@ -242,16 +242,16 @@ export class TasksService {
    */
   private assertReviewer(task: { reviewerId: string | null; assigneeId: string | null }, leadLawyerId: string | null, user: AuthUser) {
     if (task.assigneeId === user.id) throw new ForbiddenException('ผู้ทำงานตรวจงานของตัวเองไม่ได้');
-    if (user.firmRole === FirmRole.OFFICE_MANAGER) throw new ForbiddenException('เฉพาะผู้ตรวจของงานนี้เท่านั้น');
+    if (user.firmRole === FirmRole.OFFICE_MANAGER) throw new ForbiddenException('ทำได้เฉพาะผู้ตรวจของงานนี้');
     if (effectiveReviewerId(task, leadLawyerId) === user.id) return;
     if (!task.reviewerId && leadLawyerId && user.firmRole === FirmRole.OWNER) return;
-    throw new ForbiddenException('เฉพาะผู้ตรวจของงานนี้เท่านั้น');
+    throw new ForbiddenException('ทำได้เฉพาะผู้ตรวจของงานนี้');
   }
 
   private assertLeadOrOwner(user: AuthUser, legalCase: CaseForAccess) {
     if (hasFirmCapability(user.firmRole, 'runOperations')) return;
     if (legalCase.leadLawyerId === user.id) return;
-    throw new ForbiddenException('เฉพาะทนายความหลักของคดี (Lead) หรือ Owner เท่านั้นที่ทำรายการนี้ได้');
+    throw new ForbiddenException('ทำได้เฉพาะทนายหลักของคดีหรือเจ้าของสำนักงาน');
   }
 
   private async ensureCaseMembership(caseId: string, userId: string) {
@@ -598,7 +598,7 @@ export class TasksService {
         where: { role: { not: FirmRole.EXTERNAL }, firmId, userId: observerId },
         select: { role: true },
       });
-      if (!member) throw new NotFoundException('ผู้ติดตาม ต้องเป็นสมาชิกของสำนักงาน');
+      if (!member) throw new NotFoundException('ผู้ติดตามต้องเป็นสมาชิกของสำนักงาน');
     }
   }
 
@@ -633,12 +633,12 @@ export class TasksService {
       dto.description = step.instructions ?? '';
     }
     if (dto.status === TaskStatus.PENDING_REVIEW || dto.status === TaskStatus.NEEDS_REVISION || (dto.requiresReview && dto.status === TaskStatus.DONE)) {
-      throw new BadRequestException('ใช้ขั้นตอนส่งตรวจสำหรับงานที่ต้องตรวจ');
+      throw new BadRequestException('งานที่ต้องตรวจ ให้สร้างงานก่อนแล้วกด "ส่งตรวจ"');
     }
     if (dto.assigneeId) {
       if (followUp?.ownerEscalation) {
         const owner = await this.prisma.firmMember.findFirst({ where: { firmId: user.firmId, userId: dto.assigneeId, role: FirmRole.OWNER } });
-        if (!owner) throw new ForbiddenException('ส่งจุดติดขัดให้ Owner ในสำนักงานนี้เท่านั้น');
+        if (!owner) throw new ForbiddenException('ส่งจุดติดขัดได้เฉพาะเจ้าของสำนักงานนี้');
       } else await this.assertCanAssignTodo(user, dto.assigneeId);
     }
     await this.validateReview(user, dto.requiresReview ?? false, dto.reviewerId, { caseId, assigneeId: dto.assigneeId });
@@ -750,14 +750,14 @@ export class TasksService {
 
     if (task.firmId && task.firmId !== user.firmId) throw new NotFoundException('Task not found');
     if (dto.recurrenceDays !== undefined && user.firmRole !== FirmRole.OWNER && task.assigneeId !== user.id) {
-      throw new ForbiddenException('Owner หรือผู้รับงานเท่านั้นที่ตั้งรอบงานซ้ำได้');
+      throw new ForbiddenException('ตั้งรอบงานซ้ำได้เฉพาะเจ้าของสำนักงานหรือผู้รับงาน');
     }
-    if (task.routine && (dto.requiresReview === false || dto.requiresAttachment === false)) throw new BadRequestException('งานประจำนี้ต้องผ่านผู้ตรวจตาม SOP');
-    if (task.routine && dto.description !== undefined && dto.description !== task.description) throw new BadRequestException('งานนี้คงวิธีทำตามรุ่น SOP ที่ได้รับ');
+    if (task.routine && (dto.requiresReview === false || dto.requiresAttachment === false)) throw new BadRequestException('งานประจำต้องส่งตรวจและแนบไฟล์ตามชุดงาน ปิดตัวเลือกนี้ไม่ได้');
+    if (task.routine && dto.description !== undefined && dto.description !== task.description) throw new BadRequestException('งานประจำใช้วิธีทำตามชุดงานที่ได้รับ แก้คำอธิบายงานไม่ได้');
     if (dto.assigneeId && dto.assigneeId !== task.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
     if (dto.requiresReview !== undefined || dto.reviewerId !== undefined || dto.requiresAttachment !== undefined) {
       if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole)) {
-        throw new ForbiddenException('เฉพาะ Owner หรือทนายอาวุโสที่เปลี่ยนเงื่อนไขตรวจงานได้');
+        throw new ForbiddenException('เปลี่ยนเงื่อนไขตรวจงานได้เฉพาะเจ้าของสำนักงานหรือทนายอาวุโส');
       }
     }
     if (dto.requiresReview !== undefined || dto.reviewerId !== undefined) {
@@ -769,11 +769,11 @@ export class TasksService {
 
     if (dto.status === TaskStatus.PENDING_REVIEW || dto.status === TaskStatus.NEEDS_REVISION) {
       throw new BadRequestException(
-        'ใช้ปุ่ม "ส่งต่อให้ Senior" หรือ "ตีกลับ" สำหรับสถานะนี้ ไม่สามารถตั้งค่าตรงนี้ได้',
+        'ใช้ปุ่ม "ส่งตรวจ" หรือ "ส่งกลับแก้ไข" แทนการเปลี่ยนสถานะตรงนี้',
       );
     }
     if (task.status === TaskStatus.PENDING_REVIEW && (dto.status !== undefined || dto.assigneeId !== undefined)) {
-      throw new BadRequestException('ใช้ตรวจผ่านหรือตีกลับสำหรับงานที่รอตรวจ');
+      throw new BadRequestException('งานที่รอตรวจ ใช้ปุ่ม "ตรวจผ่านและปิดงาน" หรือ "ส่งกลับแก้ไข"');
     }
     if ((dto.requiresReview ?? task.requiresReview) && (dto.assigneeId ?? task.assigneeId) === (dto.reviewerId ?? task.reviewerId)) {
       throw new BadRequestException('ผู้ทำงานและผู้ตรวจต้องเป็นคนละคน');
@@ -866,7 +866,7 @@ export class TasksService {
     return this.prisma.$transaction(async (tx) => {
       const before = await tx.task.findUniqueOrThrow({ where: { id: taskId } });
       const claimed = await tx.task.updateMany({ where: { id: taskId, status: { in: from } }, data });
-      if (!claimed.count) throw new BadRequestException('งานนี้ถูกดำเนินการไปแล้ว กรุณารีเฟรช');
+      if (!claimed.count) throw new BadRequestException('งานนี้มีคนทำต่อไปแล้ว โหลดหน้าใหม่เพื่อดูสถานะล่าสุด');
       const updated = await tx.task.findUniqueOrThrow({ where: { id: taskId } });
       if (before.status !== updated.status) await tx.auditLog.create({ data: {
         firmId: user.firmId, userId: user.id, action: 'TASK_CHANGED',
@@ -923,7 +923,7 @@ export class TasksService {
       select: { role: true },
     });
     if (!reviewer || !isEligibleReviewer({ role: reviewer.role, userId: reviewerId, caseLeadId: legalCase?.leadLawyerId, assigneeId: ctx.assigneeId })) {
-      throw new BadRequestException('ผู้ตรวจต้องเป็น Owner ทนายอาวุโส หรือทนายหลักของคดีนี้');
+      throw new BadRequestException('ผู้ตรวจต้องเป็นเจ้าของสำนักงาน ทนายอาวุโส หรือทนายหลักของคดีนี้');
     }
   }
 
@@ -1199,7 +1199,7 @@ export class TasksService {
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!legalCase) throw new NotFoundException('Case not found');
     this.assertLeadOrOwner(user, legalCase);
-    if (task.status === TaskStatus.PENDING_REVIEW) throw new BadRequestException('ใช้ตรวจผ่านหรือตีกลับสำหรับงานที่รอตรวจ');
+    if (task.status === TaskStatus.PENDING_REVIEW) throw new BadRequestException('งานที่รอตรวจ ใช้ปุ่ม "ตรวจผ่านและปิดงาน" หรือ "ส่งกลับแก้ไข"');
     if (task.reviewerId && dto.assigneeId === task.reviewerId) throw new BadRequestException('ผู้ทำงานและผู้ตรวจต้องเป็นคนละคน');
 
     await this.assertCanAssignTodo(user, dto.assigneeId);
@@ -1210,7 +1210,7 @@ export class TasksService {
       where: { id: taskId, status: { not: TaskStatus.PENDING_REVIEW } },
       data: { assigneeId: dto.assigneeId, assignedAt: new Date(), acknowledgedAt: null, routineCompletedChecks: [] },
     });
-    if (!moved.count) throw new BadRequestException('ใช้ตรวจผ่านหรือตีกลับสำหรับงานที่รอตรวจ');
+    if (!moved.count) throw new BadRequestException('งานที่รอตรวจ ใช้ปุ่ม "ตรวจผ่านและปิดงาน" หรือ "ส่งกลับแก้ไข"');
 
     await this.logAssignment({
       taskId,
@@ -1295,7 +1295,7 @@ export class TasksService {
       throw new BadRequestException('พักงานได้เฉพาะงานที่ยังไม่เสร็จและไม่ได้รอตรวจ');
     }
     if (task.onHold && !task.onHold.endedAt) {
-      throw new BadRequestException('งานนี้อยู่ในสถานะ On hold อยู่แล้ว');
+      throw new BadRequestException('งานนี้พักไว้อยู่แล้ว');
     }
 
     const data = {
@@ -1325,7 +1325,7 @@ export class TasksService {
       where: { taskId, task: { caseId } },
     });
     if (!hold || hold.endedAt) {
-      throw new NotFoundException('ไม่พบสถานะ On hold ที่ยังใช้งานอยู่สำหรับงานนี้');
+      throw new NotFoundException('งานนี้ไม่ได้พักอยู่ โหลดหน้าใหม่เพื่อดูสถานะล่าสุด');
     }
 
     return this.prisma.taskOnHold.update({
@@ -1347,7 +1347,7 @@ export class TasksService {
       include: { task: { select: { title: true, assigneeId: true } } },
     });
     if (!hold || hold.endedAt) {
-      throw new NotFoundException('ไม่พบสถานะ On hold ที่ยังใช้งานอยู่สำหรับงานนี้');
+      throw new NotFoundException('งานนี้ไม่ได้พักอยู่ โหลดหน้าใหม่เพื่อดูสถานะล่าสุด');
     }
 
     const resumed = await this.prisma.taskOnHold.update({

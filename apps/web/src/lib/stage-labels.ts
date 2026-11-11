@@ -36,7 +36,7 @@ const INTAKE_STAGE_TH: Record<IntakeStage, string> = {
   [IntakeStage.NEW_INQUIRY]: 'เรื่องใหม่',
   [IntakeStage.CONTACTED]: 'ติดต่อแล้ว',
   [IntakeStage.SCREENING]: 'กลั่นกรอง',
-  [IntakeStage.CONFLICT_CHECK]: 'ตรวจ conflict',
+  [IntakeStage.CONFLICT_CHECK]: 'ตรวจผลประโยชน์ขัดกัน',
   [IntakeStage.CONSULT_SCHEDULED]: 'นัดปรึกษา',
   [IntakeStage.CONSULTED]: 'ปรึกษาแล้ว',
   [IntakeStage.WAITING_DOCUMENTS]: 'รอเอกสาร',

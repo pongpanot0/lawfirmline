@@ -195,7 +195,7 @@ export function CaseCommentsPanel({
       setMentionedUserIds([]);
       load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ส่งความคิดเห็นไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'ส่งบันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSending(false);
     }
@@ -233,12 +233,12 @@ export function CaseCommentsPanel({
     if (!token || !caseId) return;
     const target = comments.find((item) => item.id === commentId);
     const preview = target ? target.body.slice(0, 40) : '';
-    if (!window.confirm(`ลบความเห็น "${preview}${target && target.body.length > 40 ? '…' : ''}"?`)) return;
+    if (!window.confirm(`ลบบันทึก "${preview}${target && target.body.length > 40 ? '…' : ''}"?`)) return;
     try {
       await api.deleteCaseComment(token, caseId, commentId);
       load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ลบความคิดเห็นไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'ลบบันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 

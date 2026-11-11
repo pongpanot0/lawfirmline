@@ -269,7 +269,7 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
       mockPrisma.caseCustomer.findMany.mockResolvedValue(two);
       await expect(
         billing.createInvoice(user, { caseId: 'case-1' }, { ...fee(1000), discountAmount: 100, discountReason: 'ลด' } as any),
-      ).rejects.toThrow('ใบที่แบ่งผู้จ่าย');
+      ).rejects.toThrow('ใบแจ้งหนี้ที่แบ่งผู้จ่าย');
       expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
     });
   });

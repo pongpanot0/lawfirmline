@@ -44,7 +44,7 @@ test('new firm → first client and task → invitation → member permissions �
     expect(authResponse.ok()).toBe(true);
     const session = await authResponse.json();
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.locator('main h1')).toHaveText('แดชบอร์ด');
+    await expect(page.locator('main h1')).toHaveText('ภาพรวม');
     expect(new URL(page.url()).hostname).toBe(`${session.user.firmSlug}.localhost`);
     const origin = new URL(page.url()).origin;
     const adminLogin = await page.request.post(`${API}/auth/login`, { data: { email: 'admin@lawfirm.com', password: 'password123' } });
@@ -55,7 +55,7 @@ test('new firm → first client and task → invitation → member permissions �
     const forbiddenCase = await page.request.get(`${API}/cases/${otherCase.id}`, { headers: { Authorization: `Bearer ${session.accessToken}` } });
     expect([403, 404]).toContain(forbiddenCase.status());
     await page.reload();
-    await expect(page.locator('main h1')).toHaveText('แดชบอร์ด');
+    await expect(page.locator('main h1')).toHaveText('ภาพรวม');
     await expect(page.locator('main')).toContainText(data.firmName);
 
     await page.goto(`${origin}/clients/new`);
@@ -138,7 +138,7 @@ test('new firm → first client and task → invitation → member permissions �
     await page.getByLabel('รหัสผ่าน', { exact: true }).fill(data.password);
     await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.locator('main h1')).toHaveText('แดชบอร์ด');
+    await expect(page.locator('main h1')).toHaveText('ภาพรวม');
     expect(errors).toEqual([]);
   } finally { await data.cleanup(); }
 });

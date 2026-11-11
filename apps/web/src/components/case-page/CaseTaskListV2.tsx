@@ -42,7 +42,7 @@ export function CaseTaskListV2({ tasks, currentStage, userId, onToggle, onOpen, 
     const overdue = isOverdue(task);
     const person = task.assignee;
     return <li key={task.id} className={`flex flex-wrap items-center gap-4 px-5 py-4 ${overdue ? 'bg-[#fdf6f6]' : ''} ${done ? 'text-muted-foreground' : ''}`}>
-      <input type="checkbox" className="h-6 w-6 shrink-0" checked={done} onChange={() => onToggle(task)} aria-label={done ? `ยกเลิกเสร็จ: ${task.title}` : `ทำเสร็จแล้ว: ${task.title}`} />
+      <input type="checkbox" className="h-6 w-6 shrink-0" checked={done} onChange={() => onToggle(task)} aria-label={done ? `กลับเป็นยังไม่เสร็จ: ${task.title}` : `ทำเสร็จแล้ว: ${task.title}`} />
       <div className="min-w-0 flex-1"><button type="button" className="text-left font-bold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onOpen(task.id)}>{done ? <s className="font-normal">{task.title}</s> : task.title}</button>{!done && task.description && <div className={`${v2.label} line-clamp-1`}>{task.description.split('\n')[0]}</div>}</div>
       {done ? <span className="text-sm">เสร็จแล้ว{person ? ` · ${person.firstName}` : ''}</span> : <>
         {person && <span className={v2.chip}>{initials(person.firstName, person.lastName)} {person.firstName}{person.id === userId ? ' (ฉัน)' : ''}</span>}
@@ -62,7 +62,7 @@ export function CaseTaskListV2({ tasks, currentStage, userId, onToggle, onOpen, 
       <div className="flex flex-wrap items-center gap-2">{controls}<button type="button" className={`${v2.btn} ${v2.primary}`} onClick={onAdd}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />เพิ่มงาน</button></div>
     </div>
     {panels}
-    <p className={v2.hint}>“บอร์ด” จัดงานเป็นคอลัมน์ตามสถานะ · “ตัวกรอง” หางานตามคน ความสำคัญ หรือป้าย · “ใช้ SOP” สร้างชุดงานมาตรฐานของคดีประเภทนี้</p>
+    <p className={v2.hint}>“บอร์ด” จัดงานเป็นคอลัมน์ตามสถานะ · “ตัวกรอง” หางานตามคน ความสำคัญ หรือป้าย · “ใช้ชุดงาน” สร้างงานจากชุดงานอัตโนมัติของคดีประเภทนี้</p>
     {board ? board(shown) : <>{!shown.length && <section className={`${v2.card} p-5`}><p className="font-semibold">{tasks.length ? 'ไม่มีงานในตัวกรองนี้' : 'ยังไม่มีงานในคดีนี้'}</p><p className={v2.hint}>{tasks.length ? 'กด “ทั้งหมด” เพื่อดูงานทุกงาน' : 'กด “เพิ่มงาน” เพื่อสร้างงานแรกและมอบให้คนในทีม'}</p></section>}
     {groups.map(([stage, list]) => {
       const done = list.filter(isDone).length;

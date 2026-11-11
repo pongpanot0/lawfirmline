@@ -4,7 +4,7 @@ import { workloadLabel } from './workload-label.ts';
 import { getMentionContext, mentionedIdsIn } from './mentions.ts';
 
 test('workload hint reads like the case create form', () => {
-  assert.equal(workloadLabel({ leadCount: 3, buddyCount: 1, nearDeadlineCount: 2 }), ' (หลัก 3, ผู้ช่วย 1, ใกล้ deadline 2)');
+  assert.equal(workloadLabel({ leadCount: 3, buddyCount: 1, nearDeadlineCount: 2 }), ' (หลัก 3, ผู้ช่วย 1, ใกล้ครบกำหนด 2)');
   assert.equal(workloadLabel(undefined), '');
 });
 

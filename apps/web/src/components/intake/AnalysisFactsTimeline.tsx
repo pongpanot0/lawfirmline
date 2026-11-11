@@ -31,7 +31,7 @@ export function AnalysisFactsTimeline({ analysis }: { analysis: IntakePrecedentA
         <div className="border-t border-border pt-3">
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <Clock className="h-4 w-4 text-muted-foreground" aria-hidden />
-            ไทม์ไลน์เหตุการณ์
+            ลำดับเหตุการณ์
           </p>
           <ol className="mt-2 space-y-1.5">
             {timeline.map((item, i) => (

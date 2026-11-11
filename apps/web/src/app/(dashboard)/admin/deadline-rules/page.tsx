@@ -172,7 +172,7 @@ export default function DeadlineRulesPage() {
         {(fromGlobal || rule.canEdit) && <details className="relative">
           <summary className="disclosure flex min-h-11 min-w-11 cursor-pointer items-center justify-center" aria-label={`จัดการ ${rule.label}`}><MoreHorizontal className="size-5" /></summary>
           <div className="absolute right-0 z-10 w-56 rounded-lg border bg-card p-2 shadow-lg">
-            {fromGlobal && <button type="button" className="w-full p-2 text-left text-sm hover:bg-muted" onClick={() => setForm(fromRule(rule))}>ปรับใช้กับสำนักงาน</button>}
+            {fromGlobal && <button type="button" className="w-full p-2 text-left text-sm hover:bg-muted" onClick={() => setForm(fromRule(rule))}>ปรับแก้สำหรับสำนักงาน</button>}
             {rule.canEdit && !fromGlobal && <button type="button" className="w-full p-2 text-left text-sm hover:bg-muted" onClick={() => remove(rule)}>{origin === 'OVERRIDE' ? 'กลับไปใช้กฎกลาง' : 'ลบ'}</button>}
           </div>
         </details>}

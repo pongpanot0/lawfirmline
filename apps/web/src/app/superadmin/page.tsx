@@ -184,7 +184,7 @@ function FirmEditor({ token, firm, onSaved }: { token: string; firm: PlatformFir
       await api.updatePlatformFirm(token, firm.id, data);
       onSaved();
     } catch (err) {
-      setSaveError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
+      setSaveError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }

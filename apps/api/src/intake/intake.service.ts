@@ -1027,7 +1027,7 @@ export class IntakeService {
       // produce garbage.
       if (analysis.status !== 'COMPLETE') {
         throw new BadRequestException(
-          'ผลการวิเคราะห์นี้ยังไม่สำเร็จ ไม่สามารถใช้ร่างหนังสือได้',
+          'ยังวิเคราะห์ไม่สำเร็จ จึงใช้ร่างหนังสือนี้ไม่ได้ — วิเคราะห์ใหม่ก่อน',
         );
       }
       facts = analysis.noticeFacts;
@@ -1572,7 +1572,7 @@ export class IntakeService {
         where: { id: submissionId, client: { firmId: user.firmId } },
       });
       if (!submission) {
-        throw new NotFoundException('ไม่พบเรื่องที่ส่งจาก Portal นี้');
+        throw new NotFoundException('ไม่พบเรื่องที่ลูกความส่งผ่านพอร์ทัลลูกความ');
       }
       if (submission.withdrawnByClient) {
         throw new BadRequestException('เรื่องนี้ถูกถอนโดยลูกความแล้ว');

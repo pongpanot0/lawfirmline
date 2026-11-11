@@ -43,7 +43,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
     setLoading(true);
     (caseId ? api.listCasePrecedentAnalyses(token, caseId) : intakeId ? api.listPrecedentAnalyses(token, intakeId) : api.listResearch(token))
       .then((rows) => { if (active) { setHistory(rows); setResult(rows[0] ?? null); } })
-      .catch(() => { if (active) setError('โหลดผลที่บันทึกไว้ไม่สำเร็จ'); })
+      .catch(() => { if (active) setError('โหลดผลที่บันทึกไว้ไม่สำเร็จ ลองโหลดหน้าใหม่'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [token, intakeId, caseId, retry]);
@@ -57,14 +57,14 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
     if (!token || lock.current) return;
     lock.current = true; setBusy(factsOnly ? 'กำลังจัดข้อเท็จจริง…' : 'กำลังค้นฎีกา…'); setError('');
     try { showResult(await api.research(token, selectedText ?? text, intakeId, selectedText ? [] : selected, factsOnly, caseId)); }
-    catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ ข้อมูลที่พิมพ์และไฟล์ยังอยู่'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง ข้อความและไฟล์ยังอยู่ครบ'); }
     finally { lock.current = false; setBusy(''); }
   };
   const summarize = async () => {
     if (!token || lock.current || !selected.length) return;
     lock.current = true; setBusy('กำลังสรุปข้อมูลจากเอกสาร…'); setError('');
     try { showResult(await api.summarizeResearchDocuments(token, selected, intakeId, caseId)); }
-    catch (e) { setError(e instanceof Error ? e.message : 'สรุปเอกสารไม่สำเร็จ'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'สรุปเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     finally { lock.current = false; setBusy(''); }
   };
   const upload = async (files: File[]) => {
@@ -95,7 +95,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
       const updated = await api.reviewResearchFact(token, result.id, index, facts[index], statement, status);
       setResult(updated); setHistory((prev) => prev.map((item) => item.id === updated.id ? updated : item));
       setEditing(null); onResult?.(updated);
-    } catch (e) { setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     finally { lock.current = false; setBusy(''); }
   };
 
@@ -108,10 +108,10 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
       {(intakeId || caseId) && <details className="rounded-lg border border-border p-3" open={filesExpanded} onToggle={(e) => setFilesExpanded(e.currentTarget.open)}>
         <summary className="cursor-pointer text-sm font-medium">เอกสาร · เลือก {selected.length} ไฟล์</summary>
         <div className="mt-3 space-y-3">
-          <DocumentDropZone multiple accept=".pdf,.txt,application/pdf,text/plain" disabled={!!busy} onFiles={(files) => void upload(files)} label="แนบเอกสารของเรื่อง" hint="PDF / TXT ไม่เกิน 30MB ต่อไฟล์ · ไฟล์สแกนจะอ่านข้อความเมื่อกดวิเคราะห์" />
+          <DocumentDropZone multiple accept=".pdf,.txt,application/pdf,text/plain" disabled={!!busy} onFiles={(files) => void upload(files)} label="แนบเอกสารของเรื่อง" hint="PDF / TXT ไม่เกิน 30MB ต่อไฟล์ · ระบบอ่านข้อความในไฟล์สแกนตอนกดวิเคราะห์" />
           {documents.map((doc) => <label key={doc.id} className="flex items-start gap-2 text-sm">
             <input type="checkbox" checked={selected.includes(doc.id)} disabled={!!busy || (!selected.includes(doc.id) && selected.length >= 10) || !['application/pdf','text/plain'].includes(doc.mimeType)} onChange={() => setSelected((prev) => prev.includes(doc.id) ? prev.filter((id) => id !== doc.id) : [...prev, doc.id])} />
-            <span className="min-w-0 break-words">{doc.filename} <span className="text-xs text-muted-foreground">· {['application/pdf','text/plain'].includes(doc.mimeType) ? 'เก็บไฟล์แล้ว' : 'เก็บได้ แต่ AI ยังไม่รองรับชนิดนี้'}</span></span>
+            <span className="min-w-0 break-words">{doc.filename} <span className="text-xs text-muted-foreground">· {['application/pdf','text/plain'].includes(doc.mimeType) ? 'เก็บไฟล์แล้ว' : 'เก็บไฟล์แล้ว แต่ AI ยังอ่านไฟล์ชนิดนี้ไม่ได้'}</span></span>
           </label>)}
         </div>
       </details>}
@@ -121,7 +121,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
         {(intakeId || caseId) && <Button variant="outline" disabled={!!busy || !selected.length} onClick={() => void summarize()}>สรุปข้อมูลจากเอกสาร</Button>}
       </div>
       {(intakeId || caseId) && <p className="text-xs text-muted-foreground">สรุปเอกสารใช้เฉพาะไฟล์ที่เลือก ไม่รวมข้อความในช่องด้านบน</p>}
-      <p className="text-xs text-muted-foreground">ผลสำเร็จบันทึกอัตโนมัติ{caseId ? 'ในคดีนี้' : intakeId ? 'ในเรื่องนี้ และติดตามไปเมื่อเปิดเป็นคดี' : 'ในประวัติของคุณ'} · ข้อความเป็นข้อมูลที่ผู้ใช้ระบุ จนกว่าจะตรวจเทียบหลักฐาน</p>
+      <p className="text-xs text-muted-foreground">ผลสำเร็จบันทึกอัตโนมัติ{caseId ? 'ในคดีนี้' : intakeId ? 'ในเรื่องนี้ และย้ายตามไปเมื่อเปิดเป็นคดี' : 'ในประวัติของคุณ'} · ข้อความเป็นข้อมูลที่ผู้ใช้ระบุ จนกว่าจะตรวจเทียบหลักฐาน</p>
       {busy && <p role="status" className="text-sm text-primary">{busy}</p>}
       {error && <div role="alert" className="text-sm text-destructive">{error} <button type="button" disabled={!!busy} className="underline" onClick={() => { setError(''); setRetry((n) => n + 1); }}>โหลดผลล่าสุด</button></div>}
     </div>
@@ -164,7 +164,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a'); link.href = `${url}${fact.page ? `#page=${fact.page}` : ''}`; link.target = '_blank'; link.rel = 'noopener'; link.click();
                 setTimeout(() => URL.revokeObjectURL(url),60000);
-              } catch { setError('เปิดเอกสารไม่สำเร็จ'); }
+              } catch { setError('เปิดเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง'); }
             }}>เปิดต้นฉบับ · รุ่น {source.version}</button>;
           })()}
           <div className="flex flex-wrap gap-2">
@@ -185,7 +185,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
         {result.precedents.map((p) => <details key={p.dekaId} className="rounded-lg border border-border p-3"><summary className="cursor-pointer font-medium text-sm">ฎ. {p.dekaId} <span className="font-normal text-muted-foreground">· อ่านบทสรุป</span></summary><p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{p.headnote}</p>{/^https?:\/\//.test(p.sourceUrl) && <a className="mt-2 block text-sm text-primary underline" href={p.sourceUrl} target="_blank" rel="noopener noreferrer">เปิดแหล่งข้อมูลฎีกา</a>}</details>)}
         <p className="whitespace-pre-wrap text-sm">{result.summaryBullets}</p>
         <RelatedStatutes precedents={result.precedents} />
-        <p className="text-xs text-muted-foreground">ผลค้นเบื้องต้น ไม่ยืนยันว่าได้ตรวจฉบับเต็มแล้ว โปรดเทียบข้อเท็จจริงและต้นฉบับก่อนใช้อ้างอิง</p>
+        <p className="text-xs text-muted-foreground">ผลค้นเบื้องต้น ยังไม่ได้ตรวจฉบับเต็ม ควรเทียบข้อเท็จจริงกับต้นฉบับก่อนใช้อ้างอิง</p>
       </div>}
     </>)}
   </section>;

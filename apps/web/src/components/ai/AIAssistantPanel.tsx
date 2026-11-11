@@ -36,21 +36,21 @@ const AI_ACTIONS = [
     id: 'dates',
     label: 'ดึงวันสำคัญ',
     icon: Calendar,
-    desc: 'หา deadline และวันนัดศาลจากเอกสาร',
+    desc: 'หาวันครบกำหนดและวันนัดศาลจากเอกสาร',
     ready: false,
   },
   {
     id: 'draft',
     label: 'ร่างหนังสือกฎหมาย',
     icon: Mail,
-    desc: 'ร่างหนังสือบอกกล่าว/ทวงถามจากข้อมูล intake',
+    desc: 'ร่างหนังสือบอกกล่าว/ทวงถามจากข้อมูลเรื่องรับเข้า',
     ready: true,
   },
   {
     id: 'search',
     label: 'ค้นหาเอกสาร',
     icon: Search,
-    desc: 'ค้นหาความหมายข้ามเอกสารทั้งหมดในคดี',
+    desc: 'ค้นตามความหมายในเอกสารทุกฉบับของคดี',
     ready: false,
   },
   {
@@ -174,7 +174,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
           <Sparkles className="h-4 w-4 text-primary" aria-hidden />
           <div>
             <p className="text-sm font-semibold">Samnuan AI</p>
-            <p className="text-xs text-muted-foreground">ขับเคลื่อนโดย GPT-4o mini</p>
+            <p className="text-xs text-muted-foreground">ใช้ GPT-4o mini</p>
           </div>
         </div>
         <Button
@@ -258,7 +258,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
             <CardContent className="space-y-3">
               {!action?.ready ? (
                 <p className="text-sm text-muted-foreground">
-                  ฟีเจอร์นี้ยังอยู่ระหว่างพัฒนา เร็วๆ นี้จะเปิดให้ใช้งานครับ
+                  ฟีเจอร์นี้ยังอยู่ระหว่างพัฒนา จะเปิดให้ใช้เร็ว ๆ นี้
                 </p>
               ) : result ? (
                 <>
@@ -277,7 +277,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                 </>
               ) : (
                 <>
-                  {action?.id === 'draft' && <p className="text-sm text-muted-foreground">สร้างร่างจากข้อมูล intake ที่มีอยู่</p>}
+                  {action?.id === 'draft' && <p className="text-sm text-muted-foreground">สร้างร่างจากข้อมูลเรื่องรับเข้า ที่มีอยู่</p>}
 
                   {action?.id === 'summarize' && (
                     <>
@@ -337,7 +337,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                       onChange={(e) => setSelectedIntakeId(e.target.value)}
                       className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <option value="">เลือก intake...</option>
+                      <option value="">เลือกเรื่องรับเข้า...</option>
                       {(intakes ?? []).map((i) => (
                         <option key={i.id} value={i.id}>
                           {i.title || i.clientName || i.id}

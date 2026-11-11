@@ -55,7 +55,7 @@ export function DriveFolderPicker({
     setError('');
     request
       .then(setFolders)
-      .catch((e) => setError(e instanceof ApiError ? e.message : 'โหลด folder ไม่สำเร็จ'))
+      .catch((e) => setError(e instanceof ApiError ? e.message : 'โหลดโฟลเดอร์ไม่สำเร็จ ลองโหลดหน้าใหม่'))
       .finally(() => setLoading(false));
   }, [token, open, source, current?.driveId, current?.id]);
 
@@ -74,7 +74,7 @@ export function DriveFolderPicker({
       setSites(await api.searchDriveSites(token, siteQuery.trim()));
       setLibraries(null);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ค้นหา site ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'ค้นหาไซต์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setLoading(false);
     }
@@ -87,7 +87,7 @@ export function DriveFolderPicker({
     try {
       setLibraries(await api.getSiteLibraries(token, site.id));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'โหลด document library ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'โหลดไลบรารีเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setLoading(false);
     }
@@ -99,7 +99,7 @@ export function DriveFolderPicker({
     try {
       await onPick(folder);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ผูก folder ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'ผูกโฟลเดอร์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setPicking(false);
     }
@@ -144,7 +144,7 @@ export function DriveFolderPicker({
             onClick={() => current && pick(current)}
             className="ml-auto rounded-lg bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
           >
-            เลือก folder นี้
+            เลือกโฟลเดอร์นี้
           </button>
         </div>
       )}
@@ -156,8 +156,8 @@ export function DriveFolderPicker({
               value={siteQuery}
               onChange={(e) => setSiteQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && searchSites()}
-              placeholder="ค้นหา SharePoint site (อย่างน้อย 2 ตัวอักษร)"
-              aria-label="ค้นหา SharePoint site"
+              placeholder="ค้นหาไซต์ SharePoint (พิมพ์อย่างน้อย 2 ตัวอักษร)"
+              aria-label="ค้นหาไซต์ SharePoint"
               className="min-h-11 flex-1 rounded-lg border bg-background px-3 text-sm"
             />
             <button type="button" onClick={searchSites} className="rounded-lg border px-3 text-sm hover:bg-accent">
@@ -190,7 +190,7 @@ export function DriveFolderPicker({
 
       {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
       {loading && (
-        <div role="status" aria-label="กำลังโหลด folder" className="space-y-1.5">
+        <div role="status" aria-label="กำลังโหลดโฟลเดอร์" className="space-y-1.5">
           <Skeleton className="h-11 w-full" />
           <Skeleton className="h-11 w-full" />
           <Skeleton className="h-11 w-full" />
@@ -199,7 +199,7 @@ export function DriveFolderPicker({
 
       {!loading && !showSiteSearch && (
         <div className="space-y-1.5">
-          {folders.length === 0 && <p className="text-sm text-muted-foreground">ไม่มี folder ย่อย</p>}
+          {folders.length === 0 && <p className="text-sm text-muted-foreground">ไม่มีโฟลเดอร์ย่อย</p>}
           {folders.map((folder) => (
             <div key={`${folder.driveId}:${folder.id}`} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
               <button type="button" onClick={() => setPath([...path, folder])} className="flex min-w-0 flex-1 items-center gap-2 text-left">
@@ -210,7 +210,7 @@ export function DriveFolderPicker({
                 type="button"
                 disabled={picking}
                 onClick={() => pick(folder)}
-                aria-label={`เลือก folder ${folder.name}`}
+                aria-label={`เลือกโฟลเดอร์ ${folder.name}`}
                 className="min-h-9 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
               >
                 เลือก

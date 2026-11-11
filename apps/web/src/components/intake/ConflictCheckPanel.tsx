@@ -74,7 +74,7 @@ export function ConflictCheckPanel({
 
   async function runSearch() {
     if (!parsedTerms.length) {
-      setError(th ? 'ต้องมีคำค้นยาวอย่างน้อย 3 ตัวอักษร' : 'Need a term of at least 3 characters');
+      setError(th ? 'พิมพ์คำค้นอย่างน้อย 3 ตัวอักษร' : 'Need a term of at least 3 characters');
       return;
     }
     setBusy(true);
@@ -84,7 +84,7 @@ export function ConflictCheckPanel({
       setFound(res);
       setResult(res.suggestedResult);
     } catch (e) {
-      setError(e instanceof Error ? e.message : th ? 'ค้นไม่สำเร็จ' : 'Search failed');
+      setError(e instanceof Error ? e.message : th ? 'ค้นไม่สำเร็จ ลองใหม่อีกครั้ง' : 'Search failed');
     } finally {
       setBusy(false);
     }
@@ -106,7 +106,7 @@ export function ConflictCheckPanel({
       await loadHistory();
       onRecorded?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : th ? 'บันทึกไม่สำเร็จ' : 'Could not save');
+      setError(e instanceof Error ? e.message : th ? 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง' : 'Could not save');
     } finally {
       setBusy(false);
     }

@@ -24,7 +24,7 @@ export function TaskSizePicker({ taskId, title, size, onSaved }: {
       await api.setTaskSize(token, taskId, next);
       setOpen(false);
       onSaved(next);
-    } catch (err) { setError(err instanceof Error ? err.message : 'บันทึกขนาดไม่ได้'); }
+    } catch (err) { setError(err instanceof Error ? err.message : 'บันทึกขนาดงานไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     finally { setSaving(false); }
   };
 

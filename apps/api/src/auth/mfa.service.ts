@@ -89,7 +89,7 @@ export class MfaService {
       if (payload.purpose !== MFA_TOKEN_PURPOSE) throw new Error('wrong purpose');
       return payload.sub;
     } catch {
-      throw new UnauthorizedException('เซสชันยืนยันตัวตนหมดอายุ กรุณาเข้าสู่ระบบใหม่ / MFA session expired, sign in again');
+      throw new UnauthorizedException('หมดเวลายืนยันตัวตน กรุณาเข้าสู่ระบบใหม่ / MFA session expired, sign in again');
     }
   }
 

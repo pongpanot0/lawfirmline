@@ -96,7 +96,7 @@ export class EmailMentionTasksService {
     if (!message) throw new NotFoundException('ไม่พบอีเมลนี้ในคดี');
 
     const suggestion = (await this.suggestionsFor(user.firmId, [message])).get(message.id)?.find((s) => s.assigneeId === dto.assigneeId);
-    if (!suggestion) throw new BadRequestException('อีเมลนี้ไม่ได้ @ถึงคนนี้');
+    if (!suggestion) throw new BadRequestException('อีเมลนี้ไม่ได้แท็ก (@) คนนี้');
     if (suggestion.taskId) return this.tasks.findOne(suggestion.taskId);
 
     const sender = message.fromName || message.fromAddress || 'ไม่ทราบผู้ส่ง';

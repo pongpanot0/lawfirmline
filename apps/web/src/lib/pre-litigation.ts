@@ -1,8 +1,8 @@
 /** สถานะงานก่อนฟ้อง — ใช้ร่วมกันทั้งหน้า intake และหน้าคดี */
 export const PRE_LITIGATION_STATUS_LABELS: Record<string, string> = {
   NOT_STARTED: 'ยังไม่เริ่ม',
-  NOTICE_TO_SEND: 'เตรียมส่ง Notice',
-  NOTICE_SENT: 'ส่ง Notice แล้ว',
+  NOTICE_TO_SEND: 'เตรียมส่งหนังสือทวงถาม',
+  NOTICE_SENT: 'ส่งหนังสือทวงถามแล้ว',
   UNDER_REVIEW: 'รอพิจารณา/ตรวจเอกสาร',
   REPORT_PREPARED: 'ทำสรุปรายงานแล้ว',
   OFFER_RECEIVED: 'ได้รับข้อเสนอจ่าย',

@@ -15,12 +15,12 @@ export class ContactCaseAccessService {
 
   async grant(user: AuthUser, caseId: string, dto: GrantContactCaseAccessDto) {
     const legalCase = await this.verifyCase(user.firmId, caseId);
-    if (!legalCase.clientId) throw new NotFoundException('ไม่พบบุคคลติดต่อนี้');
+    if (!legalCase.clientId) throw new NotFoundException('ไม่พบผู้ติดต่อนี้');
 
     const contact = await this.prisma.clientContact.findFirst({
       where: { id: dto.clientContactId, clientId: legalCase.clientId },
     });
-    if (!contact) throw new NotFoundException('ไม่พบบุคคลติดต่อนี้');
+    if (!contact) throw new NotFoundException('ไม่พบผู้ติดต่อนี้');
 
     return this.prisma.contactCaseAccess.upsert({
       where: {
@@ -54,7 +54,7 @@ export class ContactCaseAccessService {
     const access = await this.prisma.contactCaseAccess.findFirst({
       where: { id: accessId, caseId },
     });
-    if (!access) throw new NotFoundException('ไม่พบสิทธิ์นี้');
+    if (!access) throw new NotFoundException('ไม่พบสิทธิ์ดูคดีของผู้ติดต่อนี้ อาจถูกถอนไปแล้ว โหลดหน้าใหม่');
 
     const now = new Date();
     return this.prisma.contactCaseAccess.update({

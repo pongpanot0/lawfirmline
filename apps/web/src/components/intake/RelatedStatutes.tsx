@@ -40,7 +40,7 @@ export function RelatedStatutes({ precedents }: { precedents: IntakePrecedentIte
         ))}
       </div>
       <p className="mt-1.5 text-xs text-muted-foreground">
-        สรุปจากมาตราที่ฎีกาในผลค้นหาอ้างถึง — โปรดตรวจตัวบทจริงก่อนใช้อ้างอิง
+        สรุปจากมาตราที่ฎีกาในผลค้นหาอ้างถึง — ตรวจตัวบทจริงก่อนใช้อ้างอิง
       </p>
     </div>
   );

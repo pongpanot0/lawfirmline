@@ -60,7 +60,7 @@ export default function ClientsPage() {
       router.replace('/clients');
       load();
     } catch (err) {
-      setDeleteError(err instanceof ApiError && err.message ? err.message : 'ลบลูกความไม่สำเร็จ');
+      setDeleteError(err instanceof ApiError && err.message ? err.message : 'ลบลูกความไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -105,7 +105,7 @@ export default function ClientsPage() {
       setShowContactForm(false);
       setEditingContactId(null);
     } catch (err) {
-      setContactError(err instanceof Error ? err.message : 'บันทึกบุคคลติดต่อไม่สำเร็จ');
+      setContactError(err instanceof Error ? err.message : 'บันทึกผู้ติดต่อไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSavingContact(false);
     }
@@ -113,14 +113,14 @@ export default function ClientsPage() {
 
   const deleteContact = async (contactId: string) => {
     const name = selected?.contacts.find((c) => c.id === contactId)?.name ?? '';
-    if (!token || !selected || !confirm(`ลบบุคคลติดต่อ "${name}"?`)) return;
+    if (!token || !selected || !confirm(`ลบผู้ติดต่อ "${name}"?`)) return;
     const updatedContacts = selected.contacts.filter((c) => c.id !== contactId);
     setContactError(null);
     try {
       const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
       setSelected(updated);
     } catch (err) {
-      setContactError(err instanceof Error ? err.message : 'ลบบุคคลติดต่อไม่สำเร็จ');
+      setContactError(err instanceof Error ? err.message : 'ลบผู้ติดต่อไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -134,7 +134,7 @@ export default function ClientsPage() {
       const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
       setSelected(updated);
     } catch (err) {
-      setContactError(err instanceof Error ? err.message : 'อัปเดตสิทธิ์พอร์ทัลไม่สำเร็จ');
+      setContactError(err instanceof Error ? err.message : 'บันทึกสิทธิ์พอร์ทัลไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -160,7 +160,7 @@ export default function ClientsPage() {
         },
       }));
     } catch (err) {
-      setContactError(err instanceof Error ? err.message : 'ส่งคำเชิญไม่สำเร็จ');
+      setContactError(err instanceof Error ? err.message : 'ส่งคำเชิญไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setInvitingContactId(null);
     }
@@ -201,7 +201,7 @@ export default function ClientsPage() {
       setGrantSelection((s) => ({ ...s, [caseId]: '' }));
       loadCaseAccess(caseId);
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'ให้สิทธิ์ไม่สำเร็จ');
+      alert(e instanceof Error ? e.message : 'ให้สิทธิ์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setGrantingCaseId(null);
     }
@@ -214,7 +214,7 @@ export default function ClientsPage() {
       await api.revokeContactCaseAccess(token, caseId, accessId);
       loadCaseAccess(caseId);
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'ถอนสิทธิ์ไม่สำเร็จ');
+      alert(e instanceof Error ? e.message : 'ถอนสิทธิ์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setRevokingAccessId(null);
     }
@@ -369,7 +369,7 @@ export default function ClientsPage() {
                         setEditingInfo(false);
                       } catch (err) {
                         // ค่าที่พิมพ์ยังอยู่ กดบันทึกซ้ำได้
-                        setInfoError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
+                        setInfoError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
                       } finally {
                         setSavingInfo(false);
                       }
@@ -403,7 +403,7 @@ export default function ClientsPage() {
             <div className="space-y-3">
               <div className="flex justify-end">
                 <Button size="sm" onClick={openAddContact}>
-                  <Plus className="h-4 w-4" aria-hidden />เพิ่มบุคคลติดต่อ
+                  <Plus className="h-4 w-4" aria-hidden />เพิ่มผู้ติดต่อ
                 </Button>
               </div>
 
@@ -411,7 +411,7 @@ export default function ClientsPage() {
               {showContactForm && (
                 <Card className="border-primary/40">
                   <CardContent className="p-4 space-y-3">
-                    <h2 className="text-sm font-medium">{editingContactId ? 'แก้ไขบุคคลติดต่อ' : 'เพิ่มบุคคลติดต่อใหม่'}</h2>
+                    <h2 className="text-sm font-medium">{editingContactId ? 'แก้ไขผู้ติดต่อ' : 'เพิ่มผู้ติดต่อใหม่'}</h2>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <TextField label="ชื่อ-นามสกุล" required value={contactForm.name} onChange={(e) => setContactForm((f) => ({ ...f, name: e.target.value }))} />
                       <TextField label="ชื่อเล่น" value={contactForm.nickname} onChange={(e) => setContactForm((f) => ({ ...f, nickname: e.target.value }))} />
@@ -427,7 +427,7 @@ export default function ClientsPage() {
                     <div className="flex flex-wrap justify-end gap-2">
                       <Button size="sm" variant="outline" onClick={cancelContactForm}>ยกเลิก</Button>
                       <Button size="sm" onClick={saveContact} disabled={savingContact || !contactForm.name.trim()}>
-                        {savingContact ? 'กำลังบันทึก...' : 'บันทึกบุคคลติดต่อ'}
+                        {savingContact ? 'กำลังบันทึก...' : 'บันทึกผู้ติดต่อ'}
                       </Button>
                     </div>
                   </CardContent>
@@ -531,12 +531,12 @@ export default function ClientsPage() {
               ))}
 
               {selected.contacts.length === 0 && !showContactForm && (
-                <InlineEmptyState title="ยังไม่มีบุคคลติดต่อ" action={<Button size="sm" variant="outline" onClick={openAddContact}><Plus className="h-4 w-4" aria-hidden />เพิ่มบุคคลติดต่อ</Button>} />
+                <InlineEmptyState title="ยังไม่มีผู้ติดต่อ" action={<Button size="sm" variant="outline" onClick={openAddContact}><Plus className="h-4 w-4" aria-hidden />เพิ่มผู้ติดต่อ</Button>} />
               )}
             </div>
-          {hasFirmCapability(user?.firmRole, 'manageFirmContent') && <details className="mt-4 rounded-lg border bg-card p-4"><summary className="disclosure cursor-pointer font-semibold">สิทธิ์คดีพอร์ทัล</summary>
+          {hasFirmCapability(user?.firmRole, 'manageFirmContent') && <details className="mt-4 rounded-lg border bg-card p-4"><summary className="disclosure cursor-pointer font-semibold">สิทธิ์ดูคดีในพอร์ทัล</summary>
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">คดีที่ลูกความรายนี้เป็นลูกความหลัก และผู้ติดต่อที่เห็นคดีในพอร์ทัล</p>
+              <p className="text-sm text-muted-foreground">คดีของลูกความรายนี้ และผู้ติดต่อที่ดูคดีในพอร์ทัลได้</p>
               {(selected.cases ?? []).map((c) => {
                 const eligibleContacts = selected.contacts.filter((ct) => ct.id && ct.portalEnabled);
                 const entries = caseAccess[c.id] ?? [];
@@ -564,7 +564,7 @@ export default function ClientsPage() {
                           <div role="status" aria-label="กำลังโหลดสิทธิ์เข้าถึง" className="h-8 w-full animate-pulse rounded-md bg-muted" />
                         ) : hasError ? (
                           <div className="flex flex-wrap items-center gap-2">
-                            <p role="alert" className="text-xs text-destructive">โหลดสิทธิ์เข้าถึงไม่สำเร็จ</p>
+                            <p role="alert" className="text-xs text-destructive">โหลดสิทธิ์เข้าถึงไม่สำเร็จ ลองเปิดใหม่อีกครั้ง</p>
                             <Button size="sm" variant="outline" onClick={() => loadCaseAccess(c.id)}>{d.common.retry}</Button>
                           </div>
                         ) : (
@@ -630,7 +630,7 @@ export default function ClientsPage() {
               {(selected.cases ?? []).length === 0 && (
                 <InlineEmptyState
                   title={d.clients.noCasesLinked}
-                  description="ถ้าเป็นผู้ว่าจ้างหรือลูกความเพิ่มเติม ให้ดูรายการในภาพรวม"
+                  description="ถ้าลูกความรายนี้เป็นผู้ว่าจ้างหรือลูกความร่วมในคดีอื่น ดูได้ที่แท็บภาพรวม"
                 />
               )}
             </div>

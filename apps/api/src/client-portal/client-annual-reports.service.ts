@@ -148,7 +148,7 @@ export class ClientAnnualReportsService {
     );
     const eligibleIds = new Set(eligible.map((item) => item.id));
     if (caseIds && (caseIds.length === 0 || caseIds.some((id) => !eligibleIds.has(id)))) {
-      throw new BadRequestException('มีคดีที่เลือกอยู่นอกขอบเขตรายงานของลูกค้ารายนี้');
+      throw new BadRequestException('มีคดีที่เลือกอยู่นอกขอบเขตรายงานของลูกความรายนี้');
     }
     const selectedIds = new Set(caseIds ?? eligible.map((item) => item.id));
     const selected = eligible.filter((item) => selectedIds.has(item.id));
@@ -256,7 +256,7 @@ export class ClientAnnualReportsService {
       select: { id: true },
     });
     if (contacts.length !== contactIds.length) {
-      throw new BadRequestException('ผู้ติดต่อที่เลือกบางรายยังไม่ได้เปิดสิทธิ์พอร์ทัล');
+      throw new BadRequestException('ผู้ติดต่อที่เลือกบางรายยังไม่ได้เปิดสิทธิ์พอร์ทัลลูกความ');
     }
     const preview = await this.preview(user, clientId, year, audience, caseIds);
     if (!preview.snapshot.cases.length) throw new BadRequestException('เลือกคดีอย่างน้อยหนึ่งเรื่อง');

@@ -38,7 +38,7 @@ export function DeleteAccountForm() {
         const existing = await request<Receipt | null>('/auth/account/deletion-request', { ...options, token: result.accessToken });
         if (existing) { setReceipt(existing); setPassword(''); setSession(null); }
       } else {
-        if (!confirmed) { setError('โปรดยืนยันว่าต้องการขอลบบัญชีและข้อมูลส่วนบุคคล'); return; }
+        if (!confirmed) { setError('กรุณายืนยันว่าต้องการขอลบบัญชีและข้อมูลส่วนบุคคล'); return; }
         const result = await request<Receipt>('/auth/account/deletion-request', { ...options, token: session.accessToken, method: 'POST', body: JSON.stringify({ currentPassword: password }) });
         setReceipt(result); setPassword(''); setCode(''); setSession(null);
       }

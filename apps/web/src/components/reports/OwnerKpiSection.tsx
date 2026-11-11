@@ -97,7 +97,7 @@ export function OwnerKpiSection({ token }: { token: string }) {
             ? <span className="font-medium text-destructive">ต่ำกว่าเป้า 95%</span>
             : undefined,
         },
-        { label: 'หนี้ค้างเฉลี่ย', value: data.avgDaysOutstanding != null ? `${data.avgDaysOutstanding} วัน` : '—' },
+        { label: 'ค้างชำระเฉลี่ย', value: data.avgDaysOutstanding != null ? `${data.avgDaysOutstanding} วัน` : '—' },
         {
           label: 'เงินรับเดือนนี้',
           value: formatCurrency(data.revenue.month),

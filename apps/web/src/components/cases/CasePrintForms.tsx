@@ -71,9 +71,9 @@ export function CasePrintForms({ legalCase }: { legalCase: CaseDetail }) {
         </header>
         <div className="space-y-3 p-4">
           <div role="group" aria-label="ชนิดเอกสาร" className="flex flex-wrap gap-2">{(['cover', 'complaint'] as const).map(type => <Button key={type} variant={kind === type ? 'default' : 'outline'} aria-pressed={kind === type} onClick={() => { if (kind !== type) { setReady(false); setKind(type); } }}>{CASE_PRINT_LABELS[type]}</Button>)}</div>
-          <p className="text-sm text-muted-foreground">เติมข้อมูลจากคดีและคู่ความให้อัตโนมัติแล้ว ช่องที่ไม่มีข้อมูลจะเว้นว่าง ข้อมูลที่แก้ใช้จัดพิมพ์ครั้งนี้เท่านั้น ไม่เปลี่ยนข้อมูลคดี และจะหายเมื่อโหลดหน้าใหม่ วันที่กรอกเป็น พ.ศ. ได้โดยตรง</p>
+          <p className="text-sm text-muted-foreground">ระบบเติมข้อมูลจากคดีและคู่ความให้แล้ว ช่องที่ไม่มีข้อมูลจะเว้นว่าง · ที่แก้ตรงนี้ใช้พิมพ์ครั้งนี้เท่านั้น ไม่เปลี่ยนข้อมูลคดี และหายเมื่อโหลดหน้าใหม่ · กรอกวันที่เป็น พ.ศ. ได้เลย</p>
           {loadError && <p role="alert" className="text-sm text-destructive">{loadError}</p>}
-          <p className="text-sm text-muted-foreground">ตั้งค่าพิมพ์: A4 แนวตั้ง ขนาด 100% ปิดหัวและท้ายกระดาษ แบบจัดหน้าอ้างอิงภาพตัวอย่าง ยังไม่ใช่ไฟล์แบบฟอร์มศาลต้นฉบับ</p>
+          <p className="text-sm text-muted-foreground">ตั้งค่าพิมพ์: A4 แนวตั้ง ขนาด 100% ปิดหัวและท้ายกระดาษ · หน้าตาเลียนแบบภาพตัวอย่าง ไม่ใช่แบบฟอร์มต้นฉบับของศาล</p>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(280px,1fr)_minmax(0,1.3fr)]">
             <div className="space-y-5">
@@ -93,7 +93,7 @@ export function CasePrintForms({ legalCase }: { legalCase: CaseDetail }) {
                   const data = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); });
                   setReady(false); setImages(previous => ({ ...previous, [targetKind]: data }));
                 } catch { setError('อ่านภาพไม่สำเร็จ กรุณาเลือกไฟล์อีกครั้ง'); }
-              }} /><span className="mt-1 block text-xs text-muted-foreground">ภาพใช้ในเครื่องสำหรับจัดพิมพ์เท่านั้น ไม่ได้อัปโหลด รูปถ่ายตัวอย่างไม่ถูกนำมาใส่เป็นพื้นหลัง</span></label>
+              }} /><span className="mt-1 block text-xs text-muted-foreground">ภาพนี้ใช้พิมพ์ในเครื่องนี้เท่านั้น ระบบไม่อัปโหลด และไม่ใส่รูปตัวอย่างเป็นพื้นหลัง</span></label>
               {images[kind] && <Button variant="outline" onClick={() => { setReady(false); setImages(previous => ({ ...previous, [kind]: '' })); }}>นำภาพออก</Button>}
             </div>
             <section className="min-w-0 space-y-2"><h3 className="font-medium">ตัวอย่างก่อนส่งออก</h3><div ref={previewBox} className="overflow-hidden rounded-md border bg-card" style={{ height: 1123 * scale }}><iframe key={kind} ref={preview} title={`ตัวอย่าง ${CASE_PRINT_LABELS[kind]}`} srcDoc={html} sandbox="allow-same-origin allow-modals" className="h-[1123px] w-[794px] max-w-none origin-top-left border-0" style={{ transform: `scale(${scale})` }} onLoad={async () => {

@@ -131,7 +131,7 @@ const TASK_STATUS_LABELS: Record<string, string> = {
 
 const ACTIVITY_LABELS: Record<string, string> = {
   COURT_DATE: 'นัดศาล',
-  CLIENT_MEETING: 'นัดลูกค้า',
+  CLIENT_MEETING: 'นัดลูกความ',
   FILING: 'ยื่นคำร้อง',
   DEADLINE: 'กำหนดส่ง',
   NOTE: 'บันทึก',
@@ -366,7 +366,7 @@ export default function CaseDetailPage() {
       setLoadingTeam(true);
       api.getAssignees(token)
         .then(setTeamPeople)
-        .catch((err) => setTeamError(err instanceof Error ? err.message : 'โหลดรายชื่อทีมไม่สำเร็จ'))
+        .catch((err) => setTeamError(err instanceof Error ? err.message : 'โหลดรายชื่อทีมไม่สำเร็จ ลองใหม่อีกครั้ง'))
         .finally(() => setLoadingTeam(false));
     }
     setEditingTeam(true);
@@ -385,7 +385,7 @@ export default function CaseDetailPage() {
       );
       setEditingTeam(false);
     } catch (err) {
-      setTeamError(err instanceof ApiError ? err.message : 'บันทึกทีมไม่สำเร็จ');
+      setTeamError(err instanceof ApiError ? err.message : 'บันทึกทีมไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSavingTeam(false);
     }
@@ -484,7 +484,7 @@ export default function CaseDetailPage() {
       // The API refuses to close over outstanding items and returns them — show them so the lawyer can acknowledge.
       const found = err instanceof ApiError ? (err.body as { outstanding?: CaseOutstandingResult } | undefined)?.outstanding : undefined;
       if (found) { setOutstanding(found); setOutstandingFailed(false); }
-      setCloseError(err instanceof ApiError ? err.message : 'ปิดคดีไม่สำเร็จ');
+      setCloseError(err instanceof ApiError ? err.message : 'ปิดคดีไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setClosingCase(false);
     }
@@ -525,7 +525,7 @@ export default function CaseDetailPage() {
       setStageTaskProposals(proposals);
       setPendingStage(stage);
     } catch (err) {
-      setStageTaskError(err instanceof ApiError ? err.message : 'ย้ายขั้นไม่สำเร็จ');
+      setStageTaskError(err instanceof ApiError ? err.message : 'ย้ายขั้นไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSavingStage(false);
     }
@@ -572,7 +572,7 @@ export default function CaseDetailPage() {
     } catch (err) {
       console.error(err);
       setPendingStage(null);
-      setStageTaskError(err instanceof ApiError ? err.message : 'ย้ายขั้นไม่สำเร็จ');
+      setStageTaskError(err instanceof ApiError ? err.message : 'ย้ายขั้นไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSavingStage(false);
     }
@@ -590,14 +590,14 @@ export default function CaseDetailPage() {
         loadCase();
       } catch (err) {
         console.error(err);
-        setStageTaskError(moving ? 'ย้ายขั้นแล้ว แต่สร้างงานไม่สำเร็จ' : 'สร้างงานไม่สำเร็จ');
+        setStageTaskError(moving ? 'ย้ายขั้นแล้ว แต่สร้างงานไม่สำเร็จ' : 'สร้างงานไม่สำเร็จ ลองใหม่อีกครั้ง');
         return;
       }
       closeStageTaskDialog();
     } catch (err) {
       console.error(err);
       setPendingStage(null);
-      setStageTaskError(err instanceof ApiError ? err.message : 'ย้ายขั้นไม่สำเร็จ');
+      setStageTaskError(err instanceof ApiError ? err.message : 'ย้ายขั้นไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSavingStage(false);
     }
@@ -759,7 +759,7 @@ export default function CaseDetailPage() {
       setEditingOverview(false);
       loadCase();
     } catch (err) {
-      setOverviewError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
+      setOverviewError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSavingOverview(false);
     }
@@ -845,7 +845,7 @@ export default function CaseDetailPage() {
       }
       loadCase();
     } catch (err) {
-      setUploadError(err instanceof ApiError ? err.message : 'อัปโหลดไม่สำเร็จ');
+      setUploadError(err instanceof ApiError ? err.message : 'อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setUploadingDocs(false);
     }
@@ -922,7 +922,7 @@ export default function CaseDetailPage() {
       await api.deleteCase(token, id);
       router.push('/cases');
     } catch (err) {
-      window.alert(err instanceof ApiError && err.message ? err.message : 'ลบคดีไม่สำเร็จ');
+      window.alert(err instanceof ApiError && err.message ? err.message : 'ลบคดีไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -965,13 +965,13 @@ export default function CaseDetailPage() {
               { label: 'เปลี่ยนขั้นเอง', hint: 'ใช้เมื่อต้องข้ามหรือย้อนขั้น เช่น คดีเปลี่ยนแนวทาง', icon: GitBranch, onClick: () => setMenuPanel('stage') },
               { label: 'จัดการทีมคดี', hint: 'เปลี่ยนเจ้าของคดี เพิ่มหรือลดคนในทีม', icon: Users, onClick: () => { selectTab('overview'); setManagingTeam(true); setTimeout(() => document.getElementById('case-team')?.scrollIntoView({ block: 'start' }), 100); } },
               { label: 'พิมพ์ปกแฟ้ม', hint: 'ตรวจข้อมูลและจัดพิมพ์ปกสำนวน', icon: Printer, onClick: () => setMenuPanel('print') },
-              { label: 'ป้ายแฟ้ม', hint: 'จัดการฉลากสำนวนกระดาษ', icon: FolderOpen, onClick: () => setMenuPanel('paper') },
+              { label: 'พิมพ์ฉลากแฟ้ม', hint: 'จัดการฉลากสำนวนกระดาษ', icon: FolderOpen, onClick: () => setMenuPanel('paper') },
               { label: 'บันทึกผลหลังขึ้นศาล', hint: 'บันทึกผลการพิจารณาของศาล', icon: Gavel, onClick: () => setRecordingOutcome(true) },
-              ...(legalCase.intake && preFiling ? [{ label: 'ออก Notice', hint: 'จัดทำหนังสือทวงถาม', icon: FileText, onClick: () => setNoticeOpen(true) }] : []),
+              ...(legalCase.intake && preFiling ? [{ label: 'ออกหนังสือทวงถาม', hint: 'จัดทำหนังสือทวงถาม', icon: FileText, onClick: () => setNoticeOpen(true) }] : []),
               ...(legalCase.cargoClaim ? [{ label: 'Cargo Claim', hint: 'ข้อมูลเคลมสินค้า', icon: Ship, href: `/cases/${id}?tab=cargo-claim` }] : []),
               ...((legalCase.stage === 'CLOSING' || legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED') ? [{ label: 'รายงานปิดงาน', hint: 'ดูรายงานปิดงาน', icon: FileText, href: `/cases/${id}?tab=closing-report` }] : []),
               { label: 'ถาม AI เรื่องคดีนี้', hint: 'เปิดหน้าถามคำถามเกี่ยวกับคดี', icon: Sparkles, href: `/cases/${id}?tab=ask-ai` },
-              ...(hasFirmCapability(user?.firmRole, 'deleteCase') ? [{ label: 'ลบคดี', hint: 'ลบคดีตามสิทธิ์ที่ได้รับ', icon: Trash2, onClick: () => void deleteCase() }] : []),
+              ...(hasFirmCapability(user?.firmRole, 'deleteCase') ? [{ label: 'ลบคดี', hint: 'ลบคดีพร้อมงาน นัด และเอกสาร', icon: Trash2, onClick: () => void deleteCase() }] : []),
               ...(legalCase.status !== CaseStatus.CLOSED && legalCase.status !== 'ARCHIVED' ? [{ label: 'ปิดคดี', hint: 'บันทึกผลคดีแล้วย้ายไปแท็บ “ปิดแล้ว” เปิดคืนได้', icon: Archive, separator: true, onClick: openCloseCase }] : [
                 { label: 'เปิดคดีอีกครั้ง', hint: 'กลับมาดำเนินคดีต่อ', icon: LockOpen, separator: true, disabled: reopeningCase, onClick: () => void handleReopenCase() },
                 ...(legalCase.status === CaseStatus.CLOSED ? [{ label: 'เก็บเข้าคลัง', hint: 'เก็บคดีที่ปิดแล้วเข้าคลัง', icon: Archive, onClick: () => void handleArchiveCase() }] : []),
@@ -982,7 +982,7 @@ export default function CaseDetailPage() {
         {journeyState && <><p className="mt-6 text-xs text-muted-foreground"><b className="text-foreground">ขั้นตอนของคดี</b> · สีเขียว = ผ่านแล้ว · สีน้ำเงินเข้ม = ขั้นปัจจุบัน</p><StepTracker steps={journeyState.steps.map(step => ({ ...step, state: step.state === 'locked' ? 'todo' : step.state }))} /></>}
       </div></header>
 
-      {menuPanel && <section className="my-4 rounded-lg border bg-card p-4 shadow-sm"><div className="flex items-center justify-between gap-2"><h2 className="font-bold">{menuPanel === 'stage' ? 'เปลี่ยนขั้นเอง' : menuPanel === 'print' ? 'พิมพ์ปกแฟ้ม' : 'ป้ายแฟ้ม'}</h2><Button variant="outline" onClick={() => setMenuPanel(null)}>ปิด</Button></div>{menuPanel === 'stage' ? (      <div className={styles.stagePanel} data-testid="case-stage-control">
+      {menuPanel && <section className="my-4 rounded-lg border bg-card p-4 shadow-sm"><div className="flex items-center justify-between gap-2"><h2 className="font-bold">{menuPanel === 'stage' ? 'เปลี่ยนขั้นเอง' : menuPanel === 'print' ? 'พิมพ์ปกแฟ้ม' : 'พิมพ์ฉลากแฟ้ม'}</h2><Button variant="outline" onClick={() => setMenuPanel(null)}>ปิด</Button></div>{menuPanel === 'stage' ? (      <div className={styles.stagePanel} data-testid="case-stage-control">
         <div className={styles.stageHeader}>
           <p>ขั้นตอนคดี</p>
           <p>{savingStage ? 'กำลังบันทึกขั้นตอน…' : 'เลือกเพื่อเปลี่ยนขั้นตอนคดี'}</p>
@@ -1057,7 +1057,7 @@ export default function CaseDetailPage() {
                 {outstanding.unapprovedDocuments.length > 0 && <li>เอกสารยังไม่อนุมัติ <b>{outstanding.unapprovedDocuments.length}</b></li>}
                 {outstanding.upcomingEvents.length > 0 && <li>นัดข้างหน้า <b>{outstanding.upcomingEvents.length}</b> — {outstanding.upcomingEvents.slice(0, 2).map((e) => `${e.title} ${formatDate(e.startAt)}`).join(', ')}</li>}
               </ul>
-              {outstanding.upcomingEvents.length > 0 && <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" checked={removeFutureEvents} onChange={(e) => setRemoveFutureEvents(e.target.checked)} disabled={closingCase} className="h-5 w-5" />ลบนัดข้างหน้า {outstanding.upcomingEvents.length} รายการ <span className={v2.label}>(เปิดคดีคืนจะไม่กู้นัดที่ลบ)</span></label>}
+              {outstanding.upcomingEvents.length > 0 && <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" checked={removeFutureEvents} onChange={(e) => setRemoveFutureEvents(e.target.checked)} disabled={closingCase} className="h-5 w-5" />ลบนัดข้างหน้า {outstanding.upcomingEvents.length} รายการ <span className={v2.label}>(ถ้าเปิดคดีคืน นัดที่ลบไปจะไม่กลับมา)</span></label>}
               {outstanding.total > 0 && <label className="mt-1 flex min-h-11 items-center gap-2 font-semibold"><input type="checkbox" checked={ackOutstanding} onChange={(e) => setAckOutstanding(e.target.checked)} className="h-5 w-5" />ตรวจแล้ว ปิดคดีได้</label>}
             </div>}
             <p className={v2.hint}>ปิดแล้วเปิดคืนได้ทุกเมื่อ ข้อมูล งาน เอกสาร และอีเมลยังอยู่ครบ</p>
@@ -1107,12 +1107,13 @@ export default function CaseDetailPage() {
                 ['ข้อหา', chargeSection || null],
                 ['วันครบอายุความ', legalCase.limitationDeadline ? <>{thaiShortDate(legalCase.limitationDeadline)}{limitationDays != null && <span className={v2.label}> · {limitationDays < 0 ? `เลยมา ${-limitationDays} วัน` : `อีก ${limitationDays} วัน`}</span>}</> : null],
                 ['ทนายฝ่ายตรงข้าม', opponents.find((p) => p.opposingLawyer)?.opposingLawyer ?? null],
-                ['เปิดคดี', openedItem ? thaiShortDate(openedItem.date) : null],
+                ['เปิดคดี', (legalCase.openedAt || openedItem?.date) ? thaiShortDate((legalCase.openedAt || openedItem?.date)!) : null],
               ];
               const missing = facts.filter(([, value]) => !value).map(([label]) => label);
               return <>
-                <dl className="mt-3 grid gap-x-8 gap-y-4 text-[15px] sm:grid-cols-2">{facts.filter(([, value]) => value).map(([label, value]) => <div key={label}><dt className={v2.label}>{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
-                {missing.length > 0 && <p className={`${v2.hint} mt-4`}>ยังไม่ได้กรอก: {missing.join(' · ')} · <button type="button" className="font-semibold text-foreground underline" onClick={startEditOverview}>กรอกเลย</button></p>}
+                {/* Every field shows, filled or not, so the case facts read at a glance. */}
+                <dl className="mt-3 grid gap-x-8 gap-y-4 text-[15px] sm:grid-cols-2">{facts.map(([label, value]) => <div key={label}><dt className={v2.label}>{label}</dt><dd className={value ? 'font-semibold' : 'text-muted-foreground'}>{value ?? 'ยังไม่ได้กรอก'}</dd></div>)}</dl>
+                {missing.length > 0 && <button type="button" className={`${v2.btn} ${v2.outline} mt-4`} onClick={startEditOverview}><Pencil aria-hidden="true" className="h-[1.1em] w-[1.1em]" />กรอกอีก {missing.length} ช่องที่ยังว่าง</button>}
               </>;
             })()}
           </section>
@@ -1180,10 +1181,10 @@ export default function CaseDetailPage() {
           <section id="case-team" className={`${v2.card} scroll-mt-24 p-5`}><div className="flex items-center justify-between gap-2"><h3 className="text-lg font-bold">ทีมคดี ({new Set([legalCase.leadLawyer.id, ...legalCase.assignments.map(a => a.user.id)]).size})</h3>{!managingTeam && <button type="button" onClick={() => setManagingTeam(true)} className={`${v2.btn} ${v2.ghost}`}><Pencil aria-hidden="true" className="h-[1.1em] w-[1.1em]" />จัดการ</button>}</div>
             <ul className="mt-2 space-y-2 text-sm"><li><b>{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</b> <span className={v2.label}>· เจ้าของคดี</span></li>{legalCase.assignments.filter(({ user: member }) => member.id !== legalCase.leadLawyer.id).map(({ user: member }) => <li key={member.id}>{member.firstName} {member.lastName}</li>)}</ul>
             {managingTeam && token && <div className="mt-4 space-y-3 border-t border-[#e2e0d8] pt-3">
-            {legalCase.assignments.map(({ user: member }) => <div key={member.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><span className="min-w-0 break-words">{member.firstName} {member.lastName} {legalCase.intake?.receivedById === member.id && <span className="text-xs text-muted-foreground">· ผู้รับเรื่อง</span>}</span>{member.id === user?.id && member.id !== legalCase.leadLawyer.id && <Button variant="outline" size="sm" disabled={ownerBusy} onClick={() => { if (!confirm('ออกจากทีมคดีนี้?')) return; setOwnerBusy(true); setOwnerError(''); void api.leaveCaseTeam(token, id).then(() => loadCase()).catch((e) => setOwnerError(e instanceof Error ? e.message : 'ออกจากทีมไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>ออกจากทีม</Button>}</div>)}
+            {legalCase.assignments.map(({ user: member }) => <div key={member.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><span className="min-w-0 break-words">{member.firstName} {member.lastName} {legalCase.intake?.receivedById === member.id && <span className="text-xs text-muted-foreground">· ผู้รับเรื่อง</span>}</span>{member.id === user?.id && member.id !== legalCase.leadLawyer.id && <Button variant="outline" size="sm" disabled={ownerBusy} onClick={() => { if (!confirm('ออกจากทีมคดีนี้?')) return; setOwnerBusy(true); setOwnerError(''); void api.leaveCaseTeam(token, id).then(() => loadCase()).catch((e) => setOwnerError(e instanceof Error ? e.message : 'ออกจากทีมไม่สำเร็จ ลองใหม่อีกครั้ง')).finally(() => setOwnerBusy(false)); }}>ออกจากทีม</Button>}</div>)}
             {handedOver && <p className="text-sm text-success">ส่งต่อแล้ว — คุณยังอยู่ในทีมคดี</p>}
             {ownerError && <p role="alert" className="text-sm text-destructive">{ownerError}</p>}
-            {canChangeOwner(hasFirmCapability(user?.firmRole, 'reassignCaseLead'), user?.id, legalCase.leadLawyer.id, legalCase.intake?.receivedById) && (editingOwner ? <div className="space-y-2"><label htmlFor="case-owner" className="text-sm">เจ้าของคดีคนใหม่</label><OwnerPicker id="case-owner" token={token} value={ownerId} onChange={setOwnerId} currentUserId={user?.id} /><div className="flex flex-wrap gap-2"><Button disabled={ownerBusy || !ownerId || ownerId === legalCase.leadLawyer.id} onClick={() => { setOwnerBusy(true); setOwnerError(''); const receiver = user?.id === legalCase.intake?.receivedById && user?.id === legalCase.leadLawyer.id; void api.updateCase(token, id, { leadLawyerId: ownerId }).then(() => { setEditingOwner(false); if (receiver) setHandedOver(true); return loadCase(); }).catch((e) => setOwnerError(e instanceof Error ? e.message : 'เปลี่ยนเจ้าของคดีไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>{ownerBusy ? 'กำลังบันทึก…' : 'บันทึก'}</Button><Button variant="outline" onClick={() => setEditingOwner(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={() => { setOwnerId(legalCase.leadLawyer.id); setEditingOwner(true); }}>เปลี่ยนเจ้าของคดี</Button>)}
+            {canChangeOwner(hasFirmCapability(user?.firmRole, 'reassignCaseLead'), user?.id, legalCase.leadLawyer.id, legalCase.intake?.receivedById) && (editingOwner ? <div className="space-y-2"><label htmlFor="case-owner" className="text-sm">เจ้าของคดีคนใหม่</label><OwnerPicker id="case-owner" token={token} value={ownerId} onChange={setOwnerId} currentUserId={user?.id} /><div className="flex flex-wrap gap-2"><Button disabled={ownerBusy || !ownerId || ownerId === legalCase.leadLawyer.id} onClick={() => { setOwnerBusy(true); setOwnerError(''); const receiver = user?.id === legalCase.intake?.receivedById && user?.id === legalCase.leadLawyer.id; void api.updateCase(token, id, { leadLawyerId: ownerId }).then(() => { setEditingOwner(false); if (receiver) setHandedOver(true); return loadCase(); }).catch((e) => setOwnerError(e instanceof Error ? e.message : 'เปลี่ยนเจ้าของคดีไม่สำเร็จ ลองใหม่อีกครั้ง')).finally(() => setOwnerBusy(false)); }}>{ownerBusy ? 'กำลังบันทึก…' : 'บันทึก'}</Button><Button variant="outline" onClick={() => setEditingOwner(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={() => { setOwnerId(legalCase.leadLawyer.id); setEditingOwner(true); }}>เปลี่ยนเจ้าของคดี</Button>)}
             {(hasFirmCapability(user?.firmRole, 'reassignCaseLead') || user?.id === legalCase.leadLawyer.id) && (editingTeam ? <div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">คนในทีม <span className="font-normal text-muted-foreground">· เลือกได้หลายคน</span></p>{loadingTeam && <p className="text-sm text-muted-foreground">กำลังโหลดรายชื่อ…</p>}<div className="max-h-80 space-y-0.5 overflow-y-auto">{teamPeople.filter((p) => p.userId !== legalCase.leadLawyer.id).map((p) => <label key={p.userId} className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-1 py-2 text-sm hover:bg-muted/50"><input type="checkbox" className="mt-1" checked={teamForm.buddyIds.includes(p.userId)} onChange={() => setTeamForm((f) => ({ ...f, buddyIds: f.buddyIds.includes(p.userId) ? f.buddyIds.filter((x) => x !== p.userId) : [...f.buddyIds, p.userId] }))} /><span className="min-w-0"><span className="block break-words font-medium">{p.firstName} {p.lastName}{p.userId === user?.id ? ' (ฉัน)' : ''}</span><span className="block text-xs text-muted-foreground">เปิดอยู่ {p.openCaseCount} · <span className={p.overdueTaskCount ? 'text-destructive' : ''}>เลยกำหนด {p.overdueTaskCount}</span>{p.leave ? ` · ลา ${p.leave.startDate.slice(8)}/${p.leave.startDate.slice(5, 7)}–${p.leave.endDate.slice(8)}/${p.leave.endDate.slice(5, 7)}` : ''}</span></span></label>)}</div>{teamError && <p role="alert" className="text-sm text-destructive">{teamError}</p>}<div className="flex flex-wrap gap-2"><Button disabled={savingTeam || loadingTeam || teamPeople.length === 0} onClick={handleSaveTeam}>{savingTeam ? 'กำลังบันทึก…' : `บันทึกทีม (${teamForm.buddyIds.filter((x) => x !== legalCase.leadLawyer.id).length} คน)`}</Button><Button variant="outline" onClick={() => setEditingTeam(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={startEditTeam}>{legalCase.assignments.length ? 'แก้ไขทีม' : <><Plus aria-hidden="true" className="h-4 w-4" />เพิ่มคนในทีม</>}</Button>)}
               <button type="button" className={`${v2.btn} ${v2.ghost}`} onClick={() => { setManagingTeam(false); setEditingTeam(false); setEditingOwner(false); }}>เสร็จ</button>
             </div>}
@@ -1271,7 +1272,7 @@ export default function CaseDetailPage() {
                     )}
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">ลูกค้า (ผู้ว่าจ้าง)</p>
+                    <p className="text-xs text-muted-foreground">ผู้ว่าจ้าง</p>
                     <p className="font-medium">{customerDisplay ?? '—'}</p>
                   </div>
               <div>
@@ -1309,10 +1310,10 @@ export default function CaseDetailPage() {
         {suggestedPlaybook && !hasAppliedPlaybook && (
           <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
             <p className="text-sm">
-              แนะนำ SOP <span className="font-medium">{suggestedPlaybook.name}</span> · {suggestedPlaybook.steps.length} ขั้นตอน
+              แนะนำชุดงาน <span className="font-medium">{suggestedPlaybook.name}</span> · {suggestedPlaybook.steps.length} ขั้นตอน
             </p>
             <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => previewPlaybook(suggestedPlaybook.id)}>
-              ดูรายการงานจาก SOP
+              ดูรายการงานจากชุดงาน
             </Button>
           </div>
         )}
@@ -1328,7 +1329,7 @@ export default function CaseDetailPage() {
         <div className={styles.signal}>
           <span className={styles.signalLabel}>อายุความ</span>
           <strong className={`${styles.signalValue} ${priority.limitationDays != null && priority.limitationDays <= 30 ? "text-destructive" : ""}`}>{priority.limitationDays == null ? 'ยังไม่ระบุ' : `อีก ${priority.limitationDays} วัน`}</strong>
-          <span className={styles.signalMeta}>{legalCase.limitationDeadline ? `ครบ ${formatDate(legalCase.limitationDeadline)}` : 'ยังไม่มีวันที่ให้ประเมิน'}</span>
+          <span className={styles.signalMeta}>{legalCase.limitationDeadline ? `ครบ ${formatDate(legalCase.limitationDeadline)}` : 'ยังไม่ได้ใส่วันครบอายุความ'}</span>
         </div>
         <button type="button" onClick={() => selectTab('tasks')} className={styles.signalButton}>
           <span className={styles.signalLabel}>งานค้าง</span>
@@ -1338,7 +1339,7 @@ export default function CaseDetailPage() {
         <button type="button" onClick={() => selectTab('documents')} className={styles.signalButton}>
           <span className={styles.signalLabel}>เอกสารที่ต้องมี</span>
           <strong className={styles.signalValue}>{priority.presentRequiredDocumentCount}/{priority.requiredDocumentCount}</strong>
-          <span className={styles.signalMeta}>{priority.missingRequiredDocumentCount > 0 ? `ขาด ${priority.missingRequiredDocumentCount} รายการ` : priority.requiredDocumentCount > 0 ? 'ครบตามรายการ' : 'ยังไม่มีรายการบังคับ'}</span>
+          <span className={styles.signalMeta}>{priority.missingRequiredDocumentCount > 0 ? `ขาด ${priority.missingRequiredDocumentCount} รายการ` : priority.requiredDocumentCount > 0 ? 'ครบตามรายการ' : 'ยังไม่ได้กำหนดเอกสารที่ต้องมี'}</span>
         </button>
       </section>
 
@@ -1363,7 +1364,7 @@ export default function CaseDetailPage() {
           {legalCase.intake && preFiling && (
             <Card>
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">หนังสือทวงถาม (Notice)</CardTitle>
+                <CardTitle className="text-base">หนังสือทวงถาม</CardTitle>
                 <div className="flex flex-wrap gap-2">
 
                   <Button variant="outline" size="sm" onClick={() => setPreLitOpen(true)}>อัปเดตสถานะเจรจา</Button>
@@ -1467,7 +1468,7 @@ export default function CaseDetailPage() {
                 </div>
 
                 <div className="border-t border-border pt-3">
-                  <p className="flex items-center gap-1.5 text-sm font-medium"><ScrollText aria-hidden="true" className="h-4 w-4 text-muted-foreground" />ข้อมูลพร้อมร่าง Notice</p>
+                  <p className="flex items-center gap-1.5 text-sm font-medium"><ScrollText aria-hidden="true" className="h-4 w-4 text-muted-foreground" />ข้อมูลพร้อมร่างหนังสือทวงถาม</p>
                   <p className="mt-1 whitespace-pre-wrap rounded-lg bg-muted/40 p-2 text-xs text-muted-foreground">
                     {latestPrecedentAnalysis.noticeFacts}
                   </p>
@@ -1475,7 +1476,7 @@ export default function CaseDetailPage() {
 
                 <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                   <AlertTriangle aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-                  ผลลัพธ์นี้เป็นการช่วยค้นเบื้องต้นด้วย AI โปรดตรวจสอบกับฉบับเต็มก่อนใช้อ้างอิงจริง
+                  ผลนี้เป็นการค้นเบื้องต้นด้วย AI กรุณาตรวจกับฉบับเต็มก่อนใช้อ้างอิงจริง
                 </p>
               </CardContent>
               </details>
@@ -1585,12 +1586,12 @@ export default function CaseDetailPage() {
                   <p className="text-xs font-medium text-muted-foreground">SOP</p>
                   <div className="flex gap-2">
                     <select
-                      aria-label="เลือก SOP"
+                      aria-label="เลือกชุดงานอัตโนมัติ"
                       className="min-h-11 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm"
                       value={pendingPlaybookId}
                       onChange={(e) => setPendingPlaybookId(e.target.value)}
                     >
-                      <option value="">— เลือก SOP —</option>
+                      <option value="">— เลือกชุดงานอัตโนมัติ —</option>
                       {playbooks.map((p) => (
                         <option key={p.id} value={p.id}>{p.name} · v{p.version}</option>
                       ))}

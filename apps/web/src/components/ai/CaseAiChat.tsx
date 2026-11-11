@@ -83,13 +83,13 @@ export function CaseAiChat({
           title: `ผลวิเคราะห์ (มุม${partyLabel})`,
           text: `${item.summaryBullets}${item.precedents.length ? `\n\nอ้างอิงฎีกา ${item.precedents.length} เรื่อง` : ''}`,
           actions: [
-            { label: 'ร่าง Notice จากผลนี้', onClick: () => void runDraft(item.id), primary: true },
+            { label: 'ร่างหนังสือทวงถามจากผลนี้', onClick: () => void runDraft(item.id), primary: true },
             { label: 'ดูฉบับเต็ม / ข้อเท็จจริง', href: `/intake/${intakeId}` },
           ],
         });
       }
     } catch (err) {
-      push({ role: 'ai', title: 'วิเคราะห์ไม่สำเร็จ', text: err instanceof Error ? err.message : 'เกิดข้อผิดพลาด' });
+      push({ role: 'ai', title: 'วิเคราะห์ไม่สำเร็จ', text: err instanceof Error ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง' });
     } finally {
       setBusy(false);
     }
@@ -97,7 +97,7 @@ export function CaseAiChat({
 
   const runDraft = async (analysisId?: string) => {
     if (!token || !intakeId || busy) return;
-    push({ role: 'user', text: analysisId ? 'ร่าง Notice จากผลวิเคราะห์นี้เลย' : 'ร่างหนังสือทวงถาม (Notice)' });
+    push({ role: 'user', text: analysisId ? 'ร่างหนังสือทวงถามจากผลวิเคราะห์นี้' : 'ร่างหนังสือทวงถาม' });
     setBusy(true);
     try {
       const { content } = await api.draftNoticeIntake(token, intakeId, analysisId ?? lastAnalysisId);
@@ -111,11 +111,11 @@ export function CaseAiChat({
             onClick: () => { void navigator.clipboard.writeText(content).catch(() => undefined); },
             primary: true,
           },
-          { label: 'ไปหน้าออก Notice', href: caseId ? `/cases/${caseId}` : `/intake/${intakeId}` },
+          { label: 'ไปหน้าออกหนังสือทวงถาม', href: caseId ? `/cases/${caseId}` : `/intake/${intakeId}` },
         ],
       });
     } catch (err) {
-      push({ role: 'ai', title: 'ร่างไม่สำเร็จ', text: err instanceof Error ? err.message : 'เกิดข้อผิดพลาด' });
+      push({ role: 'ai', title: 'ร่างไม่สำเร็จ ลองใหม่อีกครั้ง', text: err instanceof Error ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง' });
     } finally {
       setBusy(false);
     }
@@ -128,13 +128,13 @@ export function CaseAiChat({
     push({ role: 'user', text: q });
     push({
       role: 'ai',
-      text: 'โหมดถามอิสระกำลังตามมาเร็ว ๆ นี้ — ตอนนี้ใช้ปุ่มลัดด้านบนได้เลย: วิเคราะห์แนวฎีกา, ร่าง Notice, สรุปเอกสาร',
+      text: 'โหมดถามอิสระกำลังตามมาเร็ว ๆ นี้ — ตอนนี้ใช้ปุ่มลัดด้านบนได้เลย: วิเคราะห์แนวฎีกา, ร่างหนังสือทวงถาม, สรุปเอกสาร',
     });
   };
 
   const chips: Array<{ label: string; onClick?: () => void; href?: string; disabled?: boolean }> = [
     { label: 'วิเคราะห์แนวฎีกา', onClick: runAnalysis, disabled: !intakeId },
-    { label: 'ร่าง Notice', onClick: () => void runDraft(), disabled: !intakeId },
+    { label: 'ร่างหนังสือทวงถาม', onClick: () => void runDraft(), disabled: !intakeId },
     { label: 'สรุปเอกสาร', onClick: () => onPickLegacy('summarize') },
     { label: 'เอกสาร', href: caseId ? `/cases/${caseId}?tab=documents` : `/intake/${intakeId}` },
   ];

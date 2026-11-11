@@ -307,7 +307,7 @@ test('19 — แพ็กเกจและการชำระเงิน', a
   await goto(page, '/account/billing');
   await capture(page, {
     id: '19-account-billing',
-    title: 'แพ็กเกจ & การชำระเงิน',
+    title: 'แพ็กเกจและการชำระเงิน',
     route: '/account/billing',
     description: 'ดูสถานะทดลองใช้/แพ็กเกจปัจจุบัน จำนวนผู้ใช้ที่ใช้ไป และเลือกสมัครแพ็กเกจ Solo / Firm / Professional',
     callouts: [

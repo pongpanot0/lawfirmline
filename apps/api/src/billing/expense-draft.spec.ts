@@ -324,7 +324,7 @@ describe('BillingService — drafted expenses', () => {
       id: 'claim-1', status: 'PENDING', expenses: [{ id: 'expense-1', amount: 300 }],
     });
     mockPrisma.expenseClaim.updateMany.mockResolvedValueOnce({ count: 0 });
-    await expect(service.updateExpenseClaimStatus(owner, 'claim-1', { status: 'APPROVED' as never })).rejects.toThrow('สถานะชุดเบิกเปลี่ยนแล้ว');
+    await expect(service.updateExpenseClaimStatus(owner, 'claim-1', { status: 'APPROVED' as never })).rejects.toThrow('สถานะใบเบิกเปลี่ยนแล้ว');
     expect(mockPettyCash.deduct).not.toHaveBeenCalled();
     expect(mockPrisma.expense.updateMany).not.toHaveBeenCalled();
   });

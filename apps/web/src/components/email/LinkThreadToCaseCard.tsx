@@ -42,7 +42,7 @@ export function LinkThreadToCaseCard({
         setSuggestions(nextSuggestions);
         setCases(nextCases);
       })
-      .catch((e) => active && setLoadError(e instanceof ApiError ? e.message : 'โหลดคดีที่แนะนำไม่สำเร็จ'));
+      .catch((e) => active && setLoadError(e instanceof ApiError ? e.message : 'โหลดคดีที่แนะนำไม่สำเร็จ ลองโหลดหน้าใหม่'));
     return () => {
       active = false;
     };
@@ -85,7 +85,7 @@ export function LinkThreadToCaseCard({
             disabled={busy}
             onClick={() => {
               if (window.confirm(`ยกเลิกการผูกอีเมลนี้กับคดี ${linkedCase.ownRef}? อีเมลจะกลับเข้าคิว`)) {
-                submit((t) => api.unlinkThreadFromCase(t, threadId), 'ยกเลิกการผูกไม่สำเร็จ');
+                submit((t) => api.unlinkThreadFromCase(t, threadId), 'ยกเลิกการผูกไม่สำเร็จ ลองใหม่อีกครั้ง');
               }
             }}
           >
@@ -170,7 +170,7 @@ export function LinkThreadToCaseCard({
               <Button
                 size="sm"
                 disabled={!targetCaseId || busy}
-                onClick={() => submit((t) => api.linkThreadToCase(t, threadId, targetCaseId), 'ผูกกับคดีไม่สำเร็จ')}
+                onClick={() => submit((t) => api.linkThreadToCase(t, threadId, targetCaseId), 'ผูกกับคดีไม่สำเร็จ ลองใหม่อีกครั้ง')}
               >
                 {busy ? 'กำลังผูก…' : 'ยืนยันผูกกับคดีนี้'}
               </Button>

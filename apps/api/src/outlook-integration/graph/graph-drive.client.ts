@@ -39,7 +39,7 @@ const SITE_ID = /^[A-Za-z0-9.,-]+$/;
 
 /** Ids come from the browser; Graph's own id alphabet only, so a value can never add or climb path segments. */
 function graphId(id: string): string {
-  if (!GRAPH_ID.test(id)) throw new BadRequestException('รหัส OneDrive ไม่ถูกต้อง');
+  if (!GRAPH_ID.test(id)) throw new BadRequestException('ไม่พบ OneDrive ที่เลือก เลือกใหม่อีกครั้ง');
   return id;
 }
 
@@ -89,7 +89,7 @@ export class GraphDriveClient {
   }
 
   async listSiteDrives(token: string, siteId: string): Promise<GraphDrive[]> {
-    if (!SITE_ID.test(siteId) || siteId.includes('..')) throw new BadRequestException('รหัส SharePoint site ไม่ถูกต้อง');
+    if (!SITE_ID.test(siteId) || siteId.includes('..')) throw new BadRequestException('ไม่พบไซต์ SharePoint ที่เลือก เลือกใหม่อีกครั้ง');
     const res = await this.http.request<{ value: GraphDrive[] }>(token, `/sites/${siteId}/drives?$select=id,name,driveType,webUrl`);
     return res.value.filter((drive) => drive.driveType === 'documentLibrary');
   }
@@ -194,7 +194,7 @@ export class GraphDriveClient {
       folder = await this.getOrCreateFolder(token, parentId, safeDriveName(segment));
       parentId = folder.id;
     }
-    if (!folder) throw new BadRequestException('ไม่ได้ระบุ folder');
+    if (!folder) throw new BadRequestException('ยังไม่ได้เลือกโฟลเดอร์');
     return folder;
   }
 

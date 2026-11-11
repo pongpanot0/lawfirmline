@@ -260,7 +260,7 @@ describe('LeaveService approval workflow', () => {
     const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
     await expect(new LeaveService(prisma, line, notifier, center).decide(
       { id: 'owner-2', firmId: 'firm-a', firmRole: FirmRole.OWNER } as any, 'leave-1', 'REJECTED',
-    )).rejects.toThrow('คำขอนี้ตัดสินไปแล้ว');
+    )).rejects.toThrow('คำขอลานี้พิจารณาไปแล้ว');
     expect(prisma.leaveRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'leave-1', firmId: 'firm-a', status: LeaveStatus.PENDING },
     }));

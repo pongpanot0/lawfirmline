@@ -147,7 +147,7 @@ function SettingsContent() {
           : 'ส่งไม่สำเร็จ — ตรวจสอบ Channel ID/Secret และ webhook ใน LINE Console',
       );
     } catch {
-      setLineTestResult('ส่งไม่สำเร็จ — ต้องเป็น Admin');
+      setLineTestResult('ส่งไม่สำเร็จ — ต้องเป็นผู้ดูแลสำนักงาน');
     } finally {
       setLineTesting(false);
     }
@@ -272,7 +272,7 @@ function SettingsContent() {
           <CardContent className="space-y-3 p-6">
             <div>
               <p className="text-sm font-medium">ใบอนุญาตทนายความ</p>
-              <p className="text-xs text-muted-foreground">ระบบเตือนก่อนหมดอายุ 90, 30 และ 7 วัน และใส่เลขที่ในเอกสารจาก template ให้</p>
+              <p className="text-xs text-muted-foreground">ระบบเตือนก่อนหมดอายุ 90, 30 และ 7 วัน และใส่เลขที่ใบอนุญาตในเอกสารจากเทมเพลตให้</p>
             </div>
             <LicenseForm idPrefix="my-license" initial={license}
               onSave={async (data) => { const token = getStoredToken(); if (token) await api.updateMyLicense(token, data); }} />
@@ -324,7 +324,7 @@ function SettingsContent() {
                 <div className="space-y-3">
                   {!lineStatus?.configured && (
                     <p className="text-xs text-warning">
-                      ระบบ LINE ของสำนักงานยังไม่ได้ตั้งค่า ติดต่อ Admin ก่อนเชื่อมต่อ
+                      ระบบ LINE ของสำนักงานยังไม่ได้ตั้งค่า ติดต่อผู้ดูแลสำนักงาน ก่อนเชื่อมต่อ
                     </p>
                   )}
 

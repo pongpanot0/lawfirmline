@@ -31,7 +31,7 @@ export function CaseSectionContent({ tab, caseId, legalCase, thread, showAiAnaly
           className="min-w-0"
         >
           <CaseTasksPanel caseId={caseId} onTasksChanged={onTasksChanged} />
-          <section className={`${v2.card} mt-5 p-5 shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><h3 className="flex items-center gap-2 text-lg font-bold"><Workflow aria-hidden="true" className="h-5 w-5" />สายงานส่งต่อ</h3><p className={v2.hint}>งานที่ต้องส่งต่อเป็นทอด เช่น แปล → ทำใบเบิกความ → เขียนคำฟ้อง ระบบส่งงานให้คนถัดไปเมื่อทอดก่อนเสร็จ</p><div className="mt-4"><CaseWorkflows caseId={caseId} /></div></section>
+          <section className={`${v2.card} mt-5 p-5 shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><h3 className="flex items-center gap-2 text-lg font-bold"><Workflow aria-hidden="true" className="h-5 w-5" />สายงานส่งต่อ</h3><p className={v2.hint}>งานที่ส่งต่อกันเป็นขั้น เช่น แปล → ทำใบเบิกความ → เขียนคำฟ้อง ระบบส่งงานให้คนถัดไปเมื่อขั้นก่อนเสร็จ</p><div className="mt-4"><CaseWorkflows caseId={caseId} /></div></section>
         </div>
       )}
       {tab === 'calendar' && (

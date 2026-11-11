@@ -73,7 +73,7 @@ const DECISION_LABELS: Record<string, string> = {
   FILE_SUIT: 'ฟ้อง',
   DO_NOT_FILE: 'ไม่ฟ้อง',
   NEGOTIATE_FIRST: 'เจรจาก่อน',
-  SEND_NOTICE: 'ออก Notice',
+  SEND_NOTICE: 'ออกหนังสือทวงถาม',
   COMPLAIN_TO_AUTHORITY: 'ร้องเรียน',
   CONSULTATION_ONLY: 'ให้คำปรึกษาเท่านั้น (ไม่รับเป็นคดี)',
   PENDING: 'รอตัดสินใจ',
@@ -193,7 +193,7 @@ function IntakeAssignees({
     try {
       await onSave(ids);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'บันทึกผู้รับผิดชอบไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'บันทึกผู้รับผิดชอบไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }
@@ -248,7 +248,7 @@ function IntakeAssignees({
           }}
         >
           <option value="">
-            {assignable.length === 0 ? 'ไม่มีสมาชิกบทบาทต่ำกว่าให้มอบหมาย' : 'มอบหมายให้...'}
+            {assignable.length === 0 ? 'ไม่มีสมาชิกที่บทบาทต่ำกว่าคุณให้มอบหมาย' : 'มอบหมายให้...'}
           </option>
           {assignable.map((u) => (
             <option key={u.id} value={u.id}>
@@ -400,7 +400,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       });
     } catch (err) {
       setDocuments([]);
-      setDocumentsError(err instanceof ApiError ? err.message : 'โหลดรายการเอกสารไม่สำเร็จ');
+      setDocumentsError(err instanceof ApiError ? err.message : 'โหลดรายการเอกสารไม่สำเร็จ ลองโหลดหน้าใหม่');
     }
   }, [token, id]);
 
@@ -529,7 +529,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       await reload();
     } catch {
       setCaseLeadId(previous);
-      setError('เปลี่ยนทนายหลักไม่สำเร็จ');
+      setError('เปลี่ยนทนายหลักไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSavingLead(false);
     }
@@ -544,7 +544,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       setEditingPlaybook(false);
       await reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เปลี่ยน Playbook ไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'เปลี่ยนชุดงานไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSavingPlaybook(false);
     }
@@ -560,7 +560,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       setModal(null);
       setAssessNotes('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }
@@ -607,7 +607,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
     } catch (err) {
       const matches = conflictMatchesFrom(err);
       if (matches) { setConflict({ matches, retry: (reason) => { setConflict(null); void handleDecide(reason); } }); return; }
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }
@@ -635,7 +635,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       await reload();
       setModal(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }
@@ -690,7 +690,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       await reload();
       setModal(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }
@@ -728,7 +728,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       await reload();
       setModal(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }
@@ -744,7 +744,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
     // เปิดหน้าต่างก่อน await — popup ที่เปิดหลัง async gap โดนเบราว์เซอร์บล็อก
     const win = window.open('', '_blank');
     if (!win) {
-      setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาต popup สำหรับเว็บไซต์นี้');
+      setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาตป๊อปอัปของเว็บไซต์นี้ในเบราว์เซอร์');
       return;
     }
     // ข้อมูลออกเอกสารของลูกความ (เลขภาษี/ที่อยู่) — พลาดได้โดยไม่บล็อกการพิมพ์
@@ -796,7 +796,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       setNoticeContent(content);
       setNoticeReviewed(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally {
       setDrafting(false);
     }
@@ -854,7 +854,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
         return [...byDoc.values()];
       });
     } catch (err) {
-      setClassifyError(err instanceof ApiError ? err.message : 'AI แนะนำประเภทเอกสารไม่สำเร็จ');
+      setClassifyError(err instanceof ApiError ? err.message : 'AI แนะนำประเภทเอกสารไม่สำเร็จ เลือกประเภทเองได้');
     } finally {
       setClassifyingChecklist(false);
     }
@@ -870,7 +870,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       await loadDocumentRequests();
       await reload();
     } catch (err) {
-      setClassifyError(err instanceof ApiError ? err.message : 'ยืนยันเอกสารไม่สำเร็จ');
+      setClassifyError(err instanceof ApiError ? err.message : 'ยืนยันเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -927,7 +927,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       await loadDocuments();
       await reload();
     } catch (err) {
-      setFileError(err instanceof ApiError ? err.message : 'ลบไฟล์ไม่สำเร็จ');
+      setFileError(err instanceof ApiError ? err.message : 'ลบไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -943,7 +943,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setDocumentsError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setDocumentsError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     }
   };
 
@@ -979,7 +979,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
     } catch (err) {
       const matches = conflictMatchesFrom(err);
       if (matches) { setConflict({ matches, retry: (reason) => { setConflict(null); void handleConvert(payload, reason); } }); return; }
-      setConvertError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setConvertError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }
@@ -1032,7 +1032,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
     if (!token) return;
     setResolvingId(proposalId);
     try { await api.resolveFieldProposal(token, id, proposalId, { action, overrideValue }); await reload(); await loadDocumentRequests(); await loadDocuments(); }
-    catch (err) { setError(err instanceof ApiError ? err.message : 'บันทึกข้อมูลไม่สำเร็จ'); }
+    catch (err) { setError(err instanceof ApiError ? err.message : 'บันทึกข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     finally { setResolvingId(null); }
   };
   const sections: Record<string, ReactNode> = {
@@ -1111,7 +1111,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
           <div>
             <CardTitle className="text-base">เอกสารของเรื่องนี้</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              checklist กับไฟล์ที่อัปโหลดอยู่ด้วยกัน — จับคู่จากชื่อไฟล์เบื้องต้น แล้ววิเคราะห์ต่อได้เลย
+              รายการเอกสารกับไฟล์ที่อัปโหลดอยู่ด้วยกัน — ระบบจับคู่จากชื่อไฟล์ให้ก่อน แล้ววิเคราะห์ต่อได้เลย
             </p>
           </div>
 
@@ -1133,7 +1133,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             )}
           <div id="document-requests" className="scroll-mt-20">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">เอกสารที่คาดว่าจะถูกส่งเข้ามา</p>
+              <p className="text-sm font-medium">เอกสารที่ควรได้รับ</p>
               {documents.length > 0 &&
                 intake.status !== 'REJECTED' &&
                 (intake.status !== 'CONVERTED') &&
@@ -1149,7 +1149,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   </Button>
                 )}
             </div>
-            {documentRequests.length > 0 && <ul className="mt-3 space-y-2">{documentRequests.map((request) => <li key={request.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{request.name} {request.required ? '· จำเป็น' : '· เสริม'}</span><select aria-label={`สถานะ ${request.name}`} value={request.status} className="max-w-full rounded-md border bg-background px-2 py-1" onChange={async (event) => { if (!token) return; try { await api.updateIntakeDocumentRequest(token, id, request.id, { status: event.target.value }); await loadDocumentRequests(); await reload(); } catch (err) { setFileError(err instanceof ApiError ? err.message : 'บันทึกสถานะเอกสารไม่สำเร็จ'); } }}><option value="REQUESTED">ขอแล้ว</option><option value="MISSING">ยังขาด</option><option value="RECEIVED">ได้รับแล้ว</option><option value="NOT_APPLICABLE">ไม่จำเป็น</option></select></li>)}</ul>}
+            {documentRequests.length > 0 && <ul className="mt-3 space-y-2">{documentRequests.map((request) => <li key={request.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{request.name} {request.required ? '· จำเป็น' : '· เสริม'}</span><select aria-label={`สถานะ ${request.name}`} value={request.status} className="max-w-full rounded-md border bg-background px-2 py-1" onChange={async (event) => { if (!token) return; try { await api.updateIntakeDocumentRequest(token, id, request.id, { status: event.target.value }); await loadDocumentRequests(); await reload(); } catch (err) { setFileError(err instanceof ApiError ? err.message : 'บันทึกสถานะเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง'); } }}><option value="REQUESTED">ขอแล้ว</option><option value="MISSING">ยังขาด</option><option value="RECEIVED">ได้รับแล้ว</option><option value="NOT_APPLICABLE">ไม่จำเป็น</option></select></li>)}</ul>}
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {expectedDocuments.map((item) => {
                 const matched = isChecklistMatched(item);
@@ -1244,7 +1244,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
               )}
             <p className="mt-2 text-xs text-muted-foreground">
               พร้อม {matchedExpectedDocuments.length}/{expectedDocuments.length}
-              {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตาม checklist'}
+              {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตามรายการ'}
               {' · '}ติ๊กเองได้ · จับคู่ชื่อไฟล์อัตโนมัติ · หรือกด「ให้ AI แนะนำประเภท」แล้วยืนยัน
               {' · '}แนบ PDF / TXT ไม่เกิน 30MB · เลือกวิเคราะห์ได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์
             </p>
@@ -1253,7 +1253,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             )}
             {pendingSuggestions.length > 0 && (
               <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
-                <p className="text-sm font-medium text-amber-950">AI แนะนำประเภทเอกสาร — ยืนยันก่อนติ๊ก checklist</p>
+                <p className="text-sm font-medium text-amber-950">AI แนะนำประเภทเอกสาร — ยืนยันก่อนติ๊กในรายการ</p>
                 {pendingSuggestions.map((suggestion) => {
                   const matchingRequests = documentRequests.filter((request) =>
                     request.name.trim().toLocaleLowerCase() === suggestion.label.trim().toLocaleLowerCase() && request.status !== 'NOT_APPLICABLE',
@@ -1380,7 +1380,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             ) : (
               !documentsError && (
                 <p className="text-sm text-muted-foreground">
-                  ยังไม่มีไฟล์ — กด “เพิ่มไฟล์” เพื่ออัปโหลดเอกสารตาม checklist ด้านบน
+                  ยังไม่มีไฟล์ — กด “เพิ่มไฟล์” เพื่ออัปโหลดเอกสารตามรายการด้านบน
                 </p>
               )
             )}
@@ -1421,7 +1421,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
           </div>
           <div className="flex flex-wrap gap-2 sm:justify-end">
             <Button variant="outline" onClick={handleQuotePdfExport}>
-              Export ใบเสนอราคา PDF
+              ดาวน์โหลดใบเสนอราคา PDF
             </Button>
             <Button variant="outline" onClick={openPreLitigationModal}>อัปเดต</Button>
             {intake.status === 'CONVERTED' && intake.case && (
@@ -1440,7 +1440,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
            {/* หนังสือทวงถาม (Notice) — ออกตอนไหนก็ได้ */}
           <Card>
             <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-base">หนังสือทวงถาม (Notice)</CardTitle>
+              <CardTitle className="text-base">หนังสือทวงถาม</CardTitle>
               <div className="flex flex-wrap gap-2">
                 {currentAnalysis?.status === 'COMPLETE' && (
                   <Button variant="outline" size="sm" onClick={() => handleDraftFromAnalysis(currentAnalysis.id)}>
@@ -1450,7 +1450,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                 )}
                 <Button variant="outline" size="sm" onClick={() => openNoticeModal()}>
                   <Plus className="mr-1 h-4 w-4" aria-hidden />
-                  ออก Notice ฉบับใหม่
+                  ออกหนังสือทวงถามฉบับใหม่
                 </Button>
               </div>
             </CardHeader>
@@ -1462,7 +1462,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   {intake.noticeResult && <span className="text-muted-foreground">· ผล: {intake.noticeResult}</span>}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">ยังไม่ออก Notice — ทุกฉบับเก็บประวัติไว้ที่นี่</p>
+                <p className="text-sm text-muted-foreground">ยังไม่ออกหนังสือทวงถาม — ทุกฉบับจะเก็บประวัติไว้ที่นี่</p>
               )}
             </CardContent>
           </Card>
@@ -1485,7 +1485,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
           </Card>
         )}
 </div>,
-    CASE: <div className="space-y-3"><p className="text-sm">{STATUS_LABELS[intake.status] ?? intake.status}</p>{intake.status === 'ACCEPTED' && <Button onClick={() => setConverting(true)} disabled={submitting}>{intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}</Button>}<p className="text-sm text-muted-foreground">การปฏิเสธเรื่องทำได้จากการตัดสินใจแนวทาง</p></div>,
+    CASE: <div className="space-y-3"><p className="text-sm">{STATUS_LABELS[intake.status] ?? intake.status}</p>{intake.status === 'ACCEPTED' && <Button onClick={() => setConverting(true)} disabled={submitting}>{intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}</Button>}<p className="text-sm text-muted-foreground">ปฏิเสธเรื่องได้ที่ขั้น “ตัดสินใจแนวทาง”</p></div>,
   };
   // Notice and negotiation are now case work at its "ก่อนฟ้อง" stage; an older matter that still
   // has them on the intake keeps them reachable under the last step.
@@ -1509,7 +1509,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             <Badge variant={STATUS_VARIANT[intake.status] ?? 'muted'}>
               {STATUS_LABELS[intake.status] ?? intake.status}
             </Badge>
-            <Button variant="outline" disabled={stepLocked('CASE')} title={stepLocked('CASE') ? hint('CASE') : undefined} onClick={() => openNoticeModal()}>ออก Notice</Button>
+            <Button variant="outline" disabled={stepLocked('CASE')} title={stepLocked('CASE') ? hint('CASE') : undefined} onClick={() => openNoticeModal()}>ออกหนังสือทวงถาม</Button>
           </>
         }
       />
@@ -1544,7 +1544,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
           </div>
         </button>
         <div className="bg-card p-3">
-          <p className="text-xs text-muted-foreground">Notice / เจรจา</p>
+          <p className="text-xs text-muted-foreground">หนังสือทวงถาม / เจรจา</p>
           {intake.noticeIssuedAt ? (
             <>
               <p className="mt-0.5 text-sm font-bold">
@@ -1554,9 +1554,9 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             </>
           ) : (
             <>
-              <p className="mt-0.5 text-sm font-bold">ยังไม่ออก Notice</p>
+              <p className="mt-0.5 text-sm font-bold">ยังไม่ออกหนังสือทวงถาม</p>
               <button type="button" className="inline-flex min-h-[44px] items-center gap-0.5 text-xs font-medium text-primary hover:underline disabled:opacity-50 sm:min-h-0" disabled={stepLocked('CASE')} title={stepLocked('CASE') ? hint('CASE') : undefined} onClick={() => openNoticeModal()}>
-                ออก Notice
+                ออกหนังสือทวงถาม
                 <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </button>
             </>
@@ -1659,7 +1659,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
           <CardContent className="space-y-3">
             {intake.case?.id && (
               <div>
-                <label htmlFor="intake-lead-lawyer" className="block text-xs font-semibold">ทนายหลัก (Lead)</label>
+                <label htmlFor="intake-lead-lawyer" className="block text-xs font-semibold">ทนายหลัก</label>
                 <select
                   id="intake-lead-lawyer"
                   value={caseLeadId}
@@ -1700,13 +1700,13 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             {editingPlaybook ? (
               <div className="flex items-center gap-2">
                 <select
-                  aria-label="เลือก Playbook"
+                  aria-label="เลือกชุดงานอัตโนมัติ"
                   defaultValue={intake.preferredPlaybookId ?? ''}
                   disabled={savingPlaybook}
                   onChange={(e) => void changePlaybook(e.target.value)}
                   className="min-w-0 flex-1 rounded-lg border border-indigo-200 bg-indigo-50/50 px-3 py-2 text-sm"
                 >
-                  <option value="">— เลือก Playbook —</option>
+                  <option value="">— เลือกชุดงาน —</option>
                   {playbooks.map((p) => (
                     <option key={p.id} value={p.id}>{p.name} · v{p.version}</option>
                   ))}
@@ -1715,11 +1715,11 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
               </div>
             ) : intake.preferredPlaybookId ? (
               <p className="text-sm">
-                <span className="font-semibold">{playbooks.find((p) => p.id === intake.preferredPlaybookId)?.name ?? 'Playbook ที่เลือกไว้'}</span>
+                <span className="font-semibold">{playbooks.find((p) => p.id === intake.preferredPlaybookId)?.name ?? 'ชุดงานที่เลือกไว้'}</span>
                 <Badge className="ml-2 tabular-nums">ใช้อยู่ · งาน {taskCounts.done}/{taskCounts.total}</Badge>
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">ยังไม่ใช้ Playbook — เลือกแล้วได้งานทุกขั้นทันที</p>
+              <p className="text-sm text-muted-foreground">ยังไม่ใช้ชุดงาน — เลือกแล้วระบบสร้างงานทุกขั้นให้ทันที</p>
             )}
           </CardContent>
         </Card>
@@ -1805,7 +1805,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   </div>
                   {!intake.case && ACCEPT_DECISIONS.includes(decision) && (
                     <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
-                      <p className="text-sm font-medium">รับดำเนินการ = เปิดคดีทันที (เฟสก่อนฟ้อง)</p>
+                      <p className="text-sm font-medium">รับดำเนินการ = เปิดคดีทันที (ขั้นก่อนฟ้อง)</p>
                       <div>
                         <label className="block text-sm font-medium">ชื่อคดี</label>
                         <input
@@ -1989,26 +1989,26 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   </div>
                   {playbooks.length > 0 && (
                     <div>
-                      <label className="block text-sm font-medium">Playbook (ถ้ามี)</label>
+                      <label className="block text-sm font-medium">ชุดงานอัตโนมัติ (ถ้ามี)</label>
                       <select
                         value={editPlaybookId}
                         onChange={(e) => setEditPlaybookId(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                       >
-                        <option value="">— ไม่ใช้ Playbook —</option>
+                        <option value="">— ไม่ใช้ชุดงาน —</option>
                         {playbooks.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name} · v{p.version}{p.caseTypeId === editCaseTypeId ? ' (แนะนำ)' : ''}
                           </option>
                         ))}
                       </select>
-                      <p className="mt-1 text-xs text-muted-foreground">จะใช้สร้างงานให้อัตโนมัติตอนแปลงเป็นคดี — เปลี่ยนใจตอนนั้นได้อีกที</p>
+                      <p className="mt-1 text-xs text-muted-foreground">ระบบจะสร้างงานให้เองตอนเปิดเป็นคดี — เปลี่ยนได้อีกครั้งตอนนั้น</p>
                     </div>
                   )}
                   {!playbooks.length && editCaseTypeId && (
                     <p className="text-xs text-muted-foreground">
                       ยังไม่มี Playbook เลย{' '}
-                      <Link href="/playbooks" className="inline-flex items-center text-primary underline">สร้าง Playbook<ChevronRight className="h-3.5 w-3.5" aria-hidden /></Link>
+                      <Link href="/playbooks" className="inline-flex items-center text-primary underline">สร้างชุดงาน<ChevronRight className="h-3.5 w-3.5" aria-hidden /></Link>
                     </p>
                   )}
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -2140,10 +2140,10 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
 
             {modal === 'notice' && (
               <>
-                <h2 className="mb-4 text-lg font-semibold">ออก Notice</h2>
+                <h2 className="mb-4 text-lg font-semibold">ออกหนังสือทวงถาม</h2>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium">ผู้รับ Notice</label>
+                    <label className="block text-sm font-medium">ผู้รับหนังสือทวงถาม</label>
                     <input
                       value={noticeRecipient}
                       onChange={(e) => setNoticeRecipient(e.target.value)}
@@ -2215,8 +2215,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                         ยังขาดเอกสารที่ขอไว้ {missingDocCount} รายการ
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        ออกหนังสือโดยเอกสารไม่ครบคือสาเหตุที่มักต้องออกฉบับที่สอง
-                        ถ้าเรื่องเร่งจริงให้ยืนยันด้านล่าง
+                        เอกสารยังไม่ครบ — ออกหนังสือตอนนี้มักต้องออกฉบับที่สองตามมา ถ้าเรื่องเร่งจริงให้ยืนยันด้านล่าง
                       </p>
                       <label className="mt-2 flex items-center gap-2 text-sm">
                         <input
@@ -2247,7 +2246,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
 
             {modal === 'quote' && (
               <>
-                <h2 className="mb-1 text-lg font-semibold">Export ใบเสนอราคา PDF</h2>
+                <h2 className="mb-1 text-lg font-semibold">ดาวน์โหลดใบเสนอราคา PDF</h2>
                 <p className="mb-3 text-sm text-muted-foreground">
                   ระบุรายการค่าบริการ แล้วกดพิมพ์เพื่อบันทึกเป็น PDF จากหน้าต่างพิมพ์ของเบราว์เซอร์
                 </p>

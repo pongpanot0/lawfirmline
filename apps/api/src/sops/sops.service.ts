@@ -36,7 +36,7 @@ export class SopsService {
       where: { id, firmId: user.firmId },
       include: { updatedBy: { select: { firstName: true, lastName: true } } },
     });
-    if (!sop) throw new NotFoundException('ไม่พบ SOP นี้');
+    if (!sop) throw new NotFoundException('ไม่พบชุดงานนี้');
     return sop;
   }
 

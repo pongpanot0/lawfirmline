@@ -128,7 +128,7 @@ export default function DocumentReviewPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError('เปิดไฟล์ไม่สำเร็จ');
+      setError('เปิดไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -141,7 +141,7 @@ export default function DocumentReviewPage() {
       setVersionNotes('');
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'อัปโหลดฉบับใหม่ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'อัปโหลดฉบับใหม่ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setUploadingVersion(false);
     }
@@ -169,7 +169,7 @@ export default function DocumentReviewPage() {
       if (e instanceof ApiError && e.message.includes('ฉบับใหม่')) {
         setStaleNotice(true);
       } else {
-        setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ');
+        setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
       }
     } finally {
       setDeciding(false);
@@ -236,12 +236,12 @@ export default function DocumentReviewPage() {
                 {latestVersion.notes && <p className="text-xs text-muted-foreground">หมายเหตุ: {latestVersion.notes}</p>}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">ไม่พบข้อมูลเวอร์ชัน</p>
+              <p className="text-sm text-muted-foreground">ไม่พบข้อมูลฉบับนี้</p>
             )}
 
             {!activeRound && latestVersion && (
               <div className="mt-4 border-t pt-4">
-                <InlineEmptyState title="ยังไม่มีการส่งตรวจฉบับนี้" description="ส่งตรวจเมื่อเอกสารพร้อมให้ผู้เกี่ยวข้องอนุมัติหรือส่งกลับแก้ไข" />
+                <InlineEmptyState title="ยังไม่มีการส่งตรวจฉบับนี้" description="เมื่อเอกสารพร้อม กดส่งตรวจเพื่อให้ผู้ตรวจอนุมัติหรือส่งกลับแก้ไข" />
                 <Button size="sm" onClick={() => setShowCreateRound(true)}>
                   ส่งตรวจฉบับนี้
                 </Button>
@@ -255,7 +255,7 @@ export default function DocumentReviewPage() {
                 )}
                 <p className="mb-2 text-xs text-muted-foreground">
                   {latestVersion.status === 'APPROVED'
-                    ? 'อัปโหลดฉบับใหม่ได้ตลอด — ผลตรวจของฉบับที่ผ่านแล้วจะไม่ถูกใช้กับฉบับใหม่โดยอัตโนมัติ'
+                    ? 'อัปโหลดฉบับใหม่ได้ตลอด — ฉบับใหม่ต้องส่งตรวจใหม่ ผลตรวจเดิมไม่ติดไปด้วย'
                     : 'แก้ไขแล้วอัปโหลดฉบับใหม่ก่อนส่งตรวจอีกครั้ง'}
                 </p>
                 <label htmlFor="version-notes" className="mb-1 block text-sm font-medium">หมายเหตุการแก้ไข</label>

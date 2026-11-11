@@ -50,7 +50,7 @@ export default function PortalSettingsPage() {
       const linePref = preferences.find((p: PortalNotificationPreference) => p.channel === 'LINE');
       setLineNotificationsEnabled(linePref ? linePref.isEnabled : true);
     } catch (err) {
-      setLoadError(err instanceof PortalApiError ? err.message : 'ไม่สามารถโหลดข้อมูลได้');
+      setLoadError(err instanceof PortalApiError ? err.message : 'โหลดข้อมูลไม่สำเร็จ ลองโหลดหน้าใหม่');
     } finally {
       setLoadingData(false);
     }
@@ -87,7 +87,7 @@ export default function PortalSettingsPage() {
           : prev,
       );
     } catch (err) {
-      setActionError(err instanceof PortalApiError ? err.message : 'ไม่สามารถสร้างรหัสเชื่อมต่อได้');
+      setActionError(err instanceof PortalApiError ? err.message : 'สร้างรหัสเชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setCreatingCode(false);
     }
@@ -102,7 +102,7 @@ export default function PortalSettingsPage() {
       await portalApi.disconnectLine(token);
       await loadData();
     } catch (err) {
-      setActionError(err instanceof PortalApiError ? err.message : 'ไม่สามารถยกเลิกการเชื่อมต่อได้');
+      setActionError(err instanceof PortalApiError ? err.message : 'ยกเลิกการเชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setDisconnecting(false);
     }
@@ -120,7 +120,7 @@ export default function PortalSettingsPage() {
       });
       setLineNotificationsEnabled(result.isEnabled);
     } catch (err) {
-      setActionError(err instanceof PortalApiError ? err.message : 'ไม่สามารถอัปเดตการตั้งค่าได้');
+      setActionError(err instanceof PortalApiError ? err.message : 'บันทึกการตั้งค่าไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setUpdatingPreference(false);
     }
