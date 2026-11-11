@@ -2,18 +2,17 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { AlarmClock, ChevronDown, Plus, Scale, Users } from 'lucide-react';
+import { AlarmClock, Calculator, CalendarDays, ChevronDown, List, Plus, Scale, Sparkles, Users, X } from 'lucide-react';
 import v2 from '@/components/case-page/v2.module.css';
 import { CaseAppointmentDialog } from '@/components/case-page/CaseAppointmentDialog';
 import { DeadlineTrigger } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CalendarEventItem, CaseItem, UserItem } from '@/lib/api';
+import { api, CalendarEventItem, CaseItem, DateSuggestionItem, UserItem } from '@/lib/api';
 import { CalendarView } from '@/components/CalendarView';
 import { CalendarEventDialog } from '@/components/calendar/CalendarEventDialog';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { CaseTimelineView } from '@/components/cases/CaseTimelineView';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -52,6 +51,17 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [suggestionsKey, setSuggestionsKey] = useState(0);
+  const [suggestions, setSuggestions] = useState<DateSuggestionItem[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState(false);
+
+  useEffect(() => {
+    if (!token || !caseId) return;
+    let active = true;
+    api.getDateSuggestions(token, caseId, 'PENDING').then((items) => { if (active) { setSuggestions(items.filter((item) => item.source === 'DOCUMENT' || item.source === 'EMAIL' || item.source === 'RULE')); setSuggestionsError(false); } }).catch(() => { if (active) setSuggestionsError(true); });
+    return () => { active = false; };
+  }, [token, caseId, suggestionsKey, reloadKey]);
 
   useEffect(() => {
     if (!token) return;
@@ -143,77 +153,14 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
   };
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-xl font-bold">นัดที่กำลังจะมาถึง</h3><div className="text-right"><button type="button" className={`${v2.btn} ${v2.primary}`} onClick={() => setDialog({ event: null, defaultDate: new Date() })}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />เพิ่มนัด</button><p className={v2.hint}>ลงนัดศาลหรือนัดลูกความ ระบบจะเตือนทีมก่อนวันนัด</p></div></div>
-      {loadError ? <LoadFailed message={loadError} onRetry={() => setReloadKey((n) => n + 1)} /> : <div className="space-y-3">{upcoming.length ? upcoming.map((event, index) => card(event, index === 0)) : <section className={`${v2.card} p-5`}><p className="font-semibold">ยังไม่มีนัดที่กำลังจะมาถึง</p><p className={v2.hint}>กด “เพิ่มนัด” เพื่อลงนัดศาลหรือนัดลูกความ ระบบจะเตือนทีมให้</p></section>}</div>}
-      {past.length > 0 && <details className={`${v2.card} group`}><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden"><span><b>นัดที่ผ่านมา ({past.length})</b> <span className={v2.label}>· ล่าสุด {past[0].title} {fmtPart(past[0].startAt, { day: 'numeric', month: 'short' })}</span></span><span className="inline-flex items-center gap-1 text-sm font-semibold underline">ดู <ChevronDown aria-hidden="true" className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary><div className="space-y-3 border-t border-[#e2e0d8] p-5">{past.map((event) => card(event, false))}</div></details>}
-      <details className={v2.card}>
-        <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">เครื่องมือเพิ่มเติม <span className={v2.label}>· มุมมองปฏิทิน/ไทม์ไลน์ · คำนวณวันครบกำหนดจากวันรับคำสั่ง · วันที่ระบบแนะนำ</span></summary>
-        <div className="space-y-4 border-t border-[#e2e0d8] p-5">
-        <div role="group" aria-label={d.caseCalendar.title} className="flex rounded-md border border-border p-0.5">
-          {(['timeline', 'calendar'] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              aria-pressed={view === v}
-              onClick={() => setView(v)}
-              className={
-                view === v
-                  ? 'min-h-10 rounded px-3 py-1 text-sm font-semibold bg-muted text-foreground'
-                  : 'min-h-10 rounded px-3 py-1 text-sm text-muted-foreground hover:text-foreground'
-              }
-            >
-              {v === 'timeline' ? d.caseCalendar.viewTimeline : d.caseCalendar.viewCalendar}
-            </button>
-          ))}
-        </div>
-      {loadError ? (
-        <LoadFailed message={loadError} onRetry={() => setReloadKey((n) => n + 1)} />
-      ) : view === 'timeline' ? (
-        <CaseTimelineView events={events} onEventClick={(event) => setDialog({ event })} />
-      ) : (
-        <CalendarView
-          events={events}
-          month={month}
-          onMonthChange={setMonth}
-          onDayClick={(date) => setDialog({ event: null, defaultDate: date })}
-          onEventClick={(ev) => setDialog({ event: events.find((e) => e.id === ev.id) ?? null })}
-        />
-      )}
-      <details className="mt-4 rounded-xl border bg-card px-4 py-3">
-        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">{d.dateSuggestions.applyTrigger}</summary>
-        <div className="pt-3">
-        <p className="mb-3 mt-1 text-sm text-muted-foreground">{d.dateSuggestions.applyTriggerHint}</p>
-
-        <form onSubmit={handleApply} className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">
-              {d.dateSuggestions.applyTriggerDate}
-            </span>
-            <ThaiDateInput
-              required
-              value={triggerDate}
-              onChange={setTriggerDate}
-            />
-          </label>
-
-          <Button type="submit" size="sm" variant="outline" disabled={applying}>
-            {d.dateSuggestions.applyTrigger}
-          </Button>
-        </form>
-
-        {notice && <p className="mt-3 text-sm text-muted-foreground">{notice}</p>}
-        {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
-        </div>
-      </details>
-      <DateSuggestionsPanel
-        caseId={caseId}
-        sources={['RULE']}
-        title={d.dateSuggestions.ruleTitle}
-        reloadKey={suggestionsKey}
-        onChanged={() => { setReloadKey((n) => n + 1); onChanged?.(); }}
-      />
-        </div>
-      </details>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-xl font-bold">นัดที่กำลังจะมาถึง</h3><div className="flex flex-wrap items-center gap-2"><div role="group" aria-label="มุมมองปฏิทิน" className="grid grid-cols-2 rounded-lg border border-[#c9ccc6] bg-white p-0.5 text-sm font-semibold">{([{ value: 'timeline', label: 'รายการ', Icon: List }, { value: 'calendar', label: 'ปฏิทินเดือน', Icon: CalendarDays }] as const).map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={view === value} onClick={() => setView(value)} className={`inline-flex items-center gap-1 rounded-md px-3 py-2 ${view === value ? 'bg-[#142e43] text-white' : 'text-[#52616b]'}`}><Icon aria-hidden="true" className="h-4 w-4" />{label}</button>)}</div><button type="button" className={`${v2.btn} ${v2.outline}`} onClick={() => setShowCalculator(true)}><Calculator aria-hidden="true" className="h-4 w-4" />คำนวณวันครบกำหนด</button><button type="button" className={`${v2.btn} ${v2.primary}`} onClick={() => setDialog({ event: null, defaultDate: new Date() })}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />เพิ่มนัด</button></div></div>
+      <p className={v2.hint}>“คำนวณวันครบกำหนด” ใส่วันที่ได้รับคำสั่งศาล ระบบคำนวณวันยื่นต่าง ๆ ให้ แล้วถามก่อนเพิ่มเป็นนัด</p>
+      {suggestions.length > 0 && <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-[#c9d6e3] bg-[#f3f7fb] px-5 py-4"><div className="flex items-start gap-3"><Sparkles aria-hidden="true" className="mt-0.5 h-5 w-5 text-[#2b5a8a]" /><div><b>{suggestions.some((item) => item.source !== 'RULE') ? `ระบบพบวันที่ในเอกสารและอีเมล ${suggestions.length} รายการ` : `วันครบกำหนดที่ระบบคำนวณให้ ${suggestions.length} รายการ รอยืนยัน`}</b><p className={v2.hint}>{suggestions.slice(0, 2).map((item) => `“${item.label} · ${fmtPart(item.suggestedDate, { day: 'numeric', month: 'short' })}”`).join(' และ ')} — ยังไม่ได้เพิ่มเป็นนัด</p></div></div><button type="button" aria-expanded={showSuggestions} className={`${v2.btn} ${v2.primary}`} onClick={() => setShowSuggestions(!showSuggestions)}>ตรวจและเพิ่ม</button></section>}
+      {suggestionsError && <p role="alert" className={v2.error}>โหลดวันที่แนะนำไม่สำเร็จ <button type="button" className="underline" onClick={() => setSuggestionsKey((n) => n + 1)}>ลองใหม่</button></p>}
+      {showSuggestions && <DateSuggestionsPanel caseId={caseId} sources={['DOCUMENT', 'EMAIL']} title={d.dateSuggestions.documentTitle} reloadKey={suggestionsKey} onChanged={() => { setSuggestionsKey((n) => n + 1); setReloadKey((n) => n + 1); onChanged?.(); }} />}
+      {showSuggestions && <DateSuggestionsPanel caseId={caseId} sources={['RULE']} title={d.dateSuggestions.ruleTitle} reloadKey={suggestionsKey} onChanged={() => { setSuggestionsKey((n) => n + 1); setReloadKey((n) => n + 1); onChanged?.(); }} />}
+      {loadError ? <LoadFailed message={loadError} onRetry={() => setReloadKey((n) => n + 1)} /> : view === 'calendar' ? <CalendarView events={events} month={month} onMonthChange={setMonth} onDayClick={(date) => setDialog({ event: null, defaultDate: date })} onEventClick={(ev) => setDialog({ event: events.find((e) => e.id === ev.id) ?? null })} /> : <><div className="space-y-3">{upcoming.length ? upcoming.map((event, index) => card(event, index === 0)) : <section className={`${v2.card} p-5`}><p className="font-semibold">ยังไม่มีนัดที่กำลังจะมาถึง</p><p className={v2.hint}>กด “เพิ่มนัด” เพื่อลงนัดศาลหรือนัดลูกความ ระบบจะเตือนทีมให้</p></section>}</div>{past.length > 0 && <details className={`${v2.card} group`}><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden"><span><b>นัดที่ผ่านมา ({past.length})</b> <span className={v2.label}>· ล่าสุด {past[0].title} {fmtPart(past[0].startAt, { day: 'numeric', month: 'short' })}</span></span><span className="inline-flex items-center gap-1 text-sm font-semibold underline">ดู <ChevronDown aria-hidden="true" className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary><div className="space-y-3 border-t border-[#e2e0d8] p-5">{past.map((event) => card(event, false))}</div></details>}<details className={v2.card}><summary className="cursor-pointer px-5 py-3 font-semibold">ไทม์ไลน์คดี</summary><div className="p-5"><CaseTimelineView events={events} onEventClick={(event) => setDialog({ event })} /></div></details></>}
+      {showCalculator && <div role="dialog" aria-modal="true" aria-labelledby="calendar-calculate-title" onKeyDown={(event) => { if (event.key === 'Escape' && !applying) setShowCalculator(false); }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md space-y-3 rounded-xl bg-white p-5"><div className="flex justify-between"><h2 id="calendar-calculate-title" className="text-lg font-bold">คำนวณวันครบกำหนด</h2><button type="button" aria-label="ปิด" onClick={() => setShowCalculator(false)} className={`${v2.btn} ${v2.ghost}`}><X aria-hidden="true" className="h-5 w-5" /></button></div><p className={v2.hint}>{d.dateSuggestions.applyTriggerHint}</p><form onSubmit={handleApply} className="space-y-3"><label className="block text-sm"><span className="mb-1 block">{d.dateSuggestions.applyTriggerDate}</span><ThaiDateInput required value={triggerDate} onChange={setTriggerDate} /></label><Button type="submit" disabled={applying}>{d.dateSuggestions.applyTrigger}</Button></form>{notice && <p role="status" className={v2.hint}>{notice}</p>}{error && <p role="alert" className={v2.error}>{error}</p>}</div></div>}
       {dialog && !dialog.event && !dialog.full && (
         <CaseAppointmentDialog caseId={caseId} caseCourtName={legalCase?.courtName} caseOwnerId={legalCase?.leadLawyerId} users={users} onClose={() => setDialog(null)} onSaved={() => setReloadKey((n) => n + 1)} onMoreOptions={() => setDialog({ event: null, defaultDate: new Date(), full: true })} />
       )}

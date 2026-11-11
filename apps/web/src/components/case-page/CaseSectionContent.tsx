@@ -1,10 +1,11 @@
 'use client';
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
-import { Lock, MessageSquare, Sparkles } from 'lucide-react';
+import { Lock, MessageSquare, Sparkles, Workflow } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
 import type { CaseDetail, TaskItem } from '@/lib/api';
+import v2 from '@/components/case-page/v2.module.css';
 import type { CaseTabId } from '@/lib/case-tabs';
 const CaseWorkflows = dynamic(() => import('@/components/workflows/CaseWorkflows').then((m) => m.CaseWorkflows), { ssr: false });
 const CaseTasksPanel = dynamic(() => import('@/components/cases/CaseTasksPanel').then((m) => m.CaseTasksPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
@@ -30,7 +31,7 @@ export function CaseSectionContent({ tab, caseId, legalCase, thread, showAiAnaly
           className="min-w-0"
         >
           <CaseTasksPanel caseId={caseId} onTasksChanged={onTasksChanged} />
-          <details className="mt-5 rounded-xl border border-[#e2e0d8] bg-card"><summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">สายงานส่งต่อ <span className="text-[.8rem] font-normal text-muted-foreground">· ส่งงานต่อเป็นทอด เช่น แปล ทำใบเบิกความ เขียนคำฟ้อง</span></summary><div className="border-t border-[#e2e0d8] p-5"><CaseWorkflows caseId={caseId} /></div></details>
+          <section className={`${v2.card} mt-5 p-5 shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><h3 className="flex items-center gap-2 text-lg font-bold"><Workflow aria-hidden="true" className="h-5 w-5" />สายงานส่งต่อ</h3><p className={v2.hint}>งานที่ต้องส่งต่อเป็นทอด เช่น แปล → ทำใบเบิกความ → เขียนคำฟ้อง ระบบส่งงานให้คนถัดไปเมื่อทอดก่อนเสร็จ</p><div className="mt-4"><CaseWorkflows caseId={caseId} /></div></section>
         </div>
       )}
       {tab === 'calendar' && (

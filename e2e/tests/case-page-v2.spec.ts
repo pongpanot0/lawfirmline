@@ -131,6 +131,26 @@ test('case page v2 click-through', async ({ page, request }) => {
     await page.keyboard.press('Escape');
   });
 
+  await flow('10 close case when the client says so, then reopen', async () => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${origin}/cases/${caseId}`); await closeTour();
+    await page.getByRole('button', { name: 'อื่น ๆ' }).click();
+    await page.getByRole('menuitem', { name: /ปิดคดี/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'ปิดคดีนี้' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('radio', { name: /ไม่จ้างทำต่อ/ })).toBeChecked();
+    await dialog.getByRole('textbox', { name: 'หมายเหตุ' }).fill('ลูกความโทรมาแจ้ง');
+    await expect(dialog.getByText('ตรวจก่อนปิด')).toBeVisible({ timeout: 10000 });
+    const ack = dialog.getByRole('checkbox', { name: 'ตรวจแล้ว ปิดคดีได้' });
+    if (await ack.isVisible()) await ack.check();
+    await shot('13-close-case');
+    await dialog.getByRole('button', { name: 'ปิดคดี', exact: true }).click();
+    await expect(page.getByText('ลูกความแจ้งว่าไม่จ้างทำต่อ').first()).toBeVisible({ timeout: 15000 });
+    await shot('14-case-closed');
+    await page.getByRole('button', { name: 'เปิดคดีอีกครั้ง' }).first().click();
+    await expect(page.getByRole('button', { name: 'เปิดคดีอีกครั้ง' })).toHaveCount(0, { timeout: 15000 });
+  });
+
   await flow('9 phone width has no page scroll', async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     for (const path of [`/cases/${caseId}`, '/cases/new']) {

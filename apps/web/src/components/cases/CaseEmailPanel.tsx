@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, CheckCircle2, Download, FilePlus2, FolderOpen, Mail, MailPlus, Paperclip, Plus, RefreshCw, Sparkles, Unlink } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Download, FilePlus2, FolderOpen, Mail, MailPlus, Paperclip, PenSquare, RefreshCw, Sparkles, Unlink } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import {
   api,
@@ -14,11 +14,11 @@ import {
   type LinkCandidate,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import v2 from '@/components/case-page/v2.module.css';
 import { UndoToast, type UndoAction } from '@/components/ui/UndoToast';
 import { Card, CardContent } from '@/components/ui/card';
-import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
-import { Badge } from '@/components/ui/badge';
 import { EmailMessageCard } from '@/components/email/EmailMessageCard';
 import { LinkEmailDialog } from './LinkEmailDialog';
 import { CaseEmailComposer, type CaseEmailComposerMode } from './CaseEmailComposer';
@@ -26,7 +26,6 @@ import { CaseUnknownAddresses } from './CaseUnknownAddresses';
 import { EmailMentionTasks } from './EmailMentionTasks';
 import { MATCH_REASON_LABELS } from '@/lib/case-email';
 import { formatDateTime } from '@/lib/utils';
-import { awaitingReplyLabel } from '@/lib/email-awaiting';
 
 type Notice = { type: 'success' | 'error'; text: string; action?: { label: string; onClick: () => void } } | null;
 
@@ -255,7 +254,45 @@ export function CaseEmailPanel({
     <div className="space-y-5">
       {linkDialogOpen && token && <LinkEmailDialog token={token} caseId={caseId} caseRef={caseRef} threads={threads} onClose={() => setLinkDialogOpen(false)} onLinked={load} />}
       <UndoToast action={undo} onDismiss={() => setUndo(null)} />
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-bold">อีเมลของคดีนี้ ({threads.length} เรื่อง)</h3><p className="mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground">อีเมลที่ผูกไว้ ทุกคนในทีมเปิดอ่านได้ และไฟล์แนบเข้าแท็บเอกสารให้อัตโนมัติ</p></div><div className="text-right"><button type="button" disabled={busy !== null} onClick={() => setLinkDialogOpen(true)} className="inline-flex min-h-11 items-center justify-center gap-[.4rem] rounded-lg bg-[#142e43] px-4 text-[.95rem] font-semibold text-[#fffdfa]"><MailPlus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ผูกอีเมลเข้าคดี</button><p className="mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground">เลือกอีเมลจากกล่องจดหมาย ผูกได้หลายฉบับพร้อมกัน</p></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-bold">อีเมลของคดีนี้ ({threads.length} เรื่อง)</h3><p className="mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground">อีเมลที่ผูกไว้ ทุกคนในทีมเปิดอ่านได้ และไฟล์แนบเข้าแท็บเอกสารให้อัตโนมัติ</p></div><div className="flex flex-wrap gap-2"><button type="button" disabled={busy !== null} onClick={() => setComposer({ kind: 'new' })} className={`${v2.btn} ${v2.outline}`}><PenSquare aria-hidden="true" className="h-[1.1em] w-[1.1em]" />เขียนอีเมล</button><button type="button" disabled={busy !== null} onClick={() => setLinkDialogOpen(true)} className="inline-flex min-h-11 items-center justify-center gap-[.4rem] rounded-lg bg-[#142e43] px-4 text-[.95rem] font-semibold text-[#fffdfa]"><MailPlus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ผูกอีเมลเข้าคดี</button></div></div>
+      {linksFailed && <p role="alert" className="text-sm text-destructive">โหลดรายการ folder ไม่สำเร็จ <Button size="sm" variant="outline" onClick={retryLoad}>ลองใหม่</Button></p>}
+      {links.map((link) => <section key={link.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e2e0d8] bg-white px-5 py-3 text-sm"><span className="flex items-center gap-2"><FolderOpen aria-hidden="true" className="h-[1.1em] w-[1.1em]" /><span>ดึงอีเมลอัตโนมัติจาก folder Outlook <b>{link.displayPath}</b> <span className={v2.label}>· {link.connection.mailboxAddress} · {link.lastSyncedAt ? `ซิงก์ล่าสุด ${formatDateTime(link.lastSyncedAt)}` : 'กำลังดึงอีเมลครั้งแรก'}</span>{link.lastError && <span className="block text-destructive">{link.lastError}</span>}</span></span><span className="flex flex-wrap gap-2"><button type="button" disabled={busy !== null} onClick={syncNow} className={`${v2.btn} ${v2.ghost} min-h-0 py-1.5`}><RefreshCw aria-hidden="true" className="h-[1.1em] w-[1.1em]" />{busy === 'sync' ? 'กำลังซิงก์…' : 'ซิงก์ตอนนี้'}</button><button type="button" disabled={busy !== null} onClick={openPicker} className={`${v2.btn} ${v2.ghost} min-h-0 py-1.5`}>เปลี่ยน folder</button><button type="button" disabled={busy !== null} onClick={() => unlinkFolder(link)} className={`${v2.btn} ${v2.ghost} min-h-0 py-1.5`}>ยกเลิกการผูก</button></span></section>)}
+      {!linksFailed && links.length === 0 && <div><p className={v2.hint}>ยังไม่ได้ผูก folder Outlook — อีเมลใหม่ใน folder ที่ผูกจะเข้าคดีเองทุกฉบับ</p><button type="button" disabled={busy !== null} onClick={openPicker} className={`${v2.btn} ${v2.outline} mt-2`}>ผูก folder Outlook</button></div>}
+          {folders && (
+            <div className="space-y-2 rounded-lg border border-dashed p-3">
+              <label htmlFor="case-email-folder" className="text-sm font-medium">
+                เลือก folder ในกล่องอีเมลของคุณ
+              </label>
+              <select
+                id="case-email-folder"
+                value={pickedFolderId}
+                onChange={(e) => setPickedFolderId(e.target.value)}
+                className="min-h-10 w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              >
+                <option value="">— เลือก folder —</option>
+                {folders.map((row) => {
+                  const hit = row.suggestions.find((s) => s.caseId === caseId);
+                  return (
+                    <option key={row.folderId} value={row.folderId}>
+                      {row.displayPath}
+                      {hit ? ` (แนะนำ: ${MATCH_REASON_LABELS[hit.reason]})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                อีเมลใน folder นี้ทั้งหมด (รวมย้อนหลัง) จะเข้าคดี และทุกคนที่มีสิทธิ์ในคดีจะเห็น
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" disabled={!pickedFolderId || busy !== null} onClick={linkPicked}>
+                  {busy === 'link' ? 'กำลังผูก…' : 'ผูก folder นี้กับคดี'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setFolders(null)}>
+                  ยกเลิก
+                </Button>
+              </div>
+            </div>
+          )}
       {suggested.length > 0 && <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-[#c9d6e3] bg-[#f3f7fb] px-5 py-4"><div className="flex items-start gap-3"><Sparkles aria-hidden="true" className="mt-0.5 h-[1.1em] w-[1.1em] shrink-0 text-[#2b5a8a]" /><div className="min-w-0"><b>มีอีเมลใหม่ {suggested.length} ฉบับที่น่าจะเกี่ยวกับคดีนี้</b><p className="mt-[.3rem] break-words text-[.82rem] leading-[1.45] text-muted-foreground">{suggested.map((row) => `“${row.subject}”`).join(' และ ')}</p></div></div><div className="flex gap-2"><button type="button" disabled={busy !== null} onClick={() => { void run('link-suggested', async t => { const linked: string[] = []; const failed: string[] = []; for (const row of suggested) { try { await api.linkThreadToCase(t, row.threadId, caseId); linked.push(row.threadId); } catch { failed.push(row.subject); } } await load(); if (linked.length) setUndo({ message: `ผูก ${linked.length} อีเมลแล้ว`, undo: async () => { while (linked.length) { await api.unlinkThreadFromCase(t, linked[0]); linked.shift(); } await load(); } }); return failed.length ? { type: 'error', text: `ผูกไม่สำเร็จ: ${failed.join(' · ')}` } : null; }); }} className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#142e43] px-4 text-[.95rem] font-semibold text-[#fffdfa] disabled:opacity-60">ผูกทั้ง {suggested.length} ฉบับ</button><button type="button" disabled={busy !== null} onClick={() => setLinkDialogOpen(true)} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[#c9ccc6] bg-white px-4 text-[.95rem] font-semibold text-[#142e43]">ดูก่อน</button></div></section>}
       {notice && (
         <p
@@ -297,7 +334,7 @@ export function CaseEmailPanel({
               <span aria-hidden="true" className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${thread.awaitingReplySince ? 'bg-[#e6eef7] text-[#2b5a8a]' : 'bg-[#eeebe3]'}`}><Mail className="h-[1.1em] w-[1.1em]" /></span>
               <div className="min-w-0 flex-1"><b className="break-words">{thread.subject}</b><div className="text-[.8rem] text-muted-foreground">{[thread.fromName ?? thread.fromAddress, `${thread.messageCount} ข้อความ`, `ล่าสุด ${formatDateTime(thread.lastMessageAt)}`].filter(Boolean).join(' · ')}</div></div>
               {thread.attachmentCount > 0 && <span className="inline-flex items-center gap-[.4rem] rounded-full bg-[#eeebe3] px-[.9rem] py-[.45rem] text-[.85rem]"><Paperclip aria-hidden="true" className="h-[1.1em] w-[1.1em]" />{thread.attachmentCount} ไฟล์</span>}
-              {thread.awaitingReplySince && <span className="rounded-full bg-[#e6eef7] px-3 py-1 text-xs font-semibold text-[#2b5a8a]">ยังไม่ได้ตอบ</span>}
+              {thread.awaitingReplySince && <><span className="rounded-full bg-[#e6eef7] px-3 py-1 text-xs font-semibold text-[#2b5a8a]">ยังไม่ได้ตอบ</span><button type="button" disabled={busy !== null} className={`${v2.btn} ${v2.ghost}`} onClick={() => void run('reply', async (t) => { const row = await api.getCaseEmailThread(t, caseId, thread.id); const message = row.messages.filter((m) => m.direction === 'INBOUND').at(-1); if (!message) return { type: 'error', text: 'ไม่พบข้อความที่ตอบกลับได้' }; setSelectedId(thread.id); setComposer({ kind: 'reply', replyAll: false, threadSubject: row.subject, message }); return null; })}>ตอบกลับ</button></>}
               <button type="button" onClick={() => selectThread(thread.id)} aria-current={selectedId === thread.id ? 'true' : undefined} className="inline-flex min-h-11 items-center rounded-lg px-4 text-[.95rem] font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{selectedId === thread.id ? 'เปิดอยู่' : 'เปิด'}</button>
             </li>)}
           </ul>
@@ -423,95 +460,6 @@ export function CaseEmailPanel({
           </div>
         </>
       )}
-      <details className="rounded-xl border border-[#e2e0d8] bg-card">
-        <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">เครื่องมือเพิ่มเติม <span className="text-[.8rem] font-normal text-muted-foreground">· ผูก folder Outlook · ซิงก์อีเมล · เขียนอีเมลใหม่</span></summary>
-        <div className="border-t border-[#e2e0d8] p-5">
-      <Card>
-        <CardContent className="space-y-3 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 font-semibold">
-              <FolderOpen aria-hidden="true" className="h-4 w-4 text-muted-foreground" /> folder Outlook ที่ผูกกับคดี
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={busy !== null} onClick={() => setLinkDialogOpen(true)}><Plus aria-hidden="true" className="h-4 w-4" />ผูกอีเมลเข้าคดี</Button>
-              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => setComposer({ kind: 'new' })}>
-                เขียนอีเมล
-              </Button>
-              <Button size="sm" variant="outline" disabled={busy !== null || links.length === 0} onClick={syncNow}>
-                <RefreshCw aria-hidden="true" className="h-4 w-4" /> {busy === 'sync' ? 'กำลังซิงก์…' : 'ซิงก์ตอนนี้'}
-              </Button>
-              <Button size="sm" variant="outline" disabled={busy !== null} onClick={openPicker}>
-                ผูก folder Outlook
-              </Button>
-            </div>
-          </div>
-
-          {linksFailed && (
-            <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
-              โหลดรายการ folder ไม่สำเร็จ
-              <Button size="sm" variant="outline" onClick={retryLoad}>
-                ลองใหม่
-              </Button>
-            </p>
-          )}
-          {!linksFailed && links.length === 0 && (
-            <p className="text-sm text-muted-foreground">ยังไม่ได้ผูก folder</p>
-          )}
-          {links.map((link) => (
-            <div key={link.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{link.displayPath}</p>
-                <p className="text-xs text-muted-foreground">
-                  {link.connection.mailboxAddress}
-                  {link.lastSyncedAt ? ` · ซิงก์ล่าสุด ${formatDateTime(link.lastSyncedAt)}` : ' · กำลังดึงอีเมลครั้งแรก'}
-                </p>
-                {link.lastError && <p className="mt-0.5 text-xs text-destructive">{link.lastError}</p>}
-              </div>
-              <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" disabled={busy !== null} onClick={() => unlinkFolder(link)}>
-                ยกเลิกการผูก
-              </Button>
-            </div>
-          ))}
-
-          {folders && (
-            <div className="space-y-2 rounded-lg border border-dashed p-3">
-              <label htmlFor="case-email-folder" className="text-sm font-medium">
-                เลือก folder ในกล่องอีเมลของคุณ
-              </label>
-              <select
-                id="case-email-folder"
-                value={pickedFolderId}
-                onChange={(e) => setPickedFolderId(e.target.value)}
-                className="min-h-10 w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-              >
-                <option value="">— เลือก folder —</option>
-                {folders.map((row) => {
-                  const hit = row.suggestions.find((s) => s.caseId === caseId);
-                  return (
-                    <option key={row.folderId} value={row.folderId}>
-                      {row.displayPath}
-                      {hit ? ` (แนะนำ: ${MATCH_REASON_LABELS[hit.reason]})` : ''}
-                    </option>
-                  );
-                })}
-              </select>
-              <p className="text-xs text-muted-foreground">
-                อีเมลใน folder นี้ทั้งหมด (รวมย้อนหลัง) จะเข้าคดี และทุกคนที่มีสิทธิ์ในคดีจะเห็น
-              </p>
-              <div className="flex gap-2">
-                <Button size="sm" disabled={!pickedFolderId || busy !== null} onClick={linkPicked}>
-                  {busy === 'link' ? 'กำลังผูก…' : 'ผูก folder นี้กับคดี'}
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setFolders(null)}>
-                  ยกเลิก
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-        </div>
-      </details>
       <CaseEmailComposer
         caseId={caseId}
         mode={composer}

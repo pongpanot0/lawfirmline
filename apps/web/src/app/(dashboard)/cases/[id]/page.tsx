@@ -149,6 +149,13 @@ const ACTIVITY_ICONS: Record<string, typeof Gavel> = {
   EMAIL: Mail,
 };
 
+type CloseReason = 'NOT_RETAINED' | 'DONE' | 'OTHER';
+const CLOSE_REASONS: { value: CloseReason; label: string; hint: string; summary: string }[] = [
+  { value: 'NOT_RETAINED', label: 'ไม่จ้างทำต่อ', hint: 'ลูกความเลิกจ้างกลางทาง', summary: 'ลูกความแจ้งว่าไม่จ้างทำต่อ' },
+  { value: 'DONE', label: 'ให้ปิดคดี — งานจบแล้ว', hint: 'เช่น ได้รับชำระครบ หรือยอมความกันได้', summary: 'ลูกความแจ้งให้ปิดคดี งานจบแล้ว' },
+  { value: 'OTHER', label: 'อื่น ๆ', hint: 'ระบุในหมายเหตุ', summary: 'ปิดคดี' },
+];
+
 const thaiShortDate = (value: string) => new Date(value).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' });
 
 export default function CaseDetailPage() {
@@ -235,7 +242,8 @@ export default function CaseDetailPage() {
   const [closingCase, setClosingCase] = useState(false);
   const [reopeningCase, setReopeningCase] = useState(false);
   const [closeError, setCloseError] = useState('');
-  const [closingOutcome, setClosingOutcome] = useState('');
+  const [closingOutcome, setClosingOutcome] = useState('WITHDRAWN');
+  const [closeReason, setCloseReason] = useState<CloseReason>('NOT_RETAINED');
   /** ของค้างตอนกดปิดคดี — โหลดตอนเปิดฟอร์ม ไม่ใช่ทุกครั้งที่หน้า render */
   const [outstanding, setOutstanding] = useState<CaseOutstandingResult | null>(null);
   const [ackOutstanding, setAckOutstanding] = useState(false);
@@ -447,17 +455,20 @@ export default function CaseDetailPage() {
     }
   };
 
+  const openCloseCase = () => { setCloseError(''); setCloseReason('NOT_RETAINED'); setClosingOutcome('WITHDRAWN'); setClosingSummary(''); setShowCloseForm(true); setAckOutstanding(false); setRemoveFutureEvents(false); void loadOutstanding(); };
+
   const handleCloseCase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !id) return;
-    if (closingSummary.trim().length < 10) {
-      setCloseError('กรุณาเขียนสรุปคดีอย่างน้อย 10 ตัวอักษร');
-      return;
-    }
+    const reason = CLOSE_REASONS.find((r) => r.value === closeReason);
+    if (!reason) { setCloseError('เลือกว่าลูกความแจ้งว่าอะไรก่อนปิดคดี'); return; }
+    if (!closingOutcome) { setCloseError('เลือกผลของคดีก่อนปิด'); return; }
+    if (closeReason === 'OTHER' && !closingSummary.trim()) { setCloseError('เลือก “อื่น ๆ” แล้ว ใส่หมายเหตุว่าลูกความแจ้งว่าอะไร'); return; }
+    if (outstanding && outstanding.total > 0 && !ackOutstanding) { setCloseError('ติ๊ก “ตรวจแล้ว ปิดคดีได้” ก่อน — ยังมีของค้างในคดีนี้'); return; }
     setClosingCase(true);
     setCloseError('');
     try {
-      await api.closeCase(token, id, closingSummary.trim(), {
+      await api.closeCase(token, id, `${reason.summary}${closingSummary.trim() ? ` — ${closingSummary.trim()}` : ''}`, {
         outcome: closingOutcome,
         acknowledgeOutstanding: ackOutstanding || undefined,
         removeFutureEvents,
@@ -603,13 +614,12 @@ export default function CaseDetailPage() {
 
   const handleReopenCase = async () => {
     if (!token || !id) return;
-    if (!confirm('เปิดคดีนี้อีกครั้ง?')) return;
     setReopeningCase(true);
     try {
       await api.reopenCase(token, id);
       loadCase();
     } catch (err) {
-      console.error(err);
+      window.alert(err instanceof ApiError && err.message ? err.message : 'เปิดคดีอีกครั้งไม่สำเร็จ ลองอีกครั้ง');
     } finally {
       setReopeningCase(false);
     }
@@ -960,7 +970,7 @@ export default function CaseDetailPage() {
               ...((legalCase.stage === 'CLOSING' || legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED') ? [{ label: 'รายงานปิดงาน', hint: 'ดูรายงานปิดงาน', icon: FileText, href: `/cases/${id}?tab=closing-report` }] : []),
               { label: 'ถาม AI เรื่องคดีนี้', hint: 'เปิดหน้าถามคำถามเกี่ยวกับคดี', icon: Sparkles, href: `/cases/${id}?tab=ask-ai` },
               ...(hasFirmCapability(user?.firmRole, 'deleteCase') ? [{ label: 'ลบคดี', hint: 'ลบคดีตามสิทธิ์ที่ได้รับ', icon: Trash2, onClick: () => void deleteCase() }] : []),
-              ...(legalCase.status !== CaseStatus.CLOSED && legalCase.status !== 'ARCHIVED' ? [{ label: 'ปิดคดี', hint: 'บันทึกผลคดีแล้วย้ายไปแท็บ “ปิดแล้ว” เปิดคืนได้', icon: Archive, separator: true, onClick: () => { setCloseError(''); setShowCloseForm(true); setTimeout(() => document.getElementById('case-close-form')?.scrollIntoView({ block: 'start' }), 50); setAckOutstanding(false); setRemoveFutureEvents(false); void loadOutstanding(); } }] : [
+              ...(legalCase.status !== CaseStatus.CLOSED && legalCase.status !== 'ARCHIVED' ? [{ label: 'ปิดคดี', hint: 'บันทึกผลคดีแล้วย้ายไปแท็บ “ปิดแล้ว” เปิดคืนได้', icon: Archive, separator: true, onClick: openCloseCase }] : [
                 { label: 'เปิดคดีอีกครั้ง', hint: 'กลับมาดำเนินคดีต่อ', icon: LockOpen, separator: true, disabled: reopeningCase, onClick: () => void handleReopenCase() },
                 ...(legalCase.status === CaseStatus.CLOSED ? [{ label: 'เก็บเข้าคลัง', hint: 'เก็บคดีที่ปิดแล้วเข้าคลัง', icon: Archive, onClick: () => void handleArchiveCase() }] : []),
               ]),
@@ -1005,7 +1015,7 @@ export default function CaseDetailPage() {
 
       {stageTaskError && !menuPanel && <p role="alert" className="my-3 text-sm text-destructive">{stageTaskError}</p>}
       {token && <div className="mb-6 min-w-0 space-y-4">
-        <CaseJourneyPanel compact={activeTab !== 'overview'} token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} stage={legalCase.stage ?? null} taskCount={tasks.length} tasksVersion={tasks} onChanged={loadCase} onJourney={setJourneyState} onAdvance={(target, explicit) => void confirmJourneyAdvance(target, explicit)} onEdit={(missing) => { selectTab('overview'); void startEditOverview(); if (missing?.length) setFocusMissing(missing[0]); }} onOpenTask={(taskId) => router.push(`/cases/${id}?task=${encodeURIComponent(taskId)}`)} />
+        <CaseJourneyPanel compact={activeTab !== 'overview'} onCloseCase={openCloseCase} onReopenCase={() => void handleReopenCase()} reopening={reopeningCase} closed={legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED' ? { at: legalCase.closedAt ?? null, summary: legalCase.closingSummary ?? null } : null} idleDays={timeline[0] ? Math.max(0, Math.floor((Date.now() - Date.parse(timeline[0].date)) / 86400000)) : null} token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} stage={legalCase.stage ?? null} taskCount={tasks.length} tasksVersion={tasks} onChanged={loadCase} onJourney={setJourneyState} onAdvance={(target, explicit) => void confirmJourneyAdvance(target, explicit)} onEdit={(missing) => { selectTab('overview'); void startEditOverview(); if (missing?.length) setFocusMissing(missing[0]); }} onOpenTask={(taskId) => router.push(`/cases/${id}?task=${encodeURIComponent(taskId)}`)} />
 
 
       </div>}
@@ -1026,112 +1036,34 @@ export default function CaseDetailPage() {
         />
 
 
-      {showCloseForm && (
-        <Card id="case-close-form" className="mb-6 scroll-mt-24 border-warning/40 bg-warning/5">
-          <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">ปิดคดี</CardTitle>
-            <Button type="button" variant="ghost" size="icon" aria-label="ปิดแบบฟอร์มปิดคดี" onClick={() => setShowCloseForm(false)}>
-              <X aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCloseCase} className="space-y-3">
-              {outstandingFailed && (
-                <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
-                  <p>ตรวจรายการค้างไม่สำเร็จ — ปิดคดีต่อได้ ระบบจะตรวจอีกครั้งตอนยืนยัน</p>
-                  <Button type="button" size="sm" variant="outline" onClick={() => void loadOutstanding()}>ลองตรวจอีกครั้ง</Button>
-                </div>
-              )}
-              {/* ของค้าง: ปิดคดีทับของค้างเงียบ ๆ คือการซ่อน ไม่ใช่ทำให้เสร็จ */}
-              {outstanding && outstanding.total > 0 && (
-                <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
-                  <p className="font-medium text-warning">
-                    ยังมีของค้าง {outstanding.total} รายการ
-                  </p>
-                  <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                    {outstanding.openTasks.map((t) => (
-                      <li key={t.id}>• งานค้าง: {t.title}</li>
-                    ))}
-                    {outstanding.upcomingEvents.map((e) => (
-                      <li key={e.id}>• วันนัดข้างหน้า: {e.title} ({formatDate(e.startAt)})</li>
-                    ))}
-                    {outstanding.unapprovedDocuments.map((docItem) => (
-                      <li key={docItem.id}>• เอกสารยังไม่อนุมัติ: {docItem.filename}</li>
-                    ))}
-                    <li>• เวลายังไม่เรียกเก็บ: {outstanding.unbilledTime.hours} ชั่วโมง · {formatCurrency(outstanding.unbilledTime.amount)}</li>
-                    <li>• ค่าใช้จ่ายยังไม่เรียกเก็บ: {outstanding.unbilledExpenses.count} รายการ · {formatCurrency(outstanding.unbilledExpenses.amount)}</li>
-                    <li>• ใบแจ้งหนี้ค้างชำระ: {outstanding.unpaidInvoices.count} ใบ · {formatCurrency(outstanding.unpaidInvoices.outstandingAmount)}</li>
-                    <li>• ใบแจ้งหนี้ร่าง: {outstanding.draftInvoices.count} ใบ</li>
-                  </ul>
-                  <label className="mt-2 flex min-h-11 items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={ackOutstanding}
-                      onChange={(e) => setAckOutstanding(e.target.checked)}
-                    />
-                    ตรวจแล้ว และยืนยันจะปิดคดี
-                  </label>
-                </div>
-              )}
-
-              {outstanding && outstanding.upcomingEvents.length > 0 && (
-                <div className="text-sm">
-                  <label className="flex min-h-11 items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={removeFutureEvents}
-                      onChange={(e) => setRemoveFutureEvents(e.target.checked)}
-                      disabled={closingCase}
-                      aria-describedby="remove-future-events-note"
-                    />
-                    ลบนัดในอนาคต {outstanding.upcomingEvents.length} รายการ
-                  </label>
-                  <p id="remove-future-events-note" className="text-xs text-muted-foreground">เปิดคดีใหม่จะไม่กู้นัดที่ลบ</p>
-                </div>
-              )}
-
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium">ผลของคดี <span className="text-destructive">*</span></span>
-                <select
-                  value={closingOutcome}
-                  onChange={(e) => setClosingOutcome(e.target.value)}
-                  required
-                  className="min-h-11 w-full rounded-lg border border-input bg-card px-3 text-sm"
-                >
-                  <option value="" disabled>เลือกผลคดี</option>
-                  <option value="WON">ชนะคดี</option>
-                  <option value="SETTLED">ตกลงกันได้</option>
-                  <option value="MEDIATED">ไกล่เกลี่ยสำเร็จ</option>
-                  <option value="LOST">แพ้คดี</option>
-                  <option value="WITHDRAWN">ถอนฟ้อง / ยุติ</option>
-                </select>
-              </label>
-              <label htmlFor="closing-summary" className="block text-sm font-medium">สรุปผลคดี <span className="text-destructive">*</span></label>
-              <textarea
-                id="closing-summary"
-                required
-                rows={5}
-                value={closingSummary}
-                onChange={(e) => setClosingSummary(e.target.value)}
-                placeholder="เช่น ศาลพิพากษาให้จำเลยชำระหนี้ 500,000 บาท พร้อมดอกเบี้ย ลูกค้าได้รับชำระครบแล้ว..."
-                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
-              />
-              {closeError && <p role="alert" className="text-sm text-destructive">{closeError}</p>}
-              <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  disabled={(!outstanding && !outstandingFailed) || !closingOutcome || closingCase || (!!outstanding && outstanding.total > 0 && !ackOutstanding)}
-                >
-                  {closingCase ? 'กำลังปิดคดี...' : 'ยืนยันปิดคดี'}
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setShowCloseForm(false)}>
-                  ยกเลิก
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+      {showCloseForm && <dialog ref={(el) => { if (el && !el.open) el.showModal(); }} aria-labelledby="close-case-title" onCancel={(e) => { e.preventDefault(); if (!closingCase) setShowCloseForm(false); }} className="m-auto w-[min(36rem,calc(100vw-2rem))] max-w-none rounded-2xl bg-[#fffdfa] p-0 text-foreground shadow-2xl backdrop:bg-[#101d2a]/45">
+        <form onSubmit={handleCloseCase} className="flex max-h-[calc(100dvh-2rem)] flex-col">
+          <div className="flex items-start justify-between border-b border-[#e2e0d8] px-6 py-4"><div><p className={v2.label}>{legalCase.ownRef}</p><h2 id="close-case-title" tabIndex={-1} autoFocus className="text-xl font-bold outline-none">ปิดคดีนี้</h2></div><button type="button" aria-label="ปิดหน้าต่างปิดคดี" disabled={closingCase} onClick={() => setShowCloseForm(false)} className={`${v2.btn} ${v2.ghost}`}><X aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button></div>
+          <div className="min-h-0 space-y-5 overflow-y-auto overscroll-contain px-6 py-5">
+            <fieldset><legend className={v2.flabel}>ลูกความแจ้งว่าอะไร *</legend>
+              <div className="mt-2 grid gap-2">{CLOSE_REASONS.map((reason) => <label key={reason.value} className={`flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${closeReason === reason.value ? 'border-2 border-[#142e43] bg-[#e9eef3]' : 'border border-[#7d847e] bg-white'}`}><input type="radio" name="close-reason" value={reason.value} checked={closeReason === reason.value} onChange={() => { setCloseReason(reason.value); setClosingOutcome(reason.value === 'NOT_RETAINED' ? 'WITHDRAWN' : ''); }} className="h-5 w-5" /><span><b>{reason.label}</b><span className={`${v2.hint} block`}>{reason.hint}</span></span></label>)}</div></fieldset>
+            {closeReason && closeReason !== 'NOT_RETAINED' && <label className="block"><span className={v2.flabel}>ผลของคดี *</span><select value={closingOutcome} onChange={(e) => setClosingOutcome(e.target.value)} required className={`${v2.field} text-base sm:text-[15px]`}><option value="" disabled>เลือกผลคดี</option><option value="WON">ชนะคดี</option><option value="SETTLED">ตกลงกันได้</option><option value="MEDIATED">ไกล่เกลี่ยสำเร็จ</option><option value="LOST">แพ้คดี</option><option value="WITHDRAWN">ถอนฟ้อง / ยุติ</option></select><p className={v2.hint}>ใช้ในรายงานผลคดีของสำนักงาน</p></label>}
+            <label className="block" htmlFor="closing-summary"><span className={v2.flabel}>หมายเหตุ</span><textarea id="closing-summary" value={closingSummary} onChange={(e) => setClosingSummary(e.target.value)} placeholder="เช่น ลูกความโทรมาแจ้ง 11 พ.ย." className={`${v2.field} min-h-[72px] text-base sm:text-[15px]`} /></label>
+            {outstandingFailed && <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#fbf3e0] p-3 text-sm"><p>ตรวจของค้างไม่สำเร็จ — ปิดคดีต่อได้ ระบบจะตรวจอีกครั้งตอนยืนยัน</p><button type="button" onClick={() => void loadOutstanding()} className={`${v2.btn} ${v2.outline} min-h-0 py-1.5`}>ตรวจอีกครั้ง</button></div>}
+            {outstanding && <div className="border-l-4 border-[#b8913a] bg-[#fbf3e0] py-2 pl-3 pr-2 text-sm"><p className="flex items-center gap-1 font-semibold text-[#6b4f0b]"><AlertTriangle aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ตรวจก่อนปิด</p>
+              <ul className="mt-1 space-y-0.5">
+                <li>งานค้าง <b>{outstanding.openTasks.length}</b>{outstanding.openTasks.length > 0 && ` — ${outstanding.openTasks.slice(0, 3).map((t) => t.title).join(', ')}`}</li>
+                <li>ค่าใช้จ่ายยังไม่เรียกเก็บ <b>{formatCurrency(outstanding.unbilledExpenses.amount)}</b></li>
+                {outstanding.unbilledTime.hours > 0 && <li>เวลาทำงานยังไม่เรียกเก็บ <b>{outstanding.unbilledTime.hours} ชม. · {formatCurrency(outstanding.unbilledTime.amount)}</b></li>}
+                <li>ใบแจ้งหนี้ค้างชำระ <b className={outstanding.unpaidInvoices.outstandingAmount > 0 ? 'text-[#a83232]' : ''}>{formatCurrency(outstanding.unpaidInvoices.outstandingAmount)}</b>{outstanding.unpaidInvoices.count > 0 && <> — <Link className="underline" href={`/cases/${id}?tab=billing`}>ดูใบแจ้งหนี้</Link></>}</li>
+                {outstanding.draftInvoices.count > 0 && <li>ใบแจ้งหนี้ร่าง <b>{outstanding.draftInvoices.count} ใบ</b></li>}
+                {outstanding.unapprovedDocuments.length > 0 && <li>เอกสารยังไม่อนุมัติ <b>{outstanding.unapprovedDocuments.length}</b></li>}
+                {outstanding.upcomingEvents.length > 0 && <li>นัดข้างหน้า <b>{outstanding.upcomingEvents.length}</b> — {outstanding.upcomingEvents.slice(0, 2).map((e) => `${e.title} ${formatDate(e.startAt)}`).join(', ')}</li>}
+              </ul>
+              {outstanding.upcomingEvents.length > 0 && <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" checked={removeFutureEvents} onChange={(e) => setRemoveFutureEvents(e.target.checked)} disabled={closingCase} className="h-5 w-5" />ลบนัดข้างหน้า {outstanding.upcomingEvents.length} รายการ <span className={v2.label}>(เปิดคดีคืนจะไม่กู้นัดที่ลบ)</span></label>}
+              {outstanding.total > 0 && <label className="mt-1 flex min-h-11 items-center gap-2 font-semibold"><input type="checkbox" checked={ackOutstanding} onChange={(e) => setAckOutstanding(e.target.checked)} className="h-5 w-5" />ตรวจแล้ว ปิดคดีได้</label>}
+            </div>}
+            <p className={v2.hint}>ปิดแล้วเปิดคืนได้ทุกเมื่อ ข้อมูล งาน เอกสาร และอีเมลยังอยู่ครบ</p>
+            {closeError && <p role="alert" className={v2.error}>{closeError}</p>}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-[#e2e0d8] px-6 py-4"><button type="button" disabled={closingCase} onClick={() => setShowCloseForm(false)} className={`${v2.btn} ${v2.ghost}`}>ยกเลิก</button><button type="submit" disabled={closingCase} className={`${v2.btn} ${v2.primary} disabled:opacity-60`}><Archive aria-hidden="true" className="h-[1.1em] w-[1.1em]" />{closingCase ? 'กำลังปิดคดี…' : 'ปิดคดี'}</button></div>
+        </form>
+      </dialog>}
 
       <div aria-label="พื้นที่ทำงานคดี" className="mb-4 space-y-4">
         <CaseTabBar caseId={id} active={activeTab} tasks={tasks.length} overdue={pendingTasks.filter(task => task.dueDate && (daysUntil(task.dueDate) ?? 0) < 0).length} documents={legalCase._count.documents} events={upcomingEvents.length} parties={(legalCase.participants ?? []).length} comments={commentCount} cargo={!!legalCase.cargoClaim} closing={legalCase.stage === 'CLOSING' || legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED'} />
