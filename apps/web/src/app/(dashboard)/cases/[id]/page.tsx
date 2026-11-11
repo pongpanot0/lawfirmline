@@ -929,13 +929,13 @@ export default function CaseDetailPage() {
   return (
     <div className={styles.workbench}>
       {Number(searchParams.get('emailLinkFailures')) > 0 && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">ผูกอีเมลไม่สำเร็จ {Number(searchParams.get('emailLinkFailures'))} ฉบับ — ผูกได้อีกครั้งจากแท็บอีเมลของคดี</p>}
-      <header className="border-b border-border bg-card" data-testid="case-identity"><div className="mx-auto max-w-6xl px-6 pt-5">
+      <header className="border-b border-border bg-card" data-testid="case-identity"><div className="px-6 pt-5">
         <div className="flex flex-wrap items-center justify-between gap-2"><button type="button" onClick={() => router.push('/cases')} className={`${styles.backButton} gap-1.5`}>
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
           เรื่องและคดี
         </button><button type="button" aria-label="หน้านี้ใช้ทำอะไร" className="flex min-h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { const guide = document.querySelector<HTMLElement>('[aria-label="วิธีใช้หน้านี้"]'); guide?.querySelector<HTMLButtonElement>('button')?.textContent?.includes('แสดงคำแนะนำ') && guide.querySelector<HTMLButtonElement>('button')?.click(); guide?.scrollIntoView({ block: 'start' }); }}><CircleHelp aria-hidden="true" className="h-5 w-5" /></button></div>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 max-w-3xl">
+          <div className="min-w-0 flex-1 basis-[36rem]">
             <div className="flex flex-wrap items-center gap-2 text-sm">
             <p className="inline-flex items-center rounded bg-[#eeebe3] px-3 py-1 font-mono text-sm [&_button]:min-h-0 [&_button]:min-w-0">
               <CaseNumberInline

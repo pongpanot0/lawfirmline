@@ -13,3 +13,9 @@ Branch `claude/check-session-thai-ui-c52f0e` (uncommitted). Report + 31 Stitch m
 - API: `GET /clients` returns `openCaseCount`/`openTaskCount` (2 queries) — replaced a per-client overview fetch loop on /clients.
 - E2E gotchas: specs hardcode web port 3005 (run the worktree web on 3005 and add it to API CORS_ORIGIN); `register` uses MailThrottle (5/10 min) and login AuthThrottle (10/min), so a multi-project run hits 429 — relax both locally for the run and revert. sop-ui spec had drifted on main since 2026-10-25 (labels) — fixed here.
 - Not done before deploy (user asked to deploy first): the final full E2E rerun and the Cursor review.
+
+## Round 3 — checks, follow-up PR, prod deploy
+- #178 merged; follow-up #179 (Cursor findings: client backlog counts only open cases and unskipped steps; portal login 401 copy; e2e specs aligned to the new UI) merged as 56547e59 and deployed with `prod-20261111-thai-ui-mockups` (run 42998764012, success, no pending migrations).
+- E2E: all branch-owned tests pass. Still failing, owned by other sessions: cases/[id] 'บันทึกผลหลังขึ้นศาล' + SOP combobox, cases/new 'สร้างคดี'/charge, practice-setup playbook apply (0 tasks).
+- Not filed (outside this branch): portal 401 doesn't clear the session, CaseEmailPanel undo hidden after thread switch, UndoToast state carry-over, clients search race.
+- Prod speed test blocked: the office FortiGate returns its 403 page for every samnuan.com path. Script: `.claude/prod-speed.mjs` (run on a hotspot).
