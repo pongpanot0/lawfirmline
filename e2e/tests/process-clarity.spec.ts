@@ -32,7 +32,7 @@ test('process clarity click-through', async ({ page, request }) => {
     await go('/cases/new');
     await page.locator('#case-type').selectOption({ label: 'คดีความ' });
     await page.locator('#case-title').fill(title);
-    if (court) { await page.getByText('อยู่ในชั้นศาลแล้ว', { exact: true }).click(); await page.locator('#court-name').selectOption('__other__'); await page.locator('#court-name').locator('xpath=..').locator('input').last().fill('ศาลทดสอบ'); await page.locator('#black-case-number').fill('123/2569'); }
+    if (court) { await page.getByText('อยู่ในศาลแล้ว', { exact: true }).click(); await page.locator('#court-name').selectOption('__other__'); await page.locator('#court-name').locator('xpath=..').locator('input').last().fill('ศาลทดสอบ'); await page.locator('#black-case-number').fill('123/2569'); }
     await page.getByRole('button', { name: 'เปิดคดี', exact: true }).click();
     await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+\/opened/, { timeout: 15000 });
     return page.url().match(/\/cases\/([0-9a-f-]+)\/opened/)![1];
@@ -51,29 +51,29 @@ test('process clarity click-through', async ({ page, request }) => {
     await expect(page.locator('#case-title')).toBeVisible();
     await expect(page.locator('#client-combobox')).toBeVisible();
     await expect(page.locator('#lead-lawyer')).toBeVisible();
-    await expect(page.getByRole('radio', { name: 'ยังไม่ถึงชั้นศาล' })).toBeChecked();
-    await expect(page.locator('details').filter({ hasText: 'ข้อมูลเพิ่มเติม (ไม่บังคับ' }).first()).not.toHaveAttribute('open', '');
+    await expect(page.getByRole('radio', { name: 'ยังไม่ฟ้อง' })).toBeChecked();
+    await expect(page.locator('details').filter({ hasText: 'คู่ความและฝ่ายเรา' }).first()).not.toHaveAttribute('open', '');
     const strip = page.locator('div').filter({ has: page.getByText('เลขอ้างอิงสำนักงาน', { exact: true }) }).filter({ hasText: 'ระบบออกเลขให้อัตโนมัติ' }).last();
-    await expect(strip.locator('span').first()).not.toHaveText('กำลังออกเลขอ้างอิง');
-    ref = (await strip.locator('span').first().innerText()).trim();
+    await expect(strip).toContainText(/[A-Z]{2,}\d{6,}/);
+    ref = ((await strip.innerText()).match(/[A-Z]{2,}\d{6,}/) ?? [''])[0];
     await page.locator('#case-type').selectOption({ label: 'คดีความ' }); await page.locator('#case-title').fill(first);
-    await expect(page.getByText(/กรอกครบ/)).toBeVisible(); await shot('01-create');
+    await expect(page.getByText(/กรอกช่องบังคับครบแล้ว/)).toBeVisible(); await shot('01-create');
     await page.getByRole('button', { name: 'เปิดคดี', exact: true }).click();
     await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+\/opened/, { timeout: 15000 }); caseId = page.url().match(/\/cases\/([0-9a-f-]+)\/opened/)![1];
   });
   await flow('2 success page', async () => {
     expect(caseId).toBeTruthy(); await expect(page.getByRole('heading', { name: 'เปิดคดีสำเร็จ' })).toBeVisible(); await expect(page.getByText(ref, { exact: true })).toBeVisible();
-    const section = page.locator('section').filter({ hasText: 'ขั้นตอนต่อไปของคดีนี้' }); await expect(section.locator('li').first()).toBeVisible(); await shot('02-success');
+    await expect(page.getByText('ขั้นต่อไปของคดีนี้', { exact: true })).toBeVisible(); await shot('02-success');
     await page.getByRole('link', { name: 'ไปหน้าคดี', exact: true }).click(); await expect(page).toHaveURL(new RegExp(`/cases/${caseId}$`));
   });
   await flow('3 case page', async () => {
     expect(caseId).toBeTruthy(); await go(`/cases/${caseId}`);
     await expect(page.locator('li[aria-current="step"]').filter({ hasText: 'ก่อนฟ้อง' })).toBeVisible();
-    await expect(page.getByText('สิ่งที่ต้องทำตอนนี้', { exact: false }).first()).toBeVisible();
-    const overview = page.locator('#case-tab-overview'); await expect(overview).toHaveAttribute('aria-expanded', 'false'); await expect(page.locator('#case-tab-documents')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.getByText('เปลี่ยนขั้นตอนเอง', { exact: false })).toBeHidden(); await shot('03-case');
+    await expect(page.getByText('ต้องทำตอนนี้', { exact: false }).first()).toBeVisible();
+    const overview = page.locator('#case-tab-overview'); await expect(overview).toHaveAttribute('aria-current', 'page'); await expect(page.locator('#case-tab-documents')).not.toHaveAttribute('aria-current', 'page');
+    await expect(page.getByText('เปลี่ยนขั้นเอง', { exact: false })).toBeHidden(); await shot('03-case');
     await overview.click(); await expect(page.locator('#case-tabpanel-overview')).toBeVisible();
-    await page.locator('[data-overflow-menu] > summary').click(); await expect(page.getByText('เปลี่ยนขั้นตอนเอง', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'อื่น ๆ' }).click(); await expect(page.getByText('เปลี่ยนขั้นเอง', { exact: false })).toBeVisible();
   });
   await flow('4 create case already in court', async () => { secondId = await create(second, true); await expect(page.getByRole('heading', { name: 'เปิดคดีสำเร็จ' })).toBeVisible(); });
   await flow('5 case list and filters', async () => {

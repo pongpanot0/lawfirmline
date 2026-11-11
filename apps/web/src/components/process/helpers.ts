@@ -12,3 +12,10 @@ export function dueLabel(date: string, now = new Date()): { text: string; urgent
   const days = Math.round((day(due) - day(now)) / 86400000);
   return { text: days < 0 ? `เลยกำหนด ${-days} วัน` : `เหลือ ${days} วัน`, urgent: days <= 7 };
 }
+
+export function daysUntil(date: string, now = new Date()): number | null {
+  const due = new Date(date);
+  if (Number.isNaN(due.getTime())) return null;
+  const day = (value: Date) => Date.UTC(value.getFullYear(), value.getMonth(), value.getDate());
+  return Math.round((day(due) - day(now)) / 86400000);
+}

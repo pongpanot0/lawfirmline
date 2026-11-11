@@ -44,7 +44,7 @@ interface Props {
   onChanged?: (participants: CaseParticipantItem[]) => void;
 }
 
-export function CaseParticipantsSection({ caseId, initialParticipants, onChanged }: Props) {
+export function CaseParticipantsSection({ caseId, initialParticipants, onChanged, client }: Props & { client?: { name: string; role?: string | null } }) {
   const { token } = useAuth();
   const [participants, setParticipants] = useState<CaseParticipantItem[]>(initialParticipants ?? []);
   const [showForm, setShowForm] = useState(false);
@@ -150,21 +150,11 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
 
   const allEmpty = participants.length === 0;
 
+  const sideTone: Record<string, [string, string]> = { OURS: ['bg-[#e6f3ec]', 'text-[#227052]'], OPPONENT: ['bg-[#fbeaea]', 'text-[#a83232]'], NEUTRAL: ['bg-[#f7f5ef]', 'text-foreground'] };
   return (
-    <div className="col-span-full" data-testid="case-participants-field">
-      <div className="flex flex-row items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold">คู่ความและผู้เกี่ยวข้อง</h3>
-          <p className="mt-1 text-sm text-muted-foreground">ระบุฐานะในคดีและฝ่ายที่สังกัด แล้วบันทึกคู่ความทีละราย</p>
-        </div>
-        {!showForm && (
-          <Button variant="outline" className="min-h-11 shrink-0" onClick={openCreate}>
-            <Plus className="h-3 w-3" />
-            เพิ่มคู่ความ
-          </Button>
-        )}
-      </div>
-      <div className="mt-5 space-y-5">
+    <div className="space-y-5" data-testid="case-participants-field">
+      <div className="flex flex-wrap items-center justify-between gap-3"><p className="mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground">ชื่อคู่ความใช้ในคำฟ้อง และใช้ตรวจผลประโยชน์ขัดกันกับคดีอื่นของสำนักงาน</p>{!showForm && <button type="button" onClick={openCreate} className="inline-flex min-h-11 items-center justify-center gap-[.4rem] rounded-lg bg-[#142e43] px-4 text-[.95rem] font-semibold text-[#fffdfa]"><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />เพิ่มคู่ความ</button>}</div>
+      {showForm && <section className="rounded-xl border border-[#e2e0d8] bg-card p-5 shadow-[0_4px_16px_rgba(20,46,67,.06)]">
         {showForm && (
           <form
             onSubmit={handleSubmit}
@@ -367,67 +357,23 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
             </fieldset>
           </form>
         )}
-
-        {allEmpty && !showForm && (
-          <p className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">ยังไม่มีคู่ความ กด “เพิ่มคู่ความ” เพื่อเพิ่มรายชื่อ</p>
-        )}
-
-        {grouped.map(({ side, items }) => (
-          <div key={side} className="overflow-hidden rounded-lg border border-border">
-            <div className="flex items-center justify-between bg-muted/40 px-3 py-2">
-              <p className="text-xs font-semibold text-foreground">{SIDE_LABELS[side]}</p>
-              <span className="text-xs text-muted-foreground">{items.length} ราย</span>
+      </section>}
+      {allEmpty && !showForm && <section className="rounded-xl border border-[#e2e0d8] bg-card p-5"><p className="font-semibold">ยังไม่มีคู่ความในคดีนี้</p><p className="mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground">กด “เพิ่มคู่ความ” เพื่อเพิ่มฝ่ายเราและฝ่ายตรงข้าม</p></section>}
+      {(grouped.length > 0 || client) && <div className="grid gap-5 md:grid-cols-2">{client && !grouped.some((g) => g.side === 'OURS') && <section className="overflow-hidden rounded-xl border border-[#e2e0d8] bg-card shadow-[0_4px_16px_rgba(20,46,67,.06)]"><div className="border-b border-[#e2e0d8] bg-[#e6f3ec] px-5 py-3"><h3 className="text-lg font-bold text-[#227052]">ฝ่ายเรา{client.role ? ` · ${client.role}` : ''}</h3></div><ul><li className="px-5 py-4"><b>{client.name}</b><div className="text-[.8rem] text-muted-foreground">{[client.role, 'ลูกความ'].filter(Boolean).join(' · ')}</div></li></ul></section>}{grouped.map(({ side, items }) => {
+        const roles = [...new Set(items.map((p) => ROLE_LABELS[p.role] ?? p.role))];
+        const [bg, text] = sideTone[side] ?? sideTone.NEUTRAL;
+        return <section key={side} className="overflow-hidden rounded-xl border border-[#e2e0d8] bg-card shadow-[0_4px_16px_rgba(20,46,67,.06)]">
+          <div className={`border-b border-[#e2e0d8] px-5 py-3 ${bg}`}><h3 className={`text-lg font-bold ${text}`}>{SIDE_LABELS[side]} · {roles.join(', ')}{items.length > 1 ? ` ${items.length} ราย` : ''}</h3></div>
+          <ul className="divide-y divide-[#e2e0d8]">{items.map((p) => <li key={p.id} data-testid="case-participant-row" className="flex items-start gap-3 px-5 py-4">
+            <div className="min-w-0 flex-1"><b>{p.name}</b>{p.nickname && <span className="text-[.8rem] text-muted-foreground"> ({p.nickname})</span>}
+              <div className="text-[.8rem] text-muted-foreground">{[ROLE_LABELS[p.role] ?? p.role, p.personType === 'JURISTIC' ? 'นิติบุคคล' : p.personType === 'NATURAL' ? 'บุคคลธรรมดา' : null, p.clientId ? 'ลูกความ' : null, p.representedByParticipantId ? `ตัวแทนของ ${participants.find((x) => x.id === p.representedByParticipantId)?.name ?? ''}` : null].filter(Boolean).join(' · ')}</div>
+              {[p.opposingLawyer && `ทนาย: ${p.opposingLawyer}`, p.opposingInsurer && `ประกัน: ${p.opposingInsurer}`, (p.phone || p.email) && `ติดต่อ: ${[p.phone, p.email].filter(Boolean).join(' · ')}`, p.medicalLicenseNo && `ใบอนุญาตแพทย์: ${p.medicalLicenseNo}`].filter(Boolean).map((line) => <div key={String(line)} className="mt-1 text-sm">{line}</div>)}
             </div>
-            <div className="divide-y divide-border">
-              {items.map((p) => (
-                <div
-                  key={p.id}
-                  data-testid="case-participant-row"
-                  className="grid gap-3 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"
-                >
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-sm font-semibold text-foreground">{p.name}</p>
-                    {p.nickname && <p className="text-xs text-muted-foreground">ชื่อเล่น: {p.nickname}</p>}
-                    {p.representedByParticipantId && <p className="text-xs text-muted-foreground">ตัวแทนของ {participants.find(x => x.id === p.representedByParticipantId)?.name ?? '—'}</p>}
-                    {p.clientId && <p className="text-xs text-muted-foreground">ลูกความในทะเบียน</p>}
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                      {p.phone && <span>{p.phone}</span>}
-                      {p.email && <span>{p.email}</span>}
-                      {p.opposingLawyer && <span>ทนาย: {p.opposingLawyer}</span>}
-                      {p.opposingInsurer && <span>ประกัน: {p.opposingInsurer}</span>}
-                      {p.medicalLicenseNo && <span>ใบอนุญาตแพทย์: {p.medicalLicenseNo}</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 sm:justify-end">
-                    <span className="text-xs text-muted-foreground">ฐานะ</span>
-                    <span className={`rounded px-2 py-1 text-xs font-medium ${ROLE_BADGE_COLORS[p.role] ?? ROLE_BADGE_COLORS.OTHER}`}>
-                      {ROLE_LABELS[p.role] ?? p.role}
-                    </span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1 sm:justify-end">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(p)}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:w-8"
-                      aria-label={`แก้ไข ${p.name}`}
-                    >
-                      <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(p.id, p.name)}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:w-8"
-                      aria-label={`ลบ ${p.name}`}
-                    >
-                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+            <button type="button" onClick={() => openEdit(p)} aria-label={`แก้ไข ${p.name}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Pencil aria-hidden="true" className="h-4 w-4" /></button>
+            <button type="button" onClick={() => handleDelete(p.id, p.name)} aria-label={`ลบ ${p.name}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Trash2 aria-hidden="true" className="h-4 w-4" /></button>
+          </li>)}</ul>
+        </section>;
+      })}</div>}
     </div>
   );
 }

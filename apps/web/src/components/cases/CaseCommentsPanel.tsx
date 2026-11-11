@@ -247,85 +247,27 @@ export function CaseCommentsPanel({
   let lastDay = '';
 
   return (
-    <div className="rounded-xl border bg-card">
-      <div className="border-b px-5 py-4">
-        <h2 className="font-semibold text-foreground">ความเห็นภายในทีม</h2>
-        <p className="text-sm text-muted-foreground">ไม่แสดงให้ลูกความเห็น</p>
-      </div>
-
-      <div className="max-h-[50vh] space-y-1 overflow-y-auto px-5 py-4">
-        {loadError && <LoadFailed onRetry={load} />}
-        {!loadError && comments.length === 0 && (
-          <InlineEmptyState
-            title="ยังไม่มีความเห็น"
-            description="ความเห็นจากทีมงานจะแสดงตรงนี้"
-          />
-        )}
+    <section className="space-y-4 rounded-xl border border-[#e2e0d8] bg-card p-5 shadow-[0_4px_16px_rgba(20,46,67,.06)]">
+      {loadError && <LoadFailed onRetry={load} />}
+      {!loadError && comments.length === 0 && <div><p className="font-semibold">ยังไม่มีบันทึกในทีม</p><p className="mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground">จดสิ่งที่ทีมควรรู้เกี่ยวกับคดีนี้ ใช้ @ชื่อ เพื่อแจ้งเตือนคนในทีม</p></div>}
+      {comments.length > 0 && <div className="max-h-[55vh] space-y-4 overflow-y-auto overscroll-contain">
         {comments.map((c) => {
-          const day = DAY.format(new Date(c.createdAt));
-          const newDay = day !== lastDay;
-          lastDay = day;
-          const initials = `${c.authorFirstName[0]}${c.authorLastName[0]}`.toUpperCase();
+          const initials = `${c.authorFirstName[0] ?? ''}${c.authorLastName[0] ?? ''}`.toUpperCase();
           const isAuthor = user?.id === c.authorId;
-
-          return (
-            <div key={c.id}>
-              {newDay && (
-                <div className="my-3 flex items-center gap-3">
-                  <div className="h-px flex-1 bg-border" />
-                  <span className="text-xs text-muted-foreground">{day}</span>
-                  <div className="h-px flex-1 bg-border" />
-                </div>
-              )}
-              <div className="flex gap-3 rounded-lg px-2 py-2 hover:bg-muted/50">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
-                  {initials}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {c.authorFirstName} {c.authorLastName}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {TIME.format(new Date(c.createdAt))}
-                      </span>
-                    </div>
-                    {isAuthor && (
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(c.id)}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:w-8"
-                        aria-label="ลบความเห็น"
-                      >
-                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <p className="whitespace-pre-wrap text-sm text-foreground">
-                    {renderBodyWithMentions(c.body, c.mentionedUserIds)}
-                  </p>
-                </div>
-              </div>
+          return <div key={c.id} className="flex gap-3">
+            <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#243c50] text-xs text-white">{initials}</span>
+            <div className="min-w-0 rounded-xl bg-[#f3f1ea] px-4 py-3">
+              <div className="flex items-start justify-between gap-2"><span><b>{c.authorFirstName} {c.authorLastName}</b> <span className="text-[.8rem] text-muted-foreground">· {DAY.format(new Date(c.createdAt))} {TIME.format(new Date(c.createdAt))}</span></span>{isAuthor && <button type="button" onClick={() => handleDelete(c.id)} className="-my-2 -mr-2 inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="ลบบันทึก"><Trash2 aria-hidden="true" className="h-3.5 w-3.5" /></button>}</div>
+              <p className="mt-1 whitespace-pre-wrap">{renderBodyWithMentions(c.body, c.mentionedUserIds)}</p>
             </div>
-          );
+          </div>;
         })}
         <div ref={bottomRef} />
-      </div>
-
-      {error && <p role="alert" className="px-5 pb-2 text-sm text-destructive">{error}</p>}
-
-      <div className="border-t p-4">
+      </div>}
+      {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
+      <div className="border-t border-[#e2e0d8] pt-4">
         <div className="relative">
-          <textarea
-            ref={textareaRef}
-            value={body}
-            onChange={handleTextChange}
-            onKeyDown={handleKeyDown}
-            rows={3}
-            className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="ความเห็น" placeholder="พิมพ์ความเห็น (@ เพื่อกล่าวถึง)"
-          />
+          <textarea ref={textareaRef} value={body} onChange={handleTextChange} onKeyDown={handleKeyDown} aria-label="บันทึกภายในทีม" placeholder="พิมพ์บันทึก… ใช้ @ชื่อ เพื่อแจ้งเตือนคนในทีม" className="mt-1 min-h-[90px] w-full rounded-lg border border-[#c9ccc6] bg-white px-[.8rem] py-[.55rem] text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-[15px]" />
           {showMentionPicker && filteredMembers.length > 0 && (
             <div
               ref={pickerRef}
@@ -347,27 +289,8 @@ export function CaseCommentsPanel({
             </div>
           )}
         </div>
-        <div className="mt-2 flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setBody('');
-              setMentionedUserIds([]);
-              setShowMentionPicker(false);
-            }}
-          >
-            ยกเลิก
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSend}
-            disabled={sending || !body.trim()}
-          >
-            {sending ? 'กำลังส่ง...' : 'ส่งความเห็น'}
-          </Button>
-        </div>
+        <div className="mt-2 flex items-center justify-between gap-3"><p className="text-[.82rem] leading-[1.45] text-muted-foreground">กด Enter เพื่อขึ้นบรรทัดใหม่ · กด Ctrl+Enter หรือปุ่มเพื่อส่ง</p><button type="button" onClick={handleSend} disabled={sending || !body.trim()} className="inline-flex min-h-11 items-center justify-center gap-[.4rem] rounded-lg bg-[#142e43] px-4 text-[.95rem] font-semibold text-[#fffdfa] disabled:opacity-60">{sending ? 'กำลังส่ง…' : 'ส่งบันทึก'}</button></div>
       </div>
-    </div>
+    </section>
   );
 }

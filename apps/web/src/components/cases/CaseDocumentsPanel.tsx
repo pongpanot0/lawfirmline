@@ -3,9 +3,12 @@
 import { CaseKnowledgePanel } from '@/components/documents/CaseKnowledgePanel';
 import { CaseDriveSection } from '@/components/cases/CaseDriveSection';
 import { CaseEvidenceSection } from '@/components/cases/CaseEvidenceSection';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Download, Sparkles, CalendarSearch, ClipboardCheck, PenLine, RotateCcw, Check, X, FileText } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Download, Sparkles, CalendarSearch, ClipboardCheck, PenLine, RotateCcw, Check, X, FileText, Upload, Ellipsis, ArrowRight, Image as ImageIcon } from 'lucide-react';
+import { CaseDocRequestsCard } from '@/components/case-page/CaseDocRequestsCard';
+import v2 from '@/components/case-page/v2.module.css';
 import { Button } from '@/components/ui/button';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { useAuth } from '@/lib/auth';
@@ -15,6 +18,7 @@ import { PublishDocumentDialog } from '@/components/documents/PublishDocumentDia
 import { TemplateGenerateDrawer } from '@/components/cases/TemplateGenerateDrawer';
 import { PleadingDraftDrawer } from '@/components/cases/PleadingDraftDrawer';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { SideDrawer } from '@/components/ui/SideDrawer';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
@@ -27,6 +31,9 @@ const DOCUMENT_CATEGORY_VALUES = Object.values(DocumentCategory);
 
 export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseId: string; onChanged?: () => void; newFolderName?: string }) {
   const d = useDashboardT();
+  const newUpload = useSearchParams().get('new') === 'upload';
+  const [uploadOpen, setUploadOpen] = useState(false);
+  useEffect(() => { if (newUpload) { setUploadOpen(true); const url = new URL(window.location.href); url.searchParams.delete('new'); window.history.replaceState(window.history.state, '', url); } }, [newUpload]);
   const id = caseId;
   const { token, user } = useAuth();
   const canManageContent = hasFirmCapability(user?.firmRole, 'manageFirmContent');
@@ -41,6 +48,14 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
   const [pleadingDrawerOpen, setPleadingDrawerOpen] = useState(false);
   const [error, setError] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [allDocs, setAllDocs] = useState<DocumentItem[]>([]);
+  const [showAllDocs, setShowAllDocs] = useState(false);
+  const [managingDocId, setManagingDocId] = useState<string | null>(null);
+  type UploadRow = { name: string; status: 'uploading' | 'done' | 'error'; doc?: DocumentItem };
+  const [uploadRows, setUploadRowsState] = useState<UploadRow[]>([]);
+  const uploadRowsRef = useRef<UploadRow[]>([]);
+  const setUploadRows = (rows: UploadRow[]) => { uploadRowsRef.current = rows; setUploadRowsState(rows); };
+  const [uploadCategory, setUploadCategory] = useState<string>('OTHER');
   const [suggestionsKey, setSuggestionsKey] = useState(0);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -80,6 +95,7 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
     ])
       .then(([docs, tmpls]) => {
         setDocuments(docs);
+        if (!categoryFilter) setAllDocs(docs);
         setTemplates(tmpls);
         docs.forEach((d) => loadPublications(d.id));
       })
@@ -211,6 +227,25 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
     }
   };
 
+  const uploadMany = async (files: File[]) => {
+    if (!token || !id || !files.length) return;
+    setUploading(true); setError('');
+    for (const file of files) {
+      const index = uploadRowsRef.current.length;
+      uploadRowsRef.current = [...uploadRowsRef.current, { name: file.name, status: 'uploading' }];
+      setUploadRows(uploadRowsRef.current);
+      try {
+        const doc = await api.uploadDocument(token, id, file, { category: uploadCategory });
+        uploadRowsRef.current = uploadRowsRef.current.map((row, i) => (i === index ? { ...row, status: 'done', doc } : row));
+      } catch (e) {
+        uploadRowsRef.current = uploadRowsRef.current.map((row, i) => (i === index ? { ...row, status: 'error' } : row));
+        setError(e instanceof ApiError ? e.message : d.caseDocuments.uploadFailed);
+      }
+      setUploadRows(uploadRowsRef.current);
+    }
+    setUploading(false); load();
+  };
+
   const handleAnalyzeDocument = async (doc: DocumentItem) => {
     if (!token || !id) return;
     setAnalyzingId(doc.id);
@@ -245,166 +280,50 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
 
   if (loading) return <PageLoading title={d.documents.loading} lines={3} />;
 
+  const shownDocs = showAllDocs ? documents : documents.slice(0, 10);
+  const typeBadge = (doc: DocumentItem) => { const ext = (doc.filename.split('.').pop() ?? '').toUpperCase().slice(0, 4); const tone = /PDF/.test(ext) ? 'bg-[#fbeaea] text-[#a83232]' : /DOC|RTF|ODT/.test(ext) ? 'bg-[#e6eef7] text-[#2b5a8a]' : /JPG|JPEG|PNG|HEIC|GIF|WEBP/.test(ext) ? 'bg-[#e6f3ec] text-[#227052]' : 'bg-[#eeebe3] text-foreground'; return <span aria-hidden="true" className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg text-xs font-bold ${tone}`}>{ext || 'FILE'}</span>; };
+  const docCounts = allDocs.reduce<Record<string, number>>((acc, doc) => { const key = doc.category ?? 'OTHER'; acc[key] = (acc[key] ?? 0) + 1; return acc; }, {});
   return (
     <div>
-      <h2 className="mb-4 text-xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h2>
-
-      {/* กรองตามหมวด — คดีใหญ่มีเอกสารหลายร้อยชิ้น ชื่อไฟล์ล้วนหาไม่เจอ */}
-      <div className="mb-6 flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
-        <button
-          type="button"
-          onClick={() => setCategoryFilter('')}
-          className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-1 text-xs sm:min-h-9 ${
-            categoryFilter === '' ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground'
-          }`}
-        >
-          ทั้งหมด
-        </button>
-        {DOCUMENT_CATEGORY_VALUES.map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setCategoryFilter(value)}
-            className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-1 text-xs sm:min-h-9 ${
-              categoryFilter === value
-                ? 'bg-primary text-primary-foreground'
-                : 'border bg-card text-muted-foreground hover:border-primary/40'
-            }`}
-          >
-            {documentCategoryLabel(value, 'th')}
-          </button>
-        ))}
-      </div>
-
-      {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
-
-      {requiredDocs && requiredDocs.required.length > 0 && (
-        <div
-          className={`mb-6 rounded-xl border p-4 ${
-            requiredDocs.missing.length
-              ? 'border-warning/40 bg-warning/5'
-              : 'border-success/40 bg-success/5'
-          }`}
-        >
-          <p className="mb-2 text-sm font-semibold">
-            เอกสารที่ต้องมีตามประเภทคดี{' '}
-            {requiredDocs.missing.length
-              ? `— ขาดอีก ${requiredDocs.missing.length} รายการ`
-              : '— ครบแล้ว'}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {requiredDocs.required.map((item) => (
-              <span
-                key={item.category}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${
-                  item.present
-                    ? 'border-success/40 text-success'
-                    : 'border-warning/50 font-medium text-warning'
-                }`}
-              >
-                {item.present
-                  ? <Check aria-hidden="true" className="h-3.5 w-3.5" />
-                  : <X aria-hidden="true" className="h-3.5 w-3.5" />}
-                <span className="sr-only">{item.present ? 'มีแล้ว: ' : 'ยังขาด: '}</span>
-                {documentCategoryLabel(item.category, 'th')}
-              </span>
-            ))}
+      {uploadOpen && <dialog ref={(el) => { if (el && !el.open) el.showModal(); }} aria-labelledby="upload-title" onCancel={(e) => { e.preventDefault(); if (!uploading) { setUploadOpen(false); setUploadRows([]); } }} className="m-auto w-[min(36rem,calc(100vw-2rem))] max-w-none rounded-2xl bg-[#fffdfa] p-0 text-foreground shadow-2xl backdrop:bg-[#101d2a]/45">
+        <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
+          <div className="flex items-start justify-between border-b border-[#e2e0d8] px-6 py-4"><h2 id="upload-title" tabIndex={-1} autoFocus className="text-xl font-bold outline-none">แนบเอกสารเข้าคดี</h2><button type="button" aria-label="ปิดหน้าต่างแนบเอกสาร" disabled={uploading} onClick={() => { setUploadOpen(false); setUploadRows([]); }} className={`${v2.btn} ${v2.ghost}`}><X aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button></div>
+          <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
+            <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void uploadMany(Array.from(e.dataTransfer.files ?? [])); }} className="block cursor-pointer rounded-xl border-2 border-dashed border-[#b9bfb8] p-5 text-center focus-within:ring-2 focus-within:ring-ring"><input type="file" multiple className="sr-only" disabled={uploading} onChange={(e) => { void uploadMany(Array.from(e.target.files ?? [])); e.target.value = ''; }} /><b>ลากไฟล์มาวาง หรือ <span className="underline">เลือกไฟล์</span></b><p className={v2.hint}>PDF, Word, รูปภาพ · ไฟล์ละไม่เกิน 25 MB</p></label>
+            {uploadRows.map((row, index) => <div key={`${row.name}-${index}`} className="rounded-lg border border-[#e2e0d8] p-3"><div className="flex items-center justify-between gap-2 text-sm"><span className="flex min-w-0 items-center gap-2">{/\.(jpe?g|png|heic|gif|webp)$/i.test(row.name) ? <ImageIcon aria-hidden="true" className="h-[1.1em] w-[1.1em] shrink-0" /> : <FileText aria-hidden="true" className="h-[1.1em] w-[1.1em] shrink-0" />}<span className="truncate">{row.name}</span></span>{row.status === 'done' ? <span className="flex items-center gap-1 font-semibold text-[#227052]"><Check aria-hidden="true" className="h-[1.1em] w-[1.1em]" />อัปโหลดแล้ว</span> : row.status === 'error' ? <span className="font-semibold text-[#a83232]">อัปโหลดไม่สำเร็จ</span> : <span>กำลังอัปโหลด…</span>}</div>{row.status === 'uploading' && <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e7e4dc]"><div className="h-2 w-2/3 motion-safe:animate-pulse rounded-full bg-[#142e43]" /></div>}</div>)}
+            <label className="block"><span className={v2.flabel}>หมวดเอกสาร</span><select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value)} className={`${v2.field} text-base sm:text-[15px]`}>{DOCUMENT_CATEGORY_VALUES.map((value) => <option key={value} value={value}>{documentCategoryLabel(value, 'th')}</option>)}</select><p className={v2.hint}>ช่วยให้หาไฟล์ในแท็บเอกสารเจอเร็วขึ้น</p></label>
+            {uploadRows.some((row) => row.doc) && <div className="flex items-start gap-3 rounded-lg bg-[#eef3f8] p-3 text-sm"><Sparkles aria-hidden="true" className="mt-0.5 h-[1.1em] w-[1.1em] shrink-0" /><div><b>ให้ระบบช่วยอ่านไฟล์ไหม</b><p className={v2.hint}>ระบบจะอ่านไฟล์แล้วเสนอข้อมูล เช่น ชื่อพยาน ให้คุณตรวจก่อนบันทึก — ไม่บันทึกเองโดยไม่ถาม</p><button type="button" disabled={!!analyzingId} onClick={() => { const last = [...uploadRows].reverse().find((row) => row.doc)?.doc; if (last) void handleAnalyzeDocument(last); }} className={`${v2.btn} ${v2.outline} mt-2 min-h-0 py-2`}>{analyzingId ? d.caseDocuments.analyzing : 'อ่านไฟล์และเสนอข้อมูล'}</button></div></div>}
+            {error && <p role="alert" className={v2.error}>{error}</p>}
           </div>
+          <div className="flex justify-end gap-2 border-t border-[#e2e0d8] px-6 py-4"><button type="button" disabled={uploading} onClick={() => { setUploadOpen(false); setUploadRows([]); }} className={`${v2.btn} ${v2.primary}`}>เสร็จ</button></div>
         </div>
-      )}
-
-      <DateSuggestionsPanel
-        caseId={id}
-        sources={['DOCUMENT', 'EMAIL']}
-        title={d.dateSuggestions.documentTitle}
-        reloadKey={suggestionsKey}
-        onChanged={onChanged}
-      />
-
-      <div className="mb-6 rounded-xl border bg-card p-6">
-        <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.templates}</h2>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setTemplateDrawerOpen(true)}>
-            <FileText aria-hidden="true" className="h-4 w-4" />
-            สร้างเอกสารจากแม่แบบ
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setPleadingDrawerOpen(true)}>
-            <Sparkles aria-hidden="true" className="h-4 w-4" />
-            AI ร่างคำคู่ความ
-          </Button>
-        </div>
-      </div>
-
-      {token && (
-        <TemplateGenerateDrawer
-          open={templateDrawerOpen}
-          onClose={() => setTemplateDrawerOpen(false)}
-          token={token}
-          caseId={id}
-          templates={templates}
-          onGenerated={load}
-        />
-      )}
-
-      {token && (
-        <PleadingDraftDrawer
-          open={pleadingDrawerOpen}
-          onClose={() => setPleadingDrawerOpen(false)}
-          token={token}
-          caseId={id}
-          onGenerated={load}
-        />
-      )}
-
-      <CaseDriveSection caseId={id} onImported={load} newFolderName={newFolderName} />
-      <div className="rounded-xl border bg-card p-6">
-        <h2 className="mb-4 font-semibold text-foreground">{fmt(d.caseDocuments.filesCount, { count: documents.length })}</h2>
-        <div className="mb-4">
-          <DocumentDropZone
-            onFile={handleUpload}
-            loading={uploading}
-            loadingLabel={d.caseDocuments.uploading}
-            label={d.documents.dropHint}
-            hint={d.documents.fileTypesHint}
-          />
-        </div>
-        {loadError ? (
-          <LoadFailed onRetry={load} />
-        ) : (
-        <div className="space-y-2">
-          {documents.map((doc) => (
-            <div
-              key={doc.id}
-              className="flex flex-col gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-accent/50"
-            >
-              <button
-                type="button"
-                onClick={() => handleView(doc)}
-                disabled={viewingId === doc.id}
-                className="min-w-0 text-left"
-              >
-                <p className="break-all font-medium text-primary hover:underline">
-                  {doc.filename}
-                  {viewingId === doc.id && <span className="ml-2 text-xs font-normal text-muted-foreground">{d.caseDocuments.opening}</span>}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  v{doc.version} —{' '}
-                  {doc.uploadedBy
-                    ? `${doc.uploadedBy.firstName} ${doc.uploadedBy.lastName}`
-                    : doc.uploadedByContact?.name ?? 'ลูกความ'}
-                  {doc.uploadedByContact && (
-                    <span className="ml-1.5 rounded-full border border-primary/30 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                      จากลูกความ
-                    </span>
-                  )}
-                </p>
-                {officeEditedHint(doc.filename, officeLinks[doc.id]) && (
-                  <p className="text-xs font-medium text-warning">
-                    {officeEditedHint(doc.filename, officeLinks[doc.id])}
-                  </p>
-                )}
-                {officeLinks[doc.id]?.error && <p className="text-xs text-muted-foreground">{officeLinks[doc.id].error}</p>}
-              </button>
+      </dialog>}
+      {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
+      <div className="grid gap-5 lg:grid-cols-3">
+        <div className="min-w-0 space-y-5 lg:col-span-2">
+          <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files?.[0]; if (file) void handleUpload(file); }} className="block cursor-pointer rounded-xl border-2 border-dashed border-[#b9bfb8] bg-white p-6 text-center focus-within:ring-2 focus-within:ring-ring">
+            <input type="file" className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleUpload(file); e.target.value = ''; }} disabled={uploading} />
+            <p className="inline-flex flex-wrap items-center justify-center gap-2 text-lg font-bold"><Upload aria-hidden="true" className="h-[1.1em] w-[1.1em]" />{uploading ? d.caseDocuments.uploading : <>ลากไฟล์มาวางที่นี่ หรือ <span className="underline">เลือกไฟล์</span></>}</p>
+            <p className={v2.hint}>ไฟล์จะเข้าแฟ้มคดีนี้ ระบบช่วยอ่านไฟล์ (เช่น คำให้การ) และเสนอข้อมูลให้กรอกได้</p>
+          </label>
+          <section className={`${v2.card} overflow-hidden shadow-[0_4px_16px_rgba(20,46,67,.06)]`}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e0d8] px-5 py-3"><h3 className="text-lg font-bold">ไฟล์ล่าสุด</h3>
+              <div className="flex flex-wrap gap-2 text-sm">
+                <button type="button" aria-pressed={categoryFilter === ''} onClick={() => setCategoryFilter('')} className={`${v2.btn} ${categoryFilter === '' ? v2.primary : v2.outline} min-h-0 py-1.5`}>ทั้งหมด {allDocs.length}</button>
+                {DOCUMENT_CATEGORY_VALUES.filter((value) => docCounts[value]).map((value) => <button key={value} type="button" aria-pressed={categoryFilter === value} onClick={() => setCategoryFilter(value)} className={`${v2.btn} ${categoryFilter === value ? v2.primary : v2.outline} min-h-0 py-1.5`}>{documentCategoryLabel(value, 'th')} {docCounts[value]}</button>)}
+              </div>
+            </div>
+            {loadError ? <div className="p-5"><LoadFailed onRetry={load} /></div> : documents.length === 0 ? <p className={`${v2.hint} px-5 py-4`}>{d.caseDocuments.noDocuments} — ลากไฟล์มาวางในกรอบด้านบนเพื่อเริ่ม</p> : <ul className="divide-y divide-[#e2e0d8]">
+              {shownDocs.map((doc) => <li key={doc.id} className="px-5 py-3.5">
+                <div className="flex flex-wrap items-center gap-4">
+                  {typeBadge(doc)}
+                  <div className="min-w-0 flex-1"><b className="break-all">{doc.filename}</b><div className={v2.label}>{[documentCategoryLabel(doc.category ?? 'OTHER', 'th'), doc.uploadedBy ? `${doc.uploadedBy.firstName} ${doc.uploadedBy.lastName}` : doc.uploadedByContact ? `${doc.uploadedByContact.name} (ลูกความ)` : 'ลูกความ', new Date(doc.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })].join(' · ')}</div>
+                    {officeEditedHint(doc.filename, officeLinks[doc.id]) && <p className="text-xs font-medium text-warning">{officeEditedHint(doc.filename, officeLinks[doc.id])}</p>}</div>
+                  <button type="button" onClick={() => handleView(doc)} disabled={viewingId === doc.id} className={`${v2.btn} ${v2.ghost}`}>{viewingId === doc.id ? d.caseDocuments.opening : 'ดู'}</button>
+                  <button type="button" onClick={() => handleDownload(doc)} className={`${v2.btn} ${v2.ghost}`}>ดาวน์โหลด</button>
+                  <button type="button" aria-expanded={managingDocId === doc.id} onClick={() => setManagingDocId(managingDocId === doc.id ? null : doc.id)} className={`${v2.btn} ${v2.ghost}`} aria-label={`จัดการ ${doc.filename}`}><Ellipsis aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button>
+                </div>
+                {managingDocId === doc.id && <div className="mt-3 pl-14">
               <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={doc.category ?? 'OTHER'}
@@ -525,19 +444,97 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
                   {d.caseDocuments.download}
                 </button>
               </div>
-            </div>
-          ))}
-          {documents.length === 0 && (
-            <InlineEmptyState
-              title={d.caseDocuments.noDocuments}
-            />
-          )}
+                </div>}
+              </li>)}
+            </ul>}
+            {documents.length > 10 && <button type="button" onClick={() => setShowAllDocs((v) => !v)} className="flex w-full items-center gap-1 border-t border-[#e2e0d8] px-5 py-3 text-sm font-semibold underline">{showAllDocs ? 'แสดงเฉพาะไฟล์ล่าสุด' : <>ดูไฟล์ทั้งหมด ({documents.length}) <ArrowRight aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></>}</button>}
+          </section>
         </div>
-        )}
+        {token && <div><CaseDocRequestsCard token={token} caseId={id} /></div>}
+      </div>
+      <details className={`${v2.card} mt-5`}>
+        <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">เครื่องมือเพิ่มเติม <span className={v2.label}>· เอกสารที่ต้องมีตามประเภทคดี · สร้างจากแม่แบบ · AI ร่างคำคู่ความ · OneDrive · พยานหลักฐาน</span></summary>
+        <div className="space-y-5 border-t border-[#e2e0d8] p-5">
+      {requiredDocs && requiredDocs.required.length > 0 && (
+        <div
+          className={`mb-6 rounded-xl border p-4 ${
+            requiredDocs.missing.length
+              ? 'border-warning/40 bg-warning/5'
+              : 'border-success/40 bg-success/5'
+          }`}
+        >
+          <p className="mb-2 text-sm font-semibold">
+            เอกสารที่ต้องมีตามประเภทคดี{' '}
+            {requiredDocs.missing.length
+              ? `— ขาดอีก ${requiredDocs.missing.length} รายการ`
+              : '— ครบแล้ว'}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {requiredDocs.required.map((item) => (
+              <span
+                key={item.category}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${
+                  item.present
+                    ? 'border-success/40 text-success'
+                    : 'border-warning/50 font-medium text-warning'
+                }`}
+              >
+                {item.present
+                  ? <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                  : <X aria-hidden="true" className="h-3.5 w-3.5" />}
+                <span className="sr-only">{item.present ? 'มีแล้ว: ' : 'ยังขาด: '}</span>
+                {documentCategoryLabel(item.category, 'th')}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <DateSuggestionsPanel
+        caseId={id}
+        sources={['DOCUMENT', 'EMAIL']}
+        title={d.dateSuggestions.documentTitle}
+        reloadKey={suggestionsKey}
+        onChanged={onChanged}
+      />
+      <div className="mb-6 rounded-xl border bg-card p-6">
+        <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.templates}</h2>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setTemplateDrawerOpen(true)}>
+            <FileText aria-hidden="true" className="h-4 w-4" />
+            สร้างเอกสารจากแม่แบบ
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setPleadingDrawerOpen(true)}>
+            <Sparkles aria-hidden="true" className="h-4 w-4" />
+            AI ร่างคำคู่ความ
+          </Button>
+        </div>
       </div>
 
+      {token && (
+        <TemplateGenerateDrawer
+          open={templateDrawerOpen}
+          onClose={() => setTemplateDrawerOpen(false)}
+          token={token}
+          caseId={id}
+          templates={templates}
+          onGenerated={load}
+        />
+      )}
+
+      {token && (
+        <PleadingDraftDrawer
+          open={pleadingDrawerOpen}
+          onClose={() => setPleadingDrawerOpen(false)}
+          token={token}
+          caseId={id}
+          onGenerated={load}
+        />
+      )}
+      <CaseDriveSection caseId={id} onImported={load} newFolderName={newFolderName} />
       <CaseEvidenceSection caseId={id} refreshKey={analysisRevision} />
       <CaseKnowledgePanel caseId={id} refreshKey={analysisRevision} />
+        </div>
+      </details>
       {preview && (
         <DocumentPreviewModal
           filename={preview.filename}

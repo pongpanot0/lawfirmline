@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { ClientItem } from '@/lib/api';
-import { Input } from '@/components/ui/input';
+import styles from '@/components/case-page/v2.module.css';
 import { cn } from '@/lib/utils';
 
 interface ClientComboboxProps {
@@ -67,7 +67,8 @@ export function ClientCombobox({
 
   return (
     <div ref={containerRef} className="relative">
-      <Input
+      <input
+        className={`${styles.field} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
         id={id}
         role="combobox"
         aria-expanded={open}
@@ -76,7 +77,7 @@ export function ClientCombobox({
         autoComplete="off"
         disabled={disabled}
         value={query}
-        placeholder="ค้นหาลูกความในรายชื่อ หรือพิมพ์ชื่อใหม่"
+        placeholder="พิมพ์ชื่อเพื่อค้นหา"
         onFocus={() => setOpen(true)}
         onChange={(e) => {
           const value = e.target.value;
@@ -107,7 +108,7 @@ export function ClientCombobox({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-input bg-card py-1 text-sm shadow-soft"
+          className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#c9ccc6] bg-white py-1 shadow-lg"
         >
           {visibleMatches.length === 0 && (
             <li className="px-3 py-2 text-muted-foreground">
@@ -119,8 +120,8 @@ export function ClientCombobox({
               <button
                 type="button"
                 className={cn(
-                  'block w-full px-3 py-2 text-left hover:bg-sidebar-accent',
-                  i === highlight && 'bg-sidebar-accent',
+                  'block min-h-11 w-full px-3 py-2.5 text-left text-foreground hover:bg-[#eeebe3]',
+                  i === highlight && 'bg-[#eeebe3] font-semibold',
                 )}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(c)}
