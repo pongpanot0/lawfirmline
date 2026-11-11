@@ -170,27 +170,25 @@ export default function TimesheetPage() {
   };
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full min-w-0 space-y-6 pb-36 sm:pb-8">
       <PageHeader
         title={d.timesheet.title}
         description="ตรวจเวลาที่บันทึก หรือเพิ่มเวลาทำงานในคดี"
         actions={
-          <Button type="button" onClick={() => { setShowAdd(true); setEditing(null); }}>
-            เพิ่มเวลา
-          </Button>
+          <div><Button type="button" variant="outline" onClick={() => { setShowAdd(true); setEditing(null); }}>เพิ่มเวลาเอง</Button><p className="mt-1 text-xs text-muted-foreground">กดเพื่อบันทึกเวลาที่ระบบดึงมาไม่ได้</p></div>
         }
       />
       {showAdd && <TimeEntryForm onCancel={() => setShowAdd(false)} onDone={afterTimeChange} />}
 
-      <Card>
+      <Card className="border-l-4 border-amber-200 border-l-[var(--color-brass)] bg-[var(--operations-highlight)]">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle>{d.timesheet.confirmSection}</CardTitle>
+            <CardTitle>ยืนยันเวลาวันนี้</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">{d.timesheet.confirmSectionHint}</p>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-muted-foreground">{d.timesheet.date}</label>
-            <ThaiDateInput value={date} onChange={setDate} />
+            <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.date}</span>
+            <ThaiDateInput label={d.timesheet.date} value={date} onChange={setDate} />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -201,67 +199,25 @@ export default function TimesheetPage() {
           {loadingSuggestions ? (
             <PageLoading title={d.common.loading} lines={2} />
           ) : suggestions.length === 0 ? (
-            <InlineEmptyState title={d.timesheet.noSuggestions} />
+            <InlineEmptyState title="ไม่มีรายการรอยืนยันสำหรับวันนี้ ระบบจะดึงจากนัดศาล งานที่ปิด และอีเมลให้อัตโนมัติ" />
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-8" />
-                    <TableHead>{d.timesheet.colCase}</TableHead>
-                    <TableHead>{d.timesheet.colSource}</TableHead>
-                    <TableHead>{d.timesheet.colDescription}</TableHead>
-                    <TableHead className="w-28">{d.timesheet.colHours}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {suggestions.map((s) => {
-                    const row = rows[s.sourceKey] ?? { checked: false, hours: '', description: s.description };
-                    const invalidHours = row.checked && !isHoursInRange(row.hours);
-                    return (
-                      <TableRow key={s.sourceKey}>
-                        <TableCell>
-                          <Checkbox
-                            checked={row.checked}
-                            onChange={(e) => updateRow(s.sourceKey, { checked: e.target.checked })}
-                          />
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{s.caseRef ?? '-'}</TableCell>
-                        <TableCell>
-                          <Badge variant="muted">{d.timesheet.sources[s.source]}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            value={row.description}
-                            onChange={(e) => updateRow(s.sourceKey, { description: e.target.value })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step={0.25}
-                            min={0.25}
-                            max={24}
-                            value={row.hours}
-                            className={invalidHours ? 'border-destructive' : undefined}
-                            onChange={(e) => updateRow(s.sourceKey, { hours: e.target.value })}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-
-              <div className="flex items-center gap-3">
-                <Button disabled={checkedCount === 0 || hasInvalidHours || confirming} onClick={confirmEntries}>
-                  {confirming ? d.timesheet.confirming : fmt(d.timesheet.confirmButton, { count: checkedCount })}
-                </Button>
-                {hasMissingHours ? (
-                  <p className="text-sm text-destructive">{d.timesheet.hoursRequired}</p>
-                ) : hasOutOfRangeHours ? (
-                  <p className="text-sm text-destructive">{d.timesheet.hoursOutOfRange}</p>
-                ) : null}
+              <label className="flex min-h-11 items-center justify-end gap-2 text-sm font-semibold"><Checkbox checked={suggestions.length > 0 && suggestions.every((s) => rows[s.sourceKey]?.checked)} onChange={(e) => setRows((prev) => Object.fromEntries(Object.entries(prev).map(([key, row]) => [key, { ...row, checked: e.target.checked }])))} />เลือกทั้งหมด</label>
+              <div className="space-y-3">
+                {suggestions.map((s) => {
+                  const row = rows[s.sourceKey] ?? { checked: false, hours: '', description: s.description };
+                  const invalidHours = row.checked && !isHoursInRange(row.hours);
+                  return <div key={s.sourceKey} className="flex min-w-0 items-start gap-2 rounded-lg border bg-card p-3 sm:items-center sm:p-4">
+                    <label className="flex min-h-11 min-w-11 items-center justify-center"><Checkbox aria-label={`เลือกบันทึกเวลา: ${row.description || s.description}`} checked={row.checked} onChange={(e) => updateRow(s.sourceKey, { checked: e.target.checked })} /></label>
+                    <div className="min-w-0 flex-1 space-y-2"><p className="break-words font-semibold">{s.caseRef ?? 'ภายในสำนักงาน'}</p><Input aria-label="รายละเอียดงานที่จะบันทึก" value={row.description} onChange={(e) => updateRow(s.sourceKey, { description: e.target.value })} /><Badge variant="muted">{d.timesheet.sources[s.source]}</Badge></div>
+                    <label className="w-20 shrink-0 text-xs text-muted-foreground">ชั่วโมง<Input type="number" step={0.25} min={0.25} max={24} aria-label="จำนวนชั่วโมง" aria-invalid={invalidHours || undefined} value={row.hours} className={invalidHours ? 'border-destructive' : undefined} onChange={(e) => updateRow(s.sourceKey, { hours: e.target.value })} /></label>
+                  </div>;
+                })}
+              </div>
+              <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-2 border-t bg-card p-4 shadow-lg sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:bg-transparent sm:px-0 sm:shadow-none">
+                <strong>เลือก {checkedCount} รายการ · {Object.values(rows).filter((row) => row.checked).reduce((sum, row) => sum + (Number(row.hours) || 0), 0).toFixed(1)} ชั่วโมง</strong>
+                <div><Button className="w-full sm:w-auto" disabled={checkedCount === 0 || hasInvalidHours || confirming} onClick={confirmEntries}>{confirming ? d.timesheet.confirming : fmt(d.timesheet.confirmButton, { count: checkedCount })}</Button><p className="mt-1 text-center text-xs text-muted-foreground">บันทึกเวลาที่เลือกไว้เข้าคดี แก้ไขได้ภายหลัง</p></div>
+                {hasMissingHours ? <p className="text-sm text-destructive">{d.timesheet.hoursRequired}</p> : hasOutOfRangeHours ? <p className="text-sm text-destructive">{d.timesheet.hoursOutOfRange}</p> : null}
               </div>
             </>
           )}
@@ -275,12 +231,13 @@ export default function TimesheetPage() {
             <p className="mt-1 text-sm text-muted-foreground">{d.timesheet.timesheetSectionHint}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-sm font-medium text-muted-foreground">{d.timesheet.from}</label>
-            <ThaiDateInput value={from} onChange={setFrom} />
-            <label className="text-sm font-medium text-muted-foreground">{d.timesheet.to}</label>
-            <ThaiDateInput value={to} onChange={setTo} />
+            <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.from}</span>
+            <ThaiDateInput label={d.timesheet.from} value={from} onChange={setFrom} />
+            <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.to}</span>
+            <ThaiDateInput label={d.timesheet.to} value={to} onChange={setTo} />
             {canViewTeam && (
               <select
+                aria-label="แสดงเวลาของ"
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
@@ -317,7 +274,7 @@ export default function TimesheetPage() {
             <PageLoading title={d.common.loading} lines={2} />
           ) : (
             <>
-              {canViewTeam && (
+              {canViewTeam && totals.length > 0 && (
                 <div>
                   <h3 className="mb-2 text-sm font-semibold">{d.timesheet.totalsTitle}</h3>
                   {totals.length === 0 ? (
@@ -349,7 +306,7 @@ export default function TimesheetPage() {
                 {entries.length === 0 ? (
                   <InlineEmptyState title="ยังไม่มีเวลาที่บันทึก กดเพิ่มเวลาเพื่อเริ่ม" />
                 ) : (
-                  <Table>
+                  <><div className="divide-y rounded-lg border sm:hidden">{entries.map((entry) => <div key={entry.id} className="space-y-2 p-4"><div className="flex justify-between gap-2"><span className="min-w-0 break-words text-sm text-muted-foreground">{entry.date} · <strong className="text-foreground">{entry.caseRef ?? 'ภายในสำนักงาน'}</strong></span><strong className="shrink-0">{entry.hours} ชม.</strong></div><p className="break-words">{entry.description ?? '—'}</p><Badge variant={entry.invoiced ? 'success' : 'muted'}>{entry.invoiced ? d.timesheet.invoicedYes : entry.billable ? d.timesheet.billableYes : d.timesheet.billableNo}</Badge>{canEdit(entry) && <div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => { setEditing(entry); setShowAdd(false); }}>แก้ไข</Button><Button type="button" size="sm" variant="outline" onClick={() => void deleteEntry(entry)}>ลบ</Button></div>}</div>)}</div><div className="hidden sm:block"><Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>{d.timesheet.date}</TableHead>
@@ -395,7 +352,7 @@ export default function TimesheetPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                  </Table></div></>
                 )}
               </div>
             </>

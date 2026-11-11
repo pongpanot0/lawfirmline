@@ -24,9 +24,9 @@ export default function GettingStarted() {
   const { user, token } = useAuth(); const { locale } = useLocale(); const th = locale === 'th';
   const [progress, setProgress] = useState<SetupProgress | null>(null); const [csv, setCsv] = useState('clientName,caseRef,caseTitle\n'); const [preview, setPreview] = useState<ImportPreview | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState(''); const [loadError, setLoadError] = useState('');
   const load = async () => { if (token) setProgress(await setupRequest(token, '/progress')); };
-  const reload = () => { setLoadError(''); load().catch(e => setLoadError(e instanceof Error ? e.message : 'Failed')); };
+  const reload = () => { setLoadError(''); load().catch(e => setLoadError(e instanceof Error ? e.message : 'โหลดข้อมูลไม่สำเร็จ ลองโหลดหน้าใหม่อีกครั้ง')); };
   useEffect(() => { if (token && hasFirmCapability(user?.firmRole, 'manageFirmContent')) reload(); }, [token, user?.firmRole]);
-  async function run(fn: () => Promise<void>) { setBusy(true); setError(''); setNotice(''); try { await fn(); } catch(e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); } }
+  async function run(fn: () => Promise<void>) { setBusy(true); setError(''); setNotice(''); try { await fn(); } catch(e) { setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ ตรวจข้อมูลแล้วลองอีกครั้ง'); } finally { setBusy(false); } }
 
   if (!hasFirmCapability(user?.firmRole, 'manageFirmContent')) {
     return <div className="mx-auto max-w-3xl">

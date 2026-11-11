@@ -27,11 +27,13 @@ export function EmailMessageCard({
   subject,
   defaultExpanded,
   children,
+  intake = false,
 }: {
   message: EmailMessageView;
   subject: string;
   defaultExpanded: boolean;
   children?: React.ReactNode;
+  intake?: boolean;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [showQuoted, setShowQuoted] = useState(false);
@@ -74,18 +76,19 @@ export function EmailMessageCard({
   }
 
   return (
-    <article className="space-y-3 rounded-lg border p-3">
+    <article className={intake ? "space-y-4 rounded-lg border p-5" : "space-y-3 rounded-lg border p-3"}>
+      {intake && <div className="flex items-baseline justify-between gap-3"><h2 className="font-display text-xl font-bold">{subject || '(ไม่มีหัวเรื่อง)'}</h2><time className="text-xs text-muted-foreground" dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time></div>}
       <header className="flex items-start gap-3">
-        {avatar}
-        <div className="min-w-0 flex-1 text-xs text-muted-foreground">
+        {!intake && avatar}
+        <div className={intake ? "min-w-0 flex-1 text-sm text-muted-foreground" : "min-w-0 flex-1 text-xs text-muted-foreground"}>
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <p className="min-w-0 break-all">
-              <span className="text-sm font-semibold text-foreground">{sender}</span>
+              {intake && <span className="font-semibold text-foreground">จาก: </span>}<span className={intake ? "" : "text-sm font-semibold text-foreground"}>{sender}</span>
               {message.fromName && message.fromAddress && <span> &lt;{message.fromAddress}&gt;</span>}
             </p>
-            <time dateTime={message.receivedAt} className="shrink-0">
+            {!intake && <time dateTime={message.receivedAt} className="shrink-0">
               {formatDateTime(message.receivedAt)}
-            </time>
+            </time>}
           </div>
           {message.toAddresses && message.toAddresses.length > 0 && <p className="break-words">ถึง: {message.toAddresses.join('; ')}</p>}
           {message.ccAddresses && message.ccAddresses.length > 0 && <p className="break-words">สำเนา: {message.ccAddresses.join('; ')}</p>}
@@ -102,6 +105,7 @@ export function EmailMessageCard({
         )}
       </header>
 
+      {intake && <div className="border-t" />}
       {html ? (
         <EmailHtmlFrame html={showQuoted ? message.bodyHtml! : htmlMain} title={`เนื้อหาอีเมล: ${subject} — ${sender} ${formatDateTime(message.receivedAt)}`} />
       ) : (

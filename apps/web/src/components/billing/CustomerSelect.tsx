@@ -46,7 +46,7 @@ export function CustomerSelect({
       setName('');
       setCreating(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'สร้างลูกค้าไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'เพิ่มผู้ว่าจ้างไม่สำเร็จ');
     } finally {
       setBusy(false);
     }
@@ -61,7 +61,7 @@ export function CustomerSelect({
         <div className="mt-1.5 space-y-2 rounded-lg border border-dashed border-input bg-muted/30 p-2.5">
           <Input
             id={id}
-            aria-label="ชื่อลูกค้าใหม่"
+            aria-label="ชื่อผู้ว่าจ้างใหม่"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
@@ -76,7 +76,7 @@ export function CustomerSelect({
           />
           <div className="flex items-center gap-2">
             <Button type="button" size="sm" onClick={create} disabled={busy || !name.trim()}>
-              {busy ? 'กำลังสร้าง…' : 'สร้างลูกค้า'}
+              {busy ? 'กำลังสร้าง…' : 'เพิ่มผู้ว่าจ้าง'}
             </Button>
             <Button
               type="button"

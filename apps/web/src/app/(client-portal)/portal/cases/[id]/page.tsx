@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CalendarClock, Download, FileText, Plus } from 'lucide-react';
+import { ArrowLeft, CalendarClock, ChevronDown, Download, FileText, Plus } from 'lucide-react';
 import { DocumentCategory } from '@lawfirm/shared';
 import { usePortalAuth } from '@/lib/portal-auth';
 import { portalApi, PortalCaseDetail, CaseMessageEntry, PortalApiError } from '@/lib/portal-api';
@@ -22,7 +22,7 @@ import { StageTrack } from '@/components/portal/StageTrack';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { getCaseStatusDisplay } from '@/lib/case-status';
 import { documentCategoryLabel } from '@/lib/stage-labels';
-import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { CASE_STAGE_LABELS_TH, CaseStage } from '@lawfirm/shared';
 
 // เฉพาะหมวดที่ลูกความเลือกได้ — คำฟ้อง/คำสั่งศาล/เอกสารภายในเป็นของสำนักงานเท่านั้น
 const CLIENT_DOCUMENT_CATEGORIES = [
@@ -42,7 +42,7 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 };
 
 export default function PortalCaseDetailPage() {
-  const d = useDashboardT();
+
   const { id } = useParams<{ id: string }>();
   const { contact, token, loading } = usePortalAuth();
   const router = useRouter();
@@ -86,9 +86,7 @@ export default function PortalCaseDetailPage() {
 
   useEffect(() => { loadMessages(); }, [token, id]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+
 
   const handleSendMessage = async () => {
     if (!token || !id || !messageBody.trim()) return;
@@ -181,7 +179,7 @@ export default function PortalCaseDetailPage() {
     );
   }
 
-  const status = getCaseStatusDisplay(detail.status, d.caseStatus);
+  const status = getCaseStatusDisplay(detail.status, { OPEN: 'เปิดคดี', DRAFTING: 'กำลังจัดทำ', IN_PROGRESS: 'กำลังดำเนินการ', COURT_DATE: 'มีนัดศาล', PENDING: 'รอดำเนินการ', CLOSED: 'ปิดคดี', ARCHIVED: 'จัดเก็บแล้ว' });
   const fileRow = 'flex min-h-11 w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-0 hover:text-primary';
 
   return (
@@ -211,7 +209,7 @@ export default function PortalCaseDetailPage() {
 
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
         <div className="flex min-w-0 flex-col gap-5">
-          <Card className="flex items-start gap-3 p-4">
+          {detail.nextHearing && <Card className="flex items-start gap-3 border-l-4 border-l-[var(--color-brass)] bg-[var(--operations-highlight)] p-4">
             <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
             {detail.nextHearing ? (
               <div>
@@ -222,8 +220,9 @@ export default function PortalCaseDetailPage() {
             ) : (
               <p className="text-sm text-muted-foreground">ยังไม่มีนัดศาล</p>
             )}
-          </Card>
-
+          </Card>}
+          {detail.stage && <Card className="p-4"><h2 className="mb-4 text-lg font-semibold">ติดตามความคืบหน้า</h2><ol className="space-y-3">{[CaseStage.FACT_GATHERING, CaseStage.PRE_LITIGATION, CaseStage.FILING, CaseStage.ANSWER, CaseStage.MEDIATION, CaseStage.HEARING, CaseStage.AWAITING_JUDGMENT, CaseStage.CLOSING].map((stage, index) => <li key={stage} className={stage === detail.stage ? 'font-semibold text-primary' : 'text-muted-foreground'}>{index + 1}　{CASE_STAGE_LABELS_TH[stage]}</li>)}</ol></Card>}
+          <details className="group rounded-xl border bg-card p-4"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-semibold [&::-webkit-details-marker]:hidden"><span>เอกสาร · จากสำนักงาน {detail.documents.length} · ของคุณ {detail.clientUploads.length}</span><ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden /></summary>
           <Card className="p-4 sm:p-5">
             <h2 className="mb-2 text-base font-semibold">เอกสารจากสำนักงาน</h2>
             {downloadError && <p role="alert" className="mb-2 text-sm text-destructive">{downloadError}</p>}
@@ -304,6 +303,8 @@ export default function PortalCaseDetailPage() {
             </form>
           </Card>
 
+          </details>
+          <details className="group rounded-xl border bg-card p-4"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-semibold [&::-webkit-details-marker]:hidden"><span>ใบแจ้งหนี้ · {detail.invoices.length}</span><ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden /></summary>
           <Card className="p-4 sm:p-5">
             <h2 className="mb-2 text-base font-semibold">ใบแจ้งหนี้</h2>
             {detail.invoices.length === 0 ? (
@@ -328,10 +329,10 @@ export default function PortalCaseDetailPage() {
                 ))}
               </div>
             )}
-          </Card>
+          </Card></details>
         </div>
 
-        <Card className="min-w-0 p-4 sm:p-5 lg:sticky lg:top-6">
+        <details className="group rounded-xl border bg-card p-4"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-semibold [&::-webkit-details-marker]:hidden"><span>ข้อความกับทนาย · {messages.length}</span><ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden /></summary><Card className="min-w-0 p-4 sm:p-5">
           <h2 className="mb-2 text-base font-semibold">ข้อความถึงทนายความ</h2>
 
           <div className="mb-3 flex max-h-[420px] flex-col gap-2.5 overflow-y-auto rounded-lg border border-border bg-background p-3">
@@ -374,7 +375,7 @@ export default function PortalCaseDetailPage() {
               {sendingMessage ? 'กำลังส่ง...' : 'ส่งข้อความ'}
             </Button>
           </form>
-        </Card>
+        </Card></details>
       </div>
     </PortalShell>
   );

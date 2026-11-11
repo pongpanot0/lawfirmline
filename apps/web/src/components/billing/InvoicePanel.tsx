@@ -333,7 +333,7 @@ export function InvoicePanel({
           {standalone && (
             <CustomerSelect
               id="invoice-billTo"
-              label="ลูกค้าที่วางบิล"
+              label="ผู้ว่าจ้างที่วางบิล"
               value={billToId}
               clients={clients}
               onChange={setBillToId}
@@ -492,7 +492,7 @@ export function InvoicePanel({
           )}
           {customers.length === 0 && !standalone && (
             <p className="text-sm text-warning">
-              งานนี้ยังไม่ได้ระบุลูกค้า (ผู้ว่าจ้าง) — ใบแจ้งหนี้จะออกโดยไม่ผูกกับใคร
+              งานนี้ยังไม่ได้ระบุผู้ว่าจ้าง — ใบแจ้งหนี้จะออกโดยไม่ผูกกับใคร
             </p>
           )}
 

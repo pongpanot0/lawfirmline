@@ -13,7 +13,7 @@ export function PortalAuthCard({ title, description, children }: {
         <CardContent className="p-5 sm:p-8">
           <div className="mb-8 flex flex-wrap items-center gap-3">
             <SamnuanLogo />
-            <span className="text-sm text-muted-foreground">พอร์ทัลลูกค้า</span>
+            <span className="text-sm text-muted-foreground">พอร์ทัลลูกความ</span>
           </div>
           <h1 className="text-2xl font-semibold leading-relaxed">{title}</h1>
           {description && <div className="mb-6 mt-1 text-sm leading-relaxed text-muted-foreground">{description}</div>}

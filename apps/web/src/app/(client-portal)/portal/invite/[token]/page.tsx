@@ -40,8 +40,9 @@ export default function PortalInviteAcceptPage() {
   if (error && !invite) {
     return (
       <PortalAuthCard title="คำเชิญนี้ใช้ไม่ได้" description={<p role="alert">{error}</p>}>
-        <Link href="/portal/login" className={buttonVariants({ variant: 'outline', className: 'w-full' })}>
-          ไปหน้าเข้าสู่ระบบ
+        <p className="mb-3 text-sm text-muted-foreground">ถ้าเคยเปิดใช้พอร์ทัลแล้ว เข้าสู่ระบบหรือขอลิงก์ทางอีเมลได้เลย ถ้ายังไม่เคย ติดต่อสำนักงานเพื่อขอคำเชิญใหม่</p>
+        <Link href="/portal/login" className={buttonVariants({ className: 'w-full' })}>
+          เข้าสู่ระบบหรือขอลิงก์ทางอีเมล
         </Link>
       </PortalAuthCard>
     );
@@ -49,17 +50,17 @@ export default function PortalInviteAcceptPage() {
 
   if (!invite) {
     return (
-      <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกค้า">
+      <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกความ">
         <p role="status" className="mt-2 text-sm text-muted-foreground">กำลังโหลดคำเชิญ...</p>
       </PortalAuthCard>
     );
   }
 
   return (
-    <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกค้า" description="สำนักงานกฎหมายของคุณเปิดพอร์ทัลให้ติดตามคดี เอกสาร และข้อความได้ที่นี่">
+    <PortalAuthCard title="คำเชิญเข้าพอร์ทัลลูกความ" description="สำนักงานกฎหมายของคุณเปิดพอร์ทัลให้ติดตามคดี เอกสาร และข้อความได้ที่นี่">
       <dl className="mb-5 space-y-3 rounded-lg border border-border p-4">
         <div>
-          <dt className="text-sm text-muted-foreground">บริษัท / ลูกค้า</dt>
+          <dt className="text-sm text-muted-foreground">บริษัท / ลูกความ</dt>
           <dd className="font-semibold">{invite.clientName}</dd>
         </div>
         <div>

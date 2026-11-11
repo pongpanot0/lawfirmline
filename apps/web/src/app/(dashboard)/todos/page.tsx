@@ -322,8 +322,7 @@ function TodosPageContent() {
           <FilterChips items={quickViews} value={quickView} onChange={(key) => setFilters(current => ({ ...current, due: key === 'overdue' || key === 'today' || key === 'week' ? key : '' }))} />
           <div className="flex flex-wrap items-end gap-3">
             <TextField label={text('ค้นหางาน', 'Search tasks')} placeholder={text('ชื่องาน คดี หรือชื่อคนทำงาน', 'Task, case or assignee')} value={filters.search}
-              onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} containerClassName="min-w-0 flex-1 basis-56" />
-            <span className="inline-flex min-h-11 items-center rounded-lg bg-muted px-3 text-xs text-muted-foreground">{PAGE_GUIDES['/todos'].searchHint}</span>
+              onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} containerClassName="min-w-0 flex-1 basis-56" hint={PAGE_GUIDES['/todos'].searchHint} />
             {scope === 'team' && <SelectField label={text('คนทำงาน', 'Assignee')} value={filters.assigneeId} onChange={event => setFilters(current => ({ ...current, assigneeId: event.target.value }))} containerClassName="w-full sm:w-48">
               <option value="">{text('ทุกคน', 'Everyone')}</option><option value="unassigned">{d.taskDetail.unassigned}</option>
               {users.map(person => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}

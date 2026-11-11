@@ -23,6 +23,7 @@ import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { FilterChips } from '@/components/process/FilterChips';
 import { StepTracker } from '@/components/process/StepTracker';
 import { isOverdue } from '@/lib/process-overdue';
+import { SearchHint } from '@/components/guide/SearchHint';
 
 type InvoiceStatus = 'ALL' | 'DRAFT' | 'SENT' | 'PAID';
 
@@ -124,6 +125,7 @@ export default function InvoicesPage() {
           />
           <input
             id="invoice-search"
+            aria-describedby="invoice-search-hint"
             type="search"
             placeholder="ค้นหาเลขที่ใบแจ้งหนี้ ผู้ว่าจ้าง หรือเลขคดี"
             value={search}
@@ -140,7 +142,7 @@ export default function InvoicesPage() {
               <X aria-hidden="true" className="h-4 w-4" />
             </button>
           )}
-        </div><span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">ลองพิมพ์ชื่อผู้ว่าจ้างหรือเลขคดี</span></div>
+        </div><SearchHint id="invoice-search-hint">ลองพิมพ์ชื่อผู้ว่าจ้างหรือเลขคดี</SearchHint></div>
       </section></details>
 
       {loading ? (

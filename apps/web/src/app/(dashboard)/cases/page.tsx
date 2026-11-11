@@ -27,12 +27,13 @@ import { FilterChips } from '@/components/process/FilterChips';
 import { StepTracker } from '@/components/process/StepTracker';
 import { dueLabel } from '@/components/process/helpers';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { SearchHint } from '@/components/guide/SearchHint';
 
 const PAGE_SIZE = 10;
 
 /** Columns a lawyer can hide — mostly-empty in practice, so they crowd the table by default. */
 const OPTIONAL_COLUMNS = [
-  { key: 'customerRef', label: 'เลขอ้างอิงลูกค้า' },
+  { key: 'customerRef', label: 'เลขอ้างอิงผู้ว่าจ้าง' },
   { key: 'courtNumbers', label: 'หมายเลขคดีดำ / แดง' },
   { key: 'parties', label: 'โจทก์ / จำเลย' },
   { key: 'description', label: 'หมายเหตุ' },
@@ -326,9 +327,10 @@ function CasesPageContent() {
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             aria-label={d.cases.searchPlaceholder}
+            aria-describedby="cases-search-hint"
             className="w-full sm:w-64"
           />
-          <span className="hidden whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:inline">💡 ลองพิมพ์ชื่อลูกความ</span>
+          <SearchHint id="cases-search-hint" className="sm:w-auto">ลองพิมพ์ชื่อลูกความ</SearchHint>
           </div>
           <select
             aria-label={d.cases.allStatuses}

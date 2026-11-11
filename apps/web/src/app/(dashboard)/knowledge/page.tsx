@@ -13,6 +13,7 @@ import { formatDate } from '@/lib/utils';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { getPageGuide } from '@/components/guide/page-guides';
+import { SearchHint } from '@/components/guide/SearchHint';
 
 const CATEGORIES = ['', 'SUMMARY', 'CONTRACT', 'COURT_ORDER', 'CORRESPONDENCE', 'OTHER'];
 
@@ -64,11 +65,12 @@ export default function KnowledgePage() {
           type="text"
           placeholder={d.knowledge.searchPlaceholder}
           aria-label={d.knowledge.searchPlaceholder}
+          aria-describedby="knowledge-search-hint"
           value={filters.search}
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}
           className="min-h-11 min-w-0 max-w-full flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm"
         />
-        <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/knowledge')?.searchHint}</span>
+        <SearchHint id="knowledge-search-hint" className="order-last">{getPageGuide('/knowledge')?.searchHint}</SearchHint>
         <select
           value={filters.caseId}
           aria-label={d.knowledge.allCases}

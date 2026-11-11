@@ -7,9 +7,8 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { api, AuditLogItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
-import { PAGE_GUIDES } from '@/components/guide/page-guides';
 import { Card, CardContent } from '@/components/ui/card';
-import { TextField } from '@/components/ui/form-fields';
+import { AUDIT_ACTIONS, auditActionText } from '@/lib/audit-actions';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/misc';
@@ -53,14 +52,11 @@ export default function AuditLogPage() {
 
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 p-4">
-          <TextField
-            label={d.admin.auditLogFilterAction}
-            placeholder={d.admin.auditLogAllActions}
-            value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value.trim())}
-            containerClassName="min-w-0 flex-1"
-          />
-          <span className="inline-flex min-h-11 items-center rounded-lg bg-muted px-3 text-xs text-muted-foreground">{PAGE_GUIDES['/admin/audit-log'].searchHint}</span>
+          <label className="w-full text-sm font-medium">ประเภทเหตุการณ์
+            <select className="mt-2 h-10 w-full rounded-lg border bg-card px-3" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+              <option value="">ทั้งหมด</option>{Object.entries(AUDIT_ACTIONS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            </select>
+          </label>
         </CardContent>
       </Card>
 
@@ -73,28 +69,16 @@ export default function AuditLogPage() {
       ) : (
         <>
           <p className="mb-2 text-xs tabular-nums text-muted-foreground">{fmt(d.admin.auditLogTotal, { count: total })}</p>
-          <div className="space-y-2">
-            {items.map((item) => (
-              <Card key={item.id}>
-                <CardContent className="p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs">{item.action}</span>
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {new Date(item.createdAt).toLocaleString('th-TH')}
-                    </span>
+          <div className="space-y-4">
+            {Object.entries(items.reduce<Record<string, AuditLogItem[]>>((groups, item) => { const day = new Date(item.createdAt).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); (groups[day] ??= []).push(item); return groups; }, {})).map(([day, entries]) => (
+              <Card key={day}>
+                <div className="border-b bg-muted/40 px-5 py-4 font-semibold">{day} · {entries?.length} กิจกรรม</div>
+                <CardContent className="divide-y p-0">{entries?.map((item) => (
+                  <div key={item.id} className="flex items-start justify-between gap-3 p-4">
+                    <p className="text-sm"><span className="font-semibold">{item.user ? `${item.user.firstName} ${item.user.lastName}` : d.admin.auditLogSystem}</span> {auditActionText(item.action)}</p>
+                    <time className="shrink-0 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</time>
                   </div>
-                  <p className="mt-2 text-sm">
-                    {item.user ? `${item.user.firstName} ${item.user.lastName}` : d.admin.auditLogSystem}
-                  </p>
-                  {item.metadata && (
-                    <details className="mt-2">
-                      <summary className="inline-flex min-h-11 cursor-pointer items-center text-xs text-primary underline sm:min-h-0">รายละเอียด</summary>
-                      <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 text-xs">
-                        {JSON.stringify(item.metadata, null, 2)}
-                      </pre>
-                    </details>
-                  )}
-                </CardContent>
+                ))}</CardContent>
               </Card>
             ))}
           </div>

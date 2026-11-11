@@ -60,6 +60,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
   const [downloading, setDownloading] = useState('');
   const [offlineUrl, setOfflineUrl] = useState('');
   const [offlineBusy, setOfflineBusy] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
   const [copied, setCopied] = useState(false);
   const [recovered, setRecovered] = useState(false);
   const [draftCached, setDraftCached] = useState(false);
@@ -326,6 +327,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
     (!state.expense ||
       (/^\d+(\.\d{1,2})?$/.test(state.amount) && Number(state.amount) > 0)) &&
     (!state.clientDraft || state.draftRecipientKind !== 'CUSTOMER' || !!state.draftCustomerId);
+  const missing = !state.outcome.trim() ? t.resultLabel : state.nextHearing && !state.nextTitle.trim() ? t.nextTitle : state.nextHearing && (!state.nextAt || new Date(state.nextAt) <= new Date(event.startAt)) ? t.nextAt : state.followUp && !state.taskTitle.trim() ? t.taskTitle : state.expense && (!/^\d+(\.\d{1,2})?$/.test(state.amount) || Number(state.amount) <= 0) ? t.amount : t.choosePayer;
   const person = event.assignee ?? event.case.leadLawyer;
   const checked = state.checklist.filter((x) => x.done).length;
   const unavailableDocuments = state.documents.filter(
@@ -356,7 +358,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
           {t.case}
         </Link>
       </div>
-      <header>
+      <header className="rounded-xl border border-l-4 border-l-warning bg-warning/5 p-5 shadow-sm">
         <PageHeader
           title={event.title}
           description={`${t.title} · ${event.case.ownRef} · ${event.case.title}`}
@@ -368,10 +370,11 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
               · {t.timezone}
             </span>
           </p>
-          <p>{event.courtName || event.case.courtName || '—'}</p>
+          <p>{event.courtName || event.case.courtName || 'ยังไม่ระบุศาล'}</p>
           <p className="text-muted-foreground">
             {t.attending}: {person.firstName} {person.lastName}
           </p>
+          {(event.case.client?.name || event.case.clientName) && <p>ลูกความ: {event.case.client?.name || event.case.clientName}</p>}
         </div>
       </header>
 
@@ -493,32 +496,14 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
         </section>
       ) : (
         <>
-          <section className="rounded-lg border p-3">
-            <p className="text-sm font-medium">{locale === 'th' ? 'เตรียมใช้งานเมื่อไม่มีอินเทอร์เน็ต' : 'Prepare for offline use'}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{locale === 'th' ? 'บันทึกแฟ้มก่อน แล้วเก็บไฟล์ที่เลือกและแบบบันทึกไว้ในเครื่อง 24 ชั่วโมง รวมไฟล์ไม่เกิน 50 MB' : 'Save first, then store selected files and notes on this device for 24 hours, up to 50 MB.'}</p>
-            <div className="mt-2 flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={dirty || busy || offlineBusy || conflict} className="min-h-11" onClick={async () => { if (!token || !user || !data || !state) return; setOfflineBusy(true); try { setOfflineUrl(await prepareCourtOffline(token, user, data, state, locale)); } catch(e) { setError(e instanceof Error ? e.message : t.error); } finally { setOfflineBusy(false); } }}>{offlineBusy ? (locale === 'th' ? 'กำลังเก็บไฟล์…' : 'Saving files…') : (locale === 'th' ? 'เก็บแฟ้มไว้ใช้แบบออฟไลน์' : 'Save an offline pack')}</Button>{offlineUrl && <a className={linkClass} href={offlineUrl}>{locale === 'th' ? 'เปิดแฟ้มออฟไลน์' : 'Open offline pack'}<ChevronRight className="h-4 w-4" aria-hidden /></a>}</div>
-          </section>
           <nav
             aria-label={t.title}
             className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1"
           >
             {[t.prep, t.outcome, t.review].map((label, index) => (
-              <button
-                key={label}
-                type="button"
-                disabled={busy}
-                aria-current={stage === index ? 'step' : undefined}
-                onClick={() => go(index)}
-                className={cn(
-                  'flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium transition focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:gap-2 sm:text-sm',
-                  stage === index
-                    ? 'bg-card text-primary shadow-sm'
-                    : 'text-muted-foreground hover:bg-card/60',
-                )}
-              >
-                <span className="font-mono">0{index + 1}</span>
-                <span>{label}</span>
-              </button>
+              <div key={label} aria-current={stage === index ? 'step' : undefined} className={cn('flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-xs font-medium sm:text-sm', stage === index ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground')}>
+                {index < stage ? <CheckCircle2 className="h-5 w-5" /> : <span>{index + 1}</span>}<span>{label}</span>
+              </div>
             ))}
           </nav>
           <h2
@@ -1053,10 +1038,8 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                     />
                   )}
                 </dl>
-                {!valid && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {t.required}
-                  </p>
+                {showValidation && !valid && (
+                  <p role="alert" className="text-sm text-destructive">กรุณาตรวจช่อง {missing} <button type="button" className="underline" onClick={() => go(1)}>กลับไปแก้ไข</button></p>
                 )}
                 {future && (
                   <p className="text-sm text-muted-foreground">{t.future}</p>
@@ -1064,7 +1047,12 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
               </section>
             )}
           </fieldset>
-          <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 shadow-sm sm:p-4">
+          <details open className="rounded-lg border bg-card p-3"><summary className="disclosure cursor-pointer text-sm font-medium">{locale === 'th' ? 'เก็บไว้ดูตอนไม่มีสัญญาณ' : 'Offline use'}</summary>
+            <p className="text-sm font-medium">{locale === 'th' ? 'เตรียมใช้งานเมื่อไม่มีอินเทอร์เน็ต' : 'Prepare for offline use'}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{locale === 'th' ? 'บันทึกแฟ้มก่อน แล้วเก็บไฟล์ที่เลือกและแบบบันทึกไว้ในเครื่อง 24 ชั่วโมง รวมไฟล์ไม่เกิน 50 MB' : 'Save first, then store selected files and notes on this device for 24 hours, up to 50 MB.'}</p>
+            <div className="mt-2 flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={dirty || busy || offlineBusy || conflict} className="min-h-11" onClick={async () => { if (!token || !user || !data || !state) return; setOfflineBusy(true); try { setOfflineUrl(await prepareCourtOffline(token, user, data, state, locale)); } catch(e) { setError(e instanceof Error ? e.message : t.error); } finally { setOfflineBusy(false); } }}>{offlineBusy ? (locale === 'th' ? 'กำลังเก็บไฟล์…' : 'Saving files…') : (locale === 'th' ? 'เก็บแฟ้มไว้ใช้แบบออฟไลน์' : 'Save an offline pack')}</Button>{offlineUrl && <a className={linkClass} href={offlineUrl}>{locale === 'th' ? 'เปิดแฟ้มออฟไลน์' : 'Open offline pack'}<ChevronRight className="h-4 w-4" aria-hidden /></a>}</div>
+          </details>
+          <footer className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 shadow-sm sm:p-4">
             <p
               role="status"
               aria-live="polite"
@@ -1112,8 +1100,8 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
               ) : (
                 <Button
                   className="min-h-11"
-                  disabled={busy || conflict || !valid || future}
-                  onClick={complete}
+                  disabled={busy || conflict || future}
+                  onClick={() => { if (!valid) { setShowValidation(true); return; } void complete(); }}
                 >
                   {busy ? t.saving : t.confirm}
                 </Button>

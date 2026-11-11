@@ -53,13 +53,13 @@ export function TemplateDrawer({
   };
 
   return (
-    <SideDrawer open={open} title={template ? 'แก้ Handoff flow' : 'สร้าง Handoff flow'} onClose={close}>
+    <SideDrawer open={open} title={template ? 'แก้สายงานส่งต่อ' : 'สร้างสายงานส่งต่อ'} onClose={close}>
       <form noValidate aria-label="แม่แบบสายงานส่งต่อ" onSubmit={e => { e.preventDefault(); void save(); }}>
       <fieldset disabled={busy} className="min-w-0 space-y-4">
         <p className="text-sm text-muted-foreground">บันทึกเป็นแม่แบบใช้ซ้ำ แล้วเลือกผู้รับจริงเมื่อเริ่มสายงานในคดี</p>
         <TextField label="ชื่อแม่แบบ" placeholder="เช่น รับเรื่อง → ตรวจหลักฐาน → วางแนวทางคดี" value={name} onChange={(e) => setName(e.target.value)} required />
         <details className="rounded-lg border p-3">
-          <summary className="flex min-h-11 cursor-pointer items-center text-sm">คำอธิบาย (ไม่บังคับ){description.trim() && ' · มีข้อมูลแล้ว'}</summary>
+          <summary className="disclosure flex min-h-11 cursor-pointer items-center text-sm">คำอธิบาย (ไม่บังคับ){description.trim() && ' · มีข้อมูลแล้ว'}</summary>
           <TextareaField className="mt-3" label="อธิบาย (ไม่บังคับ)" value={description} onChange={(e) => setDescription(e.target.value)} />
         </details>
         {!template && !name && steps.length === 1 && !steps[0].title && <Button type="button" variant="outline" size="sm" onClick={() => {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { FIRM_ROLE_LABELS, FirmRole, hasFirmCapability } from '@lawfirm/shared';
@@ -19,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { WorkflowTemplates } from '@/components/workflows/WorkflowTemplates';
 import { ArrowRightLeft, BookOpen, ChevronDown, Plus, Pencil, Trash2, Zap } from 'lucide-react';
+import { SearchHint } from '@/components/guide/SearchHint';
 
 const ROLE_LABELS: Record<FirmRoleStr, string> = {
   OWNER: 'เจ้าของสำนักงาน',
@@ -29,7 +31,9 @@ const ROLE_LABELS: Record<FirmRoleStr, string> = {
   EXTERNAL: 'ผู้รับงานภายนอก (ฟรีแลนซ์)',
 };
 
-export default function SopsPage() {
+export default function SopsPage() { return <Suspense><SopsContent /></Suspense>; }
+
+function SopsContent() {
   const { token, user } = useAuth();
   const canManageContent = hasFirmCapability(user?.firmRole, 'manageFirmContent');
   const canEditFlows = user?.firmRole === FirmRole.OWNER || user?.firmRole === FirmRole.SENIOR_LAWYER;
@@ -40,8 +44,12 @@ export default function SopsPage() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
-  const [view, setView] = useState<'all' | 'manual' | 'auto' | 'handoff'>('all');
+  const params = useSearchParams();
+  const [view, setView] = useState<'all' | 'manual' | 'auto' | 'handoff'>(() => params.get('tab') === 'playbooks' ? 'auto' : params.get('tab') === 'flows' ? 'handoff' : 'manual');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [flowCount, setFlowCount] = useState(0);
   const [flowEditor, setFlowEditor] = useState<WorkflowTemplate | 'new' | null>(null);
+  useEffect(() => { if (token) api.getWorkflowTemplates(token).then(items => setFlowCount(items.length)).catch(() => {}); }, [token, flowEditor]);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [saved, setSaved] = useState('');
@@ -87,7 +95,7 @@ export default function SopsPage() {
   };
 
   const remove = async (sop: SopItem) => {
-    if (!token || !confirm(`ลบ SOP "${sop.title}"?`)) return;
+    if (!token || !confirm(`ลบคู่มือการทำงาน "${sop.title}"?`)) return;
     try { await api.deleteSop(token, sop.id); load(); }
     catch { setError('ลบคู่มือไม่สำเร็จ กรุณาลองอีกครั้ง'); }
   };
@@ -95,48 +103,36 @@ export default function SopsPage() {
   return (
     <div className="mx-auto max-w-5xl min-w-0 space-y-4">
       <PageHeader
-        title="SOP / คู่มือการทำงาน"
-        description="จัดวิธีทำงานของสำนักงาน ตั้งแต่คู่มือจนถึงการส่งต่องานในคดี"
-        actions={
-          canEditFlows || canManageContent ? (
-            <>
-              {canManageContent && (
-                <Button size="sm" onClick={() => { setEditing({}); setError(null); setSaved(''); }}>
-                  <Plus className="h-4 w-4" aria-hidden />เขียนคู่มือ
-                </Button>
-              )}
-              {canEditFlows && (
-                <Button size="sm" variant="outline" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); }}>
-                  <ArrowRightLeft className="h-4 w-4" aria-hidden />สร้างสายงานส่งต่อ
-                </Button>
-              )}
-              {canManageContent && (
-                <Link href="/playbooks/new" className={buttonVariants({ size: 'sm', variant: 'outline' })}>
-                  <Zap className="h-4 w-4" aria-hidden />สร้าง SOP อัตโนมัติ
-                </Link>
-              )}
-            </>
-          ) : undefined
-        }
+        title="คู่มือการทำงาน"
+        description="วิธีทำงานของสำนักงาน ชุดงานที่ระบบสร้างให้ในคดี และสายงานส่งต่อ"
+        actions={canEditFlows || canManageContent ? <div className="relative">
+          <Button onClick={() => setCreateOpen(!createOpen)} aria-expanded={createOpen} aria-haspopup="menu" title="เลือกรูปแบบที่ต้องการสร้าง"><Plus className="h-4 w-4" />สร้างใหม่ <ChevronDown className="h-4 w-4" /></Button>
+          <p className="mt-1 text-xs text-muted-foreground">เลือกรูปแบบที่ต้องการสร้าง</p>
+          {createOpen && <div role="menu" aria-label="สร้างใหม่" onKeyDown={(e) => { if (e.key === 'Escape') setCreateOpen(false); }} className="absolute right-0 z-20 w-72 max-w-[85vw] rounded-xl border bg-card p-2 shadow-lg">
+            {canManageContent && <button role="menuitem" className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setEditing({}); setError(null); setSaved(''); setCreateOpen(false); }}>คู่มือการทำงาน <span className="block text-xs text-muted-foreground">เขียนขั้นตอนให้ทีมอ่าน</span></button>}
+            {canManageContent && <Link role="menuitem" href="/playbooks/new" className="block rounded-md p-3 hover:bg-muted">ชุดงานอัตโนมัติ <span className="block text-xs text-muted-foreground">ระบบสร้างงานให้ในคดีตามขั้นตอนนี้</span></Link>}
+            {canEditFlows && <button role="menuitem" className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); setCreateOpen(false); }}>สายงานส่งต่อ <span className="block text-xs text-muted-foreground">งานส่งต่อจากคนหนึ่งไปอีกคนทีละขั้น</span></button>}
+          </div>}
+        </div> : undefined}
       />
 
-      <div className="space-y-3 rounded-lg border bg-card p-4">
+      <div className="space-y-3 rounded-xl border-l-4 border-[var(--color-brass)] bg-[var(--operations-highlight)] p-5">
         <div className="flex flex-wrap items-center gap-2">
         <Input
           aria-label="ค้นหาคู่มือหรือขั้นตอน"
-          placeholder="ค้นหาคู่มือหรือสายงานส่งต่อ"
+          aria-describedby="sops-search-hint"
+          placeholder="ค้นหาคู่มือ ชุดงาน หรือสายงาน เช่น ยื่นฟ้อง สืบพยาน"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="min-w-0 flex-1 sm:max-w-sm"
+          className="min-w-0 w-full"
         />
-        <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/sops')?.searchHint}</span>
+        <SearchHint id="sops-search-hint">{getPageGuide('/sops')?.searchHint}</SearchHint>
         </div>
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
-          <TabsList>
-            <TabsTrigger value="all">ทั้งหมด</TabsTrigger>
-            <TabsTrigger value="handoff"><ArrowRightLeft className="mr-1.5 h-4 w-4" aria-hidden />สายงานส่งต่อ</TabsTrigger>
-            <TabsTrigger value="auto"><Zap className="mr-1.5 h-4 w-4" aria-hidden />สร้างงานอัตโนมัติ <span className="ml-1 tabular-nums text-muted-foreground">{autoItems.length}</span></TabsTrigger>
-            <TabsTrigger value="manual"><BookOpen className="mr-1.5 h-4 w-4" aria-hidden />คู่มือให้อ่าน <span className="ml-1 tabular-nums text-muted-foreground">{manualItems.length}</span></TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-3 gap-1">
+            <TabsTrigger className="min-w-0 whitespace-normal" value="manual"><BookOpen className="mr-1 h-4 w-4 shrink-0" />คู่มือให้อ่าน {manualItems.length}</TabsTrigger>
+            <TabsTrigger className="min-w-0 whitespace-normal" value="auto"><Zap className="mr-1 h-4 w-4 shrink-0" />ชุดงานอัตโนมัติ {autoItems.length}</TabsTrigger>
+            <TabsTrigger className="min-w-0 whitespace-normal" value="handoff"><ArrowRightLeft className="mr-1 h-4 w-4 shrink-0" />สายงานส่งต่อ {flowCount}</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -157,7 +153,7 @@ export default function SopsPage() {
               onChange={(e) => setEditing({ ...editing, title: e.target.value })}
             />
             <details className="rounded-lg border p-3">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm">หมวดคู่มือ (ไม่บังคับ){editing.category?.trim() && ` · ${editing.category}`}</summary>
+              <summary className="disclosure flex min-h-11 cursor-pointer items-center text-sm">หมวดคู่มือ (ไม่บังคับ){editing.category?.trim() && ` · ${editing.category}`}</summary>
             <Input
               aria-label="หมวดคู่มือ" maxLength={100} className="mt-3"
               placeholder="หมวด (ไม่บังคับ) เช่น การรับคดี"
@@ -190,16 +186,16 @@ export default function SopsPage() {
 
       {!loading && !loadError && (view === 'all' || view === 'auto') && autoItems.length > 0 && (
         <div className="mb-3 space-y-3">
-          <h2 className="text-sm font-semibold">SOP สร้างงานอัตโนมัติ</h2>
+          <h2 className="text-sm font-semibold">ชุดงานอัตโนมัติทั้งหมด</h2>
           {autoItems.map((p) => (
             <Card key={p.id}>
               <CardContent className="p-0">
                 <details className="group">
-                  <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-2 p-4 hover:text-primary [&::-webkit-details-marker]:hidden">
+                  <summary className="disclosure flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-2 p-4 hover:text-primary [&::-webkit-details-marker]:hidden">
                     <Zap className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0 break-words font-semibold">{p.name}</span>
                     <Badge variant="muted">อัตโนมัติ · {p.steps.length} ขั้นตอน</Badge>
-                    <span className="ml-auto text-xs tabular-nums text-muted-foreground">v{p.version}</span>
+                    <span className="ml-auto text-xs tabular-nums text-muted-foreground">ฉบับที่ {p.version}</span>
                     <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
                   </summary>
                   <div className="border-t px-4 py-3">
@@ -226,7 +222,7 @@ export default function SopsPage() {
                     </ol>
                     <div className="mt-4 flex flex-wrap items-center gap-4">
                       <Link href={`/cases?sop=${encodeURIComponent(p.id)}`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>ใช้กับคดี</Link>
-                      {canManageContent && <Link href={`/playbooks/${p.id}`} className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">แก้ไข SOP อัตโนมัติ</Link>}
+                      {<Link href={`/playbooks/${p.id}`} className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">{canManageContent ? 'แก้ไขชุดงานอัตโนมัติ' : 'ดูชุดงานอัตโนมัติ'}</Link>}
                     </div>
                   </div>
                 </details>
@@ -237,7 +233,7 @@ export default function SopsPage() {
       )}
 
       {loading && view !== 'handoff' ? (
-        <PageLoading variant="list" title="กำลังโหลด SOP" lines={3} />
+        <PageLoading variant="list" title="กำลังโหลดคู่มือการทำงาน" lines={3} />
       ) : !loadError && (view === 'all' || view === 'manual') && manualItems.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">คู่มือให้อ่าน</h2>
@@ -281,9 +277,9 @@ export default function SopsPage() {
       )}
       {!loading && !loadError && (view === 'auto' ? !autoItems.length : view === 'manual' ? !manualItems.length : false) && <EmptyState
         title={search ? 'ไม่พบคู่มือที่ค้นหา' : 'ยังไม่มีคู่มือในหมวดนี้'}
-        description={search ? 'ลองค้นด้วยชื่อคู่มือหรือคำในขั้นตอน' : canManageContent ? 'กดปุ่มด้านล่างเพื่อเพิ่มคู่มือ' : 'ขอให้ผู้ดูแลสำนักงานเพิ่มคู่มือ'}
+        description={search ? 'ลองค้นด้วยชื่อคู่มือหรือคำในขั้นตอน' : canManageContent ? 'เพิ่มรายการในหมวดนี้เพื่อให้ทีมใช้งาน'  : 'ขอให้ผู้ดูแลสำนักงานเพิ่มคู่มือ'}
         action={!search && canManageContent ? (view === 'auto'
-          ? <Link href="/playbooks/new" className={buttonVariants({ size: 'sm', variant: 'outline' })}><Zap className="h-4 w-4" aria-hidden />สร้าง SOP อัตโนมัติ</Link>
+          ? <Link href="/playbooks/new" className={buttonVariants({ size: 'sm', variant: 'outline' })}><Zap className="h-4 w-4" aria-hidden />สร้างชุดงานอัตโนมัติ</Link>
           : <Button size="sm" variant="outline" onClick={() => { setEditing({}); setError(null); setSaved(''); }}><Plus className="h-4 w-4" aria-hidden />เขียนคู่มือ</Button>) : undefined} />}
     </div>
   );

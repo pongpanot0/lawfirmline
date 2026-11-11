@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Check, Mail, UserPlus, Clock, Trash2 } from 'lucide-react';
+import { Copy, Check, Mail, UserPlus, Clock, Trash2, UserRound } from 'lucide-react';
 import { FirmRole, canInviteFirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -14,25 +14,26 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
-import { InlineEmptyState, Skeleton, TableEmptyRow } from '@/components/ui/misc';
+import { InlineEmptyState, Skeleton, TableEmptyRow, Modal } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { SelectField, TextField } from '@/components/ui/form-fields';
 import { LicenseBadge, MemberLicenses } from '@/components/team/MemberLicenses';
+import { NoAccess } from '@/components/ui/NoAccess';
 
 type TeamMember = Awaited<ReturnType<typeof api.getTeamMembers>>[number];
 type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
 
 const ROLE_OPTIONS: Array<{
   value: FirmRole;
-  labelKey: 'roleAssistant' | 'roleLawyer' | 'roleSeniorLawyer' | 'roleOfficeManager' | 'roleOwner' | 'roleExternal';
+  label: string;
   hintKey: 'roleAssistantHint' | 'roleLawyerHint' | 'roleSeniorLawyerHint' | 'roleOfficeManagerHint' | 'roleOwnerHint' | 'roleExternalHint';
 }> = [
-  { value: FirmRole.ASSISTANT, labelKey: 'roleAssistant', hintKey: 'roleAssistantHint' },
-  { value: FirmRole.LAWYER, labelKey: 'roleLawyer', hintKey: 'roleLawyerHint' },
-  { value: FirmRole.SENIOR_LAWYER, labelKey: 'roleSeniorLawyer', hintKey: 'roleSeniorLawyerHint' },
-  { value: FirmRole.OFFICE_MANAGER, labelKey: 'roleOfficeManager', hintKey: 'roleOfficeManagerHint' },
-  { value: FirmRole.OWNER, labelKey: 'roleOwner', hintKey: 'roleOwnerHint' },
-  { value: FirmRole.EXTERNAL, labelKey: 'roleExternal', hintKey: 'roleExternalHint' },
+  { value: FirmRole.ASSISTANT, label: 'ผู้ช่วย', hintKey: 'roleAssistantHint' },
+  { value: FirmRole.LAWYER, label: 'ทนายความ', hintKey: 'roleLawyerHint' },
+  { value: FirmRole.SENIOR_LAWYER, label: 'ทนายอาวุโส', hintKey: 'roleSeniorLawyerHint' },
+  { value: FirmRole.OFFICE_MANAGER, label: 'ผู้จัดการสำนักงาน', hintKey: 'roleOfficeManagerHint' },
+  { value: FirmRole.OWNER, label: 'เจ้าของสำนักงาน', hintKey: 'roleOwnerHint' },
+  { value: FirmRole.EXTERNAL, label: 'ผู้รับงานภายนอก', hintKey: 'roleExternalHint' },
 ];
 
 function toNum(v: string): number | null {
@@ -83,6 +84,10 @@ function WorkSettingsRow({ member, token }: { member: TeamMember; token: string 
   );
 }
 
+function MobileWorkSettings({ member, token }: { member: TeamMember; token: string }) {
+  return <table className="w-full"><tbody className="[&_tr]:flex [&_tr]:flex-col [&_td]:block [&_td]:w-full [&_input]:w-full"><WorkSettingsRow member={member} token={token} /></tbody></table>;
+}
+
 export default function TeamPage() {
   const { token, user } = useAuth();
   const { locale } = useLocale();
@@ -106,6 +111,9 @@ export default function TeamPage() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
+  const [roleMember, setRoleMember] = useState<TeamMember | null>(null);
+  const [chosenRole, setChosenRole] = useState<FirmRole>(FirmRole.ASSISTANT);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const loadTeam = useCallback(async () => {
     if (!token || !canInvite) {
@@ -133,25 +141,10 @@ export default function TeamPage() {
   }, [loadTeam]);
 
   if (!canInvite) {
-    return <div><PageHeader title={d.team.title} /><p role="alert" className="text-sm text-destructive">{d.team.accessDenied}</p></div>;
+    return <div><PageHeader title={d.team.title} /><NoAccess /></div>;
   }
 
-  const firmRoleLabel = (role: string) => {
-    switch (role) {
-      case FirmRole.OWNER:
-        return d.team.roleOwner;
-      case FirmRole.SENIOR_LAWYER:
-        return d.team.roleSeniorLawyer;
-      case FirmRole.OFFICE_MANAGER:
-        return d.team.roleOfficeManager;
-      case FirmRole.LAWYER:
-        return d.team.roleLawyer;
-      case FirmRole.EXTERNAL:
-        return d.team.roleExternal;
-      default:
-        return d.team.roleAssistant;
-    }
-  };
+  const firmRoleLabel = (role: string) => ROLE_OPTIONS.find((option) => option.value === role)?.label ?? 'ผู้ช่วย';
 
   const firmRoleBadgeVariant = (role: string) => {
     switch (role) {
@@ -203,6 +196,8 @@ export default function TeamPage() {
 
   const handleRoleChange = async (member: TeamMember, role: FirmRole) => {
     if (!token || role === member.firmRole) return;
+    const label = ROLE_OPTIONS.find((o) => o.value === role);
+    if (!window.confirm(`เปลี่ยนบทบาทของ ${member.firstName} ${member.lastName} เป็น "${label ? label.label : role}"?\nสิทธิ์ที่เห็นและทำได้จะเปลี่ยนทันที`)) return;
     setChangingRoleId(member.id);
     try {
       await api.updateMemberRole(token, member.id, role);
@@ -256,7 +251,9 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={d.team.title} description={d.team.description} />
+      <PageHeader title={d.team.title} description={d.team.description} actions={<Button type="button" title="ส่งคำเชิญทางอีเมลหรือคัดลอกลิงก์" onClick={() => setInviteOpen(true)}><UserPlus className="mr-2 h-4 w-4" />เชิญสมาชิก</Button>} />
+
+      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} ariaLabel="เชิญสมาชิก">
 
       <Card>
         <CardHeader>
@@ -291,7 +288,7 @@ export default function TeamPage() {
                 hint={d.team[ROLE_OPTIONS.find((o) => o.value === inviteRole)!.hintKey]}
               >
                 {inviteRoleOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </SelectField>
               <Button type="submit" disabled={inviting} className="sm:mt-7">
@@ -313,9 +310,15 @@ export default function TeamPage() {
         </CardContent>
       </Card>
 
+      </Modal>
+      <Modal open={!!roleMember} onClose={() => setRoleMember(null)} ariaLabel="เปลี่ยนบทบาท">
+        <h2 className="text-lg font-semibold">เปลี่ยนบทบาท</h2>
+        <div className="mt-4 space-y-3">{ROLE_OPTIONS.map((opt) => <label key={opt.value} className="flex gap-3 rounded-lg border p-3"><input type="radio" name="role" checked={chosenRole === opt.value} onChange={() => setChosenRole(opt.value)} /><span><span className="block font-medium">{opt.label}</span><span className="text-sm text-muted-foreground">{d.team[opt.hintKey]}</span></span></label>)}</div>
+        <div className="mt-4 flex gap-2"><Button type="button" variant="outline" onClick={() => setRoleMember(null)}>ยกเลิก</Button><Button type="button" title="ตรวจสอบและยืนยันการเปลี่ยนบทบาท" onClick={() => { if (roleMember) void handleRoleChange(roleMember, chosenRole); setRoleMember(null); }}>เปลี่ยนบทบาท</Button></div>
+      </Modal>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{d.team.members}</CardTitle>
+          <CardTitle className="text-base">{d.team.members} ({members.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -341,22 +344,9 @@ export default function TeamPage() {
                         </p>
                       </div>
                       <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-2">
-                      {canChangeRole(m) ? (
-                        <select
-                          value={m.firmRole}
-                          disabled={changingRoleId === m.id}
-                          onChange={(e) => handleRoleChange(m, e.target.value as FirmRole)}
-                          className="min-h-11 min-w-0 max-w-full flex-1 rounded-lg border border-input bg-card px-3 text-sm"
-                          aria-label={d.team.changeRole}
-                        >
-                          {ROLE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <Badge variant={firmRoleBadgeVariant(m.firmRole)}>
-                          {firmRoleLabel(m.firmRole)}
-                        </Badge>
+                      <span className="inline-flex items-center gap-2 text-sm"><UserRound className="h-4 w-4" />{firmRoleLabel(m.firmRole)}</span>
+                      {canChangeRole(m) && (
+                        <Button type="button" variant="outline" size="sm" title="เลือกบทบาทและตรวจสอบสิทธิ์" disabled={changingRoleId === m.id} onClick={() => { setRoleMember(m); setChosenRole(m.firmRole as FirmRole); }}>เปลี่ยนบทบาท</Button>
                       )}
                       {canRemoveMember(m) && (
                         <Button
@@ -380,9 +370,9 @@ export default function TeamPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{d.team.member}</TableHead>
-                    <TableHead>{d.team.email}</TableHead>
                     <TableHead>{d.team.role}</TableHead>
-                    <TableHead>{d.team.joined}</TableHead>
+                    <TableHead>ใบอนุญาตว่าความ</TableHead>
+                    <TableHead>เป้าชั่วโมง/เดือน</TableHead>
                     <TableHead className="w-[100px]">{d.team.actions}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -394,33 +384,17 @@ export default function TeamPage() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar fallback={`${m.firstName[0]}${m.lastName[0]}`} />
-                          <span className="font-medium">{m.firstName} {m.lastName}</span>
-                          <LicenseBadge expiresAt={m.lawyerLicenseExpiresAt} />
+                          <span><span className="block font-medium">{m.firstName} {m.lastName}</span><span className="text-sm text-muted-foreground">{m.email}</span></span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{m.email}</TableCell>
                       <TableCell>
-                        {canChangeRole(m) ? (
-                          <select
-                            value={m.firmRole}
-                            disabled={changingRoleId === m.id}
-                            onChange={(e) => handleRoleChange(m, e.target.value as FirmRole)}
-                            className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
-                            aria-label={d.team.changeRole}
-                          >
-                            {ROLE_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <Badge variant={firmRoleBadgeVariant(m.firmRole)}>
-                            {firmRoleLabel(m.firmRole)}
-                          </Badge>
+                        <span className="inline-flex items-center gap-2"><UserRound className="h-4 w-4" />{firmRoleLabel(m.firmRole)}</span>
+                        {canChangeRole(m) && (
+                          <Button type="button" variant="outline" size="sm" title="เลือกบทบาทและตรวจสอบสิทธิ์" disabled={changingRoleId === m.id} onClick={() => { setRoleMember(m); setChosenRole(m.firmRole as FirmRole); }}>เปลี่ยนบทบาท</Button>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {new Date(m.joinedAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </TableCell>
+                      <TableCell><LicenseBadge expiresAt={m.lawyerLicenseExpiresAt} />{!m.lawyerLicenseNo && <span className="text-muted-foreground">ยังไม่กรอก</span>}</TableCell>
+                      <TableCell>{m.monthlyBillableTargetHours == null ? "ยังไม่ตั้งเป้า" : `${m.monthlyBillableTargetHours} ชม.`}</TableCell>
                       <TableCell>
                         {canRemoveMember(m) && (
                           <Button
@@ -446,17 +420,17 @@ export default function TeamPage() {
       </Card>
 
       {token && members.length > 0 && (
-        <MemberLicenses members={members} token={token} canEdit={canRunOperations} onSaved={() => void loadTeam()} />
+        <details><summary className="disclosure cursor-pointer rounded-lg border bg-card p-4 font-medium">ใบอนุญาตทนายความ</summary><MemberLicenses members={members} token={token} canEdit={canRunOperations} onSaved={() => void loadTeam()} /></details>
       )}
 
       {canRunOperations && token && members.length > 0 && (
-        <Card>
+        <details><summary className="disclosure cursor-pointer rounded-lg border bg-card p-4 font-medium">เป้าและอัตราของสมาชิก</summary><Card>
           <CardHeader>
             <CardTitle className="text-base">เป้าและอัตราของสมาชิก</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
+          <CardContent>
             <p className="mb-3 text-sm text-muted-foreground">เว้นว่างไว้ถ้าไม่ตั้งเป้า — แดชบอร์ดจะไม่แสดงอัตราการใช้เวลาของคนนั้น</p>
-            <Table>
+            <Table className="hidden md:table">
               <TableHeader>
                 <TableRow>
                   <TableHead>{d.team.member}</TableHead>
@@ -469,14 +443,13 @@ export default function TeamPage() {
                 {members.map((m) => <WorkSettingsRow key={m.id} member={m} token={token} />)}
               </TableBody>
             </Table>
+            <div className="space-y-3 md:hidden">{members.map((m) => <MobileWorkSettings key={m.id} member={m} token={token} />)}</div>
           </CardContent>
-        </Card>
+        </Card></details>
       )}
 
+      <details className="rounded-xl border bg-card"><summary className="disclosure cursor-pointer p-4 font-medium">{d.team.pendingInvites} ({invitations.length})</summary>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{d.team.pendingInvites}</CardTitle>
-        </CardHeader>
         <CardContent>
           {loading ? (
             <div role="status" aria-label={d.common.loading} className="space-y-3">
@@ -521,7 +494,7 @@ export default function TeamPage() {
             </ul>
           )}
         </CardContent>
-      </Card>
+      </Card></details>
     </div>
   );
 }

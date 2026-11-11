@@ -210,7 +210,7 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
                 <p className="mb-2 text-xs text-muted-foreground">ส่งถึง: {draft.sentTo.join(', ')}</p>
               ) : null}
               <p className="mb-2 text-xs text-muted-foreground">
-                ผู้รับ: {draft.recipientKind === 'CUSTOMER' ? 'ลูกค้า / ผู้ว่าจ้าง' : 'ลูกความ / ผู้เอาประกัน'}
+                ผู้รับ: {draft.recipientKind === 'CUSTOMER' ? 'ผู้ว่าจ้าง' : 'ลูกความ / ผู้เอาประกัน'}
                 {draft.recipientClient?.name ? ` · ${draft.recipientClient.name}` : ''}
               </p>
               {draft.missingDataNotes.length > 0 && (

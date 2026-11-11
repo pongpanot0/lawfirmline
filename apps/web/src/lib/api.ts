@@ -57,19 +57,13 @@ export interface ProceedingActionResult {
   proceeding: CaseProceedingItem | null;
   suggestions: number;
 }
+import { displayApiErrorMessage, rawApiErrorMessage } from './api-error-message';
 import { actionSuccessMessage, isActionRequest, publishActionFeedback, publishAiBusy } from './action-feedback';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 const TOKEN_KEY = 'lawfirm_access_token';
 const REFRESH_KEY = 'lawfirm_refresh_token';
 
-function parseApiErrorMessage(body: unknown, fallback: string): string {
-  const payload = body as { message?: string | string[] | { message?: string } };
-  if (Array.isArray(payload.message)) return payload.message.join(', ');
-  if (typeof payload.message === 'string') return payload.message;
-  if (payload.message?.message) return payload.message.message;
-  return fallback;
-}
 
 function clearSession() {
   if (typeof window === 'undefined') return;
@@ -113,6 +107,8 @@ export class ApiError extends Error {
     message: string,
     /** Parsed JSON error body — some errors carry data the UI acts on (e.g. CONFLICT_FOUND matches). */
     public body?: unknown,
+    /** The API's original text (may be English or a code); `message` is always the Thai sentence to show. */
+    public serverMessage: string = message,
   ) {
     super(message);
   }
@@ -167,10 +163,11 @@ async function send<T>(path: string, options: RequestOptions): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     if (res.status === 401 && refreshAuth) clearSession();
-    const message = parseApiErrorMessage(body, res.statusText);
+    const serverMessage = rawApiErrorMessage(body, res.statusText);
+    const message = displayApiErrorMessage(serverMessage, res.status);
     // A 409 CONFLICT_FOUND is a prompt for the user, not a failure.
     if (isAction && (body as { code?: string })?.code !== 'CONFLICT_FOUND') publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
-    throw new ApiError(res.status, message, body);
+    throw new ApiError(res.status, message, body, serverMessage);
   }
 
   if (isAction) publishActionFeedback('success', actionSuccessMessage(method));
@@ -214,7 +211,8 @@ async function fetchBlob(
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     if (res.status === 401) clearSession();
-    throw new ApiError(res.status, parseApiErrorMessage(body, res.statusText));
+    const serverMessage = rawApiErrorMessage(body, res.statusText);
+    throw new ApiError(res.status, displayApiErrorMessage(serverMessage, res.status), body, serverMessage);
   }
 
   return res.blob();
@@ -606,6 +604,9 @@ export interface ClientItem {
   billingPhone?: string | null;
   contacts: ClientContactItem[];
   _count?: { cases: number };
+  /** Only on the list endpoint: visible open cases and their open top-level tasks. */
+  openCaseCount?: number;
+  openTaskCount?: number;
   cases?: CaseItem[];
 }
 

@@ -127,7 +127,7 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
       <section className={group} aria-labelledby="case-reference-heading">
         <h3 id="case-reference-heading" className="font-semibold sm:col-span-2">เลขอ้างอิงและจำนวนเงิน</h3>
         <label className="text-sm">เลขอ้างอิงสำนักงาน *<input required value={value.ownRef} onChange={e => set('ownRef', e.target.value)} className={input} /></label>
-        <label className="text-sm">เลขอ้างอิงลูกค้า (ผู้ว่าจ้าง)<input value={value.customerRef} onChange={e => set('customerRef', e.target.value)} className={input} /></label>
+        <label className="text-sm">เลขอ้างอิงผู้ว่าจ้าง<input value={value.customerRef} onChange={e => set('customerRef', e.target.value)} className={input} /></label>
         <label className="text-sm">ทุนทรัพย์ (บาท)<MoneyInput min={0} max={FEE_MAX} value={value.claimedAmount} onValueChange={next => set('claimedAmount', next)} className={input} /><span className="mt-1 block text-xs text-muted-foreground">จำนวนเงินที่เรียกร้องในคดี</span></label>
         <label className="text-sm">ความเสียหายโดยประมาณ (บาท)<MoneyInput min={0} max={FEE_MAX} value={value.estimatedDamage} onValueChange={next => set('estimatedDamage', next)} className={input} /></label>
         <label className="text-sm">ค่าจ้างทนายโดยประมาณ (บาท)<MoneyInput min={0} max={FEE_MAX} value={value.estimatedFee} onValueChange={next => set('estimatedFee', next)} className={input} /><span className="mt-1 block text-xs text-muted-foreground">รายได้ของสำนักงาน แยกจากทุนทรัพย์</span></label>

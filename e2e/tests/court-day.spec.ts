@@ -699,7 +699,7 @@ test('court day restores unsaved navigation drafts and clears them on logout', a
         ),
       )
       .toBe(true);
-    await page.getByRole('link', { name: 'My Day', exact: true }).click();
+    await page.getByRole('link', { name: 'กลับไปวันของฉัน', exact: true }).click();
     // The event also appears in the Action Center's acknowledgement queue with
     // the same title, so scope to the court-day panel's own link by href.
     await page

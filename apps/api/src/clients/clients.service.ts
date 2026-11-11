@@ -28,7 +28,7 @@ export class ClientsService {
   }
 
   async findAll(user: AuthUser, search?: string) {
-    return this.prisma.client.findMany({
+    const clients = await this.prisma.client.findMany({
       where: {
         ...this.caseAccess.getClientFilterForUser(user),
         ...(search
@@ -37,6 +37,34 @@ export class ClientsService {
       },
       include: this.includeForUser(user),
       orderBy: { name: 'asc' },
+    });
+    if (!clients.length) return clients;
+
+    // Open-case and open-task counts for the list in two queries, instead of one overview call per client.
+    const cases = await this.prisma.case.findMany({
+      where: { AND: [{ clientId: { in: clients.map((c) => c.id) } }, this.caseAccess.getCaseFilterForUser(user)] },
+      select: { id: true, clientId: true, status: true },
+    });
+    const taskCounts = cases.length
+      ? await this.prisma.task.groupBy({
+          by: ['caseId'],
+          where: {
+            AND: [
+              { caseId: { in: cases.map((c) => c.id) }, parentId: null, status: { not: 'DONE' } },
+              { OR: [this.caseAccess.getTaskFilterForUser(user), { createdById: user.id }] },
+            ],
+          },
+          _count: { _all: true },
+        })
+      : [];
+    const tasksByCase = new Map(taskCounts.map((row) => [row.caseId, row._count._all]));
+    return clients.map((client) => {
+      const own = cases.filter((c) => c.clientId === client.id);
+      return {
+        ...client,
+        openCaseCount: own.filter((c) => c.status !== 'CLOSED' && c.status !== 'ARCHIVED').length,
+        openTaskCount: own.reduce((sum, c) => sum + (tasksByCase.get(c.id) ?? 0), 0),
+      };
     });
   }
 

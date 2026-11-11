@@ -35,7 +35,7 @@ for (const width of [375, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       const ownerHash = new URLSearchParams({ access_token: auth.accessToken, refresh_token: auth.refreshToken, next: `/clients?id=${client.id}`, locale: 'th' });
       await page.goto(`${origin}/handoff#${ownerHash}`);
-      await page.getByRole('link', { name: 'เปิด Case ใหม่', exact: true }).first().click();
+      await page.getByRole('link', { name: 'เปิดคดีใหม่', exact: true }).first().click();
       await expect(page.locator('#client-combobox')).toHaveValue(client.name);
       await page.locator('#case-type').selectOption(caseType.id);
       await expect(page.locator('#case-title')).toHaveValue(`${caseType.name} — ${client.name}`);
@@ -143,6 +143,7 @@ for (const width of [375, 1440]) {
       expect(ownTask.assigneeId).toBe(auth.user.id); expect(ownTask.dueDate).toBeNull(); expect(ownTask.requiresReview).toBe(false);
       expect(ownTask.acknowledgedAt).not.toBeNull(); // Creating work for yourself acknowledges it automatically.
       await page.goto(`${origin}/operations`);
+      await page.getByRole('button', { name: /^ต้องตามวันนี้/ }).click();
       await expect(page.getByRole('heading', { name: 'ต้องจัดการวันนี้', exact: true })).toBeVisible();
     } finally { await workerContext.close(); await data.cleanup(); }
   });

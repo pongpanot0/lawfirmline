@@ -1,14 +1,13 @@
 'use client';
 
 import { ON_HOLD_CATEGORY_LABEL } from '@/lib/on-hold';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { fmt, dateLocale } from '@/lib/i18n/dashboard';
 import { useAuth } from '@/lib/auth';
 import { CaseStatus, hasFirmCapability } from '@lawfirm/shared';
-import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth, TeamPerformanceRow, WorkflowMetrics } from '@/lib/api';
-import { PageHeader } from '@/components/samnuan/PageHeader';
+import { api, PairingEntry, OnHoldTaskEntry, CaseHealth, TeamPerformanceRow, WorkflowMetrics } from '@/lib/api';
 import { OnHoldResumeButton } from './onhold-actions';
 import { setupChecks, setupRequest, SetupProgress } from '@/lib/practice-setup';
 import { DailyWorkboard } from '@/components/operations/DailyWorkboard';
@@ -19,10 +18,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { EmptyState, InlineEmptyState, PageLoading, Skeleton, TableEmptyRow } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
-import { AlarmClock, Sparkles, SlidersHorizontal, MousePointerClick, ChevronRight } from 'lucide-react';
+import { ChevronRight, Users, ClipboardList, Activity, BarChart3 } from 'lucide-react';
 
 type LoadState = 'loading' | 'failed' | 'ready';
 
@@ -60,91 +58,14 @@ function KpiStrip({ items }: { items: KpiItem[] }) {
   );
 }
 
-type WorkloadLevelKey = 'levelLight' | 'levelMedium' | 'levelHeavy';
-
-function workloadLevel(total: number): { key: WorkloadLevelKey; variant: 'success' | 'warning' | 'destructive' } {
-  if (total <= 4) return { key: 'levelLight', variant: 'success' };
-  if (total <= 9) return { key: 'levelMedium', variant: 'warning' };
-  return { key: 'levelHeavy', variant: 'destructive' };
-}
-
-const CAPACITY_BADGE: Record<
-  string,
-  { label: string; variant: 'success' | 'secondary' | 'warning' | 'destructive' }
-> = {
-  LOW: { label: 'ภาระคดีต่ำ', variant: 'success' },
-  NORMAL: { label: 'ปกติ', variant: 'secondary' },
-  HIGH: { label: 'งานเยอะ', variant: 'warning' },
-  OVERLOADED: { label: 'งานล้น', variant: 'destructive' },
-};
-
-const AVATAR_COLORS = [
-  'bg-accent text-primary',
-  'bg-emerald-100 text-emerald-700',
-  'bg-amber-100 text-amber-700',
-  'bg-violet-100 text-violet-700',
-  'bg-rose-100 text-rose-700',
-  'bg-cyan-100 text-cyan-700',
-];
-
-function avatarColor(seed: string) {
-  const code = seed.charCodeAt(0) || 0;
-  return AVATAR_COLORS[code % AVATAR_COLORS.length];
-}
-
-function LawyerAvatar({ firstName, lastName }: { firstName: string; lastName: string }) {
-  const initials = `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
-  return (
-    <span
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${avatarColor(firstName)}`}
-    >
-      {initials}
-    </span>
-  );
-}
-
-function WorkloadBar({ total, max }: { total: number; max: number }) {
-  const pct = max > 0 ? Math.min(100, Math.round((total / max) * 100)) : 0;
-  const d = useDashboardT();
-  const { key, variant } = workloadLevel(total);
-  const label = d.operations[key];
-  const barColor =
-    variant === 'success' ? 'bg-emerald-500' : variant === 'warning' ? 'bg-amber-500' : 'bg-red-500';
-  const labelColor =
-    variant === 'success' ? 'text-emerald-600' : variant === 'warning' ? 'text-amber-600' : 'text-red-600';
-  return (
-    <div className="w-32">
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-      </div>
-      <p className={`mt-1 text-xs font-medium ${labelColor}`}>{label}</p>
-    </div>
-  );
-}
-
 export default function OperationsPage() {
   const { token, user } = useAuth();
   const d = useDashboardT();
   const { locale } = useLocale();
   const canRunOps = hasFirmCapability(user?.firmRole, 'runOperations');
   const canSetUp = hasFirmCapability(user?.firmRole, 'manageFirmContent');
-  const [tab, setTab] = useState('daily');
+  const [tab, setTab] = useState('radar');
   const teamTab = tab === 'radar' || tab === 'daily';
-  const [summary, setSummary] = useState<WorkloadSummary[]>([]);
-  /**
-   * Distinct open cases. The per-lawyer figures count assignments, and one
-   * case with a lead and two buddies is three of those — summing them is
-   * not a case count, so the firm-wide number is taken from the cases
-   * themselves.
-   */
-  const [activeCaseCount, setActiveCaseCount] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [nearDeadlineDays, setNearDeadlineDays] = useState(7);
-  // Default to lightest-first so the recommended lawyer (least loaded) is the first row.
-  const [sortDesc, setSortDesc] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<WorkloadDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [pairing, setPairing] = useState<PairingEntry[]>([]);
   const [pairingLoading, setPairingLoading] = useState(true);
   const [onHold, setOnHold] = useState<OnHoldTaskEntry[]>([]);
@@ -154,7 +75,6 @@ export default function OperationsPage() {
   const [workflowMetrics, setWorkflowMetrics] = useState<WorkflowMetrics | null>(null);
   const [healthState, setHealthState] = useState<LoadState>('loading');
   const [performanceState, setPerformanceState] = useState<LoadState>('loading');
-  const [caseCountState, setCaseCountState] = useState<LoadState>('loading');
   const [opsRetry, setOpsRetry] = useState(0);
   const retryOps = () => setOpsRetry((n) => n + 1);
   const [setupLeft, setSetupLeft] = useState(0);
@@ -167,7 +87,7 @@ export default function OperationsPage() {
   }, [token, canSetUp]);
 
   useEffect(() => {
-    if (!token || !canRunOps || teamTab) return;
+    if (!token || !canRunOps) return;
     setHealthState('loading');
     setPerformanceState('loading');
     api
@@ -183,47 +103,12 @@ export default function OperationsPage() {
 
   useEffect(() => {
     if (!token || !canRunOps || teamTab) return;
-    setLoading(true);
-    api
-      .getWorkloadSummary(token, nearDeadlineDays)
-      .then(setSummary)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [token, canRunOps, nearDeadlineDays, tab]);
-
-  useEffect(() => {
-    if (!token || !canRunOps || teamTab) return;
-    setCaseCountState('loading');
-    api
-      .getCases(token)
-      .then((cases) => {
-        setActiveCaseCount(cases.filter((c) => c.status !== CaseStatus.CLOSED).length);
-        setCaseCountState('ready');
-      })
-      .catch(() => { setActiveCaseCount(null); setCaseCountState('failed'); });
-  }, [token, canRunOps, tab, opsRetry]);
-
-  useEffect(() => {
-    if (!token || !canRunOps || !selectedUserId) {
-      setDetail(null);
-      return;
-    }
-    setDetailLoading(true);
-    api
-      .getWorkloadDetail(token, selectedUserId, nearDeadlineDays)
-      .then(setDetail)
-      .catch(console.error)
-      .finally(() => setDetailLoading(false));
-  }, [token, canRunOps, selectedUserId, nearDeadlineDays]);
-
-  useEffect(() => {
-    if (!token || !canRunOps || teamTab) return;
     setPairingLoading(true);
     api.getPairing(token).then(setPairing).catch(console.error).finally(() => setPairingLoading(false));
   }, [token, canRunOps, tab]);
 
   const loadOnHold = () => {
-    if (!token || !canRunOps || teamTab) return;
+    if (!token || !canRunOps) return;
     setOnHoldLoading(true);
     api
       .getOnHoldTasks(token)
@@ -234,356 +119,23 @@ export default function OperationsPage() {
 
   useEffect(loadOnHold, [token, canRunOps, tab]);
 
-  const enriched = useMemo(
-    () => summary.map((s) => ({ ...s, total: s.leadCount + s.buddyCount, score: s.weightedScore ?? s.leadCount + s.buddyCount })),
-    [summary],
-  );
-  const maxTotal = useMemo(() => Math.max(1, ...enriched.map((s) => s.score)), [enriched]);
-  const sorted = useMemo(
-    () => [...enriched].sort((a, b) => (sortDesc ? b.score - a.score : a.score - b.score)),
-    [enriched, sortDesc],
-  );
-
-  const totalAssignments = enriched.reduce((sum, s) => sum + s.total, 0);
-  const totalNearDeadline = enriched.reduce((sum, s) => sum + s.nearDeadlineCount, 0);
-  const overdueOnHoldCount = onHold.filter((o) => o.isOverdue).length;
-
-  const recommended = useMemo(() => {
-    if (enriched.length === 0) return null;
-    return [...enriched].sort((a, b) => {
-      if (a.score !== b.score) return a.score - b.score;
-      return a.nearDeadlineCount - b.nearDeadlineCount;
-    })[0];
-  }, [enriched]);
-
-  // Everyone sees the team's load so they can coordinate; the management tabs need the runOperations capability (owner, office manager).
-  if (!canRunOps) {
-    return <div>
-      <PageHeader title="ภาระงานทีม" description="ดูว่าใครถืองานอะไร และวันไหนว่าง ก่อนขอให้ช่วยหรือส่งต่องาน" />
-      <TeamRadar />
-    </div>;
-  }
+  // Everyone can view the team; management actions remain capability-gated.
+  if (!canRunOps) return <TeamRadar />;
 
   return (
-    <div>
-      <PageHeader title={teamTab ? d.nav.operations : d.operations.title} description={teamTab ? 'ดูว่าใครรับผิดชอบงานใด แล้วเปิดรายการที่ต้องติดตาม' : d.operations.description}
-        actions={<Link href="/operations/paper-files" className={buttonVariants({ variant: 'outline' })}>สำนวนที่ถูกเบิกอยู่</Link>} />
-
-      {setupLeft > 0 && (
-        <Link href="/getting-started" className="mb-6 flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3 text-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <span>ตั้งค่าสำนักงานยังเหลืออีก {setupLeft} ขั้น: ทีม ลูกความ และคดีแรก</span>
-          <span className="inline-flex items-center gap-0.5 font-medium text-primary">
-            ไปที่เริ่มต้นใช้งาน
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          </span>
-        </Link>
-      )}
-
-      {!teamTab && (
-        <div className="mb-6">
-          <KpiStrip
-            items={[
-              { label: d.operations.kpiLawyers, value: enriched.length },
-              {
-                label: d.operations.kpiActiveCases,
-                value:
-                  caseCountState === 'loading' ? (
-                    <span role="status" aria-label="กำลังโหลด" className="inline-block h-7 w-12 animate-pulse rounded-md bg-muted align-middle" />
-                  ) : caseCountState === 'failed' ? (
-                    <span className="flex flex-wrap items-baseline gap-2">
-                      <span className="text-muted-foreground">—</span>
-                      <button type="button" onClick={retryOps} className="min-h-11 text-sm font-medium text-primary hover:underline">
-                        โหลดไม่สำเร็จ ลองใหม่
-                      </button>
-                    </span>
-                  ) : (
-                    activeCaseCount ?? '—'
-                  ),
-                hint: fmt(d.operations.kpiActiveCasesChange, { count: totalAssignments }),
-              },
-              {
-                label: fmt(d.operations.kpiNearDeadline, { days: nearDeadlineDays }),
-                value: totalNearDeadline,
-                hintTone: totalNearDeadline > 0 ? 'down' : 'neutral',
-                hint: totalNearDeadline > 0 ? d.operations.kpiNeedsFollowUp : undefined,
-              },
-              {
-                label: d.operations.kpiOnHold,
-                value: onHold.length,
-                hintTone: overdueOnHoldCount > 0 ? 'down' : 'neutral',
-                hint: overdueOnHoldCount > 0 ? fmt(d.operations.kpiOnHoldOverdue, { count: overdueOnHoldCount }) : undefined,
-              },
-            ]}
-          />
-        </div>
-      )}
-
+    <TeamRadar canManage onShowDaily={() => setTab('daily')}>{(counts, teamTable) => <>
+      {setupLeft > 0 && <div className="flex flex-wrap gap-3 text-sm"><Link href="/getting-started" className="min-h-11 content-center underline" title="ดำเนินการตั้งค่าสำนักงาน">ตั้งค่าสำนักงานเหลือ {setupLeft} ขั้น <ChevronRight className="inline h-4 w-4" aria-hidden /></Link></div>}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="max-w-full overflow-x-auto">
-          <TabsTrigger value="daily">ต้องจัดการวันนี้</TabsTrigger>
-          <TabsTrigger value="radar">ภาพรวมทีม</TabsTrigger>
-          <TabsTrigger value="workload">{d.operations.tabWorkload}</TabsTrigger>
-          <TabsTrigger value="pairing">{d.operations.tabPairing}</TabsTrigger>
-          <TabsTrigger value="onhold">
-            {d.operations.tabOnHold}
-            {onHold.length > 0 ? ` (${onHold.length})` : ''}
-          </TabsTrigger>
-          <TabsTrigger value="performance">ผลงานทีม</TabsTrigger>
-          <TabsTrigger value="health">
-            สุขภาพคดี
-            {caseHealth && caseHealth.inactiveCases.length + caseHealth.stuckCases.length > 0
-              ? ` (${caseHealth.inactiveCases.length + caseHealth.stuckCases.length})`
-              : ''}
-          </TabsTrigger>
+
+        <TabsList className="grid grid-cols-4 gap-0 rounded-xl border bg-card shadow-sm">
+          <TabsTrigger value="radar" className="min-w-0 flex-col gap-1 px-0 text-[10px] min-[360px]:text-[11px] sm:flex-row sm:gap-2 sm:px-1 sm:text-sm"><Users className="h-4 w-4" aria-hidden /><span>ทีม {counts.team !== null && counts.team}</span></TabsTrigger>
+          <TabsTrigger value="daily" className="min-w-0 flex-col gap-1 px-0 text-[10px] min-[360px]:text-[11px] sm:flex-row sm:gap-2 sm:px-1 sm:text-sm"><ClipboardList className="h-4 w-4" aria-hidden /><span>ต้องตามวันนี้ {counts.today !== null && counts.today}</span></TabsTrigger>
+          <TabsTrigger value="health" className="min-w-0 flex-col gap-1 px-0 text-[10px] min-[360px]:text-[11px] sm:flex-row sm:gap-2 sm:px-1 sm:text-sm"><Activity className="h-4 w-4" aria-hidden /><span>สุขภาพงาน {caseHealth && caseHealth.inactiveCases.length + caseHealth.stuckCases.length + onHold.length}</span></TabsTrigger>
+          <TabsTrigger value="performance" className="min-w-0 flex-col gap-1 px-0 text-[10px] min-[360px]:text-[11px] sm:flex-row sm:gap-2 sm:px-1 sm:text-sm"><BarChart3 className="h-4 w-4" aria-hidden />ผลงาน</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="radar"><TeamRadar /></TabsContent>
+        <TabsContent value="radar">{teamTable}</TabsContent>
         <TabsContent value="daily"><DailyWorkboard /></TabsContent>
-        <TabsContent value="workload">
-          <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabWorkloadHint}</p>
-          {recommended && (
-            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-              <Sparkles className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-              <p className="min-w-0 text-sm">
-                <span className="text-muted-foreground">{d.operations.recommendPrefix}{' '}</span>
-                <span className="font-semibold text-primary">
-                  {recommended.firstName} {recommended.lastName}
-                </span>
-                <span className="text-muted-foreground">
-                  {' '}
-                  {fmt(d.operations.recommendSuffix, {
-                    count: recommended.total,
-                    extra:
-                      recommended.nearDeadlineCount > 0
-                        ? fmt(d.operations.recommendNearDeadline, { count: recommended.nearDeadlineCount })
-                        : '',
-                  })}
-                </span>
-              </p>
-              <Link href={`/todos?new=1&assignee=${recommended.userId}`} className={buttonVariants({ size: 'sm', className: 'ml-auto shrink-0' })}>
-                {d.operations.assignNow}
-              </Link>
-            </div>
-          )}
-
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
-            <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              {d.operations.thresholdLabel}
-              <Input
-                type="number"
-                min={1}
-                value={nearDeadlineDays}
-                onChange={(e) => setNearDeadlineDays(Math.max(1, Number(e.target.value) || 7))}
-                className="h-8 w-16"
-              />
-              {d.operations.days}
-            </label>
-            <Button size="sm" variant="outline" onClick={() => setSortDesc((s) => !s)}>
-              {fmt(d.operations.sortLabel, {
-                direction: sortDesc ? d.operations.sortDesc : d.operations.sortAsc,
-              })}
-            </Button>
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-12">
-            <Card className="min-w-0 lg:col-span-7">
-              <CardContent className="p-0">
-                {loading ? (
-                  <div className="p-4">
-                    <PageLoading title={d.operations.loadingWorkload} lines={4} />
-                  </div>
-                ) : sorted.length === 0 ? (
-                  <EmptyState title={d.operations.emptyLawyersTitle} description={d.operations.emptyLawyersDesc} />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{d.operations.colLawyer}</TableHead>
-                        <TableHead>{d.operations.colWorkload}</TableHead>
-                        <TableHead>{d.operations.colRoles}</TableHead>
-                        <TableHead>{d.operations.colNearDeadline}</TableHead>
-                        <TableHead className="w-8" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sorted.map((s) => {
-                        const isRecommended = s.userId === recommended?.userId;
-                        const isSelected = selectedUserId === s.userId;
-                        return (
-                          <TableRow
-                            key={s.userId}
-                            className={`group cursor-pointer border-l-2 transition-colors ${
-                              isSelected
-                                ? 'border-l-primary bg-primary/5'
-                                : isRecommended
-                                  ? 'border-l-transparent bg-primary/5'
-                                  : 'border-l-transparent hover:bg-muted/50'
-                            }`}
-                            onClick={() => setSelectedUserId(s.userId)}
-                            data-state={isSelected ? 'selected' : undefined}
-                          >
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2.5">
-                                <LawyerAvatar firstName={s.firstName} lastName={s.lastName} />
-                                <span>
-                                  {s.firstName} {s.lastName}
-                                </span>
-                                {isRecommended && (
-                                  <Badge variant="default" className="gap-1">
-                                    <Sparkles className="h-3 w-3" />
-                                    {d.operations.badgeRecommended}
-                                  </Badge>
-                                )}
-                                {s.capacity && CAPACITY_BADGE[s.capacity] && (
-                                  <Badge variant={CAPACITY_BADGE[s.capacity].variant}>
-                                    {CAPACITY_BADGE[s.capacity].label}
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="mb-1">
-                                <span className="font-medium">{fmt(d.operations.caseCount, { count: s.total })}</span>
-                              </div>
-                              <WorkloadBar total={s.score} max={maxTotal} />
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {fmt(d.operations.weightLine, {
-                                  score: s.score,
-                                  amount: s.claimedTotal > 0 ? `฿${s.claimedTotal.toLocaleString('th-TH')}` : '—',
-                                })}
-                              </p>
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {fmt(d.operations.roleSummary, { lead: s.leadCount, buddy: s.buddyCount })}
-                            </TableCell>
-                            <TableCell>
-                              {s.nearDeadlineCount > 0 ? (
-                                <Badge variant="warning" className="gap-1">
-                                  <AlarmClock className="h-3 w-3" />
-                                  {s.nearDeadlineCount}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="min-w-0 lg:col-span-5">
-              <CardContent className="p-4">
-                {!selectedUserId ? (
-                  <InlineEmptyState icon={MousePointerClick} title={d.operations.selectLawyerTitle} description={d.operations.selectLawyerDesc} />
-                ) : detailLoading || !detail ? (
-                  <PageLoading title={d.operations.loadingDetail} lines={2} />
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2.5">
-                      <LawyerAvatar firstName={detail.firstName} lastName={detail.lastName} />
-                      <p className="font-semibold">
-                        {detail.firstName} {detail.lastName}
-                      </p>
-                      <Link href={`/todos?new=1&assignee=${selectedUserId}`} className={buttonVariants({ size: 'sm', variant: 'outline', className: 'ml-auto' })}>
-                        {d.operations.assignTask}
-                      </Link>
-                    </div>
-                    {detail.cases.length === 0 ? (
-                      <InlineEmptyState title={d.operations.noActiveCasesTitle} description={d.operations.noActiveCasesDesc} />
-                    ) : (
-                      <ul className="space-y-2">
-                        {detail.cases.map((c) => (
-                          <li key={c.caseId}>
-                            <Link
-                              href={`/cases/${c.caseId}`}
-                              className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-sm transition-colors hover:border-primary/40 hover:bg-muted/50"
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate font-medium">{c.title}</p>
-                                <div className="mt-1 flex items-center gap-1.5">
-                                  <CaseStatusBadge status={c.status} />
-                                  <span className="text-xs text-muted-foreground">
-                                    {c.role === 'LEAD' ? d.operations.roleLead : d.operations.roleBuddy}
-                                  </span>
-                                </div>
-                              </div>
-                              {c.nearestDeadlineDays === null ? (
-                                <span className="shrink-0 text-xs text-muted-foreground">{d.operations.noDeadline}</span>
-                              ) : c.nearestDeadlineDays < 0 ? (
-                                <Badge variant="destructive" className="shrink-0">
-                                  {fmt(d.operations.overdueDays, { days: Math.abs(c.nearestDeadlineDays) })}
-                                </Badge>
-                              ) : c.nearestDeadlineDays <= nearDeadlineDays ? (
-                                <Badge variant="warning" className="shrink-0">
-                                  {fmt(d.operations.inDays, { days: c.nearestDeadlineDays })}
-                                </Badge>
-                              ) : (
-                                <span className="shrink-0 text-xs text-muted-foreground">
-                                  {fmt(d.operations.inDays, { days: c.nearestDeadlineDays })}
-                                </span>
-                              )}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="pairing">
-          <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabPairingHint}</p>
-          <Card>
-            <CardContent className="p-0">
-              {pairingLoading ? (
-                <div className="p-4">
-                  <PageLoading title={d.operations.loadingPairing} lines={3} />
-                </div>
-              ) : pairing.length === 0 ? (
-                <EmptyState title={d.operations.emptyPairingTitle} description={d.operations.emptyPairingDesc} />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{d.operations.colPair}</TableHead>
-                      <TableHead className="text-right">{d.operations.colSharedCases}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                    <TableBody>
-                      {pairing.length === 0 ? (
-                        <TableEmptyRow colSpan={2} title={d.operations.emptyPairingTitle} description={d.operations.emptyPairingDesc} />
-                      ) : pairing.map((team) => (
-                        <TableRow key={team.key}>
-                          <TableCell className="font-medium">
-                            {team.members.map((m) => m.name).join(' + ')}
-                            {team.members.length > 2 && (
-                              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                {team.members.length} คน
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">{team.count}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="onhold">
+        <TabsContent value="health"><Link href="/operations/paper-files" className="mb-3 inline-flex min-h-11 items-center text-sm underline" title="ดูสำนวนที่ถูกเบิกอยู่">ดูสำนวนที่ถูกเบิกอยู่ →</Link><h2 className="mb-3 text-lg font-semibold">พักงาน</h2>
           <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabOnHoldHint}</p>
           <Card>
             <CardContent className="p-0">
@@ -657,6 +209,7 @@ export default function OperationsPage() {
         </TabsContent>
 
         <TabsContent value="performance">
+          <h2 className="mb-3 text-lg font-semibold">ผลงานทีม</h2>
           {workflowMetrics && (
             <div className="mb-4">
               <KpiStrip
@@ -746,7 +299,49 @@ export default function OperationsPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="performance"><h2 className="mb-3 text-lg font-semibold">การจับคู่ทีม</h2>
+          <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabPairingHint}</p>
+          <Card>
+            <CardContent className="p-0">
+              {pairingLoading ? (
+                <div className="p-4">
+                  <PageLoading title={d.operations.loadingPairing} lines={3} />
+                </div>
+              ) : pairing.length === 0 ? (
+                <EmptyState title={d.operations.emptyPairingTitle} description={d.operations.emptyPairingDesc} />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{d.operations.colPair}</TableHead>
+                      <TableHead className="text-right">{d.operations.colSharedCases}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                    <TableBody>
+                      {pairing.length === 0 ? (
+                        <TableEmptyRow colSpan={2} title={d.operations.emptyPairingTitle} description={d.operations.emptyPairingDesc} />
+                      ) : pairing.map((team) => (
+                        <TableRow key={team.key}>
+                          <TableCell className="font-medium">
+                            {team.members.map((m) => m.name).join(' + ')}
+                            {team.members.length > 2 && (
+                              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                {team.members.length} คน
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{team.count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="health">
+          <h2 className="mb-3 text-lg font-semibold">สุขภาพคดี</h2>
           <p className="mb-3 text-sm text-muted-foreground">
             คดีที่เงียบเกินเกณฑ์ SLA และคดีที่ค้างสถานะเดิมนานเกินไป — กดชื่อคดีเพื่อเข้าไปดู
           </p>
@@ -812,7 +407,6 @@ export default function OperationsPage() {
             ))}
           </div>}
         </TabsContent>
-      </Tabs>
-    </div>
+      </Tabs></>}</TeamRadar>
   );
 }

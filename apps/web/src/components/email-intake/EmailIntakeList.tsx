@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { mailDateGroup } from '@/lib/journey-mail';
-import { Mail, Paperclip } from 'lucide-react';
+import { ChevronDown, Mail, Paperclip } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, EmailThreadListItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { getPageGuide } from '@/components/guide/page-guides';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { SearchHint } from '@/components/guide/SearchHint';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_INTAKE: 'รอรับเรื่อง',
@@ -39,6 +40,7 @@ function formatDateTime(date: string) {
 
 export function EmailIntakeList() {
   const pathname = usePathname();
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
   const { token } = useAuth();
@@ -80,11 +82,18 @@ export function EmailIntakeList() {
 
   const visibleThreads = threads.filter((thread) => (filter === 'ALL' || thread.status === filter) && [thread.subject, thread.fromName, thread.fromAddress, thread.bodyExcerpt].some((value) => value?.toLowerCase().includes(search.toLowerCase())));
 
+  if (pathname !== '/email-intake') return <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3 shadow-sm">
+    <Mail className="h-5 w-5" aria-hidden />
+    <details className="relative"><summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md border bg-muted px-3 text-sm font-medium">อีเมลในคิว ({threads.length}) <ChevronDown className="h-4 w-4" aria-hidden /></summary><div className="absolute left-0 z-30 mt-1 max-h-72 w-72 max-w-[80vw] overflow-y-auto rounded-lg border bg-card p-1 shadow-lg">{threads.map((thread) => <button key={thread.id} type="button" onClick={() => router.push(`/email-intake/${thread.id}`)} className="block min-h-11 w-full rounded px-3 text-left text-sm hover:bg-muted">{thread.subject || '(ไม่มีหัวเรื่อง)'}</button>)}</div></details>
+    <span className="text-sm text-muted-foreground">กดเพื่อเลือกอีเมลเรื่องอื่น</span>
+    {loadError && <button type="button" onClick={() => setReloadKey((k) => k + 1)}>โหลดคิวอีกครั้ง</button>}
+  </div>;
+
   return (
     <div>
       <PageHeader title="รับเรื่องจากอีเมล" description="เลือกอีเมลเพื่อตรวจและรับเรื่อง" />
       <Card className="mb-3"><CardContent className="p-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2"><input aria-label="ค้นหาอีเมล" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหาอีเมล" className="min-h-11 min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /><span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/email-intake')?.searchHint}</span></div>
+      <div className="mb-2 flex flex-wrap items-center gap-2"><input aria-label="ค้นหาอีเมล" aria-describedby="email-intake-search-hint" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหาอีเมล" className="min-h-11 min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /><SearchHint id="email-intake-search-hint">{getPageGuide('/email-intake')?.searchHint}</SearchHint></div>
       <div className="flex flex-wrap gap-1">{[['ALL', 'ทั้งหมด'], ['PENDING_INTAKE', 'รอรับเรื่อง'], ['LINKED', 'รับเรื่องแล้ว']].map(([value, label]) => <Button key={value} size="sm" className="min-h-11" variant={filter === value ? 'default' : 'ghost'} onClick={() => setFilter(value)}>{label}</Button>)}</div></CardContent></Card>
 
       {linkError && <p role="alert" className="mb-4 text-sm text-destructive">{linkError}</p>}
@@ -113,7 +122,7 @@ export function EmailIntakeList() {
                     <div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate text-sm">{thread.subject}</span>{thread.attachmentCount > 0 && <Paperclip className="h-3.5 w-3.5 shrink-0" aria-label="ไฟล์แนบ" />}<Badge variant={STATUS_VARIANT[thread.status] ?? 'muted'}>{STATUS_LABELS[thread.status] ?? thread.status}</Badge></div>
                     <p className="truncate text-xs text-muted-foreground">{thread.bodyExcerpt}</p>
                   </Link>
-                  {thread.suggestedIntake && <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="muted" className="max-w-full whitespace-normal break-words">น่าจะเป็นเรื่องเดิม: {thread.suggestedIntake.title ?? 'ไม่มีชื่อเรื่อง'}</Badge><Button size="sm" variant="outline" disabled={linkingId !== null} onClick={() => attach(thread.id, thread.suggestedIntake!.id)}>{linkingId === thread.id ? 'กำลังรวม…' : 'รวม'}</Button></div>}
+                  {thread.suggestedIntake && <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="muted" className="max-w-full whitespace-normal break-words">น่าจะเป็นเรื่องเดิม: {thread.suggestedIntake.title ?? 'ไม่มีชื่อเรื่อง'}</Badge><Button size="sm" variant="outline" disabled={linkingId !== null} onClick={() => { if (window.confirm(`รวมอีเมลนี้เข้ากับเรื่อง "${thread.suggestedIntake!.title ?? 'เรื่องเดิม'}"?`)) attach(thread.id, thread.suggestedIntake!.id); }}>{linkingId === thread.id ? 'กำลังรวม…' : 'รวม'}</Button></div>}
                 </div>)}</section>;
               })}
             </div>

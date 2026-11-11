@@ -61,14 +61,14 @@ export function ConvertToCaseDialog({
   );
 
   const missing = [
-    !intake.clientId && !intake.clientName ? 'ลูกค้า' : null,
+    !intake.clientId && !intake.clientName ? 'ลูกความ' : null,
     !intake.description ? 'รายละเอียดเรื่อง' : null,
     documents.length === 0 ? 'ไฟล์เอกสาร' : null,
   ].filter(Boolean) as string[];
 
   const carried = [
     intake.clientId || intake.clientName
-      ? `ลูกค้า: ${intake.clientName ?? 'ตามที่ผูกไว้'}`
+      ? `ลูกความ: ${intake.clientName ?? 'ตามที่ผูกไว้'}`
       : null,
     intake.description ? 'รายละเอียดเรื่อง → รายละเอียดคดี' : null,
     documents.length ? `ไฟล์ ${documents.length} รายการ → เอกสารคดี` : null,

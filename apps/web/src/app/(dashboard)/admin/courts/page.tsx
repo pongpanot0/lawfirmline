@@ -64,14 +64,15 @@ export default function CourtsPage() {
       <PageHeader
         title={d.admin.courtsTitle}
         description={d.admin.courtsDescription}
-        actions={
+        actions={user?.isPlatformAdmin ? (
           <Button size="sm" aria-expanded={showForm} onClick={() => setShowForm(!showForm)}>
             <Plus className="h-4 w-4" aria-hidden />{d.admin.addCourt}
           </Button>
-        }
+        ) : undefined}
       />
+      {!user?.isPlatformAdmin && <p className="mb-4 text-sm text-muted-foreground">รายชื่อศาลเป็นข้อมูลกลางของทุกสำนักงาน ทีม Samnuan เป็นผู้ดูแล ถ้าไม่พบศาลที่ต้องใช้ แจ้งทีม Samnuan</p>}
 
-      {showForm && (
+      {showForm && user?.isPlatformAdmin && (
         <Card className="mb-6">
           <CardContent className="p-4 sm:p-6">
             <form onSubmit={handleCreate} className="flex flex-col gap-3 sm:flex-row sm:items-end">

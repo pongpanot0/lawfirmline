@@ -38,6 +38,7 @@ function BillingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [plans, setPlans] = useState<Awaited<ReturnType<typeof api.getPlans>>>([]);
+  const [subscription, setSubscription] = useState<Awaited<ReturnType<typeof api.getSubscription>> | null>(null);
   const [history, setHistory] = useState<BillingInvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
@@ -59,8 +60,9 @@ function BillingPageContent() {
     if (!t) return;
     setLoadError('');
     setLoading(true);
-    Promise.all([api.getPlans(t), api.getBillingHistory(t)])
-      .then(([p, h]) => {
+    Promise.all([api.getPlans(t), api.getBillingHistory(t), api.getSubscription(t)])
+      .then(([p, h, sub]) => {
+        setSubscription(sub);
         setPlans(p);
         setHistory(h);
       })
@@ -166,13 +168,14 @@ function BillingPageContent() {
         </div>
       )}
 
-      <section aria-label={d.billing.currentStatus} className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2">
-        <div className="min-w-0 bg-card p-4">
+      <section aria-label={d.billing.currentStatus} className="grid gap-px overflow-hidden rounded-lg border border-l-4 border-l-[var(--color-brass)] bg-[var(--operations-highlight)] sm:grid-cols-2">
+        <div className="min-w-0 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm text-muted-foreground">{d.billing.currentStatus}</p>
             {statusBadge()}
           </div>
           <p className="mt-1 text-2xl font-semibold">{user.subscriptionPlan ? PLAN_CONFIG[user.subscriptionPlan].name : d.billing.trial}</p>
+          {user.subscriptionPlan && <p className="text-sm">{PLAN_CONFIG[user.subscriptionPlan].priceThb.toLocaleString(loc)} บาท/เดือน</p>}
           {user.trialEndAt && user.subscriptionStatus === SubscriptionStatus.TRIAL && (
             <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">{fmt(d.billing.trialEnds, { date: formatDay(user.trialEndAt) })}</p>
           )}
@@ -180,14 +183,16 @@ function BillingPageContent() {
             <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">{fmt(d.billing.renews, { date: formatDay(user.currentPeriodEnd) })}</p>
           )}
         </div>
-        <div className="min-w-0 bg-card p-4">
+        <div className="min-w-0 p-5">
           <p className="text-sm text-muted-foreground">{d.billing.teamSeats}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{fmt(d.billing.maxUsers, { count: user.maxUsers })}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{subscription && user.subscriptionPlan ? `ใช้ ${subscription.memberCount} จาก ${PLAN_CONFIG[user.subscriptionPlan].maxUsers} คน` : "กำลังโหลดข้อมูล"}</p>
           <p className="mt-0.5 text-sm text-muted-foreground">{d.billing.seatsHint}</p>
         </div>
       </section>
 
-      <section aria-labelledby="billing-plans-heading">
+      <details className="rounded-xl border bg-card p-4">
+        <summary className="disclosure cursor-pointer font-semibold">เปรียบเทียบแพ็กเกจ</summary>
+      <section className="mt-4" aria-labelledby="billing-plans-heading">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div><h2 id="billing-plans-heading" className="text-lg font-semibold">{d.billing.plans}</h2><p className="mt-1 text-sm text-muted-foreground">เลือกช่วงชำระ แล้วเลือกแพ็กเกจและวิธีชำระที่ต้องการ</p></div>
           {!loading && !loadError && <BillingPeriodToggle value={billingPeriod} onChange={setBillingPeriod} />}
@@ -267,12 +272,13 @@ function BillingPageContent() {
           </div>
         )}
       </section>
+      </details>
 
       <Card>
         <CardHeader><CardTitle>{d.billing.paymentHistory}</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[480px] text-sm">
-            <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
+        <CardContent className="p-0">
+          <table className="w-full text-sm">
+            <thead className="hidden border-b bg-muted/50 text-xs text-muted-foreground sm:table-header-group">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">{d.billing.invoice}</th>
                 <th className="px-4 py-3 text-left font-semibold">{d.billing.plan}</th>
@@ -283,16 +289,16 @@ function BillingPageContent() {
             </thead>
             <tbody>
               {history.map((inv) => (
-                <tr key={inv.id} className="border-b">
-                  <td className="px-4 py-3 font-medium">
+                <tr key={inv.id} className="block border-b p-4 sm:table-row sm:p-0">
+                  <td className="block py-1 font-medium sm:table-cell sm:px-4 sm:py-3">
                     {inv.hostedInvoiceUrl ? (
                       <a href={inv.hostedInvoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-primary underline sm:min-h-0" title={d.billing.receipt}>{inv.invoiceNumber}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden /></a>
                     ) : inv.invoiceNumber}
                   </td>
-                  <td className="px-4 py-3">{PLAN_CONFIG[inv.plan as SubscriptionPlan]?.name ?? inv.plan}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{inv.amount.toLocaleString(loc)} THB</td>
-                  <td className="px-4 py-3"><Badge variant={inv.status === 'PAID' ? 'success' : inv.status === 'FAILED' ? 'destructive' : 'muted'}>{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</Badge></td>
-                  <td className="px-4 py-3 tabular-nums text-muted-foreground">{formatDay(inv.createdAt)}</td>
+                  <td className="block py-1 sm:table-cell sm:px-4 sm:py-3">{PLAN_CONFIG[inv.plan as SubscriptionPlan]?.name ?? inv.plan}</td>
+                  <td className="block py-1 tabular-nums sm:table-cell sm:px-4 sm:py-3 sm:text-right">{inv.amount.toLocaleString(loc)} บาท</td>
+                  <td className="block py-1 sm:table-cell sm:px-4 sm:py-3"><Badge variant={inv.status === 'PAID' ? 'success' : inv.status === 'FAILED' ? 'destructive' : 'muted'}>{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</Badge></td>
+                  <td className="block py-1 tabular-nums text-muted-foreground sm:table-cell sm:px-4 sm:py-3">{formatDay(inv.createdAt)}</td>
                 </tr>
               ))}
               {history.length === 0 && !loading && !loadError && (

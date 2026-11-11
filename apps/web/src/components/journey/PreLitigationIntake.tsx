@@ -1045,7 +1045,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             </CardHeader>
           <CardContent className="space-y-0">
             <InfoRow label="ประเภทเรื่อง" value={intake.matterType ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType) : undefined} />
-            <InfoRow label="เลขอ้างอิงลูกค้า" value={intake.customerRef} />
+            <InfoRow label="เลขอ้างอิงผู้ว่าจ้าง" value={intake.customerRef} />
             <InfoRow label="เลขกรมธรรม์" value={intake.policyNumber} />
             <InfoRow label="เลขเคลม" value={intake.claimNumber} />
             <InfoRow
@@ -1079,7 +1079,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">ลูกความ / ลูกค้า</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">ลูกความและผู้ว่าจ้าง</CardTitle></CardHeader>
           <CardContent className="space-y-0">
             <InfoRow label="ลูกความ" value={intake.client?.name ?? intake.clientName} />
             {intake.additionalClients && intake.additionalClients.length > 0 && (
@@ -1090,7 +1090,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             )}
             {/* ลูกค้า = ผู้ว่าจ้างที่เราวางบิล ซ่อนไว้เมื่อเป็นคนเดียวกับลูกความ */}
             {!customersSameAsClient(intake.customers, intake.clientId) && (
-              <InfoRow label="ลูกค้า (ผู้ว่าจ้าง)" value={formatCustomers(intake.customers)} />
+              <InfoRow label="ผู้ว่าจ้าง" value={formatCustomers(intake.customers)} />
             )}
           </CardContent>
         </Card>
@@ -1927,7 +1927,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   </div>
                   {!intake?.clientId && (
                     <div>
-                      <label className="block text-sm font-medium">ชื่อลูกค้า</label>
+                      <label className="block text-sm font-medium">ชื่อลูกความ</label>
                       <input
                         value={editClientName}
                         onChange={(e) => setEditClientName(e.target.value)}
@@ -2013,7 +2013,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   )}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="block text-sm font-medium">เลขอ้างอิงลูกค้า</label>
+                      <label className="block text-sm font-medium">เลขอ้างอิงผู้ว่าจ้าง</label>
                       <input
                         value={editCustomerRef}
                         onChange={(e) => setEditCustomerRef(e.target.value)}

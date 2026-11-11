@@ -37,7 +37,7 @@ function ResetForm() {
   };
 
   if (!token) {
-    return <p role="alert" className="text-sm text-destructive">{d.auth.invalidResetLink}</p>;
+    return <div className="space-y-3"><p role="alert" className="text-sm text-destructive">{d.auth.invalidResetLink}</p><Link href="/forgot-password" className="inline-flex min-h-11 items-center font-medium text-primary hover:underline">{d.auth.requestNewResetLink}</Link></div>;
   }
 
   return done ? (
@@ -48,7 +48,7 @@ function ResetForm() {
         <label htmlFor="new-password" className="text-sm font-medium">{d.auth.newPassword}</label>
         <PasswordInput id="new-password" autoComplete="new-password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={error ? true : undefined} aria-describedby={error ? 'new-password-hint new-password-error' : 'new-password-hint'} className="mt-1" />
         <p id="new-password-hint" className="mt-1.5 text-xs text-muted-foreground">{d.auth.passwordHint}</p>
-        {error && <p id="new-password-error" role="alert" className="mt-1.5 text-sm text-destructive">{error}</p>}
+        {error && <p id="new-password-error" role="alert" className="mt-1.5 text-sm text-destructive">{error} <Link href="/forgot-password" className="font-medium text-primary hover:underline">{d.auth.requestNewResetLink}</Link></p>}
       </div>
       <Button type="submit" className="h-11 w-full" disabled={saving}>
         {saving ? d.auth.resetSaving : d.auth.resetPassword}
