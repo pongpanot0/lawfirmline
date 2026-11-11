@@ -16,8 +16,8 @@ export function UndoToast({ action, onDismiss }: { action: UndoAction | null; on
     catch { setError('เลิกทำไม่สำเร็จ ลองอีกครั้ง'); }
     finally { setBusy(false); }
   };
-  return <div role="status" aria-live="polite">{action && <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto flex max-w-xl items-start gap-3 rounded-lg border bg-card p-4 shadow-lg sm:left-auto">
-    <Check aria-hidden="true" className="h-5 w-5 shrink-0 text-success" /><div className="min-w-0 flex-1"><p>{action.message}</p>{action.detail && <p className="text-sm text-muted-foreground">{action.detail}</p>}{error && <p className="text-sm text-destructive">{error}</p>}</div>
-    <Button type="button" variant="outline" disabled={busy} onClick={undo}>เลิกทำ</Button><button type="button" aria-label="ปิดข้อความ" className="flex h-11 w-11 shrink-0 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={onDismiss}><X aria-hidden="true" className="h-4 w-4" /></button>
+  return <div role="status" aria-live="polite">{action && <div className="fixed bottom-6 left-1/2 z-50 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-4 rounded-xl bg-[#142e43] px-5 py-3.5 text-white shadow-2xl">
+    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#227052]"><Check aria-hidden="true" className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="font-bold">{action.message}</p>{action.detail && <p className="text-sm text-[#b1bec9]">{action.detail}</p>}{error && <p className="text-sm text-destructive">{error}</p>}</div>
+    <Button type="button" variant="outline" className="border-white/40 bg-transparent text-white" disabled={busy} onClick={undo}>เลิกทำ</Button><button type="button" aria-label="ปิดข้อความ" className="flex h-11 w-11 shrink-0 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={onDismiss}><X aria-hidden="true" className="h-4 w-4" /></button>
   </div>}</div>;
 }

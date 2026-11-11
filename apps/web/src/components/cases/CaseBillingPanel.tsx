@@ -12,7 +12,7 @@ import {
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { api, TimeEntryItem, ExpenseItem, CustomerShareItem } from '@/lib/api';
+import { api, TimeEntryItem, ExpenseItem, CustomerShareItem, InvoiceItem } from '@/lib/api';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { TimeEntryForm } from '@/components/billing/TimeEntryForm';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
@@ -145,6 +145,9 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
   // ลูกค้า (ผู้ว่าจ้าง) ของคดี — คนที่ใบแจ้งหนี้จะไปถึง ไม่ใช่ลูกความ
   const [customers, setCustomers] = useState<CustomerShareItem[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [agreedFee, setAgreedFee] = useState<number | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   const load = () => {
     if (!token || !id) return;
@@ -153,9 +156,12 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       api.getCaseExpenses(token, id),
       api.getExpenseSummary(token, id).catch(() => ({ totalSpent: 0, revenue: 0, profit: 0 })),
       api.getCase(token, id).catch(() => null),
+      api.getInvoices(token, id).catch(() => [] as InvoiceItem[]),
     ])
-      .then(([entries, exps, summary, detail]) => {
+      .then(([entries, exps, summary, detail, invs]) => {
         setCustomers(detail?.customers ?? []);
+        setInvoices(invs);
+        setAgreedFee(detail?.estimatedFee ?? null);
         setTimeEntries(entries);
         setExpenses(exps);
         setTotalSpent(summary.totalSpent);
@@ -237,50 +243,33 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const totalBilled = timeEntries.reduce((sum, e) => (e.writtenOffAt ? sum : sum + e.hours * e.rate), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
+  const issued = invoices.filter((inv) => inv.status !== 'DRAFT' && inv.status !== 'VOID' && inv.status !== 'CANCELLED');
+  const issuedTotal = issued.reduce((sum, inv) => sum + inv.totalAmount, 0);
+  const paidTotal = issued.filter((inv) => inv.status === 'PAID').reduce((sum, inv) => sum + inv.totalAmount, 0);
+  const outstanding = issuedTotal - paidTotal;
+  const card = 'rounded-xl border border-[#e2e0d8] bg-card';
+  const hint = 'mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground';
+  const label = 'text-[.8rem] text-muted-foreground';
+  const shortDate = (value: string) => new Date(value).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' });
+  const invoicePill = (inv: InvoiceItem) => { const amount = formatCurrency(inv.totalAmount); return inv.status === 'PAID' ? <span className="rounded-full bg-[#e6f3ec] px-3 py-1 font-semibold text-[#227052]">ชำระแล้ว {amount}</span> : inv.status === 'DRAFT' ? <span className="rounded-full bg-[#eeebe3] px-3 py-1 font-semibold">ร่าง {amount}</span> : <span className="rounded-full bg-[#fbf3e0] px-3 py-1 font-semibold text-[#6b4f0b]">รอชำระ {amount}</span>; };
+  const expenseState = (e: ExpenseItem) => e.writtenOffAt ? <span className="text-muted-foreground">ตัดทิ้ง</span> : e.status === ExpenseStatus.PAID ? <span className="text-[#227052]">จ่ายแล้ว</span> : e.status === ExpenseStatus.APPROVED ? <span className="text-[#227052]">อนุมัติแล้ว</span> : e.status === ExpenseStatus.REJECTED ? <span className="text-[#a83232]">ไม่อนุมัติ</span> : e.status === ExpenseStatus.PENDING ? <span className="text-[#6b4f0b]">รออนุมัติ</span> : <span className="text-muted-foreground">ร่าง</span>;
   return (
-    <div>
-      <h2 className="mb-6 text-xl font-bold text-foreground">{d.caseBilling.title}</h2>
-
-      <dl className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border md:grid-cols-3 xl:grid-cols-6 [&>div]:bg-card [&>div]:p-4">
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">รายได้</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(caseRevenue)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">ค่าใช้จ่ายอนุมัติ</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalSpent)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">กำไร</dt>
-          <dd className={`mt-1 text-xl font-semibold tabular-nums ${caseProfit < 0 ? 'text-destructive' : ''}`}>
-            {formatCurrency(caseProfit)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.billableHours}</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{totalHours.toFixed(1)}h</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.timeBilled}</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalBilled)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.allExpenses}</dt>
-          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalExpenses)}</dd>
-        </div>
-      </dl>
-
-      {writeOffError && <p role="alert" className="mb-4 text-sm text-destructive">{writeOffError}</p>}
-
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold">{d.caseBilling.expenseClaims}</h2>
-          <Button type="button" size="sm" aria-expanded={showExpenseForm} onClick={() => setShowExpenseForm(!showExpenseForm)}>
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            {d.caseBilling.submitExpense}
-          </Button>
-        </div>
-
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className={`${card} p-5`}><div className={label}>ค่าวิชาชีพที่ตกลง</div><div className="text-2xl font-bold">{agreedFee != null ? formatCurrency(agreedFee) : <span className="text-base font-semibold text-muted-foreground">ยังไม่ได้ระบุ</span>}</div></div>
+        <div className={`${card} p-5`}><div className={label}>ออกใบแจ้งหนี้แล้ว</div><div className="text-2xl font-bold">{formatCurrency(issuedTotal)}</div></div>
+        <div className={`${card} p-5`}><div className={label}>รับเงินแล้ว</div><div className="text-2xl font-bold text-[#227052]">{formatCurrency(paidTotal)}</div></div>
+        <div className={`${card} p-5 ${outstanding > 0 ? 'border-2 border-[#e9b9b9]' : ''}`}><div className={label}>ค้างรับจากลูกความ</div><div className={`text-2xl font-bold ${outstanding > 0 ? 'text-[#a83232]' : ''}`}>{formatCurrency(outstanding)}</div></div>
+      </div>
+      {writeOffError && <p role="alert" className="text-sm text-destructive">{writeOffError}</p>}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className={`${card} overflow-hidden shadow-[0_4px_16px_rgba(20,46,67,.06)]`}>
+          <div className="flex items-center justify-between border-b border-[#e2e0d8] px-5 py-3"><h3 className="text-lg font-bold">ใบแจ้งหนี้</h3><button type="button" onClick={() => { setToolsOpen(true); setTimeout(() => document.getElementById('case-invoice-panel')?.scrollIntoView({ block: 'start' }), 50); }} className="inline-flex min-h-0 items-center gap-[.4rem] rounded-lg bg-[#142e43] px-4 py-2 text-[.95rem] font-semibold text-[#fffdfa]"><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ออกใบแจ้งหนี้</button></div>
+          {invoices.length ? <ul className="divide-y divide-[#e2e0d8] text-sm">{invoices.map((inv) => <li key={inv.id} className="flex items-center justify-between gap-3 px-5 py-3.5"><div><b>{inv.invoiceNumber}</b><div className={label}>{[inv.billToCustomer?.name, inv.status === 'DRAFT' ? 'ยังไม่ส่ง' : null].filter(Boolean).join(' · ') || 'ใบแจ้งหนี้ของคดี'}</div></div>{invoicePill(inv)}</li>)}</ul> : <p className={`${hint} px-5 py-4`}>ยังไม่มีใบแจ้งหนี้ของคดีนี้</p>}
+        </section>
+        <section className={`${card} overflow-hidden shadow-[0_4px_16px_rgba(20,46,67,.06)]`}>
+          <div className="flex items-center justify-between border-b border-[#e2e0d8] px-5 py-3"><h3 className="text-lg font-bold">ค่าใช้จ่ายของคดี</h3><button type="button" aria-expanded={showExpenseForm} onClick={() => setShowExpenseForm(!showExpenseForm)} className="inline-flex min-h-0 items-center gap-[.4rem] rounded-lg border border-[#c9ccc6] bg-white px-4 py-2 text-[.95rem] font-semibold text-[#142e43]"><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />บันทึกค่าใช้จ่าย</button></div>
+          {showExpenseForm && <div className="border-b border-[#e2e0d8] p-4">
         {showExpenseForm && (
           <form onSubmit={handleCreateExpense} className="mb-4 space-y-3 rounded-lg border border-border bg-muted/40 p-4">
             <div className="grid gap-3 md:grid-cols-2">
@@ -328,6 +317,58 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
             </Button>
           </form>
         )}
+          </div>}
+          {expenses.length ? <ul className="divide-y divide-[#e2e0d8] text-sm">{expenses.slice(0, 8).map((e) => <li key={e.id} className="flex items-center justify-between gap-3 px-5 py-3.5"><div><b>{e.description}</b><div className={label}>{e.user.firstName} · {shortDate(e.date)}</div></div><span className="font-semibold">{formatCurrency(e.amount)} · {expenseState(e)}</span></li>)}</ul> : <p className={`${hint} px-5 pt-4`}>ยังไม่มีค่าใช้จ่ายของคดีนี้</p>}
+          <p className={`${hint} px-5 pb-4`}>ค่าใช้จ่ายที่บันทึกที่นี่ เรียกเก็บจากลูกความในใบแจ้งหนี้ถัดไปได้</p>
+        </section>
+      </div>
+      <details open={toolsOpen} onToggle={(e) => setToolsOpen((e.target as HTMLDetailsElement).open)} className={card}>
+        <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">เครื่องมือเพิ่มเติม <span className={label}>· ออกใบแจ้งหนี้ · บันทึกเวลา · ตัดค่าใช้จ่ายทิ้ง · กำไรของคดี</span></summary>
+        <div className="space-y-5 border-t border-[#e2e0d8] p-5">
+          <div id="case-invoice-panel" className="scroll-mt-24"><InvoicePanel target={{ caseId: id }} customers={customers} onChanged={load} /></div>
+      
+
+      <dl className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border md:grid-cols-3 xl:grid-cols-6 [&>div]:bg-card [&>div]:p-4">
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">รายได้</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(caseRevenue)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">ค่าใช้จ่ายอนุมัติ</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalSpent)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">กำไร</dt>
+          <dd className={`mt-1 text-xl font-semibold tabular-nums ${caseProfit < 0 ? 'text-destructive' : ''}`}>
+            {formatCurrency(caseProfit)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.billableHours}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{totalHours.toFixed(1)}h</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.timeBilled}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalBilled)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground sm:text-sm">{d.caseBilling.allExpenses}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalExpenses)}</dd>
+        </div>
+      </dl>
+
+      
+
+      <div className="mb-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">{d.caseBilling.expenseClaims}</h2>
+          <Button type="button" size="sm" aria-expanded={showExpenseForm} onClick={() => setShowExpenseForm(!showExpenseForm)}>
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            {d.caseBilling.submitExpense}
+          </Button>
+        </div>
+
+
 
         <div className="space-y-2">
           {expenses.map((e) => (
@@ -475,7 +516,9 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         </div>
       </div>
 
-      <InvoicePanel target={{ caseId: id }} customers={customers} onChanged={load} />
+      
+        </div>
+      </details>
     </div>
   );
 }

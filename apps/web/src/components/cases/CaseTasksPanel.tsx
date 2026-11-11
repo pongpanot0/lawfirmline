@@ -18,6 +18,8 @@ import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
 import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
 import { Button } from '@/components/ui/button';
 import { UndoToast, type UndoAction } from '@/components/ui/UndoToast';
+import { CaseTaskListV2 } from '@/components/case-page/CaseTaskListV2';
+import v2 from '@/components/case-page/v2.module.css';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
@@ -69,7 +71,6 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
     setShowForm(true);
     const next = new URLSearchParams(searchParams.toString());
     next.delete('newTask');
-    next.delete('task');
     router.replace(`/cases/${caseId}?${next.toString()}`, { scroll: false });
   }, [createRequested, searchParams, router, caseId]);
 
@@ -203,21 +204,14 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
   return (
     <div>
       <UndoToast action={undo} onDismiss={() => setUndo(null)} />
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
-        <div>
-          <h2 className="font-semibold tracking-tight text-foreground">{d.caseTasks.title}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">งานที่สร้างและมอบหมายในคดีนี้</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <TaskViewToggle layout={layout} onChange={setLayout} />
-          <Button className="min-h-11" onClick={() => setShowForm(!showForm)}>
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            {d.caseTasks.addTask}
-          </Button>
-        </div>
-      </div>
-
-      <div className="mb-4"><CasePlaybook caseId={caseId} caseTypeId={caseDetail?.caseType?.id} initialReleaseId={searchParams.get('sop') ?? ''} onApplied={loadTasks} /></div>
+      {loadError ? <LoadFailed message={loadError} onRetry={loadTasks} /> : <CaseTaskListV2
+        tasks={tasks}
+        currentStage={caseDetail?.stage}
+        userId={user?.id}
+        onToggle={(task) => void handleStatusChange(task.id, task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE)}
+        onOpen={taskParam.open}
+        onAdd={() => setShowForm(true)}
+      />}
 
       {error && !showForm && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -364,6 +358,11 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
         </div>
       )}
 
+      <details className={`${v2.card} mt-5`}>
+        <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">เครื่องมือเพิ่มเติม <span className={v2.label}>· SOP · มุมมองบอร์ด · ตัวกรองละเอียด · สายงานส่งต่อ</span></summary>
+        <div className="space-y-4 border-t border-[#e2e0d8] p-5">
+          <div className="flex flex-wrap items-center gap-2"><TaskViewToggle layout={layout} onChange={setLayout} /></div>
+      <div><CasePlaybook caseId={caseId} caseTypeId={caseDetail?.caseType?.id} initialReleaseId={searchParams.get('sop') ?? ''} onApplied={loadTasks} /></div>
       <Card className="mb-4">
         <CardContent className="p-3">
           <TaskFilterBar
@@ -378,9 +377,6 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
         </CardContent>
       </Card>
 
-      {loadError ? (
-        <LoadFailed message={loadError} onRetry={loadTasks} />
-      ) : (
       <>
       {filtering && visibleTasks.length === 0 && (
         <p role="status" className="mb-3 text-sm text-muted-foreground">{d.todos.noMatches}</p>
@@ -422,7 +418,8 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
       })}
 
       </>
-      )}
+        </div>
+      </details>
       <TaskDetailDrawer
         taskId={taskParam.taskId}
         users={users}

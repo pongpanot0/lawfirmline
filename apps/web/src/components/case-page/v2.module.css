@@ -1,0 +1,15 @@
+.card { background: #fffdfa; border: 1px solid #e2e0d8; border-radius: 12px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; min-height: 44px; padding: 0 1rem; border-radius: 8px; font-weight: 600; font-size: .95rem; }
+.primary { background: #142e43; color: #fffdfa; }
+.ok { background: #227052; color: white; }
+.outline { border: 1px solid #c9ccc6; background: white; color: #142e43; }
+.ghost { color: #52616b; }
+.chip { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .9rem; border-radius: 999px; background: #eeebe3; font-size: .85rem; }
+.field { margin-top: .25rem; width: 100%; min-height: 46px; border: 1px solid #c9ccc6; border-radius: 8px; background: white; padding: .55rem .8rem; }
+.invalid { border: 2px solid #a83232; background: #fffafa; }
+.error { margin-top: .35rem; font-size: .85rem; color: #a83232; font-weight: 600; }
+.flabel { font-weight: 600; }
+.opt { border: 1px solid #7d847e; background: white; color: #142e43; }
+.on { border: 2px solid #142e43; background: #e9eef3; }
+.hint { margin-top: .3rem; font-size: .82rem; color: #52616b; line-height: 1.45; }
+.label { font-size: .8rem; color: #52616b; }

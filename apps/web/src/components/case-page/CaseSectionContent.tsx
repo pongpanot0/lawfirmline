@@ -1,6 +1,7 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { Lock, MessageSquare, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
 import type { CaseDetail, TaskItem } from '@/lib/api';
@@ -11,11 +12,15 @@ const CaseCalendarPanel = dynamic(() => import('@/components/cases/CaseCalendarP
 const CaseDocumentsPanel = dynamic(() => import('@/components/cases/CaseDocumentsPanel').then((m) => m.CaseDocumentsPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
 const CaseBillingPanel = dynamic(() => import('@/components/cases/CaseBillingPanel').then((m) => m.CaseBillingPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
 const CaseAskAiPanel = dynamic(() => import('@/components/cases/CaseAskAiPanel'), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
+const CaseMessagesPanel = dynamic(() => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel), { ssr: false });
 const CaseCommentsPanel = dynamic(() => import('@/components/cases/CaseCommentsPanel').then((m) => m.CaseCommentsPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
 const CaseEmailPanel = dynamic(() => import('@/components/cases/CaseEmailPanel').then((m) => m.CaseEmailPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
 const CaseClosingReportPanel = dynamic(() => import('@/components/cases/CaseClosingReportPanel').then((m) => m.CaseClosingReportPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
 
+function useChannel() { return useState<'team' | 'client'>('team'); }
+
 export function CaseSectionContent({ tab, caseId, legalCase, thread, showAiAnalysis, setShowAiAnalysis, onChanged, onTasksChanged, onOpenSuggestions }: { tab: CaseTabId; caseId: string; legalCase: CaseDetail; thread: string | null; showAiAnalysis: boolean; setShowAiAnalysis: (value: boolean) => void; onChanged: () => void; onTasksChanged: (tasks: TaskItem[]) => void; onOpenSuggestions: () => void }) {
+  const [channel, setChannel] = useChannel();
   return <>
       {tab === 'tasks' && (
         <div
@@ -24,8 +29,8 @@ export function CaseSectionContent({ tab, caseId, legalCase, thread, showAiAnaly
           aria-labelledby="case-tab-tasks"
           className="min-w-0"
         >
-          <CaseWorkflows caseId={caseId} />
           <CaseTasksPanel caseId={caseId} onTasksChanged={onTasksChanged} />
+          <details className="mt-5 rounded-xl border border-[#e2e0d8] bg-card"><summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">สายงานส่งต่อ <span className="text-[.8rem] font-normal text-muted-foreground">· ส่งงานต่อเป็นทอด เช่น แปล ทำใบเบิกความ เขียนคำฟ้อง</span></summary><div className="border-t border-[#e2e0d8] p-5"><CaseWorkflows caseId={caseId} /></div></details>
         </div>
       )}
       {tab === 'calendar' && (
@@ -45,7 +50,8 @@ export function CaseSectionContent({ tab, caseId, legalCase, thread, showAiAnaly
           aria-labelledby="case-tab-documents"
           className="min-w-0"
         >
-          <div className="mb-3 flex justify-end">
+          <CaseDocumentsPanel caseId={caseId} onChanged={onChanged} newFolderName={`${legalCase.ownRef} - ${legalCase.title}`} />
+          <div className="mt-3 flex justify-end">
             <Button
               type="button"
               variant="outline"
@@ -57,7 +63,6 @@ export function CaseSectionContent({ tab, caseId, legalCase, thread, showAiAnaly
               <Sparkles aria-hidden="true" className="h-4 w-4" />สรุปเอกสารรวม
             </Button>
           </div>
-          <CaseDocumentsPanel caseId={caseId} onChanged={onChanged} newFolderName={`${legalCase.ownRef} - ${legalCase.title}`} />
         </div>
       )}
       {tab === 'email' && (
@@ -75,14 +80,19 @@ export function CaseSectionContent({ tab, caseId, legalCase, thread, showAiAnaly
           role="tabpanel"
           id="case-tabpanel-comments"
           aria-labelledby="case-tab-comments"
-          className="min-w-0"
+          className="min-w-0 space-y-5"
         >
-          <CaseCommentsPanel
+          <div role="group" aria-label="เลือกช่องข้อความ" className="grid grid-cols-2 gap-2 rounded-xl bg-[#e7e4dc] p-1.5 text-center font-semibold">
+            <button type="button" aria-pressed={channel === 'team'} onClick={() => setChannel('team')} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg py-2.5 ${channel === 'team' ? 'bg-white shadow' : 'text-muted-foreground'}`}><Lock aria-hidden="true" className="h-[1.1em] w-[1.1em]" />บันทึกภายในทีม</button>
+            <button type="button" aria-pressed={channel === 'client'} onClick={() => setChannel('client')} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg py-2.5 ${channel === 'client' ? 'bg-white shadow' : 'text-muted-foreground'}`}><MessageSquare aria-hidden="true" className="h-[1.1em] w-[1.1em]" />คุยกับลูกความ</button>
+          </div>
+          <p className="mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground">{channel === 'team' ? 'ข้อความในแท็บนี้ “บันทึกภายในทีม” เห็นเฉพาะคนในสำนักงาน ลูกความไม่เห็น' : 'ข้อความที่ส่งตรงนี้ ลูกความเห็นในพอร์ทัลของลูกความ'}</p>
+          {channel === 'team' ? <CaseCommentsPanel
             caseId={caseId}
             teamMembers={[legalCase.leadLawyer, ...legalCase.assignments.map((a) => a.user)].filter(
               (m, i, all) => all.findIndex((x) => x.id === m.id) === i,
             )}
-          />
+          /> : <section className="rounded-xl border border-[#e2e0d8] bg-card p-5 shadow-[0_4px_16px_rgba(20,46,67,.06)]"><CaseMessagesPanel caseId={caseId} /></section>}
         </div>
       )}
       {tab === 'cargo-claim' && (
