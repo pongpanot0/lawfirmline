@@ -603,6 +603,9 @@ export interface ClientItem {
   billingPhone?: string | null;
   contacts: ClientContactItem[];
   _count?: { cases: number };
+  /** Only on the list endpoint: visible open cases and their open top-level tasks. */
+  openCaseCount?: number;
+  openTaskCount?: number;
   cases?: CaseItem[];
 }
 

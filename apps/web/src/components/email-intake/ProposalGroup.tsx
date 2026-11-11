@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 const labels: Record<string, string> = {
   estimatedDamage: 'ยอดเรียกร้อง / ค่าเสียหาย', insurerPaidAmount: 'ประกันจ่ายไปแล้ว', settlementOfferAmount: 'ข้อเสนอไกล่เกลี่ย',
   opposingParty: 'คู่กรณี', insurerName: 'บริษัทประกัน', policyNumber: 'เลขกรมธรรม์', claimNumber: 'เลขเคลม',
-  incidentDate: 'วันที่เกิดเหตุ', requestedResponseDate: 'ครบกำหนดตอบ', contactName: 'ผู้ติดต่อ', clientName: 'ชื่อลูกค้า', title: 'ชื่อเรื่อง', description: 'รายละเอียด',
+  incidentDate: 'วันที่เกิดเหตุ', requestedResponseDate: 'ครบกำหนดตอบ', contactName: 'ผู้ติดต่อ', clientName: 'ชื่อลูกความ', title: 'ชื่อเรื่อง', description: 'รายละเอียด',
   matterType: 'ประเภทเรื่อง', customerRef: 'เลขอ้างอิงของผู้ส่ง', externalCaseNumber: 'หมายเลขคดีดำ', deadlineDate: 'วันครบกำหนดตามกฎหมาย / โนติส',
   partyRole: 'บทบาทลูกความ', caseType: 'ประเภทคดีในระบบ', docRequest: 'เอกสารที่ควรขอเพิ่ม',
 };
@@ -36,32 +36,25 @@ function Row({ proposal, proposals, fileNames, onResolve, resolving }: { proposa
   const quote = sourceQuote(proposal.sourceDetail);
   const source = proposal.sourceDocumentId ? fileNames.get(proposal.sourceDocumentId) ?? 'ไฟล์แนบ' : proposal.sourceType === 'EMAIL_BODY' && !request ? 'อีเมล' : null;
 
-  return <div data-pending={pending ? 'true' : undefined} className={cn('flex flex-col gap-3 py-3 sm:flex-row sm:items-start sm:justify-between', confirmed && '-mx-2 rounded-md bg-muted/40 px-2')}>
-    <div className="min-w-0 flex-1 space-y-1">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      {editing
-        ? <textarea aria-label={label} className="w-full rounded border bg-background px-2 py-1 text-sm" value={draft} onChange={(e) => setDraft(e.target.value)} />
-        : <p className={cn('break-words font-semibold', money ? 'text-lg tabular-nums' : 'text-base')}>{value}</p>}
-      {!confirmed && quote && <div className="flex flex-wrap items-start gap-2 pt-1 text-xs text-muted-foreground">
-        {source && <span className="inline-flex max-w-full shrink-0 items-center gap-1 rounded border bg-muted/50 px-1.5 py-0.5">
-          {proposal.sourceDocumentId ? <FileText className="h-3 w-3 shrink-0" aria-hidden /> : <Mail className="h-3 w-3 shrink-0" aria-hidden />}
-          <span className="truncate">{source}</span>
-        </span>}
-        <span className="line-clamp-2 min-w-[12rem] flex-1 break-words border-l-2 pl-2 italic" title={quote}>{quote}</span>
-      </div>}
-      {pending && overwritten && <p className="text-xs text-warning-foreground">จะทับค่าเดิม ({overwritten.proposedValue})</p>}
+  if (confirmed) return <div className="rounded-md bg-muted/40 px-3 py-2 text-sm"><Check className="mr-1 inline h-4 w-4 text-success" aria-hidden /> {label}: <strong>{value}</strong></div>;
+
+  return <div data-pending={pending ? 'true' : undefined} className="rounded-lg border bg-card p-3">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">{label} <span className="rounded border border-amber-200 px-1 text-amber-700">AI</span></p>
+        {editing ? <textarea aria-label={label} className="mt-1 w-full rounded border bg-background px-2 py-1 text-sm" value={draft} onChange={(e) => setDraft(e.target.value)} /> : <p className={cn('mt-1 font-semibold', money && 'tabular-nums')}>{value}</p>}
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {proposal.status === 'REJECTED' && <Badge variant="muted">ตัดออกแล้ว</Badge>}
+        {pending && (editing
+          ? <><Button size="sm" disabled={resolving} onClick={() => { onResolve(proposal.id, 'confirm', draft); setEditing(false); }}>ยืนยันค่าที่แก้ไข</Button><Button size="sm" variant="ghost" onClick={() => setEditing(false)}>ยกเลิก</Button></>
+          : <><Button size="sm" variant="outline" disabled={resolving} onClick={() => onResolve(proposal.id, 'confirm')}>{request ? 'ขอเอกสารนี้' : 'ใช่'}</Button>{!request && <Button size="sm" variant="ghost" disabled={resolving} onClick={() => setEditing(true)}>แก้</Button>}<Button size="sm" variant="ghost" disabled={resolving} onClick={() => onResolve(proposal.id, 'reject')}>{request ? 'ไม่ต้อง' : 'ไม่ใช่'}</Button></>)}
+      </div>
     </div>
-    <div className="flex shrink-0 flex-wrap items-center gap-1 sm:justify-end">
-      {confirmed && <Badge variant="success">✓ ยืนยันแล้ว</Badge>}
-      {proposal.status === 'REJECTED' && <Badge variant="muted">ตัดออกแล้ว</Badge>}
-      {pending && (editing
-        ? <><Button size="sm" disabled={resolving} onClick={() => { onResolve(proposal.id, 'confirm', draft); setEditing(false); }}>ยืนยันค่าที่แก้ไข</Button><Button size="sm" variant="ghost" onClick={() => setEditing(false)}>ยกเลิก</Button></>
-        : <>
-          <Button size="sm" disabled={resolving} onClick={() => onResolve(proposal.id, 'confirm')}><Check className="mr-1 h-4 w-4" aria-hidden />{request ? 'ขอเอกสารนี้' : 'ยืนยัน'}</Button>
-          {!request && <Button size="sm" variant="ghost" disabled={resolving} onClick={() => setEditing(true)}>แก้ไข</Button>}
-          <Button size="sm" variant="ghost" disabled={resolving} onClick={() => onResolve(proposal.id, 'reject')}>{request ? 'ไม่ต้อง' : 'ไม่ใช่'}</Button>
-        </>)}
-    </div>
+    {(quote || pending) && <div className="mt-2 flex flex-wrap items-start justify-between gap-1 border-t border-dashed pt-2 text-xs text-muted-foreground">{quote && <details><summary className="cursor-pointer text-primary">↳ ดูข้อความต้นทาง</summary><div className="flex flex-wrap items-start gap-2 pt-1">
+      {source && <span className="inline-flex max-w-full items-center gap-1 rounded border bg-muted/50 px-1.5 py-0.5">{proposal.sourceDocumentId ? <FileText className="h-3 w-3" aria-hidden /> : <Mail className="h-3 w-3" aria-hidden />}{source}</span>}
+      <span className="break-words border-l-2 pl-2 italic">{quote}</span></div></details>}{pending && <span>กดยืนยันเพื่อบันทึก</span>}</div>}
+    {pending && overwritten && <p className="mt-1 text-xs text-warning-foreground">จะทับค่าเดิม ({overwritten.proposedValue})</p>}
   </div>;
 }
 
@@ -82,15 +75,10 @@ export function ProposalGroup({ title, items, proposals, fileNames = NO_FILES, o
   const [showRejected, setShowRejected] = useState(false);
   const rejected = items.filter((p) => p.status === 'REJECTED');
   const visible = items.filter((p) => showRejected || p.status !== 'REJECTED');
-  const money = visible.filter((p) => moneyFields.includes(p.field));
-  const requests = visible.filter((p) => p.field === 'docRequest');
-  const other = visible.filter((p) => !moneyFields.includes(p.field) && p.field !== 'docRequest');
   const rows = (list: IntakeFieldProposalItem[]) => list.map((p) => <Row key={p.id} proposal={p} proposals={proposals} fileNames={fileNames} onResolve={onResolve} resolving={resolvingId === p.id} />);
-  return <section className="space-y-4 border-t pt-4 first:border-t-0 first:pt-0">
-    <h3 className="font-semibold">{title}</h3>
-    <Block title="ยอดเงิน" items={money} render={rows} />
-    <Block title="คู่กรณีและเรื่อง" items={other} render={rows} />
-    <Block title="เอกสารที่ควรขอเพิ่ม" hint="ขอเอกสารนี้ = เพิ่มในรายการขอเอกสาร" items={requests} render={rows} />
+  return <section className="space-y-2 border-t pt-3 first:border-t-0 first:pt-0">
+    {title && <h3 className="text-sm font-semibold">{title}</h3>}
+    <div className="space-y-2">{rows(visible)}</div>
     {rejected.length > 0 && <button type="button" className="text-xs text-primary underline" onClick={() => setShowRejected(!showRejected)}>{showRejected ? 'ซ่อนที่ตัดออก' : `แสดงที่ตัดออก (${rejected.length})`}</button>}
   </section>;
 }

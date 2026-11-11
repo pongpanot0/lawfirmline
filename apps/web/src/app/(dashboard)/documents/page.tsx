@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { BookOpen, ChevronRight, FolderOpen, Upload, Search, FileText, Eye } from 'lucide-react';
+import { BookOpen, ChevronRight, FolderOpen, Upload, Search, FileText, Eye, Sparkles } from 'lucide-react';
 import { CaseStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, CaseListItem, DocumentItem } from '@/lib/api';
@@ -90,16 +90,17 @@ export default function DocumentsPage() {
   >([]);
 
   // ค้นเอกสารข้ามคดีจากช่องเดียวกับที่กรองคดี (debounce 300ms)
-  // ชื่อไฟล์/tag ค้นทันที ส่วนเนื้อหาเอกสารค้นแบบ semantic ผ่าน RAG
+  // ชื่อไฟล์ค้นขณะพิมพ์; การค้นเนื้อหาด้วย AI ต้องกดปุ่มเอง
   useEffect(() => {
     if (!token || search.trim().length < 2) {
       setDocResults([]);
       setContentResults([]);
       return;
     }
+    setContentResults([]);
     const t = setTimeout(() => {
       api.searchDocuments(token, search.trim()).then(setDocResults).catch(() => setDocResults([]));
-      api.searchDocumentContent(token, search.trim()).then(setContentResults).catch(() => setContentResults([]));
+
     }, 300);
     return () => clearTimeout(t);
   }, [token, search]);
@@ -185,32 +186,15 @@ export default function DocumentsPage() {
             <Input placeholder={d.documents.searchPlaceholder} aria-describedby="documents-search-hint" aria-label={d.documents.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <SearchHint id="documents-search-hint">{getPageGuide('/documents')?.searchHint}</SearchHint>
+            <div className="w-full border-t pt-3"><Button variant="outline" disabled={!token || search.trim().length < 2} onClick={() => { if (token) void api.searchDocumentContent(token, search.trim()).then(setContentResults).catch(() => setContentResults([])); }}><Sparkles className="h-4 w-4" aria-hidden />ค้นในเนื้อหาด้วย AI</Button><p className="mt-1 text-xs text-muted-foreground">กดเพื่อค้นข้อความในไฟล์ด้วย AI</p></div>
           </div>
 
-          {docResults.length > 0 && (
-            <Card>
-              <CardContent className="p-0 divide-y divide-border">
-                <p className="px-4 py-2 text-xs font-semibold text-muted-foreground">
-                  เอกสารที่ตรงกับ &ldquo;{search}&rdquo; ({docResults.length})
-                </p>
-                {docResults.map((doc) => (
-                  <Link
-                    key={doc.id}
-                    href={doc.case ? `/cases/${doc.case.id}/documents` : '#'}
-                    className="flex min-h-11 items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50"
-                  >
-                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{doc.filename}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {doc.case ? `${doc.case.ownRef} · ${doc.case.title}` : '—'} · v{doc.version}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+          {Array.from(new Map(docResults.map((doc) => [doc.case?.id ?? '', doc.case])).entries()).map(([caseId, item]) => <Card key={caseId}>
+            <CardContent className="divide-y p-0">
+              <p className="bg-muted/50 px-4 py-3 font-semibold">{item ? `${item.ownRef} · ${item.title}` : 'เอกสารที่ยังไม่ระบุคดี'}</p>
+              {docResults.filter((doc) => (doc.case?.id ?? '') === caseId).map((doc) => <Link key={doc.id} href={doc.case ? `/cases/${doc.case.id}/documents` : '#'} className="flex min-h-11 items-center gap-3 px-4 py-3 hover:bg-accent/50"><FileText className="h-4 w-4 shrink-0" aria-hidden /><span className="min-w-0 break-words font-medium">{doc.filename}</span></Link>)}
+            </CardContent>
+          </Card>)}
 
           {contentResults.length > 0 && (
             <Card>
@@ -293,9 +277,10 @@ export default function DocumentsPage() {
         </div>
 
         <div className="min-w-0 space-y-4">
-          <Card>
+          <Card className="border-l-4 border-l-[var(--color-brass)] bg-[var(--operations-highlight)]">
             <CardContent className="p-4 space-y-3">
-              <label htmlFor="documents-upload-case" className="block text-sm font-medium">{d.documents.uploadToCase}</label>
+              <h2 className="text-xl font-semibold">อัปโหลดเข้าคดี</h2><p className="text-sm text-muted-foreground">เลือกคดีก่อนนำเข้าเอกสาร</p>
+              <label htmlFor="documents-upload-case" className="block text-sm font-medium">1 เลือกคดี</label>
               <select
                 id="documents-upload-case"
                 value={selectedCase}
@@ -310,6 +295,7 @@ export default function DocumentsPage() {
                   </option>
                 ))}
               </select>
+              <p className="text-sm font-medium">2 ลากไฟล์มาวาง</p>
               <DocumentDropZone
                 ref={dropZoneRef}
                 label={selectedCase ? d.documents.dropHint : d.documents.selectCaseHint}

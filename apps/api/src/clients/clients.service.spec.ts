@@ -13,6 +13,8 @@ describe('ClientsService.update contact upsert', () => {
   let service: ClientsService;
   const mockPrisma: any = {
     client: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    case: { findMany: jest.fn() },
+    task: { groupBy: jest.fn() },
     clientContact: {
       findMany: jest.fn(),
       update: jest.fn(),
@@ -25,6 +27,7 @@ describe('ClientsService.update contact upsert', () => {
   const mockCaseAccess = {
     getClientFilterForUser: jest.fn((user: { firmId: string }) => ({ firmId: user.firmId })),
     getCaseFilterForUser: jest.fn((user: { firmId: string }) => ({ firmId: user.firmId })),
+    getTaskFilterForUser: jest.fn(() => ({})),
   };
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
 
@@ -89,6 +92,26 @@ describe('ClientsService.update contact upsert', () => {
 
     mockPrisma.client.findFirst.mockResolvedValue(null);
     await expect(service.addContact(user, 'client-x', { name: 'B' } as any)).rejects.toThrow(NotFoundException);
+  });
+
+  it('adds open-case and open-task counts to the client list in two queries', async () => {
+    mockPrisma.client.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+    mockPrisma.case.findMany.mockResolvedValue([
+      { id: 'c1', clientId: 'a', status: 'OPEN' },
+      { id: 'c2', clientId: 'a', status: 'CLOSED' },
+      { id: 'c3', clientId: 'b', status: 'IN_PROGRESS' },
+    ]);
+    mockPrisma.task.groupBy.mockResolvedValue([
+      { caseId: 'c1', _count: { _all: 2 } },
+      { caseId: 'c2', _count: { _all: 1 } },
+    ]);
+    const out = await service.findAll(user);
+    expect(out).toEqual([
+      { id: 'a', openCaseCount: 1, openTaskCount: 3 },
+      { id: 'b', openCaseCount: 1, openTaskCount: 0 },
+    ]);
+    expect(mockPrisma.case.findMany).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.task.groupBy).toHaveBeenCalledTimes(1);
   });
 
   it('counts only cases visible to the caller in the client list', async () => {

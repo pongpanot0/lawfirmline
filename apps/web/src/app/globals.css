@@ -73,3 +73,16 @@
 
 :root { --operations-highlight: #fbf3e4; }
 .dark { --operations-highlight: #332b1e; }
+
+/* Disclosure rows (<summary className="disclosure">): no browser triangle, a chevron on the right that turns when open. */
+summary.disclosure { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+summary.disclosure::-webkit-details-marker { display: none; }
+summary.disclosure::after {
+  content: ""; width: 1rem; height: 1rem; flex-shrink: 0; background-color: currentColor; opacity: 0.7;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+details[open] > summary.disclosure::after { transform: rotate(180deg); }
+@media (prefers-reduced-motion: no-preference) { summary.disclosure::after { transition: transform 150ms ease-out; } }
+summary.no-marker { list-style: none; }
+summary.no-marker::-webkit-details-marker { display: none; }
