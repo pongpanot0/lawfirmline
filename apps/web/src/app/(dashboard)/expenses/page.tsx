@@ -18,6 +18,8 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { StepTracker } from '@/components/process/StepTracker';
 
+const REJECT_REASON_PROMPT = 'เหตุผลที่ไม่อนุมัติ (ไม่บังคับ) — ผู้เบิกจะเห็นข้อความนี้เพื่อแก้ไขแล้วส่งใหม่';
+
 const STATUS_FILTERS = ['', 'DRAFT', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
 type TeamMember = {
@@ -127,11 +129,21 @@ export default function ExpensesPage() {
   const selectedTotal = expenses.filter(e => e.status === 'DRAFT' && selectedDraftIds.includes(e.id)).reduce((sum, e) => sum + e.amount, 0);
   const decideClaim = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     const authToken = token ?? getStoredToken();
-    if (!authToken || !window.confirm(status === 'APPROVED' ? 'อนุมัติใบเบิกนี้?' : 'ไม่อนุมัติใบเบิกนี้?')) return;
+    if (!authToken) return;
+    // ไม่อนุมัติ: ช่องเหตุผลทำหน้าที่ยืนยันไปด้วย กดยกเลิก = ไม่ทำอะไร
+    const reason = status === 'REJECTED' ? window.prompt(REJECT_REASON_PROMPT) : '';
+    if (reason === null || (status === 'APPROVED' && !window.confirm('อนุมัติใบเบิกนี้?'))) return;
     setBusyClaim(id);
-    try { await api.updateExpenseClaimStatus(authToken, id, status); setReloadKey(n => n + 1); }
+    try { await api.updateExpenseClaimStatus(authToken, id, status, reason.trim().slice(0, 500) || undefined); setReloadKey(n => n + 1); }
     catch (err) { setError(err instanceof Error ? err.message : d.expenses.loadFailed); }
     finally { setBusyClaim(''); }
+  };
+  const reviseAndEdit = async (id: string) => {
+    const authToken = token ?? getStoredToken();
+    if (!authToken) return;
+    setBusyClaim(id);
+    try { await api.reviseRejectedExpense(authToken, id); router.push(`/expenses/new?edit=${id}`); }
+    catch (err) { setError(err instanceof Error ? err.message : d.expenses.loadFailed); setBusyClaim(''); }
   };
 
   return (
@@ -214,7 +226,9 @@ export default function ExpensesPage() {
         {visible.length === 0 ? <p className="rounded-lg border bg-card p-6 text-center text-muted-foreground">ไม่มีรายการที่ต้องทำ</p> : visible.map(e => <article key={e.id} className="space-y-3 rounded-lg border bg-card p-4">
           <div className="flex flex-wrap justify-between gap-2"><div className="flex gap-3">{e.status === 'DRAFT' && tab === 'TODO' && <Checkbox checked={selectedDraftIds.includes(e.id)} onChange={() => toggleDraft(e.id)} aria-label={`เลือก ${e.description}`} />}<div><p className="font-medium">{tab === 'APPROVE' ? `ใบเบิก · ${e.user.firstName} ${e.user.lastName}` : e.description}</p><p className="text-sm text-muted-foreground">{e.case?.ownRef ?? d.expenses.general} · {formatDate(e.date)}{tab === 'APPROVE' ? ` · ${e.user.firstName} ${e.user.lastName}` : ''}</p></div></div><p className="font-semibold tabular-nums">{formatCurrency(tab === 'APPROVE' ? groups.APPROVE.filter(item => item.claimId === e.claimId).reduce((sum, item) => sum + item.amount, 0) : e.amount)}</p></div>
           <StepTracker variant="mini" steps={['ร่าง', 'ส่งเบิก', 'อนุมัติ', 'จ่ายแล้ว'].map((label, i) => { const current = e.status === 'DRAFT' ? 0 : e.status === 'PENDING' || e.status === 'REJECTED' ? 1 : e.status === 'APPROVED' ? 2 : 3; return { key: label, label, state: i < current ? 'done' : i === current ? 'current' : 'todo' }; })} />
-          {e.status === 'REJECTED' && <p className="text-sm text-destructive">ไม่อนุมัติ · ติดต่อผู้อนุมัติเพื่อตรวจสอบ</p>}
+          {e.status === 'REJECTED' && <p className="text-sm text-destructive">{e.rejectionReason ? `ไม่อนุมัติ · เหตุผล: ${e.rejectionReason}` : 'ไม่อนุมัติ · ผู้อนุมัติไม่ได้ระบุเหตุผล'}</p>}
+          {e.status === 'REJECTED' && tab === 'TODO' && <Button disabled={!!busyClaim} onClick={() => reviseAndEdit(e.id)}>แก้ไขแล้วส่งใหม่ →</Button>}
+          {e.status === 'DRAFT' && tab === 'TODO' && <a href={`/expenses/new?edit=${e.id}`} className="text-sm text-primary underline">แก้ไขรายการ</a>}
           {e.receiptFilename && <button type="button" onClick={() => downloadReceipt(e.id, e.receiptFilename!)} className="text-sm text-primary underline">{d.expenses.viewReceipt}</button>}
           {tab === 'APPROVE' && <details><summary className="cursor-pointer text-sm">รายการในใบเบิก</summary><ul className="mt-2 space-y-1 text-sm">{groups.APPROVE.filter(item => item.claimId === e.claimId).map(item => <li key={item.id}>{item.description} · {formatCurrency(item.amount)}</li>)}</ul><a href="/admin/reimbursements" className="mt-2 inline-block text-sm text-primary underline">ตรวจใบเสร็จและรายละเอียด</a></details>}
           {tab === 'APPROVE' && e.claimId && <div className="flex gap-2"><Button disabled={!!busyClaim} onClick={() => decideClaim(e.claimId!, 'APPROVED')}>อนุมัติทั้งใบเบิก</Button><Button variant="outline" disabled={!!busyClaim} onClick={() => decideClaim(e.claimId!, 'REJECTED')}>ไม่อนุมัติ</Button></div>}

@@ -27,7 +27,9 @@ describe('BillingService — drafted expenses', () => {
       findMany: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findUniqueOrThrow: jest.fn(),
     },
+    auditLog: { create: jest.fn() },
     expenseClaim: {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       create: jest.fn(),
@@ -475,6 +477,136 @@ describe('BillingService — drafted expenses', () => {
       expect(mockPrisma.expense.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ status: ExpenseStatus.DRAFT }) }),
       );
+    });
+  });
+
+  /**
+   * A rejected line used to be a dead end. The approver can now say why, and
+   * the author can take the line back to draft, fix it and claim it again —
+   * without anyone else being able to pull their line out of a claim.
+   */
+  describe('rejecting with a reason and resubmitting', () => {
+    const rejectedClaim = {
+      id: 'claim-1', status: 'PENDING', submittedById: lawyer.id,
+      expenses: [{ id: 'expense-1', amount: 300 }],
+    };
+
+    it('stores the approver\'s reason on every line of a rejected claim and tells the requester', async () => {
+      mockPrisma.expenseClaim.findFirst.mockResolvedValue(rejectedClaim);
+      mockPrisma.expenseClaim.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.expense.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.expenseClaim.update.mockResolvedValue({
+        id: 'claim-1', status: 'REJECTED', submittedAt: new Date(), reviewedAt: new Date(), paidAt: null,
+        submittedBy: { id: lawyer.id, firstName: 'Somchai', lastName: 'Lawyer' },
+        expenses: [{ id: 'expense-1', amount: 300, receiptFilename: null, case: null }],
+      });
+
+      await service.updateExpenseClaimStatus(owner, 'claim-1', { status: 'REJECTED' as never, reason: 'ใบเสร็จไม่ชัด' });
+
+      expect(mockPrisma.expense.updateMany).toHaveBeenCalledWith({
+        where: { claimId: 'claim-1' },
+        data: expect.objectContaining({ status: ExpenseStatus.REJECTED, rejectionReason: 'ใบเสร็จไม่ชัด' }),
+      });
+      expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({
+        summaryText: expect.stringContaining('เหตุผล: ใบเสร็จไม่ชัด'),
+      }));
+      expect(mockPettyCash.deduct).not.toHaveBeenCalled();
+    });
+
+    it('still rejects without a reason, since the reason is optional', async () => {
+      mockPrisma.expenseClaim.findFirst.mockResolvedValue(rejectedClaim);
+      mockPrisma.expenseClaim.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.expenseClaim.update.mockResolvedValue({
+        id: 'claim-1', status: 'REJECTED', submittedAt: new Date(), reviewedAt: new Date(), paidAt: null,
+        submittedBy: { id: lawyer.id, firstName: 'Somchai', lastName: 'Lawyer' }, expenses: [],
+      });
+
+      await service.updateExpenseClaimStatus(owner, 'claim-1', { status: 'REJECTED' as never });
+
+      expect(mockPrisma.expense.updateMany).toHaveBeenCalledWith({
+        where: { claimId: 'claim-1' },
+        data: expect.objectContaining({ rejectionReason: null }),
+      });
+    });
+
+    it('takes the author\'s rejected line back to draft, out of its claim, and records the old reason', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValue({
+        id: 'expense-1', userId: lawyer.id, status: ExpenseStatus.REJECTED, claimId: 'claim-1', rejectionReason: 'ใบเสร็จไม่ชัด',
+      });
+      mockPrisma.expense.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.expense.findUniqueOrThrow.mockResolvedValue({ id: 'expense-1', status: ExpenseStatus.DRAFT });
+
+      const result = await service.reviseRejectedExpense(lawyer, 'expense-1');
+
+      expect(mockPrisma.expense.updateMany).toHaveBeenCalledWith({
+        where: { id: 'expense-1', status: ExpenseStatus.REJECTED },
+        data: { status: ExpenseStatus.DRAFT, claimId: null, rejectionReason: null },
+      });
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          firmId: 'firm-1', userId: lawyer.id, action: 'expense.revise',
+          metadata: { expenseId: 'expense-1', claimId: 'claim-1', rejectionReason: 'ใบเสร็จไม่ชัด' },
+        }),
+      });
+      expect(result.status).toBe(ExpenseStatus.DRAFT);
+    });
+
+    it('does not let anyone but the author take a line back, not even the owner', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValue({
+        id: 'expense-1', userId: lawyer.id, status: ExpenseStatus.REJECTED, claimId: 'claim-1',
+      });
+
+      await expect(service.reviseRejectedExpense(owner, 'expense-1')).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.expense.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('only takes back lines that were rejected', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValue({
+        id: 'expense-1', userId: lawyer.id, status: ExpenseStatus.PENDING, claimId: 'claim-1',
+      });
+
+      await expect(service.reviseRejectedExpense(lawyer, 'expense-1')).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.expense.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('writes no audit entry when another request changed the line first', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValue({
+        id: 'expense-1', userId: lawyer.id, status: ExpenseStatus.REJECTED, claimId: 'claim-1',
+      });
+      mockPrisma.expense.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(service.reviseRejectedExpense(lawyer, 'expense-1')).rejects.toThrow('สถานะค่าใช้จ่ายเปลี่ยนแล้ว');
+      expect(mockPrisma.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('lets the author edit their unclaimed draft', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValue({
+        id: 'expense-1', userId: lawyer.id, status: ExpenseStatus.DRAFT, claimId: null, caseId: null,
+      });
+      mockPrisma.expense.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.expense.findUniqueOrThrow.mockResolvedValue({ id: 'expense-1', amount: 450 });
+
+      await service.updateDraftExpense(lawyer, 'expense-1', { amount: 450, description: 'ค่าถ่ายเอกสาร (แก้ยอด)' });
+
+      expect(mockPrisma.expense.updateMany).toHaveBeenCalledWith({
+        where: { id: 'expense-1', status: ExpenseStatus.DRAFT, claimId: null },
+        data: expect.objectContaining({ amount: 450, description: 'ค่าถ่ายเอกสาร (แก้ยอด)', caseId: null }),
+      });
+    });
+
+    it('refuses to edit a line already in a claim, or someone else\'s draft', async () => {
+      mockPrisma.expense.findFirst.mockResolvedValueOnce({
+        id: 'expense-1', userId: lawyer.id, status: ExpenseStatus.PENDING, claimId: 'claim-1',
+      });
+      await expect(service.updateDraftExpense(lawyer, 'expense-1', { amount: 1, description: 'x' }))
+        .rejects.toThrow(BadRequestException);
+
+      mockPrisma.expense.findFirst.mockResolvedValueOnce({
+        id: 'expense-1', userId: 'someone-else', status: ExpenseStatus.DRAFT, claimId: null,
+      });
+      await expect(service.updateDraftExpense(lawyer, 'expense-1', { amount: 1, description: 'x' }))
+        .rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.expense.updateMany).not.toHaveBeenCalled();
     });
   });
 });

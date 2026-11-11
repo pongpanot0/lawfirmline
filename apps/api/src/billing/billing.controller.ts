@@ -28,6 +28,7 @@ import {
   UpdateExpenseStatusDto,
   SetExpenseBillableDto,
   UpdateExpenseClaimStatusDto,
+  UpdateDraftExpenseDto,
   SubmitExpensesDto,
   IssueCashAdvanceDto,
   ReturnCashAdvanceDto,
@@ -177,6 +178,26 @@ export class BillingController {
     @UploadedFile() receipt?: Express.Multer.File,
   ) {
     return this.billingService.createStandaloneExpense(user, dto, receipt);
+  }
+
+  @Patch('expenses/:expenseId')
+  @UseInterceptors(RECEIPT_UPLOAD)
+  updateDraftExpense(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId', ParseUUIDPipe) expenseId: string,
+    @Body() dto: UpdateDraftExpenseDto,
+    @UploadedFile() receipt?: Express.Multer.File,
+  ) {
+    return this.billingService.updateDraftExpense(user, expenseId, dto, receipt);
+  }
+
+  /** The author takes a rejected expense back to draft to fix and resubmit it. */
+  @Post('expenses/:expenseId/revise')
+  reviseRejectedExpense(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId', ParseUUIDPipe) expenseId: string,
+  ) {
+    return this.billingService.reviseRejectedExpense(user, expenseId);
   }
 
   @Patch('expenses/:expenseId/receipt-no')
