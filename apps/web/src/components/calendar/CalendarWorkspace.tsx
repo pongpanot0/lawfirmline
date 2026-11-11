@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { calendarPersonColors, eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
-import { Plus, Bell } from 'lucide-react';
+import { Plus, Bell, ListOrdered, CalendarDays, Palette, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Tabs, TabsList } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
 import { api, CalendarEventItem, CaseListItem, UserItem, PublicHolidayItem } from '@/lib/api';
 import { CalendarView } from '@/components/CalendarView';
 import { CalendarEventDialog } from '@/components/calendar/CalendarEventDialog';
-import { MyDayPanel } from '@/components/agenda/MyDayPanel';
 import { FirmDayAgenda } from '@/components/calendar/FirmDayAgenda';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDateTime } from '@/lib/utils';
+import { bangkokDateInputValue } from '@/lib/bangkok';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const EVENT_COLORS: Record<string, string> = {
@@ -28,12 +30,9 @@ const EVENT_COLORS: Record<string, string> = {
 
 const LEAVE_LABELS = { SICK: 'ลาป่วย', PERSONAL: 'ลากิจ', VACATION: 'พักร้อน' } as const;
 
-/**
- * One calendar workspace behind /my-day and /court-schedule: the same page
- * with two views — "วันของฉัน" (your today/tomorrow agenda) and the firm's
- * month calendar. The route only picks which view opens first.
- */
-export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month' | 'agenda' }) {
+export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month' }) {
+  const router = useRouter();
+  const params = useSearchParams();
   const d = useDashboardT();
   const EVENT_TYPE_LABELS: Record<string, string> = {
     COURT_DATE: d.calendar.typeCourtDate,
@@ -43,11 +42,14 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     LEAVE: 'ลางาน',
   };
   const { token, user } = useAuth();
-  const [view, setView] = useState<'day' | 'month' | 'agenda'>(defaultView);
+  const view = params.get('view') === 'day' ? 'day' : params.get('view') === 'month' ? 'month' : defaultView;
+  const setView = (v: 'day' | 'month') => { const next = new URLSearchParams(params.toString()); next.set('view', v); router.replace(`?${next.toString()}`, { scroll: false }); };
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [month, setMonth] = useState(new Date());
+  const [weekStart, setWeekStart] = useState(() => new Date(`${bangkokDateInputValue(new Date())}T00:00:00+07:00`));
+  const shiftWeek = (days: number) => setWeekStart(current => { const d = new Date(current); d.setUTCDate(d.getUTCDate() + days); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)); return d; });
   const [holidays, setHolidays] = useState<PublicHolidayItem[]>([]);
   const [personFilter, setPersonFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   }, [token]);
 
   useEffect(() => {
-    if (!token || view === 'day') return;
+    if (!token) return;
     api.getPublicHolidays(token, month.getFullYear()).then(setHolidays).catch(() => setHolidays([]));
   }, [token, view, month]);
 
@@ -106,7 +108,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   }, [token, month]);
 
   useEffect(() => {
-    if (!token || view === 'day') return;
+    if (!token) return;
     setLoading(true);
     setLoadError('');
     Promise.all([loadEvents(), api.getCases(token).then(setCases)])
@@ -130,6 +132,8 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     return { name: id ? people.get(id) ?? 'ผู้รับผิดชอบ (ไม่พบชื่อ)' : 'ยังไม่ระบุผู้รับผิดชอบ', color: id ? personColors.get(id) ?? '#64748b' : '#64748b' };
   };
   const visibleEvents = personFilter ? events.filter((e) => eventPeopleIds(e).includes(personFilter)) : events;
+  const weekEnd = new Date(weekStart); weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+  const dayEvents = visibleEvents.filter(event => new Date(event.startAt) >= weekStart && new Date(event.startAt) < weekEnd);
   const openEvent = (event: CalendarEventItem) => {
     if (event.leaveId) { setLeaveError(''); setSelectedLeave(event); }
     else setDialog({ event });
@@ -141,63 +145,20 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     .slice(0, 5);
 
   return (
-    <div>
-      <PageHeader
-        title={view === 'day' ? d.myDay.title : view === 'agenda' ? 'ตารางรายวันของสำนักงาน' : d.calendar.title}
-        description={
-          view === 'day'
-            ? 'นัดและงานของคุณ วันนี้และพรุ่งนี้'
-            : view === 'agenda'
-              ? 'ดูนัดเรียงตามวันและผู้รับผิดชอบ พร้อมเตือนเมื่อเวลาซ้อนกัน'
-              : d.calendar.description
-        }
-        actions={
-          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-            <div role="tablist" aria-label={d.calendar.title} className="flex max-w-full flex-wrap rounded-lg border border-border p-1">
-              {(['day', 'agenda', 'month'] as const).map((v) => (
-                <button
-                  key={v}
-                  role="tab"
-                  type="button"
-                  aria-selected={view === v}
-                  onClick={() => setView(v)}
-                  className={`min-h-11 rounded-md px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${view === v ? 'bg-muted font-semibold text-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-                >
-                  {v === 'day' ? d.myDay.title : v === 'agenda' ? 'ตารางรายวัน' : d.calendar.title}
-                </button>
-              ))}
-            </div>
-            {view !== 'day' && (
-              <select
-                aria-label="กรองตามผู้รับผิดชอบ"
-                value={personFilter}
-                onChange={(e) => setPersonFilter(e.target.value)}
-                className="h-11 rounded-lg border border-input bg-card px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">ทุกคน</option>
-                {[...people.entries()].map(([id, name]) => (
-                  <option key={id} value={id}>{name}</option>
-                ))}
-              </select>
-            )}
-            {view !== 'day' && (
-              <Button size="sm" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
-                <Plus className="h-4 w-4" aria-hidden />
-                {d.calendar.addEvent}
-              </Button>
-            )}
-          </div>
-        }
-      />
-
-      {view !== 'day' && <div aria-label="สีประจำผู้รับผิดชอบ" className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-        <span className="text-muted-foreground">สีประจำผู้รับผิดชอบ:</span>
-        {[...people.entries()].map(([id, name]) => <button key={id} type="button" aria-pressed={personFilter === id} onClick={() => setPersonFilter(personFilter === id ? '' : id)} className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-2.5 ${personFilter === id ? 'border-primary bg-primary/5' : 'border-border'}`}><span aria-hidden className="size-3 rounded-full" style={{ backgroundColor: personColors.get(id) }} />{name}</button>)}
-        <span className="inline-flex items-center gap-2"><span aria-hidden className="size-3 rounded-full bg-sidebar" />ยังไม่ระบุผู้รับผิดชอบ</span>
-      </div>}
+    <div className="pb-24">
+      <PageHeader title="ตารางนัด" description="นัดศาล นัดลูกความ และกำหนดส่งของทุกคนในสำนักงาน" />
+      <Tabs value={view} onValueChange={v => setView(v as 'day' | 'month')}>
+        <TabsList role="tablist" aria-label="มุมมองตารางนัด" className="grid grid-cols-2 gap-0 rounded-xl border bg-card shadow-sm">
+          {([{ id: 'day', label: 'รายวัน', Icon: ListOrdered }, { id: 'month', label: 'รายเดือน', Icon: CalendarDays }] as const).map(({ id, label, Icon }, index) => <button key={id} id={`calendar-tab-${id}`} role="tab" aria-selected={view === id} tabIndex={view === id ? 0 : -1} onClick={() => setView(id)} onKeyDown={e => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) { e.preventDefault(); const next = e.key === 'Home' ? 'day' : e.key === 'End' ? 'month' : index === 0 ? 'month' : 'day'; setView(next); document.getElementById(`calendar-tab-${next}`)?.focus(); } }} className={`flex min-h-14 items-center justify-center gap-2 border-b-2 font-semibold ${view === id ? 'border-primary bg-muted' : 'border-transparent text-muted-foreground'}`}><Icon className="h-4 w-4" aria-hidden />{label}{id === 'day' && <span className="rounded-full bg-primary px-2 text-xs text-primary-foreground">{dayEvents.length}</span>}</button>)}
+        </TabsList>
+      </Tabs>
+      <div className="my-6 flex flex-wrap items-end gap-4 rounded-xl border bg-card p-5 shadow-sm">
+        <label className="space-y-1 text-sm"><span className="block">แสดงนัดของ</span><select aria-label="แสดงนัดของ" value={personFilter} onChange={e => setPersonFilter(e.target.value)} className="h-11 rounded-lg border border-input bg-card px-3"><option value="">ทุกคน</option>{[...people.entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+        <details className="text-sm"><summary className="flex min-h-11 cursor-pointer items-center gap-1 text-primary"><Palette className="h-4 w-4" aria-hidden />สีของแต่ละคน</summary><div className="flex flex-wrap gap-2">{[...people.entries()].map(([id, name]) => <button key={id} type="button" aria-pressed={personFilter === id} onClick={() => setPersonFilter(personFilter === id ? '' : id)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-2"><span aria-hidden className="size-3 rounded-full" style={{ backgroundColor: personColors.get(id) }} />{name}</button>)}</div></details>
+        {view === 'day' && <div className="text-sm"><span className="block text-muted-foreground">ช่วงเวลา</span><div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="icon" aria-label="สัปดาห์ก่อน" title="กดเพื่อดูสัปดาห์ก่อน" onClick={() => shiftWeek(-7)}><ChevronLeft className="h-4 w-4" aria-hidden /></Button><Button variant="outline" title="กดเพื่อกลับไปวันนี้" onClick={() => { const d = new Date(`${bangkokDateInputValue(new Date())}T00:00:00+07:00`); setWeekStart(d); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}>วันนี้</Button><Button variant="outline" size="icon" aria-label="สัปดาห์ถัดไป" title="กดเพื่อดูสัปดาห์ถัดไป" onClick={() => shiftWeek(7)}><ChevronRight className="h-4 w-4" aria-hidden /></Button><span className="font-semibold">{weekStart.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })} ถึง {new Date(weekEnd.getTime() - 1).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' })}</span></div></div>}
+        <div className="ml-auto text-right"><Button title="กดเพื่อลงนัดศาล นัดลูกความ หรือกำหนดส่ง" onClick={() => setDialog({ event: null, defaultDate: new Date() })}><Plus className="h-4 w-4" aria-hidden />เพิ่มนัด</Button><p className="mt-1 text-xs text-muted-foreground">กดเพื่อลงนัดศาล นัดลูกความ หรือกำหนดส่ง</p></div>
+      </div>
       {view === 'day' ? (
-        <MyDayPanel />
-      ) : view === 'agenda' ? (
         <Card>
           <CardContent className="p-4">
             {loading ? (
@@ -208,10 +169,13 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
               <LoadFailed message={loadError} onRetry={() => setReloadKey((n) => n + 1)} />
             ) : (
               <FirmDayAgenda
-                events={visibleEvents}
+                events={dayEvents}
                 users={users}
                 personColors={personColors}
                 onEventClick={openEvent}
+                filterName={personFilter ? people.get(personFilter) : undefined}
+                onClearFilter={() => setPersonFilter('')}
+                onAdd={() => setDialog({ event: null, defaultDate: new Date() })}
               />
             )}
           </CardContent>

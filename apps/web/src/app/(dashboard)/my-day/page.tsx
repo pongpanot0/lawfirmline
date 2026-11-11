@@ -1,7 +1,3 @@
 'use client';
-
-import { CalendarWorkspace } from '@/components/calendar/CalendarWorkspace';
-
-export default function MyDayPage() {
-  return <CalendarWorkspace defaultView="day" />;
-}
+import { TodayPage } from '@/components/agenda/TodayPage';
+export default function MyDayPage() { return <TodayPage />; }

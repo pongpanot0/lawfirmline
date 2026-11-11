@@ -143,6 +143,7 @@ for (const width of [375, 1440]) {
       expect(ownTask.assigneeId).toBe(auth.user.id); expect(ownTask.dueDate).toBeNull(); expect(ownTask.requiresReview).toBe(false);
       expect(ownTask.acknowledgedAt).not.toBeNull(); // Creating work for yourself acknowledges it automatically.
       await page.goto(`${origin}/operations`);
+      await page.getByRole('button', { name: /^ต้องตามวันนี้/ }).click();
       await expect(page.getByRole('heading', { name: 'ต้องจัดการวันนี้', exact: true })).toBeVisible();
     } finally { await workerContext.close(); await data.cleanup(); }
   });

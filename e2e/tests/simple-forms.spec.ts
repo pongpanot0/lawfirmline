@@ -99,7 +99,7 @@ for (const width of [375, 1440]) {
 
       await page.goto(`${origin}/operations`);
       if (await tour.isVisible()) await tour.click();
-      await page.getByRole('button', { name: 'ต้องจัดการวันนี้', exact: true }).click();
+      await page.getByRole('button', { name: /^ต้องตามวันนี้/ }).click();
       await page.getByRole('button', { name: 'เพิ่มงาน', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'เพิ่มงานใหม่', exact: true });
       await dialog.getByRole('textbox', { name: 'ชื่องาน', exact: true }).fill(`งานฟอร์มสั้น ${data.tag}`);
@@ -109,7 +109,7 @@ for (const width of [375, 1440]) {
       await expect(dialog).toHaveCount(0);
       await expect(page.getByRole('button', { name: `งานฟอร์มสั้น ${data.tag}`, exact: true })).toBeVisible();
       await page.reload();
-      await page.getByRole('button', { name: 'ต้องจัดการวันนี้', exact: true }).click();
+      await page.getByRole('button', { name: /^ต้องตามวันนี้/ }).click();
       await expect(page.getByRole('button', { name: `งานฟอร์มสั้น ${data.tag}`, exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'เพิ่มงาน', exact: true }).click();
       await dialog.getByRole('textbox', { name: 'ชื่องาน', exact: true }).fill(`งานพร้อมรายละเอียด ${data.tag}`);

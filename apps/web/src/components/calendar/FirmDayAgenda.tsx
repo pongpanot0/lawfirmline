@@ -4,7 +4,8 @@ import { eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
 import { CalendarEventItem, UserItem } from '@/lib/api';
 import { InlineEmptyState } from '@/components/ui/misc';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Gavel } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const DAY = new Intl.DateTimeFormat('th-TH', {
   weekday: 'long',
@@ -29,7 +30,9 @@ export function FirmDayAgenda({
   users,
   onEventClick,
   personColors,
+  filterName, onClearFilter, onAdd,
 }: {
+  filterName?: string; onClearFilter: () => void; onAdd: () => void;
   personColors?: Map<string, string>;
   events: CalendarEventItem[];
   users: UserItem[];
@@ -41,12 +44,7 @@ export function FirmDayAgenda({
     return user ? `${user.firstName} ${user.lastName}` : 'ยังไม่ระบุผู้รับผิดชอบ';
   };
 
-  // ตั้งแต่ต้นวันนี้เป็นต้นไป — นัดที่ผ่านไปแล้วไม่ใช่สิ่งที่ต้องจัดคน
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const upcoming = events
-    .filter((e) => new Date(e.startAt) >= startOfToday)
-    .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+  const upcoming = [...events].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
 
   const days = new Map<string, CalendarEventItem[]>();
   for (const event of upcoming) {
@@ -57,8 +55,8 @@ export function FirmDayAgenda({
   if (days.size === 0) {
     return (
       <InlineEmptyState
-        title="ไม่มีนัดที่จะถึง"
-        description="นัดศาลและนัดลูกความของทั้งสำนักงานจะเรียงเป็นรายวันตรงนี้"
+        title={filterName ? `ไม่มีนัดของ ${filterName}` : "ยังไม่มีนัดในช่วงนี้"}
+        action={<Button variant="outline" title={filterName ? "กดเพื่อดูนัดของทุกคน" : "กดเพื่อเพิ่มนัด"} onClick={filterName ? onClearFilter : onAdd}>{filterName ? "ดูทุกคน" : "เพิ่มนัด"}</Button>}
       />
     );
   }
@@ -66,33 +64,31 @@ export function FirmDayAgenda({
   return (
     <div className="space-y-5">
       {[...days.entries()].map(([key, dayEvents]) => {
-        // คนเดียวมีมากกว่าหนึ่งนัดในวันเดียว = ต้องมองก่อนเพื่อน
-        const perPerson = new Map<string, number>();
-        for (const e of dayEvents) {
-          const people = eventPeopleIds(e);
-          for (const who of people.length ? people : ['unassigned']) {
-            perPerson.set(who, (perPerson.get(who) ?? 0) + 1);
+        const clashes = new Set<string>();
+        for (let i = 0; i < dayEvents.length; i++) {
+          for (let j = i + 1; j < dayEvents.length; j++) {
+            const a = dayEvents[i], b = dayEvents[j];
+            const aEnd = new Date(a.endAt ?? a.startAt).getTime(), bEnd = new Date(b.endAt ?? b.startAt).getTime();
+            const aStart = new Date(a.startAt).getTime(), bStart = new Date(b.startAt).getTime();
+            if (eventPeopleIds(a).some(id => eventPeopleIds(b).includes(id)) && (aStart === bStart || (aStart < bEnd && bStart < aEnd))) { clashes.add(a.id); clashes.add(b.id); }
           }
         }
-        const clashing = new Set(
-          [...perPerson.entries()].filter(([who, n]) => n > 1 && who !== 'unassigned').map(([who]) => who),
-        );
 
         return (
           <section key={key}>
-            <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <div className="sticky top-0 z-10 mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 bg-background py-2">
               <h3 className="font-semibold text-foreground">
                 {DAY.format(new Date(`${key}T00:00:00+07:00`))}
               </h3>
               <span className="text-xs tabular-nums text-muted-foreground">{dayEvents.length} รายการ</span>
-              {clashing.size > 0 && (
+              {clashes.size > 0 && (
                 <Badge variant="warning" className="gap-1 py-0.5">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                  {clashing.size} คนมีนัดซ้อน
+                  เวลาซ้อน {clashes.size} นัด
                 </Badge>
               )}
             </div>
-            <div className="overflow-hidden rounded-xl border">
+            <div className={`overflow-hidden rounded-xl border ${clashes.size ? 'border-red-200 bg-red-50/50' : 'bg-card'}`}>
               {dayEvents.map((event, index) => (
                 <button
                   key={event.id}
@@ -112,16 +108,15 @@ export function FirmDayAgenda({
                     aria-hidden
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-foreground">{event.title}</span>
+                    <span className="block line-clamp-2 font-medium text-foreground">{event.title}</span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {event.leaveId ? 'ลางาน' : event.case ? `${event.case.ownRef} · ${event.case.title}` : 'ไม่ผูกกับคดี'}
-                      {(event.courtName ?? event.case?.courtName) &&
-                        ` · ${event.courtName ?? event.case?.courtName}`}
+                      {(event.courtName ?? event.case?.courtName) && <> · <Gavel className="inline h-3.5 w-3.5" aria-hidden /> {event.courtName ?? event.case?.courtName}</>}
                     </span>
                   </span>
                   {(() => {
                     const people = eventPeopleIds(event);
-                    const anyClash = people.some((id) => clashing.has(id));
+                    const anyClash = clashes.has(event.id);
                     const names = event.assignees?.length
                       ? people.map((id) => nameOf(id)).join(', ')
                       : event.case?.leadLawyer

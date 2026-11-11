@@ -162,13 +162,13 @@ export function CalendarView({
                         }}
                         style={personStyle(e)}
                         title={personAppearance ? `${personAppearance(e).name} · ${e.title}` : e.title}
-                        className={`block w-full truncate rounded border px-1 py-0.5 text-left text-[10px] hover:opacity-80 ${personAppearance ? 'bg-muted/50 text-foreground border-border' : typeColors[e.type] ?? typeColors.OTHER}`}
+                        className={`block w-full truncate rounded border px-1 py-0.5 text-left text-xs hover:opacity-80 ${personAppearance ? 'bg-muted/50 text-foreground border-border' : typeColors[e.type] ?? typeColors.OTHER}`}
                       >
                         {personAppearance && <span className="block truncate font-semibold">{personAppearance(e).name}</span>}{e.title}
                       </button>
                     ))}
                     {dayEvents.length > 2 && (
-                      <p className="text-[10px] text-muted-foreground">{fmt(d.calendar.moreCount, { count: dayEvents.length - 2 })}</p>
+                      <p className="text-[10px] text-muted-foreground">+{dayEvents.length - 2}</p>
                     )}
                   </div>
                 </>

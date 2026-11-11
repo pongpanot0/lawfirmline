@@ -37,7 +37,7 @@ export const dashboardCopy = {
       emailSearch: 'ค้นหาอีเมล',
       cases: 'เรื่องและคดี',
       clients: 'ลูกค้า',
-      courtSchedule: 'ตารางศาล',
+      courtSchedule: 'ตารางนัด',
       workflows: 'สายงาน',
       leaves: 'การลา',
       timesheet: 'บันทึกเวลา',
