@@ -5,11 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, ChevronRight, Plus, X } from 'lucide-react';
 import { awaitsReviewBy, canDelegateTask, hasFirmCapability, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, TaskItem, UserItem } from '@/lib/api';
+import { api, ApiError, TaskItem, UserItem, type CaseProgress } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
 import { useTaskParam } from '@/components/tasks/useTaskParam';
+import { WhoActsTabs } from '@/components/process/WhoActsTabs';
+import { FilterChips } from '@/components/process/FilterChips';
+import { dueLabel } from '@/components/process/helpers';
 import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
 import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -30,7 +33,7 @@ import { leaveWarning } from '@/lib/leave-flags';
 import { bangkokDateInputValue } from '@/lib/bangkok';
 import { DateField, SelectField, TextareaField, TextField } from '@/components/ui/form-fields';
 import { formatDate } from '@/lib/utils';
-import { isHeld, submittedByMe } from '@/lib/task-review-view';
+import { taskBucket } from './task-buckets';
 
 function TodosPageContent() {
   const d = useDashboardT();
@@ -39,6 +42,8 @@ function TodosPageContent() {
   const { token, user } = useAuth();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [progress, setProgress] = useState<CaseProgress[]>([]);
+  const [completionNotice, setCompletionNotice] = useState<{ taskId: string; caseId: string; ownRef: string; journey: import('@/lib/api').CaseJourney; progress: CaseProgress } | null>(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -76,9 +81,8 @@ function TodosPageContent() {
   const [createdTask, setCreatedTask] = useState<{ id: string; title: string; assignee: string } | null>(null);
   const [layout, setLayout] = useTaskLayout();
   const [scope, setScope] = useState<'mine' | 'team' | 'created' | 'review'>('mine');
-  useEffect(() => {
-    setScope(hasFirmCapability(user?.firmRole, 'runOperations') ? 'team' : 'mine');
-  }, [user?.firmRole]);
+  useEffect(() => { if (token) void api.getCaseProgress(token).then(setProgress).catch(() => setProgress([])); }, [token]);
+  const taskTab = ['todo', 'waiting', 'done'].includes(searchParams.get('tab') ?? '') ? searchParams.get('tab')! : 'todo';
   const [taskType, setTaskType] = useState<'all' | 'case' | 'general'>('all');
   const [includeCompleted, setIncludeCompleted] = useState(false);
   const taskParam = useTaskParam();
@@ -152,6 +156,10 @@ function TodosPageContent() {
       const caseId = caseIdOf(taskId);
       if (caseId) await api.updateTask(token, caseId, taskId, { status });
       else await api.updateTodo(token, taskId, { status });
+      if (caseId && status === TaskStatus.DONE) {
+        const task = tasks.find((item) => item.id === taskId);
+        try { const [journey, latest] = await Promise.all([api.getCaseJourney(token, caseId), api.getCaseProgress(token)]); setProgress(latest); const caseProgress = latest.find((item) => item.caseId === caseId); setCompletionNotice(caseProgress ? { taskId, caseId, ownRef: task?.case?.ownRef ?? '', journey, progress: caseProgress } : null); } catch { setCompletionNotice(null); setProgress((items) => items.filter((item) => item.caseId !== caseId)); }
+      }
       loadTasks();
     } catch {
       setError(d.todos.actionFailed);
@@ -259,22 +267,15 @@ function TodosPageContent() {
 
   /** Switch scope labels on only when this list includes another assignee. */
   const seesOthers = tasks.some((t) => t.assignee && t.assignee.id !== user?.id);
-  const isMyWork = (task: TaskItem) => task.assignee?.id === user?.id ||
-    ((task.status === TaskStatus.PENDING_REVIEW || task.status === TaskStatus.DONE) && task.handedOffById === user?.id);
-  const ownershipTasks = scope === 'team'
-      ? tasks
-      : scope === 'created'
-        ? tasks.filter(t => t.createdById === user?.id)
-      : scope === 'review'
-        ? tasks.filter((t) => awaitsReviewBy(t, user?.id ?? ''))
-        : tasks.filter(isMyWork);
-  const scopedTasks = ownershipTasks.filter((task) =>
-    taskType === 'all' || (taskType === 'case' ? Boolean(task.caseId) : !task.caseId),
-  );
+  const buckets = {
+    todo: tasks.filter((task) => taskBucket(task, user?.id) === 'todo'),
+    waiting: tasks.filter((task) => taskBucket(task, user?.id) === 'waiting'),
+    done: tasks.filter((task) => taskBucket(task, user?.id) === 'done'),
+  };
+  const ownershipTasks = scope === 'team' ? tasks : scope === 'created' ? tasks.filter(t => t.createdById === user?.id) : scope === 'review' ? tasks.filter(t => awaitsReviewBy(t, user?.id ?? '')) : buckets[taskTab as keyof typeof buckets];
+  const scopedTasks = ownershipTasks.filter((task) => taskType === 'all' || (taskType === 'case' ? Boolean(task.caseId) : !task.caseId));
   const completedCount = scopedTasks.filter((task) => task.status === TaskStatus.DONE).length;
-  const tasksForView = includeCompleted
-    ? scopedTasks
-    : scopedTasks.filter((task) => task.status !== TaskStatus.DONE);
+  const tasksForView = scopedTasks;
   const visibleTasks = applyTaskFilters(tasksForView, filters);
   const filtering = hasActiveTaskFilters(filters);
   const scopes: { key: typeof scope; label: string }[] = [
@@ -284,12 +285,10 @@ function TodosPageContent() {
     { key: 'review', label: d.todos.scopeReview },
   ];
   const quickViews = [
-    { key: 'all', label: text('งานที่ยังไม่เสร็จ', 'Open tasks'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE).length },
-    { key: 'overdue', label: text('เลยกำหนด', 'Overdue'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) < today).length },
-    { key: 'today', label: text('ส่งวันนี้', 'Due today'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) === today).length },
-    { key: 'review', label: text('รอตรวจ', 'Awaiting review'), count: scopedTasks.filter(task => task.status === TaskStatus.PENDING_REVIEW).length },
+    { key: 'all', label: 'ทั้งหมด', count: scopedTasks.length },
+    ...(['overdue', 'today', 'week'] as const).map((due) => ({ key: due, label: { overdue: 'เลยกำหนด', today: 'วันนี้', week: 'สัปดาห์นี้' }[due], count: applyTaskFilters(scopedTasks, { ...EMPTY_TASK_FILTERS, due }).length })),
   ];
-  const quickView = filters.status === TaskStatus.PENDING_REVIEW ? 'review' : filters.due === 'overdue' || filters.due === 'today' ? filters.due : !filters.status && !filters.due && !includeCompleted ? 'all' : '';
+  const quickView = filters.due || 'all';
   const statusLabels: Record<TaskStatus, string> = {
     TODO: text('รอเริ่ม', 'To do'), IN_PROGRESS: text('กำลังทำ', 'In progress'),
     PENDING_REVIEW: text('รอตรวจ', 'Awaiting review'), NEEDS_REVISION: text('ต้องแก้ไข', 'Needs revision'), DONE: text('เสร็จแล้ว', 'Done'),
@@ -314,34 +313,13 @@ function TodosPageContent() {
         }
       />
 
-      {(
-        <div role="group" aria-label={d.todos.taskScope} className="mb-4 flex flex-wrap gap-2">
-          {scopes.filter(s => s.key !== 'team' || seesOthers || hasFirmCapability(user?.firmRole, 'runOperations')).map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              aria-pressed={scope === s.key}
-              onClick={() => { setScope(s.key); setFilters(EMPTY_TASK_FILTERS); setTaskType('all'); setIncludeCompleted(false); }}
-              className={`min-h-11 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${scope === s.key ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-            >
-              {s.label} <span className="ml-1 tabular-nums opacity-70">{tasks.filter(task => s.key === 'team' || (s.key === 'created' ? task.createdById === user?.id : s.key === 'review' ? awaitsReviewBy(task, user?.id ?? '') : isMyWork(task))).length}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
+      <WhoActsTabs value={taskTab} tabs={[{ key: 'todo', label: 'ต้องทำ', count: buckets.todo.length }, { key: 'waiting', label: 'รอคนอื่น', count: buckets.waiting.length }, { key: 'done', label: 'เสร็จแล้ว', count: buckets.done.length }]} onChange={() => { setScope('mine'); setFilters(EMPTY_TASK_FILTERS); setIncludeCompleted(false); }} />
       {createdTask && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div className="min-w-0 break-words text-sm"><p className="font-medium">{text('สร้างงานแล้ว: ', 'Task created: ')}{createdTask.title}</p><p className="mt-1 text-muted-foreground">{text('มอบหมายให้ ', 'Assigned to ')}{createdTask.assignee} · {text('ติดตามได้ใน “งานที่ฉันสร้าง”', 'Track under Created by me')}</p></div><Button variant="outline" size="sm" onClick={() => taskParam.open(createdTask.id)}>{text('เปิดงาน / แนบไฟล์', 'Open task / Attach files')}</Button></div>}
       {error && !showForm && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
       <Card className="mb-4">
         <CardContent className="space-y-4 p-4">
-          <div role="group" aria-label={text('เลือกงานที่ต้องติดตาม', 'Focus tasks')} className="flex flex-wrap gap-2">
-            {quickViews.map(view => <button key={view.key} type="button" aria-pressed={quickView === view.key}
-              onClick={() => { setIncludeCompleted(false); setFilters(current => ({ ...current, status: view.key === 'review' ? TaskStatus.PENDING_REVIEW : '', due: view.key === 'overdue' || view.key === 'today' ? view.key : '' })); }}
-              className={`min-h-11 rounded-lg px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${quickView === view.key ? 'bg-primary/10 text-primary' : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}>
-              {view.label} <span className="ml-1 tabular-nums opacity-70">{view.count}</span>
-            </button>)}
-          </div>
+          <FilterChips items={quickViews} value={quickView} onChange={(key) => setFilters(current => ({ ...current, due: key === 'overdue' || key === 'today' || key === 'week' ? key : '' }))} />
           <div className="flex flex-wrap items-end gap-3">
             <TextField label={text('ค้นหางาน', 'Search tasks')} placeholder={text('ชื่องาน คดี หรือชื่อคนทำงาน', 'Task, case or assignee')} value={filters.search}
               onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} containerClassName="min-w-0 flex-1 basis-56" />
@@ -352,8 +330,9 @@ function TodosPageContent() {
             </SelectField>}
           </div>
           <details className="border-t border-border pt-3">
-            <summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">{text('ตัวกรองเพิ่มเติม', 'More filters')}{(filters.priority || filters.label || taskType !== 'all' || includeCompleted || (filters.status && quickView !== 'review') || (filters.due && quickView !== 'overdue' && quickView !== 'today')) && text(' · มีตัวกรองใช้งานอยู่', ' · Filters applied')}</summary>
+            <summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">{text('ตัวกรองเพิ่ม', 'More filters')}{(filters.priority || filters.label || taskType !== 'all' || includeCompleted || filters.status || (filters.due && quickView !== 'overdue' && quickView !== 'today')) && text(' · มีตัวกรองใช้งานอยู่', ' · Filters applied')}</summary>
             <div className="mt-4 space-y-3">
+              <SelectField label={d.todos.taskScope} value={scope} onChange={event => setScope(event.target.value as typeof scope)}>{scopes.filter(s => s.key !== 'team' || seesOthers || hasFirmCapability(user?.firmRole, 'runOperations')).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</SelectField>
               <SelectField label={d.todos.taskType} value={taskType} onChange={event => setTaskType(event.target.value as typeof taskType)} containerClassName="sm:max-w-48">
                 <option value="all">{d.todos.scopeAll}</option><option value="case">{d.todos.scopeCase}</option><option value="general">{d.todos.scopeGeneral}</option>
               </SelectField>
@@ -599,6 +578,7 @@ function TodosPageContent() {
         </div>
       )}
 
+      {completionNotice && !visibleTasks.some(task => task.id === completionNotice.taskId) && <p role="status" className="mb-3 rounded-lg border p-3 text-sm">คดี {completionNotice.ownRef} {completionNotice.journey.canAdvance ? `ทำครบ ${completionNotice.progress.done}/${completionNotice.progress.total} แล้ว — พร้อมไปขั้น${completionNotice.journey.steps.slice(completionNotice.journey.steps.findIndex(step => step.state === 'current') + 1).find(step => step.state === 'locked')?.label ?? 'ถัดไป'}` : `เหลืออีก ${Math.max(0, completionNotice.progress.total - completionNotice.progress.done)} งานในขั้นนี้`} {completionNotice.journey.canAdvance && <a className="text-primary underline" href={`/cases/${completionNotice.caseId}`}>ไปขั้นถัดไป →</a>}</p>}
       {reviewLoadError && !loadError && <p role="alert" className="mb-2 text-xs text-destructive">{reviewLoadError}</p>}
       {loadError ? (
         <LoadFailed message={loadError} onRetry={loadTasks} />
@@ -623,23 +603,16 @@ function TodosPageContent() {
         </div>
       ) : (
         layout === 'list' ? <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-          {[...visibleTasks].sort((a, b) => Number(scope === 'mine' && submittedByMe(a, user?.id ?? '')) - Number(scope === 'mine' && submittedByMe(b, user?.id ?? '')) || Number(a.status === TaskStatus.DONE) - Number(b.status === TaskStatus.DONE) || (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) - (b.dueDate ? new Date(b.dueDate).getTime() : Infinity)).map((task, index, rows) => {
-            const submitted = scope === 'mine' && submittedByMe(task, user?.id ?? '');
-            const startsSubmitted = submitted && !(index > 0 && scope === 'mine' && submittedByMe(rows[index - 1], user?.id ?? ''));
-            const overdue = task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) < today;
-            return <Fragment key={task.id}>{startsSubmitted && <li className="bg-muted/40 px-4 py-2 text-xs font-semibold text-muted-foreground">{d.todos.submittedGroup}</li>}<li><button type="button" onClick={() => taskParam.open(task.id)} className="flex w-full flex-wrap items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5">
-              <div className="min-w-0 flex-1 basis-56">
-                <p className="break-words text-sm font-semibold">{task.title}</p>
-                <p className="mt-1 break-words text-xs text-muted-foreground">{task.case ? `${task.case.ownRef} · ${task.case.title}` : text('งานทั่วไป', 'General task')} · {task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : d.taskDetail.unassigned}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                {task.priority === TaskPriority.HIGH && <span className="font-medium text-destructive">{text('สำคัญมาก', 'High priority')}</span>}
-                <Badge variant={task.status === TaskStatus.PENDING_REVIEW ? 'default' : task.status === TaskStatus.DONE ? 'success' : task.status === TaskStatus.NEEDS_REVISION ? 'destructive' : 'muted'}>{statusLabels[task.status]}</Badge>
-                {isHeld(task) && <Badge variant="warning" title={task.onHold?.reason}>{d.todos.heldBadge}</Badge>}
-                <span className={overdue ? 'font-medium text-destructive' : 'text-muted-foreground'}>{overdue ? text('เลยกำหนด · ', 'Overdue · ') : ''}{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>
-                <span className="ml-1 inline-flex items-center font-medium text-primary">{text('เปิดงาน', 'Open task')}<ChevronRight className="h-3.5 w-3.5" aria-hidden /></span>
-              </div>
-            </button></li></Fragment>;
+          {[...visibleTasks].sort((a, b) => (a.dueDate ? Date.parse(a.dueDate) : Infinity) - (b.dueDate ? Date.parse(b.dueDate) : Infinity)).map((task) => {
+            const caseProgress = progress.find((item) => item.caseId === task.caseId);
+            const due = task.dueDate ? dueLabel(task.dueDate) : null;
+            return <li key={task.id} className="flex flex-wrap items-center gap-3 px-4 py-4">
+              <input type="checkbox" className="h-6 w-6 rounded-full" aria-label={`ทำ ${task.title} เสร็จ`} checked={task.status === TaskStatus.DONE} onChange={(event) => void handleStatusChange(task.id, event.target.checked ? TaskStatus.DONE : TaskStatus.TODO)} />
+              <div className="min-w-0 flex-1 basis-56"><p className="break-words font-semibold">{task.title}</p><p className="text-sm text-muted-foreground">{task.case ? `${task.case.ownRef} · ${task.case.title}` : 'งานทั่วไป'}{caseProgress && ` · ขั้น${caseProgress.stepLabel} ${caseProgress.done}/${caseProgress.total}`}</p></div>
+              {task.dueDate && <span className={due?.urgent ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>ครบ {formatDate(task.dueDate)}{due && ` · ${due.text}`}</span>}
+              <Button variant="outline" onClick={() => task.caseId ? router.push(`/cases/${task.caseId}?task=${encodeURIComponent(task.id)}`) : taskParam.open(task.id)}>ทำเลย →</Button>
+              {completionNotice?.taskId === task.id && <p role="status" className="w-full text-sm text-primary">คดี {completionNotice.ownRef} {completionNotice.journey.canAdvance ? `ทำครบ ${completionNotice.progress.done}/${completionNotice.progress.total} แล้ว — พร้อมไปขั้น${completionNotice.journey.steps.slice(completionNotice.journey.steps.findIndex(step => step.state === 'current') + 1).find(step => step.state === 'locked')?.label ?? 'ถัดไป'}` : `เหลืออีก ${Math.max(0, completionNotice.progress.total - completionNotice.progress.done)} งานในขั้นนี้`} {completionNotice.journey.canAdvance && <a className="underline" href={`/cases/${completionNotice.caseId}`}>ไปขั้นถัดไป →</a>}</p>}
+            </li>;
           })}
         </ul> : <KanbanBoard
           layout={layout}
