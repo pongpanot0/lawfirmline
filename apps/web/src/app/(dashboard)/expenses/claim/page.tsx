@@ -37,6 +37,7 @@ function ExpenseClaimContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
@@ -75,12 +76,15 @@ function ExpenseClaimContent() {
         authToken,
         items.map((e) => e.id),
       );
-      router.push('/expenses?sent=1');
+      setSent(true);
+      setSubmitting(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : d.expenses.submitDraftFailed);
       setSubmitting(false);
     }
   };
+
+  if (sent) return <div role="status" className="space-y-4 rounded-lg border bg-card p-6"><h1 className="text-xl font-semibold">ส่งเบิกแล้ว</h1><p>ต่อไป: รอผู้อนุมัติตรวจรายการ</p><Button onClick={() => router.push('/expenses')}>ไปหน้าค่าใช้จ่าย →</Button></div>;
 
   if (loading) return <PageLoading title={d.common.loading} lines={3} />;
 

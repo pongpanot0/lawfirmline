@@ -76,7 +76,10 @@ test('new firm → first client and task → invitation → member permissions �
     await page.locator('form input[type="number"]').fill('125.50');
     await page.locator('form input[required]').nth(1).fill(`ค่าเอกสารทดสอบ ${data.tag}`);
     await page.locator('form button[type="submit"]').click();
+    await expect(page.getByRole('status')).toContainText('บันทึกแล้ว');
+    await page.getByRole('button', { name: 'ไปหน้าค่าใช้จ่าย →' }).click();
     await expect(page).toHaveURL(/\/expenses$/);
+    await page.getByRole('tab', { name: /ต้องทำ/ }).click();
     await expect(page.locator('main')).toContainText(`ค่าเอกสารทดสอบ ${data.tag}`);
 
     await page.goto(`${origin}/todos`);

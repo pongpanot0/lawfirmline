@@ -35,6 +35,7 @@ export default function NewExpensePage() {
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [advances, setAdvances] = useState<CashAdvanceItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
@@ -114,7 +115,7 @@ export default function NewExpensePage() {
         },
         receipt ?? undefined,
       );
-      router.push('/expenses');
+      setSaved(true);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -125,6 +126,8 @@ export default function NewExpensePage() {
       setSubmitting(false);
     }
   };
+
+  if (saved) return <div role="status" className="space-y-4 rounded-lg border bg-card p-6"><h1 className="text-xl font-semibold">บันทึกแล้ว</h1><p>{form.paidFromAdvanceId ? 'บันทึกค่าใช้จ่ายจากเงินทดรองแล้ว' : 'ต่อไป: เลือกรายการแล้วกดส่งเบิก'}</p><Button onClick={() => router.push('/expenses')}>ไปหน้าค่าใช้จ่าย →</Button></div>;
 
   return (
     <div className="w-full pb-52 xl:pb-0">
