@@ -57,10 +57,10 @@ export function CaseAppointmentDialog({ caseId, caseCourtName, caseOwnerId, user
   const prepOwner = users.find((u) => u.id === prepOwnerId);
   const eventTitle = kind === 'COURT_DATE' ? (courtKind ? COURT_EVENT_KIND_LABELS[courtKind] : title.trim() || 'นัดศาล') : title.trim();
 
-  const createPrep = async () => {
+  const createPrep = async (eventId: string) => {
     if (!token) return;
     const due = new Date(`${date}T00:00:00Z`); due.setUTCDate(due.getUTCDate() - 3);
-    await api.createTask(token, caseId, { title: `เตรียมตัวไปศาล: ${eventTitle}`, assigneeId: prepOwnerId, dueDate: due.toISOString().slice(0, 10) });
+    await api.createTask(token, caseId, { title: `เตรียมตัวไปศาล: ${eventTitle}`, assigneeId: prepOwnerId, dueDate: due.toISOString().slice(0, 10), createRequestId: `court-prep-${eventId}` });
   };
 
   const save = async (event: React.FormEvent) => {
@@ -78,11 +78,12 @@ export function CaseAppointmentDialog({ caseId, caseCourtName, caseOwnerId, user
       reminderMinutes: reminders.map((m) => (m === 60 ? Math.max(0, Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) - 8 * 60) : m)),
     };
     try {
-      if (savedId) await api.updateCalendarEvent(token, savedId, payload);
-      else setSavedId((await api.createCalendarEvent(token, payload)).id);
+      let eventId = savedId;
+      if (eventId) await api.updateCalendarEvent(token, eventId, payload);
+      else { eventId = (await api.createCalendarEvent(token, payload)).id; setSavedId(eventId); }
       onSaved();
       if (kind === 'COURT_DATE' && prep) {
-        try { await createPrep(); } catch { setError('บันทึกนัดแล้ว แต่สร้างงานเตรียมตัวไม่สำเร็จ — กด “บันทึกนัด” อีกครั้งเพื่อลองสร้างงานใหม่'); setSaving(false); return; }
+        try { await createPrep(eventId); } catch { setError('บันทึกนัดแล้ว แต่สร้างงานเตรียมตัวไม่สำเร็จ — กด “บันทึกนัด” อีกครั้งเพื่อลองสร้างงานใหม่'); setSaving(false); return; }
       }
       onClose();
     } catch (err) {

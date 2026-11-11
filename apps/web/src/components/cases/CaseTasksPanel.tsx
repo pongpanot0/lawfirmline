@@ -72,6 +72,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
     setShowForm(true);
     const next = new URLSearchParams(searchParams.toString());
     next.delete('newTask');
+    next.delete('task');
     router.replace(`/cases/${caseId}?${next.toString()}`, { scroll: false });
   }, [createRequested, searchParams, router, caseId]);
 

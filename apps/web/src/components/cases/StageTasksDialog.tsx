@@ -119,7 +119,8 @@ export function StageTasksDialog({
           <p className={hint}>{moving ? (selectedCount ? `ระบบจะย้ายขั้นและสร้าง ${selectedCount} งานที่ติ๊กไว้ แจ้งคนทำทุกคน` : 'ระบบจะย้ายขั้นโดยไม่สร้างงาน') : `ระบบจะสร้าง ${selectedCount} งานที่ติ๊กไว้ แจ้งคนทำทุกคน`}</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={busy} onClick={onClose} className={`${btn} text-muted-foreground`}>ยกเลิก</button>
-            {moving && selectedCount === 0 ? <button type="button" disabled={busy} onClick={onSkip} className={`${btn} bg-[#227052] text-white`}>ย้ายขั้นอย่างเดียว <ArrowRight aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button>
+            {selectedCount > 0 && <button type="button" disabled={busy} onClick={onSkip} className={`${btn} border border-[#c9ccc6] bg-white text-[#142e43]`}>{moving ? 'ย้ายขั้นอย่างเดียว' : 'ไม่สร้างตอนนี้'}</button>}
+            {selectedCount === 0 ? <button type="button" disabled={busy} onClick={onSkip} className={`${btn} bg-[#227052] text-white`}>{moving ? 'ย้ายขั้นอย่างเดียว' : 'ไม่สร้างตอนนี้'} <ArrowRight aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button>
               : <button type="button" disabled={busy || selectedCount === 0} onClick={confirm} className={`${btn} bg-[#227052] text-white`}>{moving ? `ย้ายขั้นและสร้าง ${selectedCount} งาน` : `สร้าง ${selectedCount} งาน`} <ArrowRight aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button>}
           </div>
         </div>

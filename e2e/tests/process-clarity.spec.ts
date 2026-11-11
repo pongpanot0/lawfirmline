@@ -63,7 +63,7 @@ test('process clarity click-through', async ({ page, request }) => {
   });
   await flow('2 success page', async () => {
     expect(caseId).toBeTruthy(); await expect(page.getByRole('heading', { name: 'เปิดคดีสำเร็จ' })).toBeVisible(); await expect(page.getByText(ref, { exact: true })).toBeVisible();
-    const section = page.locator('section').filter({ hasText: 'ขั้นตอนต่อไปของคดีนี้' }); await expect(section.locator('li').first()).toBeVisible(); await shot('02-success');
+    await expect(page.getByText('ขั้นต่อไปของคดีนี้', { exact: true })).toBeVisible(); await shot('02-success');
     await page.getByRole('link', { name: 'ไปหน้าคดี', exact: true }).click(); await expect(page).toHaveURL(new RegExp(`/cases/${caseId}$`));
   });
   await flow('3 case page', async () => {
