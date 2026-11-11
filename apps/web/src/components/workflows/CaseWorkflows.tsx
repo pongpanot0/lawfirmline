@@ -53,7 +53,7 @@ export function CaseWorkflows({ caseId }: { caseId: string }) {
         {active.map((run) => <RunCard key={run.id} run={run} token={token} onChanged={load} />)}
         {past.length > 0 && (
           <details>
-            <summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">สายงานที่จบแล้ว ({past.length})</summary>
+            <summary className="disclosure flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">สายงานที่จบแล้ว ({past.length})</summary>
             <div className="mt-2 space-y-3">{past.map((run) => <RunCard key={run.id} run={run} token={token} onChanged={load} />)}</div>
           </details>
         )}

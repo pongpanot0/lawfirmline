@@ -696,12 +696,12 @@ test('44 — SOP / คู่มือการทำงาน', async ({ page })
   await goto(page, '/sops');
   await capture(page, {
     id: '44-sops',
-    title: 'SOP / คู่มือการทำงาน',
+    title: 'คู่มือการทำงาน',
     route: '/sops',
     description: 'คลังคู่มือ/ขั้นตอนมาตรฐานภายในสำนักงาน ค้นหาได้ เจ้าของสำนักงานเพิ่ม/แก้ไข/ลบได้ ใช้อ้างอิงเวลาอบรมพนักงานใหม่',
     callouts: [
-      { selector: 'input[placeholder*="ค้นหา SOP"]', label: 'ค้นหา SOP', place: 'bottom' },
-      { selector: 'button:has-text("เพิ่ม SOP")', label: 'เพิ่ม SOP ใหม่ (เจ้าของสำนักงาน)', place: 'left' },
+      { selector: 'input[placeholder*="ค้นหาคู่มือ"]', label: 'ค้นหา SOP', place: 'bottom' },
+      { selector: 'button:has-text("สร้างใหม่")', label: 'เพิ่ม SOP ใหม่ (เจ้าของสำนักงาน)', place: 'left' },
     ],
   });
 });

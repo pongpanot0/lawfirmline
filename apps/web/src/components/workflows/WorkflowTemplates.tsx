@@ -21,6 +21,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
   const closeEditor = useCallback(() => setEditor(null), [setEditor]);
   const [error, setError] = useState('');
   const [savingDefault, setSavingDefault] = useState(false);
+  const [draftDefault, setDraftDefault] = useState<string | null>(null);
   const load = useCallback(() => {
     setError('');
     api.getWorkflowTemplates(token).then(setTemplates).catch((e) => setError(e.message));
@@ -43,6 +44,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
     try {
       await api.updateWorkflowTemplate(token, template.id, { isDefault: Boolean(id) });
       setTemplates(await api.getWorkflowTemplates(token));
+      setDraftDefault(null);
     } catch (e) { setError(e instanceof Error ? e.message : 'ตั้งค่าเริ่มต้นไม่สำเร็จ กรุณาลองใหม่'); }
     finally { setSavingDefault(false); }
   };
@@ -50,8 +52,8 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
   return (
     <section aria-label="สายงานส่งต่อ" className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold">สายงานส่งต่อ (Handoff flow)</h2>
-        {canEdit && !onEditorChange && <Button onClick={() => setEditor('new')}><Plus className="h-4 w-4" aria-hidden />สร้าง Handoff flow</Button>}
+        <h2 className="font-semibold">สายงานส่งต่อ</h2>
+        {canEdit && !onEditorChange && <Button onClick={() => setEditor('new')}><Plus className="h-4 w-4" aria-hidden />สร้างสายงานส่งต่อ</Button>}
       </div>
       <p className="text-sm text-muted-foreground">ส่งงานทีละขั้น เมื่อขั้นก่อนเสร็จจึงส่งต่อให้ผู้รับขั้นถัดไป</p>
       {templates && <div className="grid min-w-0 gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
@@ -61,10 +63,11 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
         </div>
         {canEdit ? <label className="min-w-0 text-xs text-muted-foreground">แม่แบบเริ่มต้นของสำนักงาน
           <select aria-label="แม่แบบเริ่มต้นของสำนักงาน" className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-input bg-card px-3 text-sm text-foreground"
-            value={defaultTemplate?.id ?? ''} disabled={savingDefault} onChange={e => void setDefault(e.target.value)}>
+            value={draftDefault ?? defaultTemplate?.id ?? ''} disabled={savingDefault} onChange={e => setDraftDefault(e.target.value)}>
             <option value="">ไม่เลือกแม่แบบให้ล่วงหน้า</option>
             {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
+          {draftDefault !== null && <Button type="button" size="sm" disabled={savingDefault} onClick={() => void setDefault(draftDefault)}>บันทึกค่าเริ่มต้น</Button>}
           {savingDefault && <span role="status" className="mt-1 block">กำลังบันทึกค่าเริ่มต้น…</span>}
         </label> : <p className="self-center break-words text-sm font-medium">{defaultTemplate?.name ?? 'ยังไม่มีแม่แบบเริ่มต้น'}</p>}
       </div>}
@@ -73,7 +76,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
       {visible && !visible.length && <EmptyState
         title={query ? 'ไม่พบสายงานส่งต่อที่ค้นหา' : 'ยังไม่มีแม่แบบ'}
         description={query ? undefined : 'แม่แบบที่สร้างครั้งเดียวใช้ซ้ำได้กับทุกคดี'}
-        action={!query && canEdit ? <Button variant="outline" onClick={() => setEditor('new')}><Plus className="h-4 w-4" aria-hidden />สร้าง Handoff flow</Button> : undefined}
+
       />}
       {visible?.map((t) => (
         <article key={t.id} className="min-w-0 rounded-lg border bg-card p-4">
@@ -89,7 +92,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
             </>}
           </div>
           <details className="group mt-3 border-t pt-2">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm [&::-webkit-details-marker]:hidden">
+            <summary className="disclosure flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm [&::-webkit-details-marker]:hidden">
               <span className="tabular-nums">{t.steps.length} ขั้น · รวม {t.steps.reduce((days, s) => days + s.durationDays, 0)} วันทำการ</span>
               <span className="flex shrink-0 items-center gap-1 text-xs text-primary">ดูขั้นตอน<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden /></span>
             </summary>

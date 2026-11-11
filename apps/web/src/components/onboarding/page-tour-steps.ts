@@ -87,10 +87,10 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'main h1', title: 'การใช้งาน AI', body: 'ติดตามว่าใครในทีมเรียกใช้ฟีเจอร์ AI มากน้อยแค่ไหน', placement: 'right' },
   ],
   '/sops': [
-    { selector: 'placeholder:ค้นหา SOP', title: 'SOP / คู่มือการทำงาน', body: 'คลังขั้นตอนมาตรฐานของสำนักงาน ค้นหาได้จากตรงนี้', placement: 'bottom' },
+    { selector: 'placeholder:ค้นหาคู่มือ', title: 'คู่มือการทำงาน', body: 'คลังขั้นตอนมาตรฐานของสำนักงาน ค้นหาได้จากตรงนี้', placement: 'bottom' },
   ],
   '/playbooks': [
-    { selector: 'main h1', title: 'Playbooks', body: 'กำหนดชุดงานมาตรฐานของคดีแต่ละประเภท แล้วนำไปใช้ตอนเปิดคดีใหม่ได้', placement: 'right' },
+    { selector: 'main h1', title: 'ชุดงานอัตโนมัติ', body: 'กำหนดชุดงานมาตรฐานของคดีแต่ละประเภท แล้วนำไปใช้ตอนเปิดคดีใหม่ได้', placement: 'right' },
   ],
   '/operations': [
     { selector: 'main h1', title: 'ภาระงานทีม', body: 'ดูภาระงานของทุกคนในทีม แล้วมอบหมายงานเพิ่มให้สมดุลได้จากหน้านี้', placement: 'right' },
@@ -106,7 +106,7 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'placeholder:เลขเคลม', title: 'รับเรื่องใหม่', body: 'กรอกหัวข้อเรื่องและวางข้อความจากอีเมล/แชทของลูกค้า ระบบช่วยสรุปข้อเท็จจริงให้', placement: 'right' },
   ],
   '/intake/portal-submissions': [
-    { selector: 'main h1', title: 'เรื่องจาก Customer Portal', body: 'คำขอที่ลูกค้ากรอกเข้ามาเองผ่าน Client Portal ตรวจแล้วแปลงเป็นเรื่องรับเข้าได้', placement: 'right' },
+    { selector: 'main h1', title: 'เรื่องจากพอร์ทัลลูกความ', body: 'ตรวจคำขอที่ลูกความส่งผ่านพอร์ทัลก่อนรับเข้าเป็นคดี', placement: 'right' },
   ],
   '/email-intake': [
     { selector: 'main h1', title: 'รับเรื่องจากอีเมล', body: 'อีเมลที่ดึงมาจากกล่องที่เชื่อมต่อไว้ AI ช่วยเสนอข้อมูลคดีให้ตรวจสอบก่อนรับเข้า', placement: 'right' },
