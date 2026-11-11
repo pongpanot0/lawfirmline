@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, type CaseListItem, type OutlookFolderRow } from '@/lib/api';
 import { defaultFolderCaseId } from '@/lib/case-email';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -18,6 +19,7 @@ type Notice = { type: 'success' | 'error'; text: string } | null;
 /** ตั้งค่า → Microsoft 365 → จับคู่ folder: nothing links until "ยืนยัน". */
 export default function OutlookFolderMatchPage() {
   const { token } = useAuth();
+  const [connections, setConnections] = useState<Awaited<ReturnType<typeof api.getOutlookConnections>> | null>(null);
   const [folders, setFolders] = useState<OutlookFolderRow[] | null>(null);
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [loadError, setLoadError] = useState('');
@@ -29,6 +31,9 @@ export default function OutlookFolderMatchPage() {
     if (!token) return;
     setLoadError('');
     try {
+      const accounts = await api.getOutlookConnections(token);
+      setConnections(accounts);
+      if (!accounts.some((account) => account.status === 'ACTIVE')) { setFolders(null); return; }
       const [folderRows, caseList] = await Promise.all([
         api.getOutlookFolders(token),
         api.getCases(token).catch(() => [] as CaseListItem[]),
@@ -100,10 +105,15 @@ export default function OutlookFolderMatchPage() {
         />
       </div>
 
+      {connections && <div className="rounded-xl border border-l-4 border-l-[var(--color-brass)] bg-[var(--operations-highlight)] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{connections.some((account) => account.status === 'ACTIVE') ? 'เชื่อม Microsoft 365 แล้ว' : 'เชื่อม Microsoft 365'}</p><p className="text-sm text-muted-foreground">{connections.find((account) => account.status === 'ACTIVE')?.mailboxAddress ?? 'เชื่อมบัญชีเพื่อจับคู่โฟลเดอร์กับคดี'}</p></div>
+        {!connections.some((account) => account.status === 'ACTIVE') && <Button onClick={async () => { if (!token) return; try { window.location.href = (await api.getOutlookConnectUrl(token)).url; } catch (e) { setLoadError(e instanceof Error ? e.message : 'เริ่มการเชื่อมต่อไม่สำเร็จ'); } }}>เชื่อมต่อ</Button>}</div>
+      </div>}
+      {connections?.some((account) => account.status === 'ACTIVE') && <>
       <Tabs value={matchTab} onValueChange={(v) => setMatchTab(v as 'outlook' | 'drive')}>
-        <TabsList>
-          <TabsTrigger value="outlook">Outlook</TabsTrigger>
-          <TabsTrigger value="drive">OneDrive / SharePoint</TabsTrigger>
+        <TabsList className="flex flex-nowrap rounded-lg bg-card">
+          <TabsTrigger className="flex-1" value="outlook">Outlook</TabsTrigger>
+          <TabsTrigger className="flex-1" value="drive">OneDrive / SharePoint</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -130,6 +140,8 @@ export default function OutlookFolderMatchPage() {
           </CardContent>
         </Card>
       )}
+      </>}
+      {loadError && (!connections || !connections.some((account) => account.status === 'ACTIVE')) && <LoadFailed message={loadError} onRetry={load} />}
     </div>
   );
 }

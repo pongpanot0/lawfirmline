@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { Bell, Key, Building2, Sparkles, Copy, ExternalLink, Shield, Tags, Timer, CalendarOff, Scale, History, Mail, ChevronRight, FolderSync, Rocket, Zap } from 'lucide-react';
+import { Bell, Building2, UserRound, Link2, Copy, ExternalLink, Shield, Tags, Timer, CalendarOff, Scale, History, Mail, ChevronRight, FolderSync, Rocket, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, getStoredToken } from '@/lib/auth';
@@ -61,7 +61,6 @@ function SettingsContent() {
   ];
   const requested = searchParams.get('view');
   const view: SettingsView = views.some((v) => v.key === requested) ? (requested as SettingsView) : 'profile';
-  const viewLabel = views.find((v) => v.key === view)!.label;
   const setView = (next: string) => router.replace(next === 'profile' ? '/settings' : `/settings?view=${next}`, { scroll: false });
   const [lineStatus, setLineStatus] = useState<LineIntegrationStatus | null>(null);
   const [linePersonal, setLinePersonal] = useState<LinePersonalStatus | null>(null);
@@ -224,11 +223,14 @@ function SettingsContent() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <p className="mb-1 text-sm text-muted-foreground">{d.settings.title}</p>
-      <PageHeader title={viewLabel} />
+      <PageHeader title={d.settings.title} description="บัญชีของคุณ การแจ้งเตือน ความปลอดภัย และการเชื่อมต่อ" />
+      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-xl border border-l-4 border-l-[var(--color-brass)] bg-[var(--operations-highlight)] p-5">
+        <div className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground">{user?.firstName?.slice(0, 1)}{user?.lastName?.slice(0, 1)}</div>
+        <div><p className="font-semibold">{user?.firstName} {user?.lastName}</p><p className="text-sm text-muted-foreground">{user?.email}</p>{hasOffice && <Link href="/team" className="text-sm underline">จัดการทีม</Link>}</div>
+      </div>
       <Tabs value={view} onValueChange={setView} className="mb-6">
-        <TabsList>
-          {views.map((v) => <TabsTrigger key={v.key} value={v.key}>{v.label}</TabsTrigger>)}
+        <TabsList className="grid grid-cols-2 gap-0 rounded-lg bg-card sm:flex sm:flex-nowrap">
+          {views.map((v) => { const Icon = { profile: UserRound, notifications: Bell, security: Shield, integrations: Link2, office: Building2 }[v.key]; return <TabsTrigger className="min-w-0 gap-2 whitespace-normal sm:flex-1" key={v.key} value={v.key}><Icon className="size-4 shrink-0" aria-hidden />{v.label}</TabsTrigger>; })}
         </TabsList>
       </Tabs>
 
@@ -247,7 +249,7 @@ function SettingsContent() {
               hint="ใส่ท้ายอีเมลที่ส่งจากคดี เลือกไม่แนบได้ทุกครั้ง"
               rows={5}
               maxLength={2000}
-              placeholder={'สมชาย ใจดี\nทนายความ\nสำนักงานกฎหมาย ตัวอย่าง จำกัด\nโทร 02-123-4567'}
+              placeholder="เช่น สมชาย ใจดี · ทนายความ"
               value={signature}
               onChange={(e) => { setSignature(e.target.value); setSigState('idle'); }}
             />
@@ -402,30 +404,9 @@ function SettingsContent() {
             <MicrosoftAccountsSection>
               <Link href="/settings/outlook-folders" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-primary hover:underline">
                 <FolderSync className="h-4 w-4" aria-hidden />
-                จับคู่ folder Outlook / OneDrive กับคดี
+                จับคู่โฟลเดอร์ Outlook / OneDrive กับคดี
               </Link>
             </MicrosoftAccountsSection>
-            {[
-              { icon: Building2, name: d.settings.googleMapsName, desc: d.settings.googleMapsDesc, status: d.settings.optional },
-              { icon: Sparkles, name: d.settings.openAiName, desc: d.settings.openAiDesc, status: d.settings.demoMode },
-              { icon: Key, name: d.settings.apiKeysName, desc: d.settings.apiKeysDesc, status: d.settings.adminOnly },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.name} className="border-t pt-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.desc}</p>
-                      </div>
-                    </div>
-                    <Badge variant="muted">{item.status}</Badge>
-                  </div>
-                </div>
-              );
-            })}
           </CardContent>
         </Card>
       )}

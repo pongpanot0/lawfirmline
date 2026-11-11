@@ -78,7 +78,7 @@ export function SessionsPanel() {
               <div className="flex items-center gap-2.5 overflow-hidden">
                 <Laptop2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 <div className="overflow-hidden">
-                  <p className="truncate text-xs font-medium">{s.userAgent ?? d.settings.sessionsUnknownDevice}</p>
+                  <p className="truncate text-xs font-medium">{s.userAgent ? (/Edg\//.test(s.userAgent) ? 'Edge' : /Chrome\//.test(s.userAgent) ? 'Chrome' : /Firefox\//.test(s.userAgent) ? 'Firefox' : /Safari\//.test(s.userAgent) ? 'Safari' : d.settings.sessionsUnknownDevice) : d.settings.sessionsUnknownDevice}</p>
                   <p className="text-xs tabular-nums text-muted-foreground">
                     {d.settings.sessionsLastActive} {new Date(s.lastUsedAt).toLocaleString()}
                   </p>

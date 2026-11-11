@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, MoreHorizontal } from 'lucide-react';
 import {
   COURT_EVENT_KIND_LABELS,
   COURT_LEVEL_LABELS,
@@ -87,6 +87,9 @@ export default function DeadlineRulesPage() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [tab, setTab] = useState<'active' | 'inactive' | 'custom'>('active');
+  const [undo, setUndo] = useState<{ label: string; wasActive: boolean; action: () => Promise<unknown> } | null>(null);
+  useEffect(() => { if (!undo) return; const timer = setTimeout(() => setUndo(null), 10000); return () => clearTimeout(timer); }, [undo]);
 
   const load = () => {
     if (!token) return;
@@ -119,16 +122,25 @@ export default function DeadlineRulesPage() {
     }
   };
 
-  /** `viaOverride`: a global rule seen from the firm table is switched by an override, never edited in place. */
-  const toggle = (rule: DeadlineRuleItem, viaOverride: boolean) =>
-    window.confirm(rule.isActive
+  const toggle = async (rule: DeadlineRuleItem, viaOverride: boolean) => {
+    if (!token || busy || !window.confirm(rule.isActive
       ? `ปิดกฎ "${rule.label}" สำหรับทั้งสำนักงาน?\nคดีต่อจากนี้จะไม่ได้วันครบกำหนดจากกฎนี้ เปิดกลับได้ภายหลัง`
-      : `เปิดกฎ "${rule.label}" สำหรับทั้งสำนักงาน?\nคดีต่อจากนี้จะได้วันครบกำหนดจากกฎนี้`) &&
-    run(() =>
-      viaOverride
-        ? api.createDeadlineRule(token!, payload(fromRule(rule, { isActive: !rule.isActive })))
-        : api.updateDeadlineRule(token!, rule.id, { isActive: !rule.isActive }),
-    );
+      : `เปิดกฎ "${rule.label}" สำหรับทั้งสำนักงาน?\nคดีต่อจากนี้จะได้วันครบกำหนดจากกฎนี้`)) return;
+    setBusy(true);
+    setError('');
+    try {
+      if (viaOverride) {
+        const created = await api.createDeadlineRule(token, payload(fromRule(rule, { isActive: !rule.isActive })));
+        setUndo({ label: rule.label, wasActive: rule.isActive, action: () => api.deleteDeadlineRule(token, created.id) });
+      } else {
+        await api.updateDeadlineRule(token, rule.id, { isActive: !rule.isActive });
+        setUndo({ label: rule.label, wasActive: rule.isActive, action: () => api.updateDeadlineRule(token, rule.id, { isActive: rule.isActive }) });
+      }
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.saveFailed);
+    } finally { setBusy(false); }
+  };
 
   const remove = (rule: DeadlineRuleItem) => {
     if (window.confirm(`${t.confirmDelete}\n${rule.label}`)) run(() => api.deleteDeadlineRule(token!, rule.id));
@@ -147,26 +159,24 @@ export default function DeadlineRulesPage() {
   const row = (rule: DeadlineRuleItem, origin: RuleOrigin | null) => {
     const fromGlobal = origin === 'GLOBAL';
     return (
-    <li key={rule.id} className="flex flex-wrap items-center gap-2 py-3">
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-foreground">
-          {rule.label}
-          {origin && <Badge variant="muted" className="ml-2 align-middle">{t.origin[origin]}</Badge>}
-          {!rule.isActive && <Badge variant="muted" className="ml-2 align-middle">{t.inactive}</Badge>}
-        </p>
-        <p className="text-xs text-muted-foreground">{describe(rule)}</p>
+    <li key={rule.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4 sm:rounded-none sm:border-0 sm:border-b">
+      <div className="min-w-0 flex-1 basis-full sm:basis-auto">
+        <div className="font-semibold text-foreground">{rule.label} {origin && <Badge variant="muted" className="ml-2 align-middle">{t.origin[origin]}</Badge>}</div>
+        <p className="mt-1 text-sm text-muted-foreground">{describe(rule)}</p>
       </div>
-      {fromGlobal && (
-        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setForm(fromRule(rule))}>{t.customize}</Button>
-      )}
-      <Button type="button" size="sm" variant="outline" disabled={busy} aria-pressed={rule.isActive} onClick={() => toggle(rule, fromGlobal)}>
-        {rule.isActive ? t.disableForFirm : t.enableForFirm}
-      </Button>
-      {rule.canEdit && !fromGlobal && (
-        <Button type="button" size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busy} aria-label={origin === 'OVERRIDE' ? `${t.revert}: ${rule.label}` : `ลบ ${rule.label}`} onClick={() => remove(rule)}>
-          {origin === 'OVERRIDE' ? t.revert : <Trash2 className="size-4" aria-hidden />}
-        </Button>
-      )}
+      <div className="flex w-full items-center justify-between gap-3 border-t pt-3 sm:w-auto sm:border-0 sm:pt-0">
+        <button type="button" role="switch" aria-checked={rule.isActive} aria-label={rule.label} disabled={busy} onClick={() => void toggle(rule, fromGlobal)} className="flex min-h-11 items-center gap-2 text-sm">
+          <span className={`relative h-7 w-12 rounded-full ${rule.isActive ? 'bg-primary' : 'bg-muted-foreground'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white ${rule.isActive ? 'right-1' : 'left-1'}`} /></span>
+          {rule.isActive ? 'ใช้งาน' : 'ปิดอยู่'}
+        </button>
+        {(fromGlobal || rule.canEdit) && <details className="relative">
+          <summary className="disclosure flex min-h-11 min-w-11 cursor-pointer items-center justify-center" aria-label={`จัดการ ${rule.label}`}><MoreHorizontal className="size-5" /></summary>
+          <div className="absolute right-0 z-10 w-56 rounded-lg border bg-card p-2 shadow-lg">
+            {fromGlobal && <button type="button" className="w-full p-2 text-left text-sm hover:bg-muted" onClick={() => setForm(fromRule(rule))}>ปรับใช้กับสำนักงาน</button>}
+            {rule.canEdit && !fromGlobal && <button type="button" className="w-full p-2 text-left text-sm hover:bg-muted" onClick={() => remove(rule)}>{origin === 'OVERRIDE' ? 'กลับไปใช้กฎกลาง' : 'ลบ'}</button>}
+          </div>
+        </details>}
+      </div>
     </li>
     );
   };
@@ -257,8 +267,13 @@ export default function DeadlineRulesPage() {
         </Card>
       )}
 
+      <div className="mb-4 rounded-lg border-l-4 border-[var(--color-brass)] bg-[var(--operations-highlight)] p-4 text-sm">สำนักงานใช้กฎ {rows.filter(({ rule }) => rule.isActive).length} ข้อ · ปิดอยู่ {rows.filter(({ rule }) => !rule.isActive).length} · ปรับเองโดยสำนักงาน {rows.filter(({ origin }) => origin !== 'GLOBAL').length}<p className="mt-1 text-muted-foreground">การปิดหรือเปิดกฎมีผลกับคดีใหม่ทั้งสำนักงาน ระบบจะถามยืนยันก่อนทุกครั้ง และย้อนกลับได้ภายใน 10 วินาที</p></div>
+      <div className="mb-4 grid grid-cols-3 rounded-lg border bg-card p-1">
+        {([['active', 'ใช้งาน', rows.filter(({ rule }) => rule.isActive).length], ['inactive', 'ปิดอยู่', rows.filter(({ rule }) => !rule.isActive).length], ['custom', 'ปรับเองโดยสำนักงาน', rows.filter(({ origin }) => origin !== 'GLOBAL').length]] as const).map(([key, label, count]) => <button key={key} type="button" aria-pressed={tab === key} onClick={() => setTab(key)} className={`min-h-11 rounded p-2 text-sm ${tab === key ? 'border-b-2 border-primary bg-muted font-semibold' : 'text-muted-foreground'}`}>{label} <span>{count}</span></button>)}
+      </div>
+      {undo && <div role="status" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-primary p-4 text-primary-foreground">{undo.wasActive ? 'ปิด' : 'เปิด'}กฎ “{undo.label}” แล้ว <button type="button" className="underline" disabled={busy} onClick={() => { const action = undo.action; setUndo(null); void run(action); }}>เลิกทำ</button></div>}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="p-0">
           {loadError ? (
             <LoadFailed onRetry={load} />
           ) : loading ? (
@@ -266,7 +281,7 @@ export default function DeadlineRulesPage() {
           ) : rows.length === 0 ? (
             <InlineEmptyState title={t.empty} description="กฎที่ตั้งไว้ใช้คำนวณวันครบกำหนดตามเหตุการณ์ของคดี" action={<Button size="sm" variant="outline" onClick={() => setForm(EMPTY)}><Plus className="h-4 w-4" aria-hidden />{t.add}</Button>} />
           ) : (
-            <ul className="divide-y divide-border">{rows.map(({ rule, origin }) => row(rule, origin))}</ul>
+            <ul className="space-y-3 sm:space-y-0">{rows.filter(({ rule, origin }) => tab === 'active' ? rule.isActive : tab === 'inactive' ? !rule.isActive : origin !== 'GLOBAL').map(({ rule, origin }) => row(rule, origin))}</ul>
           )}
         </CardContent>
       </Card>
