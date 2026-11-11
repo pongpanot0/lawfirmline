@@ -1,26 +1,24 @@
 'use client';
 
+import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import { CasePlaybook } from './CasePlaybook';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, List, Kanban, SlidersHorizontal, ListPlus } from 'lucide-react';
 import { canDelegateTask, isEligibleReviewer, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseDetail, TaskItem, UserItem, WorkloadSummary } from '@/lib/api';
 import { workloadLabel } from '@/lib/workload-label';
-import { caseStageLabel, caseStageOptions } from '@/lib/stage-labels';
-import { taskStageGroups } from './task-stage-groups';
+import { caseStageOptions } from '@/lib/stage-labels';
 import { KanbanBoard } from '@/components/KanbanBoard';
-import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
+import { useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
 import { useTaskParam } from '@/components/tasks/useTaskParam';
 import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
-import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
-import { Button } from '@/components/ui/button';
+import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, TaskFilters } from '@/lib/task-filters';
 import { UndoToast, type UndoAction } from '@/components/ui/UndoToast';
 import { CaseTaskListV2 } from '@/components/case-page/CaseTaskListV2';
 import v2 from '@/components/case-page/v2.module.css';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
@@ -62,8 +60,9 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
   const taskParam = useTaskParam();
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
   const visibleTasks = applyTaskFilters(tasks, filters);
-  const filtering = hasActiveTaskFilters(filters);
-  const stageGroups = taskStageGroups(visibleTasks, caseDetail?.stage);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showSop, setShowSop] = useState(false);
+  const filterCount = Object.values(filters).filter(Boolean).length;
   const newTaskDate = newDueDate || bangkokDateInputValue(new Date());
   const newTaskLeaveFlags = useLeaveFlags(token, newTaskDate);
 
@@ -209,12 +208,16 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
     <div>
       <UndoToast action={undo} onDismiss={() => setUndo(null)} />
       {loadError ? <LoadFailed message={loadError} onRetry={loadTasks} /> : <CaseTaskListV2
-        tasks={tasks}
+        tasks={visibleTasks}
         currentStage={caseDetail?.stage}
         userId={user?.id}
         onToggle={(task) => void handleStatusChange(task.id, task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE)}
         onOpen={taskParam.open}
         onAdd={() => setShowForm(true)}
+        onSkip={async (task, reason) => { if (!token) throw new Error('กรุณาเข้าสู่ระบบ'); await api.skipJourneyTask(token, task.id, reason); loadTasks(); }}
+        controls={<><div role="group" aria-label="มุมมองงาน" className="grid grid-cols-2 rounded-lg border border-[#c9ccc6] bg-white p-0.5 text-sm font-semibold">{([{ value: 'list', label: 'รายการ', Icon: List }, { value: 'board', label: 'บอร์ด', Icon: Kanban }] as const).map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={layout === value} onClick={() => setLayout(value)} className={`inline-flex items-center gap-1 rounded-md px-3 py-2 ${layout === value ? 'bg-[#142e43] text-white' : 'text-[#52616b]'}`}><Icon aria-hidden="true" className="h-4 w-4" />{label}</button>)}</div><button type="button" aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)} className={`${v2.btn} ${v2.outline}`}><SlidersHorizontal aria-hidden="true" className="h-4 w-4" />ตัวกรอง{filterCount ? ` (${filterCount})` : ''}</button><button type="button" aria-expanded={showSop} onClick={() => setShowSop(!showSop)} className={`${v2.btn} ${v2.outline}`}><ListPlus aria-hidden="true" className="h-4 w-4" />ใช้ SOP</button></>}
+        panels={<>{showFilters && <Card><CardContent className="p-3"><TaskFilterBar value={filters} onChange={setFilters} users={users} labels={collectTaskLabels(tasks)} statuses={[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.PENDING_REVIEW, TaskStatus.NEEDS_REVISION, TaskStatus.DONE]} shown={visibleTasks.length} total={tasks.length} /></CardContent></Card>}{showSop && <CasePlaybook caseId={caseId} caseTypeId={caseDetail?.caseType?.id} initialReleaseId={searchParams.get('sop') ?? ''} onApplied={loadTasks} />}</>}
+        board={layout === 'board' ? (shown) => <KanbanBoard layout="board" tasks={shown} onStatusChange={handleStatusChange} currentUserId={user?.id ?? ''} caseLeadId={caseDetail?.leadLawyer?.id ?? null} currentUserRole={user?.firmRole} enableHandoff reviewerName={reviewerName} onHandoff={handleHandoff} onAccept={handleAccept} onReject={handleReject} onOpen={taskParam.open} /> : undefined}
       />}
 
       {error && !showForm && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
@@ -275,7 +278,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                   <p className={v2.hint}>คนที่เลือกจะได้รับแจ้งเตือนทันที</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <label className="block" htmlFor="case-task-due"><span className={v2.flabel}>ครบกำหนด</span><input id="case-task-due" type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} className={`${v2.field} text-base sm:text-[15px]`} /></label>
+                  <label className="block" htmlFor="case-task-due"><span className={v2.flabel}>ครบกำหนด</span><ThaiDateField id="case-task-due" value={newDueDate} onChange={setNewDueDate} /></label>
                   <label className="block" htmlFor="case-task-stage"><span className={v2.flabel}>อยู่ในขั้น</span><select id="case-task-stage" value={newStage ?? caseDetail?.stage ?? ''} onChange={(e) => setNewStage(e.target.value)} className={`${v2.field} text-base sm:text-[15px]`}><option value="">ไม่ผูกกับขั้น</option>{caseStageOptions('th').map((option) => <option key={option.value} value={option.value}>{option.label}{option.value === caseDetail?.stage ? ' (ขั้นปัจจุบัน)' : ''}</option>)}</select></label>
                 </div>
                 <p className={`${v2.hint} rounded-lg bg-[#f3f1ea] p-3`}>งานในขั้นปัจจุบันต้องเสร็จก่อนจึงย้ายคดีไปขั้นถัดไปได้ — ถ้าเป็นงานที่ไม่บังคับ ให้เลือกขั้น “ไม่ผูกกับขั้น”</p>
@@ -340,68 +343,6 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
         </div>
       )}
 
-      <details className={`${v2.card} mt-5`}>
-        <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">เครื่องมือเพิ่มเติม <span className={v2.label}>· SOP · มุมมองบอร์ด · ตัวกรองละเอียด · สายงานส่งต่อ</span></summary>
-        <div className="space-y-4 border-t border-[#e2e0d8] p-5">
-          <div className="flex flex-wrap items-center gap-2"><TaskViewToggle layout={layout} onChange={setLayout} /></div>
-      <div><CasePlaybook caseId={caseId} caseTypeId={caseDetail?.caseType?.id} initialReleaseId={searchParams.get('sop') ?? ''} onApplied={loadTasks} /></div>
-      <Card className="mb-4">
-        <CardContent className="p-3">
-          <TaskFilterBar
-            value={filters}
-            onChange={setFilters}
-            users={users}
-            labels={collectTaskLabels(tasks)}
-            statuses={[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.PENDING_REVIEW, TaskStatus.NEEDS_REVISION, TaskStatus.DONE]}
-            shown={visibleTasks.length}
-            total={tasks.length}
-          />
-        </CardContent>
-      </Card>
-
-      <>
-      {filtering && visibleTasks.length === 0 && (
-        <p role="status" className="mb-3 text-sm text-muted-foreground">{d.todos.noMatches}</p>
-      )}
-      {layout === 'board' || visibleTasks.length === 0 ? (() => { const groupTasks = visibleTasks; return (
-      <KanbanBoard
-        layout={layout}
-        tasks={groupTasks}
-        onStatusChange={handleStatusChange}
-        currentUserId={user?.id ?? ''}
-        caseLeadId={caseDetail?.leadLawyer?.id ?? null}
-        currentUserRole={user?.firmRole}
-        enableHandoff
-        reviewerName={reviewerName}
-        onHandoff={handleHandoff}
-        onAccept={handleAccept}
-        onReject={handleReject}
-        onOpen={taskParam.open}
-      />
-      ); })() : stageGroups.map(([stage, groupTasks]) => {
-        const finished = stage !== caseDetail?.stage && groupTasks.every((task) => task.status === TaskStatus.DONE);
-        return <details key={stage || 'unassigned'} open={!finished} className="mb-3 rounded-lg border bg-card p-4">
-          <summary className="min-h-11 cursor-pointer font-semibold">{stage ? caseStageLabel(stage, 'th') : 'งานที่ไม่ได้ระบุขั้น'} {finished && ` (เสร็จแล้ว ${groupTasks.length} งาน) · แสดงรายละเอียด`}</summary>
-      <KanbanBoard
-        layout={layout}
-        tasks={groupTasks}
-        onStatusChange={handleStatusChange}
-        currentUserId={user?.id ?? ''}
-        caseLeadId={caseDetail?.leadLawyer?.id ?? null}
-        currentUserRole={user?.firmRole}
-        enableHandoff
-        reviewerName={reviewerName}
-        onHandoff={handleHandoff}
-        onAccept={handleAccept}
-        onReject={handleReject}
-        onOpen={taskParam.open}
-      />
-        </details>;
-      })}
-
-      </>
-        </div>
-      </details>
       <TaskDetailDrawer
         taskId={taskParam.taskId}
         users={users}

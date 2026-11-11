@@ -1,5 +1,6 @@
 'use client';
 
+import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import { AlertTriangle, ArrowRight } from 'lucide-react';
 
 import { useEffect, useRef, useState } from 'react';
@@ -104,7 +105,7 @@ export function StageTasksDialog({
                   {row.checked && <button type="button" onClick={() => setEditing(editing === i ? null : i)} aria-expanded={editing === i} className={`${btn} min-h-9 py-1 text-[.85rem] text-muted-foreground`}>{editing === i ? 'เสร็จ' : 'แก้วันหรือคนทำ'}</button>}
                 </div>
                 {row.checked && editing === i && <div className="mt-2 flex flex-wrap items-center gap-2 pl-8">
-                  <ThaiDateInput value={row.dueDate} onChange={(v) => edit(i, { dueDate: v || null })} />
+                  <ThaiDateField className="w-48" ariaLabel="วันครบกำหนด" value={row.dueDate ?? ''} onChange={(v) => edit(i, { dueDate: v || null })} />
                   <select className="min-h-11 rounded-lg border border-[#c9ccc6] bg-white px-2 text-sm" aria-label="คนทำ" value={row.assigneeId ?? ''} onChange={(e) => edit(i, { assigneeId: e.target.value || null })}>
                     <option value="">ยังไม่มอบหมาย</option>
                     <AssigneeOptions users={lawyers} flags={rowFlags} nameOf={(u) => u.firstName} />

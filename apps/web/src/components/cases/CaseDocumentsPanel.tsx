@@ -4,12 +4,11 @@ import { CaseKnowledgePanel } from '@/components/documents/CaseKnowledgePanel';
 import { CaseDriveSection } from '@/components/cases/CaseDriveSection';
 import { CaseEvidenceSection } from '@/components/cases/CaseEvidenceSection';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Download, Sparkles, CalendarSearch, ClipboardCheck, PenLine, RotateCcw, Check, X, FileText, Upload, Ellipsis, ArrowRight, Image as ImageIcon } from 'lucide-react';
+import { Sparkles, CalendarSearch, ClipboardCheck, RotateCcw, Check, X, FileText, Upload, ArrowRight, Eye, EyeOff, Tag, CloudDownload, CircleAlert, Image as ImageIcon } from 'lucide-react';
+import { DocsRowMenu } from '@/components/case-page/DocsRowMenu';
 import { CaseDocRequestsCard } from '@/components/case-page/CaseDocRequestsCard';
 import v2 from '@/components/case-page/v2.module.css';
-import { Button } from '@/components/ui/button';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry, DocumentOfficeLinkView } from '@/lib/api';
@@ -17,13 +16,10 @@ import { isOfficeEditable, officeAppName, officeEditedHint, openInNewTab } from 
 import { PublishDocumentDialog } from '@/components/documents/PublishDocumentDialog';
 import { TemplateGenerateDrawer } from '@/components/cases/TemplateGenerateDrawer';
 import { PleadingDraftDrawer } from '@/components/cases/PleadingDraftDrawer';
-import { DocumentDropZone } from '@/components/DocumentDropZone';
-import { SideDrawer } from '@/components/ui/SideDrawer';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
-import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { PageLoading } from '@/components/ui/misc';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { fmt } from '@/lib/i18n/dashboard';
 import { documentCategoryLabel } from '@/lib/stage-labels';
 import { DocumentCategory, hasFirmCapability } from '@lawfirm/shared';
 
@@ -50,6 +46,7 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
   const [categoryFilter, setCategoryFilter] = useState('');
   const [allDocs, setAllDocs] = useState<DocumentItem[]>([]);
   const [showAllDocs, setShowAllDocs] = useState(false);
+  const [showDrive, setShowDrive] = useState(false);
   const [managingDocId, setManagingDocId] = useState<string | null>(null);
   type UploadRow = { name: string; status: 'uploading' | 'done' | 'error'; doc?: DocumentItem };
   const [uploadRows, setUploadRowsState] = useState<UploadRow[]>([]);
@@ -301,12 +298,12 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
       {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="min-w-0 space-y-5 lg:col-span-2">
-          <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files?.[0]; if (file) void handleUpload(file); }} className="block cursor-pointer rounded-xl border-2 border-dashed border-[#b9bfb8] bg-white p-6 text-center focus-within:ring-2 focus-within:ring-ring">
+          <div className="rounded-xl border-2 border-dashed border-[#b9bfb8] bg-white p-6 text-center"><label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files?.[0]; if (file) void handleUpload(file); }} className="block cursor-pointer focus-within:ring-2 focus-within:ring-ring">
             <input type="file" className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleUpload(file); e.target.value = ''; }} disabled={uploading} />
             <p className="inline-flex flex-wrap items-center justify-center gap-2 text-lg font-bold"><Upload aria-hidden="true" className="h-[1.1em] w-[1.1em]" />{uploading ? d.caseDocuments.uploading : <>ลากไฟล์มาวางที่นี่ หรือ <span className="underline">เลือกไฟล์</span></>}</p>
-            <p className={v2.hint}>ไฟล์จะเข้าแฟ้มคดีนี้ ระบบช่วยอ่านไฟล์ (เช่น คำให้การ) และเสนอข้อมูลให้กรอกได้</p>
-          </label>
-          <section className={`${v2.card} overflow-hidden shadow-[0_4px_16px_rgba(20,46,67,.06)]`}>
+            <p className={v2.hint}>ไฟล์จะเข้าแฟ้มคดีนี้</p>
+          </label><div className="mt-4 flex flex-wrap justify-center gap-2 border-t border-[#e2e0d8] pt-4"><button type="button" onClick={() => setTemplateDrawerOpen(true)} className={`${v2.btn} ${v2.outline} min-h-0 py-2`}><FileText aria-hidden="true" className="h-[1.1em] w-[1.1em]" />สร้างจากแม่แบบ</button><button type="button" onClick={() => setPleadingDrawerOpen(true)} className={`${v2.btn} ${v2.outline} min-h-0 py-2`}><Sparkles aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ให้ AI ร่างคำคู่ความ</button><button type="button" aria-expanded={showDrive} onClick={() => setShowDrive(!showDrive)} className={`${v2.btn} ${v2.outline} min-h-0 py-2`}><CloudDownload aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ดึงจาก OneDrive</button></div><p className={v2.hint}>แม่แบบใส่ชื่อคู่ความและเลขคดีให้อัตโนมัติ · AI ร่างให้ตรวจก่อน ไม่บันทึกเอง</p></div>
+          <section className={`${v2.card} shadow-[0_4px_16px_rgba(20,46,67,.06)]`}>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e0d8] px-5 py-3"><h3 className="text-lg font-bold">ไฟล์ล่าสุด</h3>
               <div className="flex flex-wrap gap-2 text-sm">
                 <button type="button" aria-pressed={categoryFilter === ''} onClick={() => setCategoryFilter('')} className={`${v2.btn} ${categoryFilter === '' ? v2.primary : v2.outline} min-h-0 py-1.5`}>ทั้งหมด {allDocs.length}</button>
@@ -317,224 +314,32 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
               {shownDocs.map((doc) => <li key={doc.id} className="px-5 py-3.5">
                 <div className="flex flex-wrap items-center gap-4">
                   {typeBadge(doc)}
-                  <div className="min-w-0 flex-1"><b className="break-all">{doc.filename}</b><div className={v2.label}>{[documentCategoryLabel(doc.category ?? 'OTHER', 'th'), doc.uploadedBy ? `${doc.uploadedBy.firstName} ${doc.uploadedBy.lastName}` : doc.uploadedByContact ? `${doc.uploadedByContact.name} (ลูกความ)` : 'ลูกความ', new Date(doc.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })].join(' · ')}</div>
+                  <div className="min-w-0 flex-1"><b className="break-all">{doc.filename}</b><div className={v2.label}>{[documentCategoryLabel(doc.category ?? 'OTHER', 'th'), doc.uploadedBy ? `${doc.uploadedBy.firstName} ${doc.uploadedBy.lastName}` : doc.uploadedByContact ? `${doc.uploadedByContact.name} (ลูกความ)` : 'ลูกความ', new Date(doc.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })].join(' · ')} · {doc.visibleToClient ? <><Eye aria-hidden="true" className="inline h-[1em] w-[1em]" /> ลูกความเห็น</> : <><EyeOff aria-hidden="true" className="inline h-[1em] w-[1em]" /> ลูกความไม่เห็น</>}</div>
                     {officeEditedHint(doc.filename, officeLinks[doc.id]) && <p className="text-xs font-medium text-warning">{officeEditedHint(doc.filename, officeLinks[doc.id])}</p>}</div>
                   <button type="button" onClick={() => handleView(doc)} disabled={viewingId === doc.id} className={`${v2.btn} ${v2.ghost}`}>{viewingId === doc.id ? d.caseDocuments.opening : 'ดู'}</button>
                   <button type="button" onClick={() => handleDownload(doc)} className={`${v2.btn} ${v2.ghost}`}>ดาวน์โหลด</button>
-                  <button type="button" aria-expanded={managingDocId === doc.id} onClick={() => setManagingDocId(managingDocId === doc.id ? null : doc.id)} className={`${v2.btn} ${v2.ghost}`} aria-label={`จัดการ ${doc.filename}`}><Ellipsis aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button>
+                  {isOfficeEditable(doc.filename) && <button type="button" onClick={() => handleOpenInOffice(doc)} className={`${v2.btn} ${v2.ghost}`}>เปิดใน {officeAppName(doc.filename)}</button>}
+                  <DocsRowMenu name={doc.filename} items={[
+                    { label: 'ให้ AI อ่านไฟล์', hint: 'เสนอข้อมูลให้ตรวจก่อนบันทึก', icon: Sparkles, onClick: () => void handleAnalyzeDocument(doc), disabled: analyzingId === doc.id },
+                    { label: 'หาวันนัดในไฟล์', hint: 'เจอแล้วถามก่อนเพิ่มเป็นนัด', icon: CalendarSearch, onClick: () => void handleExtractDatesFromDocument(doc), disabled: extractingId === doc.id },
+                    { label: 'ส่งตรวจ', hint: 'ให้หัวหน้าตรวจเอกสารนี้', icon: ClipboardCheck, onClick: () => { window.location.href = `/cases/${id}/documents/${doc.id}/review`; } },
+                    ...(canManageContent ? [{ label: doc.visibleToClient ? 'ซ่อนจากลูกความ' : 'ให้ลูกความเห็น', hint: 'แสดงในพอร์ทัลของลูกความ', icon: doc.visibleToClient ? EyeOff : Eye, onClick: () => void handleToggleVisibility(doc) }, { label: (publications[doc.id] ?? []).some((p) => !p.unpublishedAt) ? 'ยกเลิกการเผยแพร่' : 'เผยแพร่ให้ลูกความ', hint: 'จัดการผู้รับเอกสาร', icon: Eye, onClick: () => { const active = (publications[doc.id] ?? []).find((p) => !p.unpublishedAt); if (active) void handleUnpublish(doc, active.id); else setPublishTarget(doc); }, disabled: publishingId === doc.id }] : []),
+                    ...(officeLinks[doc.id] ? [{ label: 'ดึงเวอร์ชันล่าสุดกลับ', hint: 'ดึงไฟล์ที่แก้ใน Office กลับเข้าคดี', icon: RotateCcw, onClick: () => void handlePullFromOffice(doc), disabled: officeBusyId === doc.id }] : []),
+                    { label: 'เปลี่ยนหมวด', hint: `ตอนนี้: ${documentCategoryLabel(doc.category ?? 'OTHER', 'th')}`, icon: Tag, onClick: () => setManagingDocId(doc.id) },
+                  ]} />
                 </div>
-                {managingDocId === doc.id && <div className="mt-3 pl-14">
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={doc.category ?? 'OTHER'}
-                  onChange={async (e) => {
-                    if (!token) return;
-                    await api
-                      .updateDocumentCategory(token, id, doc.id, e.target.value || null)
-                      .catch(console.error);
-                    load();
-                  }}
-                  className="min-h-11 rounded-lg border bg-background px-2 py-1 text-xs sm:min-h-8"
-                  aria-label={`ประเภทเอกสาร ${doc.filename}`}
-                  title="ประเภทเอกสาร"
-                >
-                  {DOCUMENT_CATEGORY_VALUES.map((value) => (
-                    <option key={value} value={value}>
-                      {documentCategoryLabel(value, 'th')}
-                    </option>
-                  ))}
-                </select>
-                <span className="hidden text-xs text-muted-foreground sm:inline">{doc.mimeType}</span>
-                <Link
-                  href={`/cases/${id}/documents/${doc.id}/review`}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent"
-                >
-                  <ClipboardCheck aria-hidden="true" className="h-3.5 w-3.5" />
-                  ส่งตรวจ/ผลตรวจ
-                </Link>
-                {isOfficeEditable(doc.filename) && (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenInOffice(doc)}
-                    className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent"
-                  >
-                    <PenLine aria-hidden="true" className="h-3.5 w-3.5" />
-                    เปิดแก้ใน {officeAppName(doc.filename)} ออนไลน์
-                  </button>
-                )}
-                {officeLinks[doc.id] && (
-                  <button
-                    type="button"
-                    onClick={() => handlePullFromOffice(doc)}
-                    disabled={officeBusyId === doc.id}
-                    className={`inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 disabled:opacity-50 ${
-                      officeLinks[doc.id].hasNewerEdits ? 'border-warning/50 bg-warning/10 text-warning' : 'hover:bg-accent'
-                    }`}
-                  >
-                    <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
-                    {officeBusyId === doc.id ? 'กำลังดึง…' : 'ดึงเวอร์ชันล่าสุดกลับ'}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handleAnalyzeDocument(doc)}
-                  disabled={analyzingId === doc.id}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent disabled:opacity-50"
-                >
-                  <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
-                  {analyzingId === doc.id ? d.caseDocuments.analyzing : d.caseDocuments.aiAnalyzer}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleExtractDatesFromDocument(doc)}
-                  disabled={extractingId === doc.id}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent disabled:opacity-50"
-                >
-                  <CalendarSearch aria-hidden="true" className="h-3.5 w-3.5" />
-                  {extractingId === doc.id ? d.caseDocuments.extracting : d.caseDocuments.extractDates}
-                </button>
-                {/* Everyone sees whether the client can see it; only content managers change it. */}
-                {!canManageContent && doc.visibleToClient && (
-                  <span className="inline-flex items-center rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-                    {d.caseDocuments.visibleToClient}
-                  </span>
-                )}
-                {canManageContent && <>
-                <button
-                  type="button"
-                  onClick={() => handleToggleVisibility(doc)}
-                  title="แสดงให้ลูกความเห็น (เผยแพร่)"
-                  className={`inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 ${
-                    doc.visibleToClient
-                      ? 'border-success/30 bg-success/10 text-success'
-                      : 'hover:bg-accent'
-                  }`}
-                >
-                  {doc.visibleToClient ? d.caseDocuments.visibleToClient : d.caseDocuments.hiddenFromClient}
-                </button>
-                {(() => {
-                  const activePub = (publications[doc.id] ?? []).find((p) => !p.unpublishedAt);
-                  return activePub ? (
-                    <button
-                      type="button"
-                      onClick={() => handleUnpublish(doc, activePub.id)}
-                      disabled={publishingId === doc.id}
-                      className="inline-flex items-center gap-1 rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-medium text-success disabled:opacity-50"
-                    >
-                      {publishingId === doc.id ? 'กำลังยกเลิก...' : 'เผยแพร่แล้ว — ยกเลิก'}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setPublishTarget(doc)}
-                      disabled={publishingId === doc.id}
-                      className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent disabled:opacity-50"
-                    >
-                      เผยแพร่ให้ลูกความ...
-                    </button>
-                  );
-                })()}
-                </>}
-                <button
-                  type="button"
-                  onClick={() => handleDownload(doc)}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium sm:min-h-8 hover:bg-accent"
-                >
-                  <Download aria-hidden="true" className="h-3.5 w-3.5" />
-                  {d.caseDocuments.download}
-                </button>
-              </div>
-                </div>}
+                {managingDocId === doc.id && <select aria-label={`ประเภทเอกสาร ${doc.filename}`} value={doc.category ?? 'OTHER'} onChange={async (e) => { if (!token) return; try { await api.updateDocumentCategory(token, id, doc.id, e.target.value || null); setManagingDocId(null); load(); } catch (err) { setError(err instanceof Error ? err.message : 'เปลี่ยนหมวดไม่สำเร็จ'); } }} className={`${v2.field} mt-3`}>{DOCUMENT_CATEGORY_VALUES.map((value) => <option key={value} value={value}>{documentCategoryLabel(value, 'th')}</option>)}</select>}
               </li>)}
             </ul>}
             {documents.length > 10 && <button type="button" onClick={() => setShowAllDocs((v) => !v)} className="flex w-full items-center gap-1 border-t border-[#e2e0d8] px-5 py-3 text-sm font-semibold underline">{showAllDocs ? 'แสดงเฉพาะไฟล์ล่าสุด' : <>ดูไฟล์ทั้งหมด ({documents.length}) <ArrowRight aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></>}</button>}
           </section>
+          {showDrive && <section className={`${v2.card} p-5`}><CaseDriveSection caseId={id} onImported={load} newFolderName={newFolderName} /></section>}
         </div>
-        {token && <div><CaseDocRequestsCard token={token} caseId={id} /></div>}
+        <div className="space-y-5">{requiredDocs && requiredDocs.required.length > 0 && <section className={`${v2.card} p-5 shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><h3 className="text-lg font-bold">เอกสารที่ต้องมี</h3><p className={v2.hint}>ตามประเภทคดี</p><ul className="mt-3 space-y-2 text-sm">{requiredDocs.required.map((item) => <li key={item.category} className={`flex items-center gap-2 ${item.present ? 'text-[#227052]' : 'font-semibold text-[#6b4f0b]'}`}>{item.present ? <Check aria-hidden="true" className="h-[1.1em] w-[1.1em]" /> : <CircleAlert aria-hidden="true" className="h-[1.1em] w-[1.1em]" />}{documentCategoryLabel(item.category, 'th')}{!item.present && ' — ยังไม่มี'}</li>)}</ul></section>}{token && <CaseDocRequestsCard token={token} caseId={id} />}</div>
       </div>
-      <details className={`${v2.card} mt-5`}>
-        <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">เครื่องมือเพิ่มเติม <span className={v2.label}>· เอกสารที่ต้องมีตามประเภทคดี · สร้างจากแม่แบบ · AI ร่างคำคู่ความ · OneDrive · พยานหลักฐาน</span></summary>
-        <div className="space-y-5 border-t border-[#e2e0d8] p-5">
-      {requiredDocs && requiredDocs.required.length > 0 && (
-        <div
-          className={`mb-6 rounded-xl border p-4 ${
-            requiredDocs.missing.length
-              ? 'border-warning/40 bg-warning/5'
-              : 'border-success/40 bg-success/5'
-          }`}
-        >
-          <p className="mb-2 text-sm font-semibold">
-            เอกสารที่ต้องมีตามประเภทคดี{' '}
-            {requiredDocs.missing.length
-              ? `— ขาดอีก ${requiredDocs.missing.length} รายการ`
-              : '— ครบแล้ว'}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {requiredDocs.required.map((item) => (
-              <span
-                key={item.category}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${
-                  item.present
-                    ? 'border-success/40 text-success'
-                    : 'border-warning/50 font-medium text-warning'
-                }`}
-              >
-                {item.present
-                  ? <Check aria-hidden="true" className="h-3.5 w-3.5" />
-                  : <X aria-hidden="true" className="h-3.5 w-3.5" />}
-                <span className="sr-only">{item.present ? 'มีแล้ว: ' : 'ยังขาด: '}</span>
-                {documentCategoryLabel(item.category, 'th')}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      <DateSuggestionsPanel
-        caseId={id}
-        sources={['DOCUMENT', 'EMAIL']}
-        title={d.dateSuggestions.documentTitle}
-        reloadKey={suggestionsKey}
-        onChanged={onChanged}
-      />
-      <div className="mb-6 rounded-xl border bg-card p-6">
-        <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.templates}</h2>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setTemplateDrawerOpen(true)}>
-            <FileText aria-hidden="true" className="h-4 w-4" />
-            สร้างเอกสารจากแม่แบบ
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setPleadingDrawerOpen(true)}>
-            <Sparkles aria-hidden="true" className="h-4 w-4" />
-            AI ร่างคำคู่ความ
-          </Button>
-        </div>
-      </div>
-
-      {token && (
-        <TemplateGenerateDrawer
-          open={templateDrawerOpen}
-          onClose={() => setTemplateDrawerOpen(false)}
-          token={token}
-          caseId={id}
-          templates={templates}
-          onGenerated={load}
-        />
-      )}
-
-      {token && (
-        <PleadingDraftDrawer
-          open={pleadingDrawerOpen}
-          onClose={() => setPleadingDrawerOpen(false)}
-          token={token}
-          caseId={id}
-          onGenerated={load}
-        />
-      )}
-      <CaseDriveSection caseId={id} onImported={load} newFolderName={newFolderName} />
-      <CaseEvidenceSection caseId={id} refreshKey={analysisRevision} />
-      <CaseKnowledgePanel caseId={id} refreshKey={analysisRevision} />
-        </div>
-      </details>
+      <div className="mt-5 space-y-5"><CaseEvidenceSection caseId={id} refreshKey={analysisRevision} /><CaseKnowledgePanel caseId={id} refreshKey={analysisRevision} /><DateSuggestionsPanel caseId={id} sources={['DOCUMENT', 'EMAIL']} title={d.dateSuggestions.documentTitle} reloadKey={suggestionsKey} onChanged={onChanged} /></div>
+      {token && <TemplateGenerateDrawer open={templateDrawerOpen} onClose={() => setTemplateDrawerOpen(false)} token={token} caseId={id} templates={templates} onGenerated={load} />}
+      {token && <PleadingDraftDrawer open={pleadingDrawerOpen} onClose={() => setPleadingDrawerOpen(false)} token={token} caseId={id} onGenerated={load} />}
       {preview && (
         <DocumentPreviewModal
           filename={preview.filename}

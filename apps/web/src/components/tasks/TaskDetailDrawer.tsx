@@ -382,31 +382,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
 
             <section className="grid gap-3 sm:grid-cols-2">
               <div>
-                <SelectField label={d.taskDetail.status} id="td-status" value={task.status} disabled={busy || pendingReview} onChange={(e) => patch({ status: e.target.value })}>
-                  {([...new Set([task.status, ...statusOptions])]).map((s) => (
-                    <option key={s} value={s}>{statusLabel[s]}</option>
-                  ))}
-                </SelectField>
-              </div>
-              <div>
-                <span className={label}>{d.taskDetail.priority}</span>
-                <div className="mt-1 flex gap-1">
-                  {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      disabled={busy}
-                      aria-pressed={task.priority === p}
-                      onClick={() => task.priority !== p && patch({ priority: p })}
-                      className={`rounded-full border px-3 py-1 text-xs ${task.priority === p ? (p === TaskPriority.HIGH ? 'border-rose-500 bg-rose-500/10 text-rose-600' : 'border-primary bg-primary/10 text-primary') : 'border-border text-muted-foreground hover:bg-muted'}`}
-                    >
-                      {priorityLabel(d, p)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <SelectField label={d.taskDetail.assignee} id="td-assignee" value={task.assignee?.id ?? ''} disabled={busy || !manager || pendingReview} onChange={(e) => e.target.value && patch({ assigneeId: e.target.value })}>
+                <SelectField label="คนทำ" hint="เปลี่ยนคนเพื่อส่งต่องาน ระบบแจ้งคนใหม่ให้" id="td-assignee" value={task.assignee?.id ?? ''} disabled={busy || !manager || pendingReview} onChange={(e) => e.target.value && patch({ assigneeId: e.target.value })}>
                   <option value="">{d.taskDetail.unassigned}</option>
                   <AssigneeOptions
                     users={users.filter(
@@ -430,71 +406,8 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 )}
               </div>
               <div>
-                <DateTimeField id="td-due" label={d.taskDetail.dueDate} disabled={busy} value={task.dueDate ? bangkokInputValue(task.dueDate) : ''} onChange={(e) => e.target.value && patch({ dueDate: bangkokInputToIso(e.target.value) })} hint="เวลาไทย" />
+                <DateTimeField id="td-due" label="ครบกำหนด" hint="เลื่อนได้ ระบบบันทึกว่าใครเลื่อน" disabled={busy} value={task.dueDate ? bangkokInputValue(task.dueDate) : ''} onChange={(e) => e.target.value && patch({ dueDate: bangkokInputToIso(e.target.value) })} />
               </div>
-              <details className="sm:col-span-2">
-                <summary className="cursor-pointer text-sm font-medium">{text('การทำซ้ำ / ลำดับงาน / ป้ายกำกับ', 'Recurrence / Dependencies / Labels')}</summary>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="td-recur" className={label}>ทำซ้ำทุก (วัน)</label>
-                <input
-                  id="td-recur"
-                  type="number"
-                  min={1}
-                  max={365}
-                  placeholder="ไม่ทำซ้ำ"
-                  disabled={busy}
-                  value={task.recurrenceDays ?? ''}
-                  onChange={(e) => {
-                    const n = parseInt(e.target.value, 10);
-                    patch({ recurrenceDays: Number.isNaN(n) ? null : n });
-                  }}
-                  className={field}
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">เมื่อปิดงาน ระบบสร้างรอบถัดไปให้เอง</p>
-              </div>
-              {task.caseId && (
-                <div className="sm:col-span-2">
-                  <label htmlFor="td-blocked" className={label}>{text('รอให้งานอื่นเสร็จก่อน', 'Wait for another task to finish')}</label>
-                  <select
-                    id="td-blocked"
-                    disabled={busy}
-                    value={task.blockedById ?? ''}
-                    onChange={(e) => patch({ blockedById: e.target.value || null })}
-                    className={field}
-                  >
-                    <option value="">— ไม่รอใคร —</option>
-                    {siblingTasks.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title}{t.status === 'DONE' ? ` (${d.todos.columnDone})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="sm:col-span-2">
-                <label htmlFor="td-label" className={label}>{d.taskDetail.labels}</label>
-                <div className="mt-1 flex flex-wrap items-center gap-1 rounded-lg border border-input bg-background px-2 py-1.5">
-                  {taskStageChip(task.labels) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{taskStageChip(task.labels)}</span>}
-                  {visibleTaskLabels(task.labels).map((l) => (
-                    <span key={l} className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
-                      {l}
-                      <button type="button" aria-label={`${d.taskDetail.delete} ${l}`} disabled={busy} onClick={() => patch({ labels: task.labels.filter((x) => x !== l) })} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" aria-hidden /></button>
-                    </span>
-                  ))}
-                  <input
-                    id="td-label"
-                    value={labelDraft}
-                    disabled={busy}
-                    onChange={(e) => setLabelDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLabel(); } }}
-                    placeholder={d.taskDetail.labelPlaceholder}
-                    className="min-w-[8rem] flex-1 bg-transparent px-1 text-sm focus:outline-none"
-                  />
-                </div>
-              </div>
-                </div>
-              </details>
             </section>
 
             {!task.parentId && (
@@ -669,8 +582,97 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
             </section>
 
             <details className="rounded-xl border border-[#e2e0d8]">
-              <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-4 py-3 text-sm font-semibold">ข้อมูลเพิ่มเติม <span className="text-[.8rem] font-normal text-muted-foreground">· รายละเอียด · ผู้เกี่ยวข้อง · แผนและความคืบหน้า · พักงาน · ประวัติ</span></summary>
+              <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-4 py-3 text-sm font-semibold">ข้อมูลเพิ่มเติม <span className="text-[.8rem] font-normal text-muted-foreground">· สถานะ · ความสำคัญ · รายละเอียด · ผู้เกี่ยวข้อง · แผนงาน · พักงาน · ประวัติ</span></summary>
               <div className="space-y-6 border-t border-[#e2e0d8] p-4">
+            <section className="grid gap-3 sm:grid-cols-2" aria-label="สถานะและความสำคัญ">
+              <div>
+                <SelectField label={d.taskDetail.status} id="td-status" value={task.status} disabled={busy || pendingReview} onChange={(e) => patch({ status: e.target.value })}>
+                  {([...new Set([task.status, ...statusOptions])]).map((s) => (
+                    <option key={s} value={s}>{statusLabel[s]}</option>
+                  ))}
+                </SelectField>
+              </div>
+              <div>
+                <span className={label}>{d.taskDetail.priority}</span>
+                <div className="mt-1 flex gap-1">
+                  {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      disabled={busy}
+                      aria-pressed={task.priority === p}
+                      onClick={() => task.priority !== p && patch({ priority: p })}
+                      className={`rounded-full border px-3 py-1 text-xs ${task.priority === p ? (p === TaskPriority.HIGH ? 'border-rose-500 bg-rose-500/10 text-rose-600' : 'border-primary bg-primary/10 text-primary') : 'border-border text-muted-foreground hover:bg-muted'}`}
+                    >
+                      {priorityLabel(d, p)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <details className="sm:col-span-2">
+                <summary className="cursor-pointer text-sm font-medium">{text('การทำซ้ำ / ลำดับงาน / ป้ายกำกับ', 'Recurrence / Dependencies / Labels')}</summary>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="td-recur" className={label}>ทำซ้ำทุก (วัน)</label>
+                <input
+                  id="td-recur"
+                  type="number"
+                  min={1}
+                  max={365}
+                  placeholder="ไม่ทำซ้ำ"
+                  disabled={busy}
+                  value={task.recurrenceDays ?? ''}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    patch({ recurrenceDays: Number.isNaN(n) ? null : n });
+                  }}
+                  className={field}
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">เมื่อปิดงาน ระบบสร้างรอบถัดไปให้เอง</p>
+              </div>
+              {task.caseId && (
+                <div className="sm:col-span-2">
+                  <label htmlFor="td-blocked" className={label}>{text('รอให้งานอื่นเสร็จก่อน', 'Wait for another task to finish')}</label>
+                  <select
+                    id="td-blocked"
+                    disabled={busy}
+                    value={task.blockedById ?? ''}
+                    onChange={(e) => patch({ blockedById: e.target.value || null })}
+                    className={field}
+                  >
+                    <option value="">— ไม่รอใคร —</option>
+                    {siblingTasks.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}{t.status === 'DONE' ? ` (${d.todos.columnDone})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="sm:col-span-2">
+                <label htmlFor="td-label" className={label}>{d.taskDetail.labels}</label>
+                <div className="mt-1 flex flex-wrap items-center gap-1 rounded-lg border border-input bg-background px-2 py-1.5">
+                  {taskStageChip(task.labels) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{taskStageChip(task.labels)}</span>}
+                  {visibleTaskLabels(task.labels).map((l) => (
+                    <span key={l} className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                      {l}
+                      <button type="button" aria-label={`${d.taskDetail.delete} ${l}`} disabled={busy} onClick={() => patch({ labels: task.labels.filter((x) => x !== l) })} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" aria-hidden /></button>
+                    </span>
+                  ))}
+                  <input
+                    id="td-label"
+                    value={labelDraft}
+                    disabled={busy}
+                    onChange={(e) => setLabelDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLabel(); } }}
+                    placeholder={d.taskDetail.labelPlaceholder}
+                    className="min-w-[8rem] flex-1 bg-transparent px-1 text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+                </div>
+              </details>
+            </section>
             <section>
               <label htmlFor="td-desc" className={label}>{d.taskDetail.description}</label>
               <textarea id="td-desc" rows={4} value={description} disabled={busy} onChange={(e) => setDescription(e.target.value)} placeholder={d.taskDetail.descriptionPlaceholder} className={field} />
