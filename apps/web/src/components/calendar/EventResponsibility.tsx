@@ -20,7 +20,7 @@ export function EventResponsibility({ eventId, startAt, type, onChanged }: { eve
   const [reason, setReason] = useState(''); const [preview, setPreview] = useState<ReschedulePreview | null>(null);
   const [reload, setReload] = useState(0);
   useEffect(() => { let active = true; if (token) api.getEventResponsibility(token, eventId).then(r => { if (active) setData(r); }).catch(e => { if (active) setError(e.message); }); return () => { active = false; }; }, [token, eventId, reload]);
-  async function run(action: () => Promise<unknown>) { setBusy(true); setError(''); try { await action(); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); } }
+  async function run(action: () => Promise<unknown>) { setBusy(true); setError(''); try { await action(); } catch (e) { setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ ตรวจข้อมูลแล้วลองอีกครั้ง'); } finally { setBusy(false); } }
   const date = (value: string) => new Date(value).toLocaleString(th ? 'th-TH' : 'en-GB', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' });
   return <section className="mt-4 space-y-3 rounded-lg border p-3" aria-label={th ? 'การรับผิดชอบนัด' : 'Appointment responsibility'}>
     <h3 className="font-medium">{th ? 'ผู้รับผิดชอบและการรับงาน' : 'Responsibility and acknowledgement'}</h3>

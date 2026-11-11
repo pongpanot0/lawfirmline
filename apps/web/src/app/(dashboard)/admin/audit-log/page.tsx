@@ -59,8 +59,8 @@ export default function AuditLogPage() {
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value.trim())}
             containerClassName="min-w-0 flex-1"
+            hint={PAGE_GUIDES['/admin/audit-log'].searchHint}
           />
-          <span className="inline-flex min-h-11 items-center rounded-lg bg-muted px-3 text-xs text-muted-foreground">{PAGE_GUIDES['/admin/audit-log'].searchHint}</span>
         </CardContent>
       </Card>
 

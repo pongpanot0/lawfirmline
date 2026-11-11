@@ -1,22 +1,20 @@
 import { withFirmSlugHeaders } from './firm-slug';
+import { displayApiErrorMessage, rawApiErrorMessage } from './api-error-message';
 import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { actionSuccessMessage, isActionRequest, publishActionFeedback } from './action-feedback';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-function parseApiErrorMessage(body: unknown, fallback: string): string {
-  const payload = body as { message?: string | { message?: string } };
-  if (typeof payload.message === 'string') return payload.message;
-  if (payload.message && typeof payload.message === 'object' && payload.message.message) {
-    return payload.message.message;
-  }
-  return fallback;
+function parseApiErrorMessage(body: unknown, fallback: string, status: number): string {
+  return displayApiErrorMessage(rawApiErrorMessage(body, fallback), status);
 }
 
 export class PortalApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** The API's original text (may be English); `message` is the Thai sentence to show. */
+    public serverMessage: string = message,
   ) {
     super(message);
   }
@@ -38,9 +36,9 @@ async function request<T>(path: string, options: RequestInit & { token?: string 
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const message = parseApiErrorMessage(body, res.statusText);
+    const message = parseApiErrorMessage(body, res.statusText, res.status);
     if (isAction) publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
-    throw new PortalApiError(res.status, message);
+    throw new PortalApiError(res.status, message, rawApiErrorMessage(body, res.statusText));
   }
   if (isAction) publishActionFeedback('success', actionSuccessMessage(method));
   if (res.status === 204) return undefined as T;
@@ -54,7 +52,7 @@ async function requestBlob(path: string, token: string): Promise<Blob> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new PortalApiError(res.status, parseApiErrorMessage(body, res.statusText));
+    throw new PortalApiError(res.status, parseApiErrorMessage(body, res.statusText, res.status));
   }
   return res.blob();
 }
@@ -70,9 +68,9 @@ async function requestMultipart<T>(path: string, formData: FormData, token: stri
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const message = parseApiErrorMessage(body, res.statusText);
+    const message = parseApiErrorMessage(body, res.statusText, res.status);
     publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
-    throw new PortalApiError(res.status, message);
+    throw new PortalApiError(res.status, message, rawApiErrorMessage(body, res.statusText));
   }
   publishActionFeedback('success', actionSuccessMessage('POST'));
   return res.json();

@@ -30,6 +30,8 @@ export interface ThaiDateInputProps {
   className?: string;
   required?: boolean;
   disabled?: boolean;
+  /** ชื่อของช่องวันที่ทั้งชุด เช่น "จากวันที่" — ให้โปรแกรมอ่านหน้าจอแยกช่องวันที่หลายชุดในหน้าเดียวได้ */
+  label?: string;
   /**
    * Opt-in: called with true while the date is partly typed or impossible (and therefore emitted as ''),
    * so the parent can refuse to submit instead of silently dropping the date. Also turns on the
@@ -42,7 +44,7 @@ export interface ThaiDateInputProps {
  * ช่องเลือกวันที่แบบไทย: วัน (พิมพ์ได้ รับเลขไทย) / เดือนไทยเต็ม (เลือกจาก dropdown) /
  * ปี พ.ศ. (พิมพ์ได้ รับเลขไทย) — ค่าที่ส่งออกยังเป็น ISO ค.ศ. เดิมเหมือน `<input type="date">`
  */
-export function ThaiDateInput({ value, onChange, id, className, required, disabled, onIncompleteChange }: ThaiDateInputProps) {
+export function ThaiDateInput({ value, onChange, id, className, required, disabled, label, onIncompleteChange }: ThaiDateInputProps) {
   const [local, setLocal] = useState<Parts>(() => parseIsoParts(value));
 
   useEffect(() => {
@@ -71,6 +73,8 @@ export function ThaiDateInput({ value, onChange, id, className, required, disabl
     <div
       className={`flex flex-wrap gap-1.5 ${className ?? ''}`}
       id={id}
+      role={label ? 'group' : undefined}
+      aria-label={label}
       onFocus={() => setLeft(false)}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setLeft(true); }}
     >

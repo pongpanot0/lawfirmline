@@ -36,7 +36,7 @@ function PlaybooksList() {
     setLoading(true); setError('');
     setupRequest<PlaybookRelease[]>(token, '/playbooks')
       .then(setItems)
-      .catch(e => setError(e instanceof Error ? e.message : 'Failed'))
+      .catch(e => setError(e instanceof Error ? e.message : 'โหลดข้อมูลไม่สำเร็จ ลองโหลดหน้าใหม่อีกครั้ง'))
       .finally(() => setLoading(false));
   }, [token, params, router, reload]);
 

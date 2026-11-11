@@ -38,7 +38,11 @@ export default function NewIntakePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !title || !detail) return;
+    if (!token) return;
+    if (!title.trim() || !detail.trim()) {
+      setError(`ใส่${!title.trim() && !detail.trim() ? 'หัวข้อและรายละเอียด' : !title.trim() ? 'หัวข้อ' : 'รายละเอียด'}ของเรื่องก่อนส่ง`);
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -69,14 +73,14 @@ export default function NewIntakePage() {
       <PortalShell>
         <Card className="mx-auto max-w-md p-9 text-center">
           <CheckCircle2 className="mx-auto mb-4 h-8 w-8 text-success" aria-hidden />
-          <h1 role="status" className="mb-1.5 text-xl font-semibold">ส่งคำขอแล้ว — เปิดเป็นคดี {result.caseRef}</h1>
+          <h1 role="status" className="mb-1.5 text-xl font-semibold">ส่งเรื่องถึงสำนักงานแล้ว</h1>
           <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
             เลขอ้างอิงของท่านคือ <b className="text-foreground">{result.referenceNumber}</b>
             <br />
-            ทีมกฎหมายจะตรวจสอบและติดต่อกลับภายใน 1 วันทำการ
+            สำนักงานจะตรวจเรื่องนี้และติดต่อกลับภายใน 1 วันทำการ
           </p>
           <Link href={`/portal/cases/${result.caseId}`} className={buttonVariants({ className: 'w-full' })}>
-            ไปที่หน้าคดี
+            ดูเรื่องที่ส่ง
           </Link>
           <Link href="/portal/intake" className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">
             ดูรายการเรื่องที่ส่ง
@@ -175,7 +179,7 @@ export default function NewIntakePage() {
             <Link href="/portal/intake" className={buttonVariants({ variant: 'ghost' })}>
               ยกเลิก
             </Link>
-            <Button type="submit" disabled={submitting || !title || !detail}>
+            <Button type="submit" disabled={submitting} title="กดเพื่อส่งเรื่องนี้ให้สำนักงานตรวจ">
               {submitting ? 'กำลังส่ง...' : 'ส่งเรื่องถึงสำนักงาน'}
             </Button>
           </div>

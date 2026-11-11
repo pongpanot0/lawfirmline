@@ -157,11 +157,12 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-card transition-transform hover:scale-105"
+        title="กดเพื่อให้ AI ช่วยสรุป ร่างข้อความ หรือค้นข้อมูลคดี"
+        className="fixed bottom-6 right-6 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-card motion-safe:transition-transform motion-safe:hover:scale-105"
       >
         <Sparkles className="h-4 w-4" aria-hidden />
-        <span className="hidden sm:inline">AI Assistant</span>
-        <span className="sr-only sm:hidden">AI Assistant</span>
+        <span className="hidden sm:inline">ผู้ช่วย AI</span>
+        <span className="sr-only sm:hidden">ผู้ช่วย AI</span>
       </button>
     );
   }
@@ -179,7 +180,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="ปิด AI Assistant"
+          aria-label="ปิดผู้ช่วย AI"
           onClick={() => {
             setOpen(false);
             setActive(null);

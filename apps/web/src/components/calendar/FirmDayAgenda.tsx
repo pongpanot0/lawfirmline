@@ -132,6 +132,7 @@ export function FirmDayAgenda({
                         variant={anyClash ? 'warning' : people.length === 0 ? 'destructive' : 'muted'}
                         className="max-w-36 shrink-0 py-0.5"
                       >
+                        {anyClash && <><AlertTriangle className="mr-1 h-3 w-3 shrink-0" aria-hidden />เวลาซ้อน · </>}
                         {names}
                       </Badge>
                     );

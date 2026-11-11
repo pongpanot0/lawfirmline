@@ -23,6 +23,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { ClientAnnualReportsPanel } from '@/components/reports/ClientAnnualReportsPanel';
 import { Client360Panel } from '@/components/clients/Client360Panel';
+import { SearchHint } from '@/components/guide/SearchHint';
 
 export default function ClientsPage() {
   const d = useDashboardT();
@@ -652,8 +653,8 @@ export default function ClientsPage() {
       />
       <Card className="mb-4"><CardContent className="flex flex-wrap items-center gap-2 p-4">
         <div className="relative min-w-0 flex-1 basis-48"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <Input type="search" aria-label={d.clients.searchPlaceholder} placeholder={d.clients.searchPlaceholder} className="h-11 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-        <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/clients')?.searchHint}</span>
+        <Input type="search" aria-describedby="clients-search-hint" aria-label={d.clients.searchPlaceholder} placeholder={d.clients.searchPlaceholder} className="h-11 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <SearchHint id="clients-search-hint">{getPageGuide('/clients')?.searchHint}</SearchHint>
       </CardContent></Card>
 
       {loadError ? (

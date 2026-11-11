@@ -86,7 +86,7 @@ export function CasePlaybook({ caseId, caseTypeId, initialReleaseId = '', onAppl
         if (!token) return; setBusy(true); setError('');
         try {
           await setupRequest(token, `/cases/${caseId}/apply`, { releaseId }); setApplied(true); onApplied();
-        } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); }
+        } catch (e) { setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ ตรวจข้อมูลแล้วลองอีกครั้ง'); } finally { setBusy(false); }
       }}>{busy ? (th ? 'กำลังเพิ่มงาน…' : 'Adding tasks…') : (th ? 'ยืนยันเพิ่มงานตามรายการ' : 'Confirm these tasks')}</Button>
     </div>
   </details>;

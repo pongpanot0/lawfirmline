@@ -214,6 +214,7 @@ export default function EmailThreadDetailPage() {
 
   const handleResolve = async (proposalId: string, action: 'confirm' | 'reject', overrideValue?: string) => {
     if (!token || !data?.thread.intake) return;
+    if (action === 'reject' && !window.confirm('ไม่ใช้ค่าที่ AI เสนอนี้?\nค่านี้จะไม่ถูกบันทึกลงคดี')) return;
     setResolvingId(proposalId);
     setError('');
     try {
@@ -361,9 +362,10 @@ export default function EmailThreadDetailPage() {
             {!thread.intake && !thread.caseId && (
               <div id="accept-intake" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
                 <p className="text-sm">อีเมลนี้ยังไม่ได้รับเป็นคดีก่อนฟ้อง</p>
-                <Button size="sm" disabled={linking} onClick={handleCreateIntake}>
+                <Button size="sm" disabled={linking} onClick={handleCreateIntake} title="กดเพื่อเปิดคดีขั้นก่อนฟ้องจากอีเมลนี้ แล้วให้ AI อ่านอีเมลเพื่อเสนอข้อมูลคดี">
                   {linking ? 'กำลังสร้าง...' : 'รับเป็นคดีก่อนฟ้อง'}
                 </Button>
+                <p className="basis-full text-xs text-muted-foreground">เมื่อกด ระบบจะเปิดคดีและให้ AI อ่านอีเมลนี้ ค่าที่ AI เสนอต้องยืนยันก่อนบันทึก</p>
                 {intakeSuggestions.length > 0 && (
                   <div className="w-full space-y-1.5 border-t pt-2">
                     <p className="text-xs text-muted-foreground">ผู้ส่งนี้มีเรื่องที่เปิดอยู่ — ถ้าเป็นเรื่องเดียวกัน (ลูกค้าส่งเมลใหม่แทนการตอบกลับ) ให้รวมเข้าคดีเดิม</p>
@@ -459,7 +461,7 @@ export default function EmailThreadDetailPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {confirmable.length > 0 && <Button size="sm" variant="outline" disabled={confirmingAll || !!resolvingId} onClick={() => handleConfirmAll(confirmable.map((p) => p.id))}>{confirmingAll ? 'กำลังยืนยัน…' : `ยืนยันทั้งหมดที่เหลือ (${confirmable.length})`}</Button>}
-                {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} onClick={handleAiExtract}>{aiReading ? 'AI กำลังอ่าน…' : 'อ่านใหม่'}</Button>}
+                {thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} title="กดเพื่อให้ AI อ่านอีเมลนี้อีกครั้ง ค่าที่ AI เสนอจะรอให้คุณยืนยันก่อนบันทึก" onClick={() => { if (window.confirm('ให้ AI อ่านอีเมลนี้อีกครั้ง?\nข้อเสนอที่ยังไม่ได้ยืนยันจะถูกแทนด้วยผลใหม่')) void handleAiExtract(); }}>{aiReading ? 'AI กำลังอ่าน…' : 'ให้ AI อ่านใหม่'}</Button>}
               </div>
             </div>
             {aiNote && <p role="status" className="mb-2 text-xs text-muted-foreground">{aiNote}</p>}

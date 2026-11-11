@@ -18,6 +18,7 @@ import { InlineEmptyState, Skeleton, TableEmptyRow } from '@/components/ui/misc'
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { SelectField, TextField } from '@/components/ui/form-fields';
 import { LicenseBadge, MemberLicenses } from '@/components/team/MemberLicenses';
+import { NoAccess } from '@/components/ui/NoAccess';
 
 type TeamMember = Awaited<ReturnType<typeof api.getTeamMembers>>[number];
 type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
@@ -133,7 +134,7 @@ export default function TeamPage() {
   }, [loadTeam]);
 
   if (!canInvite) {
-    return <div><PageHeader title={d.team.title} /><p role="alert" className="text-sm text-destructive">{d.team.accessDenied}</p></div>;
+    return <div><PageHeader title={d.team.title} /><NoAccess /></div>;
   }
 
   const firmRoleLabel = (role: string) => {
@@ -203,6 +204,8 @@ export default function TeamPage() {
 
   const handleRoleChange = async (member: TeamMember, role: FirmRole) => {
     if (!token || role === member.firmRole) return;
+    const label = ROLE_OPTIONS.find((o) => o.value === role);
+    if (!window.confirm(`เปลี่ยนบทบาทของ ${member.firstName} ${member.lastName} เป็น "${label ? d.team[label.labelKey] : role}"?\nสิทธิ์ที่เห็นและทำได้จะเปลี่ยนทันที`)) return;
     setChangingRoleId(member.id);
     try {
       await api.updateMemberRole(token, member.id, role);

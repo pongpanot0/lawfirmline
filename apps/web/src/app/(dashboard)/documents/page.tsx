@@ -18,6 +18,7 @@ import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { getPageGuide } from '@/components/guide/page-guides';
+import { SearchHint } from '@/components/guide/SearchHint';
 
 export default function DocumentsPage() {
   const d = useDashboardT();
@@ -181,9 +182,9 @@ export default function DocumentsPage() {
           <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3">
             <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input placeholder={d.documents.searchPlaceholder} aria-label={d.documents.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder={d.documents.searchPlaceholder} aria-describedby="documents-search-hint" aria-label={d.documents.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/documents')?.searchHint}</span>
+            <SearchHint id="documents-search-hint">{getPageGuide('/documents')?.searchHint}</SearchHint>
           </div>
 
           {docResults.length > 0 && (

@@ -188,13 +188,13 @@ export default function PortalSettingsPage() {
           <label htmlFor="portal-line-notify" className="flex min-h-11 cursor-pointer items-center justify-between gap-4 py-3">
             <span className="min-w-0">
               <span className="block text-sm font-medium">แจ้งเตือนทาง LINE</span>
-              <span className="block text-sm text-muted-foreground">ต้องเชื่อมต่อบัญชี LINE ก่อน</span>
+              <span className="block text-sm text-muted-foreground">{lineStatus?.connected ? 'กดเพื่อเปิดหรือปิดการแจ้งเตือนทาง LINE' : 'เชื่อมต่อบัญชี LINE ด้านบนก่อน จึงจะเปิดได้'}</span>
             </span>
             <Checkbox
               id="portal-line-notify"
-              checked={lineNotificationsEnabled}
+              checked={!!lineStatus?.connected && lineNotificationsEnabled}
               onChange={handleToggleNotifications}
-              disabled={updatingPreference}
+              disabled={updatingPreference || !lineStatus?.connected}
               className="h-5 w-5"
             />
           </label>

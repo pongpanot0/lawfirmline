@@ -33,7 +33,7 @@ export default function PortalLoginPage() {
     } catch (err) {
       setError(
         err instanceof PortalApiError
-          ? err.message === 'Invalid credentials'
+          ? err.serverMessage === 'Invalid credentials'
             ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
             : err.message
           : 'เกิดข้อผิดพลาด กรุณาลองใหม่',

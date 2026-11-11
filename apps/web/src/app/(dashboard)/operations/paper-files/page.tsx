@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageLoading, TableEmptyRow } from '@/components/ui/misc';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { NoAccess } from '@/components/ui/NoAccess';
 
 export default function CheckedOutPaperFilesPage() {
   const { token, user } = useAuth();
@@ -37,7 +38,7 @@ export default function CheckedOutPaperFilesPage() {
     <div>
       <PageHeader title="สำนวนที่ถูกเบิกอยู่" description="เรียงจากสำนวนที่เบิกนานที่สุด"
         actions={<Link href="/operations" className={buttonVariants({ variant: 'outline' })}>งานดำเนินการ</Link>} />
-      {!canRunOps ? <p role="alert" className="text-sm text-destructive">ไม่มีสิทธิ์ดูรายการสำนวน</p> :
+      {!canRunOps ? <NoAccess /> :
         error ? <LoadFailed message={error} onRetry={() => setRevision((value) => value + 1)} /> :
         !data ? <PageLoading variant="list" title="กำลังโหลดรายการสำนวน" lines={2} /> : <>
           <Card>

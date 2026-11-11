@@ -121,6 +121,9 @@ export default function DeadlineRulesPage() {
 
   /** `viaOverride`: a global rule seen from the firm table is switched by an override, never edited in place. */
   const toggle = (rule: DeadlineRuleItem, viaOverride: boolean) =>
+    window.confirm(rule.isActive
+      ? `ปิดกฎ "${rule.label}" สำหรับทั้งสำนักงาน?\nคดีต่อจากนี้จะไม่ได้วันครบกำหนดจากกฎนี้ เปิดกลับได้ภายหลัง`
+      : `เปิดกฎ "${rule.label}" สำหรับทั้งสำนักงาน?\nคดีต่อจากนี้จะได้วันครบกำหนดจากกฎนี้`) &&
     run(() =>
       viaOverride
         ? api.createDeadlineRule(token!, payload(fromRule(rule, { isActive: !rule.isActive })))

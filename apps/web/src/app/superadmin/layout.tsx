@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { NoAccess } from '@/components/ui/NoAccess';
 
 /** The program owner's console — its own shell, outside every firm's workspace. */
 export default function SuperadminLayout({ children }: { children: React.ReactNode }) {
@@ -25,7 +26,7 @@ export default function SuperadminLayout({ children }: { children: React.ReactNo
   if (!user.isPlatformAdmin) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <p className="text-destructive">หน้านี้สำหรับ Superadmin (ผู้พัฒนาโปรแกรม) เท่านั้น</p>
+        <div className="w-full max-w-md"><NoAccess who="ทีมผู้ดูแลระบบ Samnuan" contact={null} /></div>
       </div>
     );
   }

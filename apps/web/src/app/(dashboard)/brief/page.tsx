@@ -11,6 +11,7 @@ import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { taskUpdatePath } from '@/lib/task-detail';
 import { cn } from '@/lib/utils';
+import { NoAccess } from '@/components/ui/NoAccess';
 
 /** สรุปงานติดประจำวันของเจ้าสำนัก (สร้างทุกเช้า 07:30 เฉพาะสำนักงานที่เปิดใช้) */
 
@@ -25,6 +26,7 @@ export default function DailyBriefPage() {
   const [date, setDate] = useState<string | undefined>(undefined);
   const [brief, setBrief] = useState<Brief | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [forbidden, setForbidden] = useState(false);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function DailyBriefPage() {
       .then(setBrief)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 404) setBrief(null);
-        else if (err instanceof ApiError && err.status === 403) setError('หน้านี้สำหรับเจ้าของสำนักงานและผู้จัดการสำนักงานเท่านั้น');
+        else if (err instanceof ApiError && err.status === 403) setForbidden(true);
         else setError(err instanceof Error ? err.message : 'โหลดสรุปไม่สำเร็จ');
       });
   }, [token, date, reload]);
@@ -69,6 +71,7 @@ export default function DailyBriefPage() {
     />
   );
 
+  if (forbidden) return <div>{header}<NoAccess /></div>;
   if (error) return <div>{header}<LoadFailed message={error} onRetry={() => setReload((n) => n + 1)} /></div>;
   if (brief === undefined) return <PageLoading title="กำลังโหลดสรุปประจำวัน" lines={4} />;
   if (brief === null) return <div>{header}<InlineEmptyState title="ยังไม่มีสรุปสำหรับวันนี้" /></div>;

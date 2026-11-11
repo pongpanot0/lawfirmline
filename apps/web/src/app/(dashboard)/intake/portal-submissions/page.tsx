@@ -89,7 +89,7 @@ export default function PortalSubmissionsPage() {
                     <p className="text-sm text-muted-foreground">ส่งเมื่อ {new Date(item.submittedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                     {item.urgencyFlag && <Badge variant="destructive">เร่งด่วน</Badge>}
                   </div>
-                  <Button className="min-h-11 shrink-0" variant="outline" disabled={converting} onClick={() => handleConvert(item.id)}>รับเรื่อง</Button>
+                  <Button className="min-h-11 shrink-0" variant="outline" disabled={converting} title="กดเพื่อรับเรื่องนี้เข้าสำนักงานและเปิดเป็นคดีขั้นก่อนฟ้อง" onClick={() => { if (window.confirm(`รับเรื่อง "${item.title}" เข้าสำนักงาน?\nระบบจะเปิดเป็นคดีขั้นก่อนฟ้อง`)) void handleConvert(item.id); }}>รับเรื่อง</Button>
                 </article>
               ))}
             </div>

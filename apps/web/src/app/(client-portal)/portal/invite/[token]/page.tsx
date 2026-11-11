@@ -40,8 +40,9 @@ export default function PortalInviteAcceptPage() {
   if (error && !invite) {
     return (
       <PortalAuthCard title="คำเชิญนี้ใช้ไม่ได้" description={<p role="alert">{error}</p>}>
-        <Link href="/portal/login" className={buttonVariants({ variant: 'outline', className: 'w-full' })}>
-          ไปหน้าเข้าสู่ระบบ
+        <p className="mb-3 text-sm text-muted-foreground">ถ้าเคยเปิดใช้พอร์ทัลแล้ว เข้าสู่ระบบหรือขอลิงก์ทางอีเมลได้เลย ถ้ายังไม่เคย ติดต่อสำนักงานเพื่อขอคำเชิญใหม่</p>
+        <Link href="/portal/login" className={buttonVariants({ className: 'w-full' })}>
+          เข้าสู่ระบบหรือขอลิงก์ทางอีเมล
         </Link>
       </PortalAuthCard>
     );

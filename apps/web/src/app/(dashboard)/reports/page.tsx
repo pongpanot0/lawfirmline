@@ -30,6 +30,7 @@ import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { formatCurrency } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { NoAccess } from '@/components/ui/NoAccess';
 
 /** Copy lives in the dictionary; this only fixes the order. */
 const REPORT_META = [
@@ -133,6 +134,7 @@ export default function ReportsPage() {
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [forbidden, setForbidden] = useState(false);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -152,12 +154,15 @@ export default function ReportsPage() {
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
+        if (err instanceof ApiError && err.status === 403) { setForbidden(true); return; }
         setError(err instanceof Error ? err.message : d.reports.loadFailed);
       })
       .finally(() => setLoading(false));
   }, [token, reload]);
 
   if (loading) return <PageLoading title={d.common.loading} lines={3} />;
+
+  if (forbidden) return <NoAccess />;
 
   if (error) {
     return <LoadFailed message={error} onRetry={() => { setLoading(true); setReload((n) => n + 1); }} />;

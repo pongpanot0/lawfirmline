@@ -245,7 +245,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
       void patch({ labels });
     } catch (err) {
       setError(
-        err instanceof Error && err.message === 'TASK_LABELS_TOO_MANY'
+        err instanceof ApiError && err.serverMessage === 'TASK_LABELS_TOO_MANY'
           ? d.taskDetail.labelTooMany
           : d.taskDetail.labelTooLong,
       );

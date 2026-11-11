@@ -156,7 +156,7 @@ export default function HolidaysPage() {
             ))}
           </SelectField>
 
-          <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3">
+          {user?.isPlatformAdmin ? <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3">
             <label className="text-sm">
               <span className="mb-1 block font-medium">{d.holidays.date}<span aria-hidden="true" className="ml-1 text-destructive">*</span></span>
               <ThaiDateInput
@@ -177,7 +177,7 @@ export default function HolidaysPage() {
               <Plus className="size-4" aria-hidden />
               {d.holidays.add}
             </Button>
-          </form>
+          </form> : <p className="text-sm text-muted-foreground">วันหยุดราชการและวันหยุดศาลเป็นข้อมูลกลางของทุกสำนักงาน ทีม Samnuan เป็นผู้ดูแล ถ้าพบวันผิดหรือขาด แจ้งทีม Samnuan</p>}
         </CardContent>
       </Card>
 
@@ -200,7 +200,7 @@ export default function HolidaysPage() {
                     {weekdayLabel(holiday.date)}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-foreground">{holiday.name}</span>
-                  <Button
+                  {user?.isPlatformAdmin && <Button
                     type="button"
                     size="sm"
                     variant="ghost"
@@ -208,7 +208,7 @@ export default function HolidaysPage() {
                     onClick={() => handleDelete(holiday)}
                   >
                     <Trash2 className="size-4 text-destructive" aria-hidden />
-                  </Button>
+                  </Button>}
                 </li>
               ))}
             </ul>
@@ -216,7 +216,7 @@ export default function HolidaysPage() {
         </CardContent>
       </Card>
 
-      <Card className="mt-4">
+      {user?.isPlatformAdmin && <Card className="mt-4">
         <CardContent className="pt-6">
           <h2 className="font-semibold text-foreground">{d.holidays.bulkTitle}</h2>
           <p className="mb-3 mt-1 text-sm text-muted-foreground">{d.holidays.bulkHint}</p>
@@ -234,7 +234,7 @@ export default function HolidaysPage() {
             </Button>
           </form>
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

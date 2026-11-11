@@ -189,8 +189,8 @@ export default function TimesheetPage() {
             <p className="mt-1 text-sm text-muted-foreground">{d.timesheet.confirmSectionHint}</p>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-muted-foreground">{d.timesheet.date}</label>
-            <ThaiDateInput value={date} onChange={setDate} />
+            <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.date}</span>
+            <ThaiDateInput label={d.timesheet.date} value={date} onChange={setDate} />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -222,6 +222,7 @@ export default function TimesheetPage() {
                       <TableRow key={s.sourceKey}>
                         <TableCell>
                           <Checkbox
+                            aria-label={`เลือกบันทึกเวลา: ${row.description || s.description}`}
                             checked={row.checked}
                             onChange={(e) => updateRow(s.sourceKey, { checked: e.target.checked })}
                           />
@@ -232,6 +233,7 @@ export default function TimesheetPage() {
                         </TableCell>
                         <TableCell>
                           <Input
+                            aria-label="รายละเอียดงานที่จะบันทึก"
                             value={row.description}
                             onChange={(e) => updateRow(s.sourceKey, { description: e.target.value })}
                           />
@@ -242,6 +244,8 @@ export default function TimesheetPage() {
                             step={0.25}
                             min={0.25}
                             max={24}
+                            aria-label="จำนวนชั่วโมง"
+                            aria-invalid={invalidHours || undefined}
                             value={row.hours}
                             className={invalidHours ? 'border-destructive' : undefined}
                             onChange={(e) => updateRow(s.sourceKey, { hours: e.target.value })}
@@ -275,12 +279,13 @@ export default function TimesheetPage() {
             <p className="mt-1 text-sm text-muted-foreground">{d.timesheet.timesheetSectionHint}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-sm font-medium text-muted-foreground">{d.timesheet.from}</label>
-            <ThaiDateInput value={from} onChange={setFrom} />
-            <label className="text-sm font-medium text-muted-foreground">{d.timesheet.to}</label>
-            <ThaiDateInput value={to} onChange={setTo} />
+            <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.from}</span>
+            <ThaiDateInput label={d.timesheet.from} value={from} onChange={setFrom} />
+            <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.to}</span>
+            <ThaiDateInput label={d.timesheet.to} value={to} onChange={setTo} />
             {canViewTeam && (
               <select
+                aria-label="แสดงเวลาของ"
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"

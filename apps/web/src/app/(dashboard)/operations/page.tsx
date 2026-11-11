@@ -421,6 +421,9 @@ export default function OperationsPage() {
                                   : 'border-l-transparent hover:bg-muted/50'
                             }`}
                             onClick={() => setSelectedUserId(s.userId)}
+                            tabIndex={0}
+                            aria-selected={isSelected}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedUserId(s.userId); } }}
                             data-state={isSelected ? 'selected' : undefined}
                           >
                             <TableCell className="font-medium">

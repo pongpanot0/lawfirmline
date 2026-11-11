@@ -50,7 +50,9 @@ export default function OutlookAddinPage() {
     const office = getOffice();
     if (!office) return setPhase('no-office');
     office.onReady(() => {
-      const mailbox = office.context.mailbox;
+      // office.js also loads in a normal browser tab, where there is no mailbox item.
+      const mailbox = office.context?.mailbox;
+      if (!mailbox?.item) return setPhase('no-office');
       setRestId(mailbox.convertToRestId(mailbox.item.itemId, office.MailboxEnums.RestVersion.v2_0));
       setSubject(mailbox.item.subject);
       setMailboxEmail(mailbox.userProfile.emailAddress);

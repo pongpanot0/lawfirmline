@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { api, AiUsageSummary } from '@/lib/api';
+import { api, AiUsageSummary, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { KpiStrip } from '@/components/reports/KpiStrip';
+import { NoAccess } from '@/components/ui/NoAccess';
 
 const OPERATION_LABELS: Record<string, string> = {
   rag_qa: 'ถาม-ตอบจากสำนวน',
@@ -79,6 +80,7 @@ export default function AiUsagePage() {
   const [days, setDays] = useState<number>(30);
   const [summary, setSummary] = useState<AiUsageSummary | null>(null);
   const [error, setError] = useState('');
+  const [forbidden, setForbidden] = useState(false);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export default function AiUsagePage() {
     api
       .getAiUsageSummary(token, days)
       .then(setSummary)
-      .catch((err) => setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ'));
+      .catch((err) => { if (err instanceof ApiError && err.status === 403) setForbidden(true); else setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ'); });
   }, [token, days, reload]);
 
   const header = (
@@ -115,6 +117,7 @@ export default function AiUsagePage() {
     />
   );
 
+  if (forbidden) return <div>{header}<NoAccess /></div>;
   if (error) return <div>{header}<LoadFailed message={error} onRetry={() => setReload((n) => n + 1)} /></div>;
   if (!summary) return <PageLoading title="กำลังโหลดการใช้งาน AI" lines={4} />;
 

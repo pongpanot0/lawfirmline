@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { WorkflowTemplates } from '@/components/workflows/WorkflowTemplates';
 import { ArrowRightLeft, BookOpen, ChevronDown, Plus, Pencil, Trash2, Zap } from 'lucide-react';
+import { SearchHint } from '@/components/guide/SearchHint';
 
 const ROLE_LABELS: Record<FirmRoleStr, string> = {
   OWNER: 'เจ้าของสำนักงาน',
@@ -124,12 +125,13 @@ export default function SopsPage() {
         <div className="flex flex-wrap items-center gap-2">
         <Input
           aria-label="ค้นหาคู่มือหรือขั้นตอน"
+          aria-describedby="sops-search-hint"
           placeholder="ค้นหาคู่มือหรือสายงานส่งต่อ"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           className="min-w-0 flex-1 sm:max-w-sm"
         />
-        <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/sops')?.searchHint}</span>
+        <SearchHint id="sops-search-hint">{getPageGuide('/sops')?.searchHint}</SearchHint>
         </div>
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
           <TabsList>

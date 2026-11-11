@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDateTime } from '@/lib/utils';
+import { SearchHint } from '@/components/guide/SearchHint';
 
 const MIN_QUERY = 2;
 
@@ -74,8 +75,9 @@ export default function EmailSearchPage() {
           placeholder="เช่น สมชาย, abc@company.co.th, สัญญาเช่า"
           className="h-11 pl-9 text-base"
           aria-label="ค้นหาอีเมล"
+          aria-describedby="email-search-hint"
         />
-      </div><span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{getPageGuide('/email-search')?.searchHint}</span></CardContent></Card>
+      </div><SearchHint id="email-search-hint">{getPageGuide('/email-search')?.searchHint}</SearchHint></CardContent></Card>
 
       <Card>
         <CardContent className="p-0">

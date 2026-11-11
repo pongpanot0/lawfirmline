@@ -82,7 +82,7 @@ export default function SopFlowEditor() {
         setDocsError('');
         setCustomDocError('');
       })
-      .catch(e => { if (active) setLoadError(e instanceof Error ? e.message : 'Failed'); })
+      .catch(e => { if (active) setLoadError(e instanceof Error ? e.message : 'โหลดข้อมูลไม่สำเร็จ ลองโหลดหน้าใหม่อีกครั้ง'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
     // Refreshing an access token must not reload the editor and discard its draft.
@@ -115,7 +115,7 @@ export default function SopFlowEditor() {
       setCaseTypeId(created.id);
       setRequiredDocs([]);
       setSuccess({ title: th ? 'สร้างประเภทคดีแล้ว' : 'Case type created', description: created.name });
-    } catch (e) { setCaseTypeError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); }
+    } catch (e) { setCaseTypeError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ ตรวจข้อมูลแล้วลองอีกครั้ง'); } finally { setBusy(false); }
   };
 
   // เอกสารที่ต้องมีเป็นข้อมูลของประเภทคดี บันทึกทันที ไม่ต้องรอเผยแพร่ SOP
@@ -130,7 +130,7 @@ export default function SopFlowEditor() {
       setCaseTypes(list => list.map(t => t.id === caseTypeId ? { ...t, requiredDocuments: next } : t));
       setSuccess({ title: th ? 'บันทึกรายการเอกสารแล้ว' : 'Document list saved', description: th ? 'รายการเอกสารของประเภทคดีนี้อัปเดตแล้ว' : 'The case type document list is up to date.' });
       return true;
-    } catch (e) { setRequiredDocs(previous); setDocsError(e instanceof Error ? e.message : 'Failed'); return false; } finally { setDocSaving(false); }
+    } catch (e) { setRequiredDocs(previous); setDocsError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ ตรวจข้อมูลแล้วลองอีกครั้ง'); return false; } finally { setDocSaving(false); }
   };
   const toggleDoc = (value: string) => saveRequiredDocs(requiredDocs.includes(value) ? requiredDocs.filter(v => v !== value) : [...requiredDocs, value]);
   const addCustomDoc = async () => {
@@ -167,7 +167,7 @@ export default function SopFlowEditor() {
         ...(templateKey === CARGO_PLAYBOOK_KEY ? { templateKey, cargoTemplate: { requirements: cargoRequirements } } : {}),
       }, true);
       setSuccess({ title: th ? 'บันทึกและเผยแพร่ SOP แล้ว' : 'SOP saved and published', description: `${published.name} · v${published.version}`, publishedId: published.id });
-    } catch (e) { setPublishError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); }
+    } catch (e) { setPublishError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ ตรวจข้อมูลแล้วลองอีกครั้ง'); } finally { setBusy(false); }
   };
 
   const hasChanges = isNew || !source || name !== source.name || caseTypeId !== (source.caseTypeId ?? '') ||
