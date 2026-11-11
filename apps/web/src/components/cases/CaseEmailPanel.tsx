@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Download, FilePlus2, FolderOpen, Mail, Paperclip, RefreshCw, Unlink } from 'lucide-react';
+import { CheckCircle2, Download, FilePlus2, FolderOpen, Mail, Paperclip, Plus, RefreshCw, Sparkles, Unlink } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import {
   api,
@@ -11,8 +11,10 @@ import {
   type CaseFolderLinkItem,
   type EmailAttachmentItem,
   type OutlookFolderRow,
+  type LinkCandidate,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { UndoToast, type UndoAction } from '@/components/ui/UndoToast';
 import { Card, CardContent } from '@/components/ui/card';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
@@ -43,6 +45,8 @@ export function CaseEmailPanel({
   onOpenSuggestions?: () => void;
 }) {
   const { token } = useAuth();
+  const [suggested, setSuggested] = useState<LinkCandidate[]>([]);
+  const [undo, setUndo] = useState<UndoAction | null>(null);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [threads, setThreads] = useState<CaseEmailThreadItem[] | null>(null);
   const [links, setLinks] = useState<CaseFolderLinkItem[]>([]);
@@ -61,15 +65,17 @@ export function CaseEmailPanel({
 
   const load = useCallback(async () => {
     if (!token) return;
-    const [threadsResult, linksResult] = await Promise.allSettled([
+    const [threadsResult, linksResult, candidatesResult] = await Promise.allSettled([
       api.getCaseEmailThreads(token, caseId),
       api.getCaseFolderLinks(token, caseId),
+      api.getCaseEmailLinkCandidates(token, caseId),
     ]);
     // Keep the last good data on a failed refresh; flag the failure instead of faking an empty list.
     if (threadsResult.status === 'fulfilled') setThreads(threadsResult.value);
     else setThreads((prev) => prev ?? []);
     setThreadsFailed(threadsResult.status === 'rejected');
     if (linksResult.status === 'fulfilled') setLinks(linksResult.value);
+    if (candidatesResult.status === 'fulfilled') setSuggested(candidatesResult.value.suggested);
     setLinksFailed(linksResult.status === 'rejected');
   }, [token, caseId]);
 
@@ -246,7 +252,9 @@ export function CaseEmailPanel({
 
   return (
     <div className="space-y-4">
-      {linkDialogOpen && token && <LinkEmailDialog token={token} caseId={caseId} caseRef={caseRef} onClose={() => setLinkDialogOpen(false)} onLinked={load} />}
+      {linkDialogOpen && token && <LinkEmailDialog token={token} caseId={caseId} caseRef={caseRef} threads={threads} onClose={() => setLinkDialogOpen(false)} onLinked={load} />}
+      <UndoToast action={undo} onDismiss={() => setUndo(null)} />
+      {suggested.length > 0 && <div className="rounded-lg border border-primary/20 bg-primary/5 p-4"><div className="flex items-start gap-2"><Sparkles aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" /><div className="min-w-0"><p className="font-semibold">มีอีเมลใหม่ {suggested.length} ฉบับที่น่าจะเกี่ยวกับคดีนี้</p><p className="break-words text-sm text-muted-foreground">{suggested.map(row => row.subject).join(' · ')}</p></div></div><div className="mt-3 flex flex-wrap gap-2"><Button disabled={busy !== null} onClick={() => { void run('link-suggested', async t => { const linked: string[] = []; const failed: string[] = []; for (const row of suggested) { try { await api.linkThreadToCase(t, row.threadId, caseId); linked.push(row.threadId); } catch { failed.push(row.subject); } } await load(); if (linked.length) setUndo({ message: `ผูก ${linked.length} อีเมลแล้ว`, undo: async () => { while (linked.length) { await api.unlinkThreadFromCase(t, linked[0]); linked.shift(); } await load(); } }); return failed.length ? { type: 'error', text: `ผูกไม่สำเร็จ: ${failed.join(' · ')}` } : null; }); }}>ผูกทั้ง {suggested.length} ฉบับ</Button><Button variant="outline" disabled={busy !== null} onClick={() => setLinkDialogOpen(true)}>ดูอีเมล {suggested.length} ฉบับ</Button></div></div>}
       {notice && (
         <p
           role="status"
@@ -273,7 +281,7 @@ export function CaseEmailPanel({
               <FolderOpen aria-hidden="true" className="h-4 w-4 text-muted-foreground" /> folder Outlook ที่ผูกกับคดี
             </h2>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={busy !== null} onClick={() => setLinkDialogOpen(true)}>+ ผูกอีเมลเข้าคดี</Button>
+              <Button size="sm" disabled={busy !== null} onClick={() => setLinkDialogOpen(true)}><Plus aria-hidden="true" className="h-4 w-4" />ผูกอีเมลเข้าคดี</Button>
               <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => setComposer({ kind: 'new' })}>
                 เขียนอีเมล
               </Button>

@@ -109,7 +109,7 @@ export function CaseSectionContent({ tab, caseId, legalCase, thread, showAiAnaly
         <div
           role="tabpanel"
           id="case-tabpanel-ask-ai"
-          aria-labelledby="case-tab-ask-ai"
+          aria-label="ถาม AI เรื่องคดีนี้"
           className="min-w-0"
         >
           <CaseAskAiPanel caseId={caseId} />

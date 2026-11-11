@@ -69,11 +69,11 @@ test('process clarity click-through', async ({ page, request }) => {
   await flow('3 case page', async () => {
     expect(caseId).toBeTruthy(); await go(`/cases/${caseId}`);
     await expect(page.locator('li[aria-current="step"]').filter({ hasText: 'ก่อนฟ้อง' })).toBeVisible();
-    await expect(page.getByText('สิ่งที่ต้องทำตอนนี้', { exact: false }).first()).toBeVisible();
-    const overview = page.locator('#case-tab-overview'); await expect(overview).toHaveAttribute('aria-expanded', 'false'); await expect(page.locator('#case-tab-documents')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.getByText('เปลี่ยนขั้นตอนเอง', { exact: false })).toBeHidden(); await shot('03-case');
+    await expect(page.getByText('ต้องทำตอนนี้', { exact: false }).first()).toBeVisible();
+    const overview = page.locator('#case-tab-overview'); await expect(overview).toHaveAttribute('aria-current', 'page'); await expect(page.locator('#case-tab-documents')).not.toHaveAttribute('aria-current', 'page');
+    await expect(page.getByText('เปลี่ยนขั้นเอง', { exact: false })).toBeHidden(); await shot('03-case');
     await overview.click(); await expect(page.locator('#case-tabpanel-overview')).toBeVisible();
-    await page.locator('[data-overflow-menu] > summary').click(); await expect(page.getByText('เปลี่ยนขั้นตอนเอง', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'อื่น ๆ' }).click(); await expect(page.getByText('เปลี่ยนขั้นเอง', { exact: false })).toBeVisible();
   });
   await flow('4 create case already in court', async () => { secondId = await create(second, true); await expect(page.getByRole('heading', { name: 'เปิดคดีสำเร็จ' })).toBeVisible(); });
   await flow('5 case list and filters', async () => {

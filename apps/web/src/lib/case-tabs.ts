@@ -1,5 +1,6 @@
 export const CASE_TAB_IDS = [
   'overview',
+  'parties',
   'tasks',
   'calendar',
   'documents',
@@ -15,6 +16,7 @@ export type CaseTabId = (typeof CASE_TAB_IDS)[number];
 
 export const CASE_TAB_LABELS: Record<CaseTabId, string> = {
   overview: 'ภาพรวม',
+  parties: 'คู่ความ',
   tasks: 'งาน',
   calendar: 'ไทม์ไลน์',
   documents: 'เอกสาร',

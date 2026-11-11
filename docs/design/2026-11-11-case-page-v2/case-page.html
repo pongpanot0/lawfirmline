@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Case page v2 mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Trirong:wght@600&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<style>
+  :root { --paper:#f4f1ea; --surface:#fffdfa; --ink:#142e43; --muted:#52616b; --rule:#e2e0d8; --brass:#8b6d32; --ok:#227052; --warn:#6b4f0b; --warnbg:#fbf3e0; --err:#a83232; }
+  body { font-family: "Noto Sans Thai", system-ui, sans-serif; background: var(--paper); color: var(--ink); }
+  .display { font-family: "Trirong", "Noto Sans Thai", serif; }
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; }
+  .btn { display:inline-flex; align-items:center; gap:.4rem; min-height:44px; padding:0 1rem; border-radius:8px; font-weight:600; font-size:.95rem; }
+  .btn-primary { background: var(--ink); color: #fffdfa; }
+  .btn-outline { border:1px solid #c9ccc6; background:#fff; color: var(--ink); }
+  .btn-ghost { color: var(--muted); }
+  .chip { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .9rem; border-radius:999px; background:#eeebe3; font-size:.85rem; }
+  .tab { padding: .9rem 1.1rem; font-weight:600; color: var(--muted); border-bottom: 3px solid transparent; white-space:nowrap; }
+  .tab.active { color: var(--ink); border-color: var(--ink); }
+  .count { margin-left:.4rem; padding:.1rem .55rem; border-radius:999px; background:#e7e4dc; font-size:.75rem; }
+  .label { font-size:.8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="flex min-h-screen">
+  <!-- existing app rail (unchanged) -->
+  <aside class="hidden w-60 shrink-0 bg-[#101d2a] text-[#f4f0e7] md:block">
+    <div class="flex h-16 items-center gap-3 border-b border-[#334657] px-4"><div class="grid h-9 w-9 place-items-center rounded bg-[#f4f0e7] font-bold text-[#142e43]">S</div><div><div class="display text-lg leading-none">Samnuan</div><div class="text-[11px] text-[#b1bec9]">จัดการเวิร์กโฟลว์และงานสำนักงาน</div></div></div>
+    <nav class="space-y-1 p-3 text-sm text-[#b1bec9]"><div class="px-3 py-2">ภาระงานทีม</div><div class="px-3 py-2">ศูนย์ปฏิบัติงาน</div><div class="px-3 py-2">งาน</div><div class="rounded bg-[#243c50] px-3 py-2 text-white">เรื่องและคดี</div><div class="px-3 py-2">ลูกค้า</div><div class="px-3 py-2">ตารางศาล</div><div class="px-3 py-2">เอกสาร</div><div class="px-3 py-2">ค่าใช้จ่าย</div></nav>
+  </aside>
+
+  <main class="min-w-0 flex-1">
+    <!-- 1. CASE HEADER: who / what / where at a glance + quick actions -->
+    <header class="border-b border-[var(--rule)] bg-[var(--surface)]">
+      <div class="mx-auto max-w-6xl px-6 pt-5">
+        <div class="flex items-center justify-between text-sm"><a class="text-[var(--muted)]">← เรื่องและคดี</a><button class="grid h-9 w-9 place-items-center rounded-full border text-[var(--muted)]" title="หน้านี้ใช้อย่างไร">?</button></div>
+        <div class="mt-3 flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-0 max-w-3xl">
+            <div class="flex flex-wrap items-center gap-2 text-sm"><span class="rounded bg-[#eeebe3] px-3 py-1 font-mono">TSBREF20260012</span><span class="rounded-full bg-[var(--warnbg)] px-3 py-1 font-semibold text-[var(--warn)]">● ก่อนฟ้อง · รอเอกสารลูกความ</span></div>
+            <h1 class="display mt-2 text-[32px] leading-snug">ผู้เอาประกันภัย ศ.พญ.อารีรัตน์ สุพุทธิธาดา — คดีหมายเลขดำ ผบ ๑๘๑/๒๕๖๙ ศาลแพ่งธนบุรี</h1>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <span class="chip">👤 ลูกความ <b>วัชรียา อายะนันท์</b></span>
+              <span class="chip">⚖️ ศาล <b>ยังไม่ระบุ</b></span>
+              <span class="chip">🧑‍💼 เจ้าของคดี <b>สุชัญญา อยู่ม่วง</b></span>
+              <span class="chip">📅 นัดถัดไป <b>ยังไม่มี</b></span>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn btn-outline">+ งาน</button>
+            <button class="btn btn-outline">+ นัด</button>
+            <button class="btn btn-outline">⬆ อัปโหลดเอกสาร</button>
+            <button class="btn btn-outline" title="เพิ่มเติม">⋯</button>
+          </div>
+        </div>
+
+        <!-- 2. STAGE TRACKER: big, colored, readable -->
+        <ol class="mt-6 grid grid-cols-8 gap-1 pb-5 text-center text-xs">
+          <li><div class="h-2 rounded-l-full bg-[var(--ink)]"></div><div class="mt-2 font-bold">ก่อนฟ้อง</div><div class="text-[var(--brass)]">อยู่ขั้นนี้</div></li>
+          <li><div class="h-2 bg-[#dedad0]"></div><div class="mt-2 text-[var(--muted)]">ยื่นฟ้อง</div></li>
+          <li><div class="h-2 bg-[#dedad0]"></div><div class="mt-2 text-[var(--muted)]">ยื่นคำให้การ</div></li>
+          <li><div class="h-2 bg-[#dedad0]"></div><div class="mt-2 text-[var(--muted)]">ไกล่เกลี่ย</div></li>
+          <li><div class="h-2 bg-[#dedad0]"></div><div class="mt-2 text-[var(--muted)]">สืบพยาน</div></li>
+          <li><div class="h-2 bg-[#dedad0]"></div><div class="mt-2 text-[var(--muted)]">รอคำพิพากษา</div></li>
+          <li><div class="h-2 bg-[#dedad0]"></div><div class="mt-2 text-[var(--muted)]">บังคับคดี</div></li>
+          <li><div class="h-2 rounded-r-full bg-[#dedad0]"></div><div class="mt-2 text-[var(--muted)]">ปิดคดี</div></li>
+        </ol>
+      </div>
+    </header>
+
+    <div class="mx-auto max-w-6xl space-y-5 px-6 py-6">
+      <!-- 3. NEXT ACTION: tinted, elevated, the work is done right here -->
+      <section class="rounded-xl border-2 border-[#e6cf94] bg-[var(--warnbg)] p-5 shadow-[0_6px_20px_rgba(20,46,67,.08)]">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-[var(--warn)]">สิ่งที่ต้องทำตอนนี้ · ข้อ 1 จาก 3 ของขั้นก่อนฟ้อง</p>
+            <h2 class="mt-1 text-2xl font-bold">รับเอกสารจากลูกความให้ครบ <span class="text-[var(--muted)]">(0/3)</span></h2>
+            <p class="mt-1 text-[var(--muted)]">กด “ได้รับแล้ว” เมื่อได้เอกสาร หรือ “ไม่ใช้” ถ้าคดีนี้ไม่ต้องใช้ · ครบแล้วจึงไปขั้นยื่นฟ้องได้</p>
+          </div>
+          <button class="btn btn-outline">✉ ส่งรายการเอกสารให้ลูกความ</button>
+        </div>
+        <ul class="mt-4 divide-y divide-[#ecdcb3] border-y border-[#ecdcb3]">
+          <li class="flex flex-wrap items-center justify-between gap-3 py-3"><div><b>สำเนากรมธรรม์ประกันภัย</b><div class="label">ขอเมื่อ 6 ต.ค. 2569 · ยังไม่ได้รับ</div></div><div class="flex gap-2"><button class="btn btn-primary">ได้รับแล้ว</button><button class="btn btn-ghost">ไม่ใช้</button></div></li>
+          <li class="flex flex-wrap items-center justify-between gap-3 py-3"><div><b>หนังสือมอบอำนาจ</b><div class="label">ขอเมื่อ 6 ต.ค. 2569 · ยังไม่ได้รับ</div></div><div class="flex gap-2"><button class="btn btn-primary">ได้รับแล้ว</button><button class="btn btn-ghost">ไม่ใช้</button></div></li>
+          <li class="flex flex-wrap items-center justify-between gap-3 py-3"><div><b>สำเนาบัตรประชาชนลูกความ</b><div class="label">ขอเมื่อ 6 ต.ค. 2569 · ยังไม่ได้รับ</div></div><div class="flex gap-2"><button class="btn btn-primary">ได้รับแล้ว</button><button class="btn btn-ghost">ไม่ใช้</button></div></li>
+        </ul>
+        <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--muted)]"><span class="font-semibold text-[var(--ink)]">หลังจากนี้</span><span>② ตรวจสอบผลประโยชน์ขัดกัน</span><span>→</span><span>③ ประเมินแนวทาง (ฟ้อง / เจรจา / โนติส) · ครบ 17 พ.ย.</span><span>→</span><span>ไปขั้นยื่นฟ้อง</span></div>
+      </section>
+
+      <!-- 4. TABS: familiar, visible places to click -->
+      <nav class="sticky top-0 z-10 -mx-6 flex overflow-x-auto border-b border-[var(--rule)] bg-[var(--paper)] px-6">
+        <a class="tab active">ภาพรวม</a><a class="tab">งาน<span class="count">1</span></a><a class="tab">เอกสาร<span class="count">0</span></a><a class="tab">นัดและปฏิทิน<span class="count">0</span></a><a class="tab">คู่ความ<span class="count">0</span></a><a class="tab">การเงิน</a><a class="tab">ข้อความ</a>
+      </nav>
+
+      <!-- 5. OVERVIEW DASHBOARD: only real data; gaps grouped into one call to action -->
+      <div class="grid gap-5 lg:grid-cols-3">
+        <div class="space-y-5 lg:col-span-2">
+          <section class="card p-5">
+            <div class="flex items-center justify-between"><h3 class="text-lg font-bold">ข้อมูลคดี</h3><button class="btn btn-ghost">✎ แก้ไข</button></div>
+            <dl class="mt-3 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+              <div><dt class="label">ลูกความ</dt><dd class="font-semibold">วัชรียา อายะนันท์</dd></div>
+              <div><dt class="label">เจ้าของคดี</dt><dd class="font-semibold">สุชัญญา อยู่ม่วง</dd></div>
+              <div><dt class="label">ขั้นปัจจุบัน</dt><dd class="font-semibold">ก่อนฟ้อง (ตั้งแต่ 10 พ.ย. 2569)</dd></div>
+              <div><dt class="label">ผลประเมิน</dt><dd class="font-semibold">รอประเมิน</dd></div>
+            </dl>
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-[#c9ccc6] p-3">
+              <p class="text-sm"><b>ยังไม่ได้กรอก 6 ช่อง</b> <span class="text-[var(--muted)]">· ฝ่ายเรา · คู่กรณี · ศาลและเลขคดี · ทุนทรัพย์ · ข้อหา · วันครบอายุความ</span></p>
+              <button class="btn btn-outline">กรอกเลย</button>
+            </div>
+          </section>
+          <section class="card p-5">
+            <h3 class="text-lg font-bold">ความเคลื่อนไหวล่าสุด</h3>
+            <ol class="mt-3 space-y-3 border-l-2 border-[var(--rule)] pl-4 text-sm">
+              <li><b>เปิดคดี</b> · สุชัญญา อยู่ม่วง <span class="label">· 10 พ.ย. 2569</span></li>
+              <li><b>ขอเอกสารจากลูกความ 3 รายการ</b> <span class="label">· 6 ต.ค. 2569</span></li>
+              <li><b>รับเรื่องจากอีเมล</b> “ตอบกลับ: ผู้เอาประกันภัย …” <a class="underline">เปิดอีเมล</a> <span class="label">· 6 ต.ค. 2569</span></li>
+            </ol>
+          </section>
+        </div>
+        <div class="space-y-5">
+          <section class="card p-5">
+            <div class="flex items-center justify-between"><h3 class="text-lg font-bold">งานที่ค้าง</h3><a class="text-sm underline">ทั้งหมด</a></div>
+            <div class="mt-3 border-t border-[var(--rule)] pt-3"><div class="flex items-start gap-3"><input type="checkbox" class="mt-1 h-5 w-5" /><div><b>ประเมินและตัดสินใจแนวทาง (ฟ้อง / เจรจา / ส่งโนติส)</b><div class="text-sm text-[var(--err)]">ครบ 17 พ.ย. 2569 · เหลือ 6 วัน</div><div class="label">สุชัญญา อยู่ม่วง</div></div></div></div>
+          </section>
+          <section class="card p-5">
+            <h3 class="text-lg font-bold">นัดถัดไป</h3>
+            <p class="mt-2 text-sm text-[var(--muted)]">ยังไม่มีนัด</p>
+            <button class="btn btn-outline mt-3 w-full justify-center">+ เพิ่มนัด</button>
+          </section>
+          <section class="card p-5">
+            <div class="flex items-center justify-between"><h3 class="text-lg font-bold">ทีมคดี</h3><button class="btn btn-ghost">+ เพิ่ม</button></div>
+            <div class="mt-2 flex items-center gap-3"><div class="grid h-9 w-9 place-items-center rounded-full bg-[#243c50] text-sm text-white">สอ</div><div><b>สุชัญญา อยู่ม่วง</b><div class="label">เจ้าของคดี</div></div></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

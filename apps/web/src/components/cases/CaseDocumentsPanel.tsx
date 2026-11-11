@@ -5,6 +5,7 @@ import { CaseDriveSection } from '@/components/cases/CaseDriveSection';
 import { CaseEvidenceSection } from '@/components/cases/CaseEvidenceSection';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Download, Sparkles, CalendarSearch, ClipboardCheck, PenLine, RotateCcw, Check, X, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LoadFailed } from '@/components/ui/LoadFailed';
@@ -15,6 +16,7 @@ import { PublishDocumentDialog } from '@/components/documents/PublishDocumentDia
 import { TemplateGenerateDrawer } from '@/components/cases/TemplateGenerateDrawer';
 import { PleadingDraftDrawer } from '@/components/cases/PleadingDraftDrawer';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { SideDrawer } from '@/components/ui/SideDrawer';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
@@ -27,6 +29,9 @@ const DOCUMENT_CATEGORY_VALUES = Object.values(DocumentCategory);
 
 export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseId: string; onChanged?: () => void; newFolderName?: string }) {
   const d = useDashboardT();
+  const newUpload = useSearchParams().get('new') === 'upload';
+  const [uploadOpen, setUploadOpen] = useState(false);
+  useEffect(() => { if (newUpload) { setUploadOpen(true); const url = new URL(window.location.href); url.searchParams.delete('new'); window.history.replaceState(window.history.state, '', url); } }, [newUpload]);
   const id = caseId;
   const { token, user } = useAuth();
   const canManageContent = hasFirmCapability(user?.firmRole, 'manageFirmContent');
@@ -247,6 +252,7 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
 
   return (
     <div>
+      <SideDrawer open={uploadOpen} title="แนบเอกสาร" onClose={() => setUploadOpen(false)}><div className="space-y-4"><p className="text-sm text-muted-foreground">เลือกไฟล์เพื่อเก็บเข้าแฟ้มคดี</p><DocumentDropZone onFile={(file) => { void handleUpload(file); setUploadOpen(false); }} loading={uploading} loadingLabel={d.caseDocuments.uploading} label={d.documents.dropHint} hint={d.documents.fileTypesHint} /></div></SideDrawer>
       <h2 className="mb-4 text-xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h2>
 
       {/* กรองตามหมวด — คดีใหญ่มีเอกสารหลายร้อยชิ้น ชื่อไฟล์ล้วนหาไม่เจอ */}

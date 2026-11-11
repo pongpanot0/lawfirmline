@@ -20,7 +20,9 @@ import { LoadFailed } from '@/components/ui/LoadFailed';
 
 export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onChanged?: () => void }) {
   const d = useDashboardT();
-  const requestedEvent = useSearchParams().get('eventId');
+  const params = useSearchParams();
+  const requestedEvent = params.get('eventId');
+  const newEvent = params.get('new') === 'event';
   const { token } = useAuth();
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [legalCase, setLegalCase] = useState<CaseItem | null>(null);
@@ -36,6 +38,12 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
   const [dialog, setDialog] = useState<
     { event: CalendarEventItem | null; defaultDate?: Date } | null
   >(null);
+
+  useEffect(() => {
+    if (!newEvent) return;
+    setDialog({ event: null, defaultDate: new Date() });
+    const url = new URL(window.location.href); url.searchParams.delete('new'); window.history.replaceState(window.history.state, '', url);
+  }, [newEvent]);
 
   const [triggerDate, setTriggerDate] = useState('');
   const [applying, setApplying] = useState(false);
@@ -161,6 +169,8 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
         />
       )}
 
+      {view === 'timeline' && events.length > 0 && <section aria-label="ผู้ไปนัด" className="mt-4 rounded-xl border bg-card p-4"><h3 className="font-semibold">ผู้ไปนัด</h3><ul className="mt-2 space-y-2">{events.map(event => <li key={event.id} className="text-sm"><span className="font-medium">{event.title}</span> · {event.type === 'COURT_DATE' ? 'ผู้ไปศาล' : 'ผู้ไปนัด'}: {event.assignees?.length ? event.assignees.map(a => `${a.user.firstName} ${a.user.lastName}`).join(', ') : users.find(u => u.id === event.assigneeId) ? users.filter(u => u.id === event.assigneeId).map(u => `${u.firstName} ${u.lastName}`).join('') : 'ยังไม่ระบุ'}</li>)}</ul></section>}
+
       <details className="mt-4 rounded-xl border bg-card px-4 py-3">
         <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">{d.dateSuggestions.applyTrigger}</summary>
         <div className="pt-3">
@@ -200,6 +210,7 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
         <CalendarEventDialog
           caseId={caseId}
           caseCourtName={legalCase?.courtName}
+          caseOwnerId={legalCase?.leadLawyerId}
           users={users}
           event={dialog.event}
           defaultDate={dialog.defaultDate}

@@ -17,6 +17,7 @@ import { useTaskParam } from '@/components/tasks/useTaskParam';
 import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
 import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
 import { Button } from '@/components/ui/button';
+import { UndoToast, type UndoAction } from '@/components/ui/UndoToast';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
@@ -35,6 +36,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
   const router = useRouter();
   const searchParams = useSearchParams();
   const createRequested = searchParams.get('newTask') === '1';
+  const [undo, setUndo] = useState<UndoAction | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [caseDetail, setCaseDetail] = useState<CaseDetail | null>(null);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -102,7 +104,12 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
     if (!token || !caseId) return;
     setError('');
     try {
+      const previous = tasks.find(task => task.id === taskId);
       await api.updateTask(token, caseId, taskId, { status });
+      if (status === TaskStatus.DONE && previous && previous.status !== TaskStatus.DONE) {
+        const next = tasks.find(task => task.id !== taskId && task.status !== TaskStatus.DONE);
+        setUndo({ message: `ทำเสร็จแล้ว: ${previous.title}`, detail: next ? `งานถัดไป: ${next.title}` : undefined, undo: async () => { await api.updateTask(token, caseId, taskId, { status: previous.status }); loadTasks(); } });
+      }
       loadTasks();
     } catch {
       setError(d.caseTasks.updateFailed);
@@ -195,6 +202,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
 
   return (
     <div>
+      <UndoToast action={undo} onDismiss={() => setUndo(null)} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
         <div>
           <h2 className="font-semibold tracking-tight text-foreground">{d.caseTasks.title}</h2>
