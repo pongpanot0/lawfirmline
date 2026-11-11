@@ -17,7 +17,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  // "สร้าง folder ใหม่": the lawyer picks where, then confirms the name — nothing is created before "สร้างและผูก".
+  // "สร้างโฟลเดอร์ใหม่": the lawyer picks where, then confirms the name — nothing is created before "สร้างและผูก".
   const [createPickerOpen, setCreatePickerOpen] = useState(false);
   const [newParent, setNewParent] = useState<DrivePickerItem | null>(null);
   const [newName, setNewName] = useState('');
@@ -47,7 +47,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
     try {
       await openInNewTab(async () => (await api.openCaseDriveItem(token, caseId, item.id)).webUrl);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'เปิดไฟล์ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'เปิดไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -61,14 +61,14 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
       setNotice(`นำเข้า "${item.name}" เป็นเอกสารคดีแล้ว`);
       onImported();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'นำเข้าไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'นำเข้าไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusyId(null);
     }
   };
 
   const importAll = async () => {
-    if (!token || !window.confirm('นำเข้าไฟล์ทั้งหมดใน folder นี้เป็นเอกสารคดี?')) return;
+    if (!token || !window.confirm('นำเข้าไฟล์ทั้งหมดในโฟลเดอร์นี้เป็นเอกสารคดี?')) return;
     setBusyId('*');
     setError('');
     setNotice('');
@@ -80,7 +80,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
       );
       onImported();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'นำเข้าไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'นำเข้าไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusyId(null);
     }
@@ -106,22 +106,22 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
     try {
       await api.createCaseDriveFolder(token, caseId, newParent.driveId, newParent.id, newName.trim());
       setNewParent(null);
-      setNotice(`สร้าง folder "${newName.trim()}" ใน ${newParent.name} และผูกกับคดีแล้ว`);
+      setNotice(`สร้างโฟลเดอร์ "${newName.trim()}" ใน ${newParent.name} และผูกกับคดีแล้ว`);
       load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'สร้าง folder ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'สร้างโฟลเดอร์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setCreating(false);
     }
   };
 
   const unlink = async () => {
-    if (!token || !window.confirm('ยกเลิกการผูก folder นี้กับคดี? (ไฟล์ใน OneDrive ไม่ถูกลบ)')) return;
+    if (!token || !window.confirm('ยกเลิกการผูกโฟลเดอร์นี้กับคดี? (ไฟล์ใน OneDrive ไม่ถูกลบ)')) return;
     try {
       await api.unlinkCaseDriveFolder(token, caseId);
       load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ยกเลิกการผูกไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'ยกเลิกการผูกไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -154,7 +154,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
               className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs sm:min-h-8 hover:bg-accent disabled:opacity-50"
             >
               <FileDown aria-hidden="true" className="h-3.5 w-3.5" />
-              {busyId === '*' ? 'กำลังนำเข้า…' : 'นำเข้าไฟล์ทั้ง folder'}
+              {busyId === '*' ? 'กำลังนำเข้า…' : 'นำเข้าไฟล์ทั้งโฟลเดอร์'}
             </button>
           )}
           <button
@@ -163,7 +163,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
             className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs sm:min-h-8 font-medium hover:bg-accent"
           >
             <Link2 aria-hidden="true" className="h-3.5 w-3.5" />
-            {listing?.link ? 'เปลี่ยน folder' : 'ผูก folder OneDrive'}
+            {listing?.link ? 'เปลี่ยนโฟลเดอร์' : 'ผูกโฟลเดอร์ OneDrive'}
           </button>
           {listing?.state === 'NO_LINK' && (
             <button
@@ -172,7 +172,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
               className="inline-flex min-h-11 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs sm:min-h-8 font-medium hover:bg-accent"
             >
               <FolderPlus aria-hidden="true" className="h-3.5 w-3.5" />
-              สร้าง folder ใหม่
+              สร้างโฟลเดอร์ใหม่
             </button>
           )}
           {listing?.link && (
@@ -192,7 +192,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
       {newParent && (
         <div className="mb-3 space-y-2 rounded-lg border bg-muted/30 p-3">
           <label className="block text-sm">
-            ชื่อ folder ใหม่ใน <strong>{newParent.name}</strong>
+            ชื่อโฟลเดอร์ใหม่ใน <strong>{newParent.name}</strong>
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -218,7 +218,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
       )}
 
       {!loading && listing?.state === 'NO_LINK' && (
-        <InlineEmptyState title="ยังไม่ได้ผูก folder OneDrive ของคดี" />
+        <InlineEmptyState title="ยังไม่ได้ผูกโฟลเดอร์ OneDrive ของคดี" />
       )}
 
       {!loading && listing && (listing.state === 'DISCONNECTED' || listing.state === 'ERROR') && (
@@ -230,7 +230,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
 
       {!loading && listing?.state === 'OK' && (
         <div className="space-y-2">
-          {listing.items.length === 0 && <InlineEmptyState title="folder นี้ยังไม่มีไฟล์" />}
+          {listing.items.length === 0 && <InlineEmptyState title="โฟลเดอร์นี้ยังไม่มีไฟล์" />}
           {listing.items.map((item) => (
             <div
               key={item.id}
@@ -269,13 +269,13 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
             </div>
           ))}
           <p className="text-xs text-muted-foreground">
-            ถ้า Microsoft แจ้งว่าไม่มีสิทธิ์เปิดไฟล์ ให้ขอผู้ผูก folder แชร์ให้ใน OneDrive หรือกด &quot;นำเข้าเป็นเอกสารคดี&quot;
+            ถ้า Microsoft แจ้งว่าไม่มีสิทธิ์เปิดไฟล์ ให้ขอผู้ผูกโฟลเดอร์แชร์ให้ใน OneDrive หรือกด &quot;นำเข้าเป็นเอกสารคดี&quot;
           </p>
         </div>
       )}
 
-      <DriveFolderPicker open={pickerOpen} title="เลือก folder OneDrive ของคดี" onClose={closePicker} onPick={linkFolder} />
-      <DriveFolderPicker open={createPickerOpen} title="เลือกที่เก็บ folder ใหม่" onClose={closeCreatePicker} onPick={chooseNewParent} />
+      <DriveFolderPicker open={pickerOpen} title="เลือกโฟลเดอร์ OneDrive ของคดี" onClose={closePicker} onPick={linkFolder} />
+      <DriveFolderPicker open={createPickerOpen} title="เลือกที่เก็บโฟลเดอร์ใหม่" onClose={closeCreatePicker} onPick={chooseNewParent} />
     </div>
   );
 }

@@ -43,7 +43,7 @@ export function DailyWorkboard() {
     try {
       const data = await api.getDailyWorkboard(token, date);
       if (version === requestVersion.current) setBoard(data);
-    } catch (err) { if (version === requestVersion.current) { setBoard(null); setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่ได้'); } }
+    } catch (err) { if (version === requestVersion.current) { setBoard(null); setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ ลองโหลดหน้าใหม่'); } }
     finally { if (version === requestVersion.current) setLoading(false); }
   }, [token, date]);
   useEffect(() => { void load(); return () => { requestVersion.current++; }; }, [load]);
@@ -57,7 +57,7 @@ export function DailyWorkboard() {
     try {
       const { followedUpAt } = await api.followUpTask(token, task.id);
       setBoard((b) => b && { ...b, tasks: b.tasks.map((t) => t.id === task.id ? { ...t, followedUpAt } : t) });
-    } catch (err) { setNudgeError({ id: task.id, message: err instanceof Error ? err.message : 'ส่งไม่ได้' }); }
+    } catch (err) { setNudgeError({ id: task.id, message: err instanceof Error ? err.message : 'ส่งคำถามไม่สำเร็จ ลองใหม่อีกครั้ง' }); }
     finally { setNudging(null); }
   };
 
@@ -71,7 +71,7 @@ export function DailyWorkboard() {
   const done = board?.tasks.filter((t) => t.status === TaskStatus.DONE) ?? [];
   const users: UserItem[] = board?.members.map((m) => ({ id: m.userId, firstName: m.firstName, lastName: m.lastName, email: m.email, role: Role.LAWYER, firmRole: m.role as FirmRole })) ?? [];
 
-  const meta = (t: DailyWorkTask) => [t.case?.ownRef, t.dueDate && `ส่ง ${formatDateTime(t.dueDate)}`].filter(Boolean).join(' · ');
+  const meta = (t: DailyWorkTask) => [t.case?.ownRef, t.dueDate && `กำหนดส่ง ${formatDateTime(t.dueDate)}`].filter(Boolean).join(' · ');
 
   return <section className="space-y-5">
     <div className="flex flex-wrap items-end justify-between gap-3">

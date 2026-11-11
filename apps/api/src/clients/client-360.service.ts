@@ -163,7 +163,7 @@ export class Client360Service {
     const note = dto.note?.trim();
     if (!note) throw new BadRequestException('ระบุผลการคุยหรือข้อความที่ฝากไว้');
     if (!dto.reached && (dto.followupTitle || dto.followupDueDate)) {
-      throw new BadRequestException('สายที่ยังไม่ได้คุยจะสร้างงานโทรกลับให้อัตโนมัติ');
+      throw new BadRequestException('สายที่ยังไม่ได้คุย ระบบสร้างงานโทรกลับให้เอง ไม่ต้องใส่ชื่องานหรือวันติดตาม');
     }
     if (dto.reached && Boolean(dto.followupTitle) !== Boolean(dto.followupDueDate)) {
       throw new BadRequestException('ระบุทั้งชื่องานและวันติดตาม');

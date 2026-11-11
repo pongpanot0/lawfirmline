@@ -77,7 +77,7 @@ export class CaseFolderLinksService {
   async linkFolders(user: AuthUser, items: { folderId: string; caseId: string }[]) {
     if (items.length === 0) return { linked: [] };
     const folderIds = items.map((item) => item.folderId);
-    if (new Set(folderIds).size !== folderIds.length) throw new BadRequestException('เลือก folder ซ้ำกัน');
+    if (new Set(folderIds).size !== folderIds.length) throw new BadRequestException('เลือกโฟลเดอร์ซ้ำ — เอาอันที่ซ้ำออกแล้วบันทึกใหม่');
 
     const { connection, accessToken } = await this.ownConnection(user);
 
@@ -91,9 +91,9 @@ export class CaseFolderLinksService {
     const folders = new Map((await this.folders.listMailFolders(accessToken)).map((folder) => [folder.id, folder]));
     for (const item of items) {
       const folder = folders.get(item.folderId);
-      if (!folder) throw new BadRequestException('ไม่พบ folder นี้ในกล่องอีเมลของคุณ');
+      if (!folder) throw new BadRequestException('ไม่พบโฟลเดอร์นี้ในกล่องอีเมลของคุณ');
       if (folder.isSystem) {
-        throw new BadRequestException(`ผูก "${folder.displayPath}" กับคดีไม่ได้ — เลือก folder ย่อยที่เก็บอีเมลของคดีนี้`);
+        throw new BadRequestException(`ผูก "${folder.displayPath}" กับคดีไม่ได้ — เลือกโฟลเดอร์ย่อยที่เก็บอีเมลของคดีนี้`);
       }
     }
 
@@ -105,7 +105,7 @@ export class CaseFolderLinksService {
     for (const item of items) {
       const current = existingByFolder.get(item.folderId);
       if (current && current.caseId !== item.caseId) {
-        throw new ConflictException(`folder "${current.displayPath}" ผูกกับคดีอื่นอยู่แล้ว — ยกเลิกการผูกเดิมก่อน`);
+        throw new ConflictException(`โฟลเดอร์ "${current.displayPath}" ผูกกับคดีอื่นอยู่แล้ว — ยกเลิกการผูกเดิมก่อน`);
       }
     }
 
@@ -129,7 +129,7 @@ export class CaseFolderLinksService {
       ),
       )
       .catch((error) => {
-        if (isUniqueViolation(error)) throw new ConflictException('folder นี้ผูกกับคดีอยู่แล้ว — ลองรีเฟรชแล้วทำใหม่');
+        if (isUniqueViolation(error)) throw new ConflictException('โฟลเดอร์นี้ผูกกับคดีอยู่แล้ว — โหลดหน้าใหม่แล้วลองอีกครั้ง');
         throw error;
       });
     await this.prisma.auditLog.createMany({
@@ -177,7 +177,7 @@ export class CaseFolderLinksService {
       where: { id: linkId, firmId: user.firmId, kind: OUTLOOK_FOLDER },
       select: { id: true, caseId: true, displayPath: true, linkedById: true, connection: { select: { userId: true } } },
     });
-    if (!link) throw new NotFoundException('ไม่พบการผูก folder นี้');
+    if (!link) throw new NotFoundException('ไม่พบการผูกโฟลเดอร์นี้ อาจถูกยกเลิกไปแล้ว โหลดหน้าใหม่');
     const canManage =
       link.linkedById === user.id ||
       link.connection.userId === user.id ||

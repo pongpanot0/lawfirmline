@@ -106,7 +106,7 @@ describe('DriveCaseImportService', () => {
     const { results } = await service.importCases(user, { driveId: 'b!d', rows: [row('F1'), row('F2'), row('F3')] } as any);
 
     expect(results.map((r) => r.status)).toEqual(['CREATED', 'FAILED', 'CREATED']);
-    expect(results[1].message).toBe('เลือกได้เฉพาะ folder');
+    expect(results[1].message).toBe('เลือกได้เฉพาะโฟลเดอร์ ไม่ใช่ไฟล์');
   });
 
   it('rejects the whole request when a lead or buddy is not a firm member', async () => {

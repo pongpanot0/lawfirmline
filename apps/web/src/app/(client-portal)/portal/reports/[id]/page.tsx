@@ -32,7 +32,7 @@ export default function PortalReportDetailPage() {
     setError('');
     portalApi.getAnnualReport(token, id)
       .then(setReport)
-      .catch((e) => setError(e instanceof Error ? e.message : 'เปิดรายงานไม่สำเร็จ'))
+      .catch((e) => setError(e instanceof Error ? e.message : 'เปิดรายงานไม่สำเร็จ ลองโหลดหน้าใหม่'))
       .finally(() => setBusy(false));
   }, [token, id, attempt]);
 

@@ -231,7 +231,7 @@ describe('CollectionsService', () => {
         baseInvoice({ lastReminderAt: new Date('2026-09-26T00:00:00Z') }),
       );
       await expect(service.sendReminder(owner, 'i1', now)).rejects.toThrow(
-        new BadRequestException('ทวงใบนี้ไปแล้วภายใน 24 ชม.'),
+        new BadRequestException('ทวงใบนี้ไปแล้วใน 24 ชั่วโมงที่ผ่านมา รอครบ 24 ชั่วโมงแล้วค่อยทวงอีกครั้ง'),
       );
       expect(mockPrisma.clientContact.findMany).not.toHaveBeenCalled();
     });

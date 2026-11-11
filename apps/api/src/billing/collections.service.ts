@@ -176,7 +176,7 @@ export class CollectionsService {
         const existing = await tx.invoicePayment.findUnique({ where: { firmId_createRequestId: { firmId: user.firmId, createRequestId: dto.createRequestId } } });
         if (existing) {
           if (existing.invoiceId !== invoiceId || existing.amount !== dto.amount || existing.receivedAt.toISOString().slice(0, 10) !== receivedAt.toISOString().slice(0, 10) || existing.method !== (dto.method ?? 'TRANSFER') || (existing.note ?? '') !== (dto.note ?? '')) {
-            throw new ConflictException('คีย์รับเงินนี้ใช้แล้วกับข้อมูลอื่น กรุณาตรวจประวัติรับเงิน');
+            throw new ConflictException('รายการรับเงินนี้ถูกบันทึกไปแล้วด้วยข้อมูลอื่น ตรวจประวัติรับเงินก่อนบันทึกซ้ำ');
           }
           return { invoice, payment: existing, outstanding: round(invoice.totalAmount - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0)) };
         }
@@ -214,7 +214,7 @@ export class CollectionsService {
           : invoice;
       return { invoice: updatedInvoice, payment, outstanding };
     }).catch(error => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('คีย์รับเงินนี้ใช้แล้ว กรุณาตรวจประวัติรับเงิน');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('รายการรับเงินนี้ถูกบันทึกไปแล้ว ตรวจประวัติรับเงิน');
       throw error;
     });
   }
@@ -259,7 +259,7 @@ export class CollectionsService {
       throw new BadRequestException('ต้องส่งใบแจ้งหนี้และมียอดค้างชำระก่อนทวงได้');
     }
     if (invoice.lastReminderAt && now.getTime() - invoice.lastReminderAt.getTime() < 24 * 60 * 60 * 1000) {
-      throw new BadRequestException('ทวงใบนี้ไปแล้วภายใน 24 ชม.');
+      throw new BadRequestException('ทวงใบนี้ไปแล้วใน 24 ชั่วโมงที่ผ่านมา รอครบ 24 ชั่วโมงแล้วค่อยทวงอีกครั้ง');
     }
 
     const clientId = invoice.billToCustomerId ?? invoice.case?.clientId;

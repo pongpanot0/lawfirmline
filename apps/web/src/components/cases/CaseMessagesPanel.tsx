@@ -99,7 +99,7 @@ export function CaseMessagesPanel({ caseId }: { caseId: string }) {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError('ดาวน์โหลดไฟล์ไม่สำเร็จ');
+      setError('ดาวน์โหลดไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setDownloadingId(null);
     }
@@ -113,7 +113,7 @@ export function CaseMessagesPanel({ caseId }: { caseId: string }) {
     <div className="rounded-xl border bg-card">
       <div className="border-b px-5 py-4">
         <h2 className="font-semibold text-foreground">{d.messages.title}</h2>
-        <p className="text-sm text-muted-foreground">ข้อความและเอกสารกับลูกความผ่าน portal</p>
+        <p className="text-sm text-muted-foreground">ข้อความและเอกสารกับลูกความผ่านพอร์ทัลลูกความ</p>
       </div>
 
       <div className="max-h-[50vh] space-y-1 overflow-y-auto px-5 py-4">

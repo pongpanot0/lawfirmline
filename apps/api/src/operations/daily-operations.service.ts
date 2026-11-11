@@ -242,7 +242,7 @@ export class DailyOperationsService {
   async assign(user: AuthUser, taskId: string, dto: AssignDailyTaskDto) {
     this.owner(user);
     const task = await this.inFirm(user, taskId);
-    if ([TaskStatus.DONE, TaskStatus.PENDING_REVIEW].includes(task.status as TaskStatus)) throw new BadRequestException('มอบหมายได้เฉพาะงานที่ยังไม่ส่งตรวจหรือเสร็จ');
+    if ([TaskStatus.DONE, TaskStatus.PENDING_REVIEW].includes(task.status as TaskStatus)) throw new BadRequestException('มอบหมายได้เฉพาะงานที่ยังไม่ส่งตรวจและยังไม่เสร็จ');
     if (task.requiresReview && task.reviewerId === dto.assigneeId) throw new BadRequestException('ผู้ทำงานและผู้ตรวจต้องเป็นคนละคน');
     const position = await this.position(user, dto.assigneeId, dto.placeFirst ?? false);
     await this.tasks.update(taskId, { assigneeId: dto.assigneeId, ...(dto.size && { size: dto.size }) }, user, task.caseId ?? undefined);

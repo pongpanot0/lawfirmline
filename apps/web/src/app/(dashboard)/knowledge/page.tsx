@@ -127,7 +127,7 @@ export default function KnowledgePage() {
                 </button>
               </div>
               <p className={`mt-4 max-w-prose whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground ${expanded === item.id ? '' : 'line-clamp-3'}`}>
-                {isUnusableAnalysis(item.summary) ? 'อ่านเอกสารไม่สำเร็จ — ผลเดิมไม่ใช่สรุปที่พร้อมใช้งาน กรุณาวิเคราะห์เอกสารใหม่' : item.summary}
+                {isUnusableAnalysis(item.summary) ? 'ผลสรุปเดิมใช้ไม่ได้ — กรุณาวิเคราะห์เอกสารใหม่' : item.summary}
               </p>
             </div>
           ))}

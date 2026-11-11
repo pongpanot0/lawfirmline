@@ -49,7 +49,7 @@ export class IappLegalClient {
     const apiKey = this.getApiKey();
     if (!apiKey) {
       this.logger.error('IAPP_API_KEY not set — cannot search precedents');
-      throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่าบริการค้นหาฎีกา (IAPP_API_KEY) — ติดต่อผู้ดูแลระบบ');
+      throw new ServiceUnavailableException('ยังไม่ได้เปิดใช้บริการค้นหาฎีกา — ติดต่อผู้ดูแลระบบ');
     }
 
     const params = new URLSearchParams({ query });

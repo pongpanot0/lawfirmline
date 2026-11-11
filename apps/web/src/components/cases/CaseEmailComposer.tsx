@@ -131,7 +131,7 @@ export function CaseEmailComposer({
       if (body.trim()) setPendingTemplate(rendered);
       else applyTemplate(rendered, 'replace');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ใช้เทมเพลตไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'ใช้เทมเพลตไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setTemplateLoading(false);
     }
@@ -164,7 +164,7 @@ export function CaseEmailComposer({
       publishActionFeedback(
         'success',
         (result.recorded ? 'ส่งอีเมลแล้ว' : 'ส่งอีเมลแล้ว แต่บันทึกเข้าแท็บอีเมลไม่สำเร็จ — ดูได้ใน Sent Items ของ Outlook') +
-          (result.mode === 'REPLY_AS_NEW' ? ' (ส่งเป็นอีเมลใหม่ ไม่อยู่ใน conversation เดิม)' : '') +
+          (result.mode === 'REPLY_AS_NEW' ? ' (ส่งเป็นอีเมลใหม่ ไม่ต่อจากอีเมลเดิม)' : '') +
           (result.linkedFiles.length ? ` · ส่งเป็นลิงก์ ${result.linkedFiles.length} ไฟล์` : ''),
       );
       setConfirming(false);
@@ -172,7 +172,7 @@ export function CaseEmailComposer({
       onClose();
     } catch (err) {
       setConfirming(false);
-      setError(err instanceof Error ? err.message : 'ส่งอีเมลไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'ส่งอีเมลไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       inFlight.current = false;
       setSending(false);
@@ -185,7 +185,7 @@ export function CaseEmailComposer({
       const { url } = await api.getOutlookConnectUrl(token);
       window.location.assign(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เชื่อมต่อ Microsoft 365 ไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'เชื่อมต่อ Microsoft 365 ไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 

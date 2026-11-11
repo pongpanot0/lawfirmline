@@ -34,7 +34,7 @@ export function officeEditedHint(
   link: { lastModifiedDateTime: string | null; hasNewerEdits: boolean } | undefined,
 ): string | null {
   if (!link?.hasNewerEdits || !link.lastModifiedDateTime) return null;
-  return `แก้ใน ${officeAppName(filename)} ล่าสุด ${driveDateTime(link.lastModifiedDateTime)} — ยังไม่ได้ดึงกลับ`;
+  return `แก้ใน ${officeAppName(filename)} ล่าสุด ${driveDateTime(link.lastModifiedDateTime)} — ยังไม่ได้ดึงฉบับล่าสุดเข้าระบบ`;
 }
 
 /**

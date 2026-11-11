@@ -250,6 +250,6 @@ describe('WorkflowsService', () => {
     const { svc, prisma } = build();
     prisma.workflowRun.findFirst.mockResolvedValue({ id: 'run-1', status: 'DONE', createdById: 'owner', caseId: 'case-1', tasks: [] });
     prisma.case.findFirst.mockResolvedValue({ leadLawyerId: 'senior' });
-    await expect(svc.cancelRun(owner, 'run-1')).rejects.toThrow('ไม่ได้เดินอยู่');
+    await expect(svc.cancelRun(owner, 'run-1')).rejects.toThrow('หยุดหรือจบไปแล้ว');
   });
 });

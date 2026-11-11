@@ -39,7 +39,7 @@ export function CaseEvidenceSection({ caseId, refreshKey }: { caseId: string; re
     <div className="mb-6 rounded-xl border bg-card p-6">
       <h3 className="font-semibold text-foreground">หลักฐานอ้างอิง ({citations.length})</h3>
       <p className="mb-3 mt-1 text-sm text-muted-foreground">
-        จุดในเอกสารที่ AI พบว่ารองรับข้อเท็จจริง
+        ส่วนในเอกสารที่ AI พบว่าสนับสนุนข้อเท็จจริง
       </p>
       <ul className="space-y-2">
         {byDocument.map(([docId, group]) => (

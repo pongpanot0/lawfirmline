@@ -55,28 +55,28 @@ function declaredInflatedSize(buf: Buffer): number | null {
 /** Reads sheet "คดี" by header text. File-level problems throw one Thai BadRequest; row problems are the resolver's. */
 export async function readCaseImportSheet(buf: Buffer): Promise<{ rows: RawCaseRow[] }> {
   const inflated = declaredInflatedSize(buf);
-  if (inflated === null) throw new BadRequestException('อ่านไฟล์ไม่ได้ — ใช้ไฟล์ .xlsx จาก template ของระบบ');
-  if (inflated > MAX_INFLATED_BYTES) throw new BadRequestException('ไฟล์ใหญ่เกินไปเมื่อแตกไฟล์ — ใช้ template ของระบบ ไม่เกิน 300 แถว');
+  if (inflated === null) throw new BadRequestException('อ่านไฟล์ไม่ได้ — ดาวน์โหลดแบบฟอร์มของระบบ (.xlsx) แล้วกรอกใหม่');
+  if (inflated > MAX_INFLATED_BYTES) throw new BadRequestException('ไฟล์ใหญ่เกินไป — ใช้แบบฟอร์มของระบบ และกรอกไม่เกิน 300 แถว');
   const book = new ExcelJS.Workbook();
   try {
     await book.xlsx.load(buf as unknown as ExcelJS.Buffer);
   } catch {
-    throw new BadRequestException('อ่านไฟล์ไม่ได้ — ใช้ไฟล์ .xlsx จาก template ของระบบ');
+    throw new BadRequestException('อ่านไฟล์ไม่ได้ — ดาวน์โหลดแบบฟอร์มของระบบ (.xlsx) แล้วกรอกใหม่');
   }
   const sheet = book.getWorksheet(CASE_IMPORT_SHEET);
-  if (!sheet) throw new BadRequestException(`ไม่พบแผ่นงาน "${CASE_IMPORT_SHEET}" — ใช้ template ของระบบ`);
+  if (!sheet) throw new BadRequestException(`ไม่พบแผ่นงาน "${CASE_IMPORT_SHEET}" — ใช้แบบฟอร์มของระบบ`);
 
   const columns = new Map<number, CaseImportHeader>();
   sheet.getRow(1).eachCell((cell, col) => {
     const text = String(cellValue(cell.value) ?? '');
     if (!text) return;
     // A renamed column would otherwise drop every value under it without a word.
-    if (!KNOWN_HEADERS.has(text)) throw new BadRequestException(`ไม่รู้จักคอลัมน์ "${text}" — ใช้ชื่อคอลัมน์ตาม template ของระบบ`);
+    if (!KNOWN_HEADERS.has(text)) throw new BadRequestException(`ไม่รู้จักคอลัมน์ "${text}" — ใช้ชื่อคอลัมน์ตามแบบฟอร์มของระบบ`);
     columns.set(col, text as CaseImportHeader);
   });
   const present = new Set(columns.values());
   const missing = REQUIRED_HEADERS.find((h) => !present.has(h));
-  if (missing) throw new BadRequestException(`ไม่พบคอลัมน์ "${missing}" — ใช้ template ของระบบ`);
+  if (missing) throw new BadRequestException(`ไม่พบคอลัมน์ "${missing}" — ใช้แบบฟอร์มของระบบ`);
 
   const rows: RawCaseRow[] = [];
   sheet.eachRow((row, rowNumber) => {

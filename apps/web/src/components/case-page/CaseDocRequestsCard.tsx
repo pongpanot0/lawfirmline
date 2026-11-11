@@ -14,7 +14,7 @@ export function CaseDocRequestsCard({ token, caseId }: { token: string; caseId: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [undo, setUndo] = useState<UndoAction | null>(null);
-  const load = () => api.getCaseDocumentRequests(token, caseId).then((rows) => setItems(rows as IntakeDocumentRequestItem[])).catch(() => setError('โหลดรายการเอกสารที่ขอไม่สำเร็จ'));
+  const load = () => api.getCaseDocumentRequests(token, caseId).then((rows) => setItems(rows as IntakeDocumentRequestItem[])).catch(() => setError('โหลดรายการเอกสารที่ขอไม่สำเร็จ ลองโหลดหน้าใหม่'));
   useEffect(() => { void load(); }, [token, caseId]);
   const setStatus = async (item: IntakeDocumentRequestItem, status: string) => {
     setBusy(true); setError('');

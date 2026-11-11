@@ -21,7 +21,7 @@ export default function PortalInviteAcceptPage() {
     portalApi
       .getInvite(token)
       .then(setInvite)
-      .catch((err) => setError(err instanceof PortalApiError ? err.message : 'ไม่สามารถโหลดคำเชิญได้'));
+      .catch((err) => setError(err instanceof PortalApiError ? err.message : 'โหลดคำเชิญไม่สำเร็จ ลองเปิดลิงก์อีกครั้ง'));
   }, [token]);
 
   const handleAccept = async () => {
@@ -32,7 +32,7 @@ export default function PortalInviteAcceptPage() {
       const contact = await setSession(res.accessToken);
       router.replace(portalHomeFor(contact));
     } catch (err) {
-      setError(err instanceof PortalApiError ? err.message : 'ไม่สามารถยืนยันคำเชิญได้');
+      setError(err instanceof PortalApiError ? err.message : 'ยืนยันคำเชิญไม่สำเร็จ ลองใหม่อีกครั้ง');
       setAccepting(false);
     }
   };

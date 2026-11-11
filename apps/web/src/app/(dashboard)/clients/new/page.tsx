@@ -241,7 +241,7 @@ export default function NewClientPage() {
                       <Input
                         required={Boolean(contact.email.trim() || contact.phone.trim() || contact.position.trim())}
                         pattern=".*\S.*"
-                        title="ระบุชื่อผู้ติดต่ออย่างน้อย 1 ตัวอักษร"
+                        title="กรอกชื่อผู้ติดต่อ"
                         aria-label={`${d.clients.contactName} ${index + 1}`}
                         placeholder={d.clients.contactName}
                         value={contact.name}

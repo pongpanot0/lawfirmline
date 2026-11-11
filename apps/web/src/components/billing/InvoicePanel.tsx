@@ -102,7 +102,7 @@ export function InvoicePanel({
           discountReason: data.discountReason,
         }),
       );
-      if (!ok) setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาต popup สำหรับเว็บไซต์นี้');
+      if (!ok) setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาตป๊อปอัปของเว็บไซต์นี้ในเบราว์เซอร์');
     } catch {
       setError('โหลดข้อมูลใบแจ้งหนี้ไม่สำเร็จ กรุณาลองใหม่');
     }

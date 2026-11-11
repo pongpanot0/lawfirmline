@@ -50,7 +50,7 @@ export function CaseNoticeDialog({
       onDone();
       onClose();
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด';
+      const message = err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง';
       // เอกสารยังไม่ครบ — ให้กดรับทราบแล้วออกได้ (เหมือนหน้า intake)
       if (message.includes('ขาดเอกสาร')) {
         setMissingWarning(message);
@@ -65,7 +65,7 @@ export function CaseNoticeDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-xl bg-card p-5 shadow-xl">
-        <h2 className="mb-4 text-lg font-semibold">ออกหนังสือทวงถาม (Notice)</h2>
+        <h2 className="mb-4 text-lg font-semibold">ออกหนังสือทวงถาม</h2>
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium">ผู้รับหนังสือ *</label>
@@ -152,7 +152,7 @@ export function PreLitigationUpdateDialog({
       onDone();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }

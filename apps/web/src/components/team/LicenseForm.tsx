@@ -36,7 +36,7 @@ export function LicenseForm({
       });
       setState('saved');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
       setState('idle');
     }
   }

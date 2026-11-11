@@ -119,7 +119,7 @@ export class CourtDayService {
       new Set(state.taskIds).size !== state.taskIds.length ||
       new Set(state.documents.map((x) => x.id)).size !== state.documents.length
     ) {
-      throw new BadRequestException('รายการซ้ำ / Duplicate items');
+      throw new BadRequestException('เลือกรายการซ้ำ เอาอันที่ซ้ำออก / Duplicate items');
     }
     const tasks = await db.task.count({
       where: { id: { in: state.taskIds }, caseId },
@@ -172,7 +172,7 @@ export class CourtDayService {
       });
       if (!saved.count)
         throw new ConflictException(
-          'มีข้อมูลใหม่จากอีกหน้าจอ กรุณาโหลดล่าสุด / This appointment was updated elsewhere',
+          'นัดนี้ถูกแก้จากที่อื่นแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง / This appointment was updated elsewhere',
         );
       return db.courtDay.findUniqueOrThrow({ where: { eventId: id } });
     });
@@ -262,7 +262,7 @@ export class CourtDayService {
           },
         });
         if (!claimed.count)
-          throw new ConflictException('ข้อมูลเปลี่ยนแล้ว / Workspace changed');
+          throw new ConflictException('ข้อมูลเปลี่ยนแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง / Workspace changed');
         const activity = await db.caseActivity.create({
           data: {
             caseId: event.caseId,

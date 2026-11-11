@@ -89,7 +89,7 @@ describe('OutlookOAuthController browser binding', () => {
     await cb('s', reqWith('m365_oauth_nonce=n1'), 'access_denied');
     expect(res.clearCookie).toHaveBeenCalledTimes(1);
     oauth.verifyState.mockImplementation(() => {
-      throw new BadRequestException('state ไม่ถูกต้อง');
+      throw new BadRequestException('ลิงก์เชื่อมต่อไม่ถูกต้อง เริ่มเชื่อมต่อใหม่จากหน้าตั้งค่า');
     });
     await cb('bad', reqWith('m365_oauth_nonce=n1'));
     expect(res.clearCookie).toHaveBeenCalledTimes(2);

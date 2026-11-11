@@ -27,5 +27,5 @@ test('hint only when Office has unpulled edits, in Bangkok time', () => {
   assert.equal(officeEditedHint('a.docx', undefined), null);
   assert.equal(officeEditedHint('a.docx', { lastModifiedDateTime: '2026-10-13T08:30:00Z', hasNewerEdits: false }), null);
   const hint = officeEditedHint('a.xlsx', { lastModifiedDateTime: '2026-10-13T08:30:00Z', hasNewerEdits: true });
-  assert.match(hint ?? '', /^แก้ใน Excel ล่าสุด .*15:30.*ยังไม่ได้ดึงกลับ$/);
+  assert.match(hint ?? '', /^แก้ใน Excel ล่าสุด .*15:30.*ยังไม่ได้ดึงฉบับล่าสุดเข้าระบบ$/);
 });

@@ -46,7 +46,7 @@ export default function DailyBriefPage() {
       .catch((err) => {
         if (err instanceof ApiError && err.status === 404) setBrief(null);
         else if (err instanceof ApiError && err.status === 403) setForbidden(true);
-        else setError(err instanceof Error ? err.message : 'โหลดสรุปไม่สำเร็จ');
+        else setError(err instanceof Error ? err.message : 'โหลดสรุปไม่สำเร็จ ลองโหลดหน้าใหม่');
       });
   }, [token, date, reload]);
 

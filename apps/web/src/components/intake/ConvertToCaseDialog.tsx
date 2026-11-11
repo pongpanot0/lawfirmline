@@ -120,13 +120,13 @@ export function ConvertToCaseDialog({
 
         {!attachingToExisting && playbooks.length > 0 && (
           <label className="block text-sm">
-            <span className="mb-1 block text-muted-foreground">Playbook (ถ้ามี — สร้างงานให้อัตโนมัติหลังเปิดคดี)</span>
+            <span className="mb-1 block text-muted-foreground">ชุดงานอัตโนมัติ (ถ้ามี — สร้างงานให้เองหลังเปิดคดี)</span>
             <select
               value={playbookId}
               onChange={(e) => setPlaybookId(e.target.value)}
               className={SELECT_CLASS}
             >
-              <option value="">— ไม่ใช้ Playbook —</option>
+              <option value="">— ไม่ใช้ชุดงาน —</option>
               {playbooks.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} · v{p.version}
@@ -150,7 +150,7 @@ export function ConvertToCaseDialog({
               <strong>{intake.estimatedDamage.toLocaleString('th-TH')} บาท</strong>{' '}
               เป็นทุนทรัพย์ที่เรียกร้อง
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                สองค่านี้ไม่จำเป็นต้องเท่ากัน — ไม่ติ๊กก็เปิดคดีได้ แล้วกรอกทีหลัง
+                ความเสียหายกับทุนทรัพย์ไม่จำเป็นต้องเท่ากัน — ไม่ติ๊กก็เปิดคดีได้ แล้วกรอกทีหลัง
               </span>
             </span>
           </label>

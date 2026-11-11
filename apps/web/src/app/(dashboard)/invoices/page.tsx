@@ -50,7 +50,7 @@ export default function InvoicesPage() {
       await api.markInvoiceSent(token, invoiceId);
       setRetry((value) => value + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ส่งใบแจ้งหนี้ไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'ส่งใบแจ้งหนี้ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSendingId(null);
     }
@@ -66,7 +66,7 @@ export default function InvoicesPage() {
         if (active) { setRows(items); setReceivables(receivableData?.rows ?? []); }
       })
       .catch(() => {
-        if (active) setError('โหลดใบแจ้งหนี้ไม่สำเร็จ');
+        if (active) setError('โหลดใบแจ้งหนี้ไม่สำเร็จ ลองโหลดหน้าใหม่');
       })
       .finally(() => {
         if (active) setLoading(false);

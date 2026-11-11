@@ -63,7 +63,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
       const docs = caseId ? await api.getDocuments(token, caseId) : await api.getIntakeDocuments(token, intakeId!);
       setDocuments(docs);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'โหลด Cargo Claim ไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'โหลด Cargo Claim ไม่สำเร็จ ลองโหลดหน้าใหม่');
     } finally {
       setLoading(false);
     }
@@ -82,7 +82,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
       setClaim(result);
       setDraft(editableValues(result));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }
@@ -98,7 +98,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
       setClaim(result);
       setDraft(editableValues(result));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เปิด Cargo workspace ไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'เปิด Cargo Claim ไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }
@@ -113,7 +113,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
       setClaim({ ...claim, requirements: claim.requirements.map((item) => item.id === requirementId ? { ...item, ...updated } : item) });
       return true;
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'อัปเดตรายการเอกสารไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'บันทึกรายการเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง');
       return false;
     }
   };
@@ -134,9 +134,9 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
       }
       setDocuments(await api.getDocuments(token, caseId));
       if (failed.length) setError(`อัปโหลดไม่สำเร็จ ${failed.length} ไฟล์: ${failed.join(', ')}`);
-      if (!uploadedIds.length) setError('อัปโหลดเอกสารไม่สำเร็จ');
+      if (!uploadedIds.length) setError('อัปโหลดเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'อัปโหลดเอกสารไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'อัปโหลดเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBatchUploading(false);
     }
@@ -151,7 +151,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
       setDocuments(await api.getDocuments(token, caseId));
       await updateRequirement(requirementId, { documentId: document.id, status: 'RECEIVED' });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'อัปโหลดเอกสารไม่สำเร็จ');
+      setError(err instanceof ApiError ? err.message : 'อัปโหลดเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setUploadingRequirementId(null);
     }
@@ -161,8 +161,8 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
   if (!claim) return (
     <div className="rounded-2xl border border-dashed bg-card p-8 text-center">
       <FileCheck2 className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden />
-      <h2 className="mt-3 font-semibold">คดีนี้ยังไม่ได้เปิด Cargo Claim workspace</h2>
-      <p className="mt-1 text-sm text-muted-foreground">เปิดเพื่อใช้ Cargo Claim Playbook, checklist เอกสาร และ Time Bar</p>
+      <h2 className="mt-3 font-semibold">คดีนี้ยังไม่ได้เปิดใช้ Cargo Claim</h2>
+      <p className="mt-1 text-sm text-muted-foreground">เปิดเพื่อใช้แนวทางคดี Cargo รายการเอกสารที่ต้องมี และนับอายุความ</p>
       {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
       <Button className="mt-4" onClick={enable} disabled={saving}>เปิด Cargo Claim</Button>
     </div>
@@ -213,10 +213,10 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
             {optionalItems.length > 0 && <details className="mt-3 border-t pt-3"><summary className="cursor-pointer text-sm text-muted-foreground">เอกสารอื่น ๆ อีก {optionalItems.length} รายการ · เพิ่มได้ตามความเหมาะสม</summary><div className="mt-2 divide-y">{optionalItems.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={item.required} onChange={(event) => void updateRequirement(item.id, { required: event.target.checked })} />{item.label}</label><span className="text-xs text-muted-foreground">{item.document?.filename ?? STATUS_LABELS[item.status]}</span></div>)}</div></details>}
           </section>
           <details className="rounded-xl border bg-card p-4"><summary className="cursor-pointer font-medium">ข้อเท็จจริงการขนส่ง</summary><div className="pt-4"><CargoClaimFields value={draft} onChange={setDraft} mode="facts" /></div></details>
-          <details className="rounded-xl border bg-card p-4"><summary className="cursor-pointer font-medium">Liability / Time Bar · ทนายตรวจ</summary><div className="pt-4"><p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">ข้อมูล AI เป็นร่าง ต้องตรวจแหล่งที่มาและยืนยันก่อนใช้</p><CargoClaimFields value={draft} onChange={setDraft} mode="analysis" />{caseId && <div className="mt-6 space-y-4 border-t pt-6"><BatchAnalysisPanel caseId={caseId} onFieldSuggestions={setSuggestions} entityLabel="Cargo Claim" /><SuggestedFieldsPanel suggestions={suggestions} accepts={CARGO_SUGGEST_FIELDS} current={Object.fromEntries(CARGO_SUGGEST_FIELDS.map((field) => [field, String(draft[field as keyof CargoClaimInput] ?? '')]))} onApply={(field, value) => { const key = field as keyof CargoClaimInput; const parsed = field === 'claimedAmount' || field === 'damagedWeight' ? Number(value) : value; setDraft((current) => ({ ...current, [key]: parsed })); }} /></div>}</div></details>
+          <details className="rounded-xl border bg-card p-4"><summary className="cursor-pointer font-medium">ความรับผิด / อายุความ · ทนายตรวจ</summary><div className="pt-4"><p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">ข้อมูล AI เป็นร่าง ต้องตรวจแหล่งที่มาและยืนยันก่อนใช้</p><CargoClaimFields value={draft} onChange={setDraft} mode="analysis" />{caseId && <div className="mt-6 space-y-4 border-t pt-6"><BatchAnalysisPanel caseId={caseId} onFieldSuggestions={setSuggestions} entityLabel="Cargo Claim" /><SuggestedFieldsPanel suggestions={suggestions} accepts={CARGO_SUGGEST_FIELDS} current={Object.fromEntries(CARGO_SUGGEST_FIELDS.map((field) => [field, String(draft[field as keyof CargoClaimInput] ?? '')]))} onApply={(field, value) => { const key = field as keyof CargoClaimInput; const parsed = field === 'claimedAmount' || field === 'damagedWeight' ? Number(value) : value; setDraft((current) => ({ ...current, [key]: parsed })); }} /></div>}</div></details>
         </div>
         <aside className="space-y-3 xl:sticky xl:top-4">
-          <section className="rounded-xl border bg-card p-4"><h3 className="font-semibold">ยอดและสิทธิเรียกร้อง</h3><dl className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">{[["ยอดเรียกร้อง", draft.claimAmount ? `${draft.currency ?? 'THB'} ${draft.claimAmount}` : 'ยังไม่ระบุ'],["ผู้รับผิด", draft.liableParty || 'รอตรวจ'],["กำหนด Time Bar", draft.timeBarDeadline || 'ยังไม่ระบุ']].map(([label, value]) => <div key={label} className="rounded-lg border p-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-sm font-medium">{value}</dd></div>)}</dl></section>
+          <section className="rounded-xl border bg-card p-4"><h3 className="font-semibold">ยอดและสิทธิเรียกร้อง</h3><dl className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">{[["ยอดเรียกร้อง", draft.claimAmount ? `${draft.currency ?? 'THB'} ${draft.claimAmount}` : 'ยังไม่ระบุ'],["ผู้รับผิด", draft.liableParty || 'รอตรวจ'],["วันครบอายุความ", draft.timeBarDeadline || 'ยังไม่ระบุ']].map(([label, value]) => <div key={label} className="rounded-lg border p-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-sm font-medium">{value}</dd></div>)}</dl></section>
           <details className="rounded-xl border bg-card p-4"><summary className="cursor-pointer font-medium">Playbook · แนวทาง</summary><div className="pt-3 text-sm text-muted-foreground">ใช้เป็นแนวทางประกอบการทำงาน รายการและลำดับปรับตามข้อเท็จจริงของคดีได้{claim.playbookRelease && <p className="mt-2 text-xs">{claim.playbookRelease.name} · v{claim.playbookRelease.version}</p>}{!claim.playbookRelease && <Button variant="outline" className="mt-3" onClick={enable} disabled={saving}>ผูก Cargo Playbook</Button>}</div></details>
         </aside>
       </div>

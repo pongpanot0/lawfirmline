@@ -72,11 +72,11 @@ export function FolderMatchTable({
     <div className="space-y-3">
       <label className="flex min-h-11 items-center gap-2 text-sm">
         <input type="checkbox" className="h-4 w-4" checked={onlySuggested} onChange={(e) => setOnlySuggested(e.target.checked)} />
-        แสดงเฉพาะ โฟลเดอร์ที่มีคดีแนะนำหรือผูกแล้ว <span className="tabular-nums">({visible.length}/{rows.length})</span>
+        แสดงเฉพาะโฟลเดอร์ที่มีคดีแนะนำหรือผูกแล้ว <span className="tabular-nums">({visible.length}/{rows.length})</span>
       </label>
       {visible.length === 0 && (
         <p className="rounded-lg border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
-          {rows.length === 0 ? 'ไม่พบโฟลเดอร์' : 'ไม่มีโฟลเดอร์ ที่ระบบแนะนำ เอาเครื่องหมายด้านบนออกเพื่อแสดงทั้งหมด'}
+          {rows.length === 0 ? 'ไม่พบโฟลเดอร์' : 'ไม่มีโฟลเดอร์ที่ระบบแนะนำ เอาเครื่องหมายถูกด้านบนออกเพื่อดูทั้งหมด'}
         </p>
       )}
       <div className="grid gap-4 md:grid-cols-2" hidden={visible.length === 0}>

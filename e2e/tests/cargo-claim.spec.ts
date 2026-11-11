@@ -48,7 +48,7 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
     'ข้อหาหรือฐานความผิด',
     'ทุนทรัพย์',
     'ชื่อลูกความ',
-    'ลูกค้า (ผู้ว่าจ้าง)',
+    'ผู้ว่าจ้าง',
   ];
   let fieldCursor = 0;
   for (const label of expectedCaseFieldOrder) {

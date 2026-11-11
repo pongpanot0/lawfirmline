@@ -77,7 +77,7 @@ export function DocumentPreviewModal({
             )
           ) : (
             <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-3 text-center">
-              <p className="text-sm text-muted-foreground">ไม่สามารถแสดงตัวอย่างไฟล์ประเภทนี้ได้</p>
+              <p className="text-sm text-muted-foreground">ดูตัวอย่างไฟล์ประเภทนี้ไม่ได้ ดาวน์โหลดเพื่อเปิดแทน</p>
               <Button type="button" onClick={handleDownload}>
                 <Download className="h-4 w-4" aria-hidden />
                 ดาวน์โหลดไฟล์

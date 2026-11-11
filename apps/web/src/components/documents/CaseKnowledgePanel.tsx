@@ -62,7 +62,7 @@ function ReviewAction({ item, caseId, onReviewed }: { item: KnowledgeItem; caseI
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  if (isUnusableAnalysis(item.summary)) return <p role="alert" className="mt-3 text-sm text-destructive">ผลเดิมอ่านเอกสารไม่สำเร็จ — เปิดเอกสารแล้ววิเคราะห์ใหม่ ไม่สามารถยืนยันผลนี้ได้</p>;
+  if (isUnusableAnalysis(item.summary)) return <p role="alert" className="mt-3 text-sm text-destructive">อ่านเอกสารไม่สำเร็จ จึงยืนยันผลนี้ไม่ได้ — เปิดเอกสารแล้ววิเคราะห์ใหม่</p>;
 
   if (item.reviewedBy) {
     return (
@@ -82,7 +82,7 @@ function ReviewAction({ item, caseId, onReviewed }: { item: KnowledgeItem; caseI
       onReviewed(updated);
       setEditing(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'ยืนยันไม่สำเร็จ');
+      setError(e instanceof Error ? e.message : 'ยืนยันไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }
@@ -138,7 +138,7 @@ export function CaseKnowledgePanel({ caseId, refreshKey = 0 }: { caseId: string;
   return (
     <section id="case-analyses" className="min-w-0 scroll-mt-24 space-y-3 rounded-xl border border-border bg-card p-4">
       <h2 className="font-semibold">ผลวิเคราะห์เอกสารของคดี</h2>
-      <p className="text-sm text-muted-foreground">ผลวิเคราะห์รายไฟล์และหลายไฟล์ของคดีนี้</p>
+      <p className="text-sm text-muted-foreground">ผลวิเคราะห์ทั้งแบบทีละไฟล์และหลายไฟล์รวมกันของคดีนี้</p>
       {loading ? (
         <div role="status" aria-label="กำลังโหลดผลวิเคราะห์" className="space-y-2">
           <Skeleton className="h-11 w-full" />

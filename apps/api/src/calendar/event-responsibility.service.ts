@@ -81,7 +81,7 @@ export class EventResponsibilityService {
   }
 
   async reschedule(user: AuthUser, id: string, dto: { startAt: string; fingerprint: string; reason: string }) {
-    if (user.firmRole === 'ASSISTANT') throw new ForbiddenException('ให้ทนายยืนยันกำหนด / A lawyer must confirm dates');
+    if (user.firmRole === 'ASSISTANT') throw new ForbiddenException('ให้ทนายความยืนยันวันครบกำหนด / A lawyer must confirm dates');
     if (!dto.reason.trim()) throw new BadRequestException('ระบุเหตุผล / Enter a reason');
     const result = await this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "CalendarEvent" WHERE "id" = ${id} FOR UPDATE`;
@@ -92,10 +92,10 @@ export class EventResponsibilityService {
       await db.calendarEvent.update({ where: { id }, data: { startAt: new Date(dto.startAt), endAt: e.endAt ? new Date(e.endAt.getTime() + shift) : null } });
       for (const impact of preview.impacts) {
         const changed = await db.documentDateSuggestion.updateMany({ where: { id: impact.id, updatedAt: new Date(impact.revision) }, data: { suggestedDate: new Date(impact.newAt!), ...(impact.status === 'CONFIRMED' ? { reviewedById: user.id, reviewedAt: new Date() } : {}) } });
-        if (changed.count !== 1) throw new ConflictException('กำหนดเปลี่ยนระหว่างตรวจ / Related deadline changed');
+        if (changed.count !== 1) throw new ConflictException('วันครบกำหนดที่เกี่ยวข้องเปลี่ยนระหว่างตรวจ โหลดล่าสุดแล้วตรวจอีกครั้ง / Related deadline changed');
         if (impact.eventId) {
           const updated = await db.calendarEvent.updateMany({ where: { id: impact.eventId, updatedAt: new Date(impact.eventRevision!) }, data: { startAt: new Date(impact.newAt!), endAt: impact.endAt ? new Date(new Date(impact.endAt).getTime() + new Date(impact.newAt!).getTime() - new Date(impact.oldAt).getTime()) : null } });
-          if (updated.count !== 1) throw new ConflictException('กำหนดเปลี่ยนระหว่างตรวจ / Related deadline changed');
+          if (updated.count !== 1) throw new ConflictException('วันครบกำหนดที่เกี่ยวข้องเปลี่ยนระหว่างตรวจ โหลดล่าสุดแล้วตรวจอีกครั้ง / Related deadline changed');
           await db.reminderLog.deleteMany({ where: { eventId: impact.eventId } });
         }
       }

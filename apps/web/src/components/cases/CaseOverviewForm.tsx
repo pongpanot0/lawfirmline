@@ -64,7 +64,7 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
         <label className="text-sm">ฝ่ายที่สำนักงานเป็นทนายให้<select value={value.partyRole} onChange={e => set('partyRole', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(PartyRole).map(role => <option key={role} value={role}>{PARTY_ROLE_LABELS[role]}</option>)}</select></label>
         <label className="text-sm sm:col-span-2">ข้อหาหรือฐานความผิด<textarea rows={2} maxLength={2000} value={value.chargeSection} onChange={e => set('chargeSection', e.target.value)} placeholder="เช่น ละเมิด เรียกค่าเสียหาย / ผิดสัญญา" className={input} /><span className="mt-1 block text-xs text-muted-foreground">ระบุเรื่องที่ฟ้องหรือฐานความผิด ใช้ในคำฟ้องหน้าแรกและปกสำนวน</span></label>
         <label className="text-sm sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี<textarea rows={4} value={value.description} onChange={e => set('description', e.target.value)} placeholder="สรุปเหตุการณ์และประเด็นสำคัญของคดี" className={input} /></label>
-        <div role="group" aria-labelledby="overview-limitation-label" className="text-sm"><span id="overview-limitation-label">วันครบอายุความ</span><ThaiDateInput id="overview-limitation-deadline" className="mt-1" value={value.limitationDeadline} onChange={next => set('limitationDeadline', next)} onIncompleteChange={onLimitationIncompleteChange} /><span className="mt-1 block text-xs text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน · คู่ความแก้ที่ส่วน &quot;คู่ความและผู้เกี่ยวข้อง&quot;</span></div>
+        <div role="group" aria-labelledby="overview-limitation-label" className="text-sm"><span id="overview-limitation-label">วันครบอายุความ</span><ThaiDateInput id="overview-limitation-deadline" className="mt-1" value={value.limitationDeadline} onChange={next => set('limitationDeadline', next)} onIncompleteChange={onLimitationIncompleteChange} /><span className="mt-1 block text-xs text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน · แก้รายชื่อคู่ความได้ที่ส่วน &quot;คู่ความและผู้เกี่ยวข้อง&quot;</span></div>
         <label className="text-sm">วันเกิดเหตุ<input type="date" value={value.incidentDate.slice(0, 10)} onChange={e => set('incidentDate', e.target.value)} className={input} /></label>
         {caseTypeFields.map(field => <label key={field.key} htmlFor={`custom-${field.key}`} className="text-sm">{field.label}{field.required ? ' *' : ''}
           {field.type === 'select'
@@ -73,7 +73,7 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
         </label>)}
       </section>
       <section className={group} aria-labelledby="case-people-heading">
-        <div className="sm:col-span-2"><h3 id="case-people-heading" className="text-base font-bold tracking-tight">ลูกความและผู้ว่าจ้าง</h3><p className="mt-1 text-xs text-muted-foreground">ลูกความคือฝ่ายที่สำนักงานว่าความให้ ส่วนผู้ว่าจ้างคือผู้ติดต่อหรือผู้ชำระค่าบริการ</p></div>
+        <div className="sm:col-span-2"><h3 id="case-people-heading" className="text-base font-bold tracking-tight">ลูกความและผู้ว่าจ้าง</h3><p className="mt-1 text-xs text-muted-foreground">ลูกความคือฝ่ายที่สำนักงานว่าความให้ ส่วนผู้ว่าจ้างคือผู้ที่จ้างสำนักงานและชำระค่าบริการ</p></div>
         <label className="text-sm sm:col-span-2">ลูกความ<input list="case-client-options" value={value.clientName} onChange={e => {
           const clientName = e.target.value;
           const match = clients.find(client => client.name.trim().toLocaleLowerCase() === clientName.trim().toLocaleLowerCase());

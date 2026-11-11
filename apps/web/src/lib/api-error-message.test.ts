@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { displayApiErrorMessage, rawApiErrorMessage } from './api-error-message.ts';
 
 test('keeps Thai messages from the API', () => {
-  assert.equal(displayApiErrorMessage('ทวงใบนี้ไปแล้วภายใน 24 ชม.', 400), 'ทวงใบนี้ไปแล้วภายใน 24 ชม.');
+  assert.equal(displayApiErrorMessage('ทวงใบนี้ไปแล้วใน 24 ชั่วโมงที่ผ่านมา รอครบ 24 ชั่วโมงแล้วค่อยทวงอีกครั้ง', 400), 'ทวงใบนี้ไปแล้วใน 24 ชั่วโมงที่ผ่านมา รอครบ 24 ชั่วโมงแล้วค่อยทวงอีกครั้ง');
 });
 
 test('replaces English or code messages with Thai by status', () => {

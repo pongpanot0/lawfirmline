@@ -121,7 +121,7 @@ export default function OutlookAddinPage() {
           <Link href="/login" target="_blank" className="inline-block rounded bg-slate-800 px-3 py-1.5 text-white">
             เข้าสู่ระบบ
           </Link>
-          <p className="text-xs text-slate-500">เข้าสู่ระบบแล้วกลับมาเปิดปุ่มส่งเข้าคดีอีกครั้ง</p>
+          <p className="text-xs text-slate-500">เข้าสู่ระบบแล้วกลับมากดปุ่มส่งเข้าคดีอีกครั้ง</p>
         </div>
       )}
 
@@ -140,7 +140,7 @@ export default function OutlookAddinPage() {
 
           <section>
             <h2 className="mb-1 font-medium">คดีที่น่าจะเกี่ยวข้อง</h2>
-            {suggestions.length === 0 && <p className="text-xs text-slate-500">ไม่พบคดีที่เกี่ยวข้องอัตโนมัติ</p>}
+            {suggestions.length === 0 && <p className="text-xs text-slate-500">ไม่พบคดีที่น่าจะเกี่ยวข้อง ค้นหาด้านล่าง</p>}
             <ul className="space-y-1">
               {suggestions.map((s) => (
                 <CaseRow key={s.caseId} caseId={s.caseId} ownRef={s.ownRef} title={s.title} busy={busy} onFile={file} />

@@ -19,7 +19,7 @@ import { dateLocale, fmt } from '@/lib/i18n/dashboard';
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   PENDING: 'รอชำระ',
   PAID: 'ชำระแล้ว',
-  FAILED: 'ล้มเหลว',
+  FAILED: 'ชำระไม่สำเร็จ',
 };
 
 export default function BillingPage() {

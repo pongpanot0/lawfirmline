@@ -87,7 +87,7 @@ export class ImportDriveCasesDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(200)
-  @ArrayUnique((row: ImportDriveCaseRowDto) => row.itemId, { message: 'เลือก folder ซ้ำกัน' })
+  @ArrayUnique((row: ImportDriveCaseRowDto) => row.itemId, { message: 'เลือกโฟลเดอร์ซ้ำ — เอาอันที่ซ้ำออกแล้วบันทึกใหม่' })
   @ValidateNested({ each: true })
   @Type(() => ImportDriveCaseRowDto)
   rows!: ImportDriveCaseRowDto[];

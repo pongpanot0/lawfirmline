@@ -92,7 +92,7 @@ export class CashAdvanceService {
           returnedAmount: Math.round((advance.returnedAmount + amount) * 100) / 100,
         },
       });
-      if (updated.count !== 1) throw new ConflictException('ยอดเงินสำรองจ่ายเปลี่ยนแปลง กรุณาลองใหม่');
+      if (updated.count !== 1) throw new ConflictException('ยอดเงินสำรองจ่ายเพิ่งเปลี่ยน โหลดหน้าใหม่แล้วลองอีกครั้ง');
       await tx.auditLog.create({ data: {
         firmId: user.firmId, userId: user.id, action: 'CASH_ADVANCE_RETURNED',
         metadata: { advanceId, amount, note: note ?? null },
@@ -117,7 +117,7 @@ export class CashAdvanceService {
         where: { ...where, settledAt: null, remaining: { lt: 0.005 } },
         data: { remaining: 0, settledAt: new Date(), settledById: user.id, settlementNote: note ?? null },
       });
-      if (updated.count !== 1) throw new ConflictException('ยอดเงินสำรองจ่ายเปลี่ยนแปลง กรุณาลองใหม่');
+      if (updated.count !== 1) throw new ConflictException('ยอดเงินสำรองจ่ายเพิ่งเปลี่ยน โหลดหน้าใหม่แล้วลองอีกครั้ง');
       await tx.auditLog.create({ data: {
         firmId: user.firmId, userId: user.id, action: 'CASH_ADVANCE_SETTLED',
         metadata: { advanceId, note: note ?? null },
@@ -188,6 +188,6 @@ export class CashAdvanceService {
       where: { id: advanceId, firmId, userId, settledAt: null, remaining: { gte: amount, equals: advance.remaining } },
       data: { remaining: Math.round((advance.remaining - amount) * 100) / 100 },
     });
-    if (updated.count !== 1) throw new ConflictException('ยอดเงินสำรองจ่ายเปลี่ยนแปลง กรุณาลองใหม่');
+    if (updated.count !== 1) throw new ConflictException('ยอดเงินสำรองจ่ายเพิ่งเปลี่ยน โหลดหน้าใหม่แล้วลองอีกครั้ง');
   }
 }

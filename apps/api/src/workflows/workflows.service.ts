@@ -207,7 +207,7 @@ export class WorkflowsService {
     const template = dto.templateId
       ? await this.prisma.workflowTemplate.findFirst({ where: { id: dto.templateId, firmId: user.firmId, isActive: true }, select: { id: true, steps: true } })
       : null;
-    if (dto.templateId && !template) throw new NotFoundException('ไม่พบแม่แบบสายงาน');
+    if (dto.templateId && !template) throw new NotFoundException('ไม่พบแม่แบบสายงานส่งต่อ');
     const steps = this.validateSteps(template?.steps ?? dto.steps);
 
     const members = await this.prisma.firmMember.findMany({ where: { firmId: user.firmId }, select: { userId: true, role: true } });
@@ -433,7 +433,7 @@ export class WorkflowsService {
       select: { id: true, status: true, createdById: true, caseId: true, tasks: { select: { id: true, workflowStep: true, assigneeId: true, status: true, workflowDurationDays: true }, orderBy: { workflowStep: 'asc' } } },
     });
     if (!run) throw new NotFoundException('Workflow run not found');
-    if (run.status !== 'ACTIVE') throw new BadRequestException('สายงานนี้ไม่ได้เดินอยู่');
+    if (run.status !== 'ACTIVE') throw new BadRequestException('สายงานส่งต่อนี้หยุดหรือจบไปแล้ว');
 
     const currentTask = run.tasks.find((t) => t.status !== TaskStatus.DONE);
     if (!currentTask) throw new BadRequestException('ไม่มีขั้นปัจจุบัน');
@@ -453,11 +453,11 @@ export class WorkflowsService {
     if (!canSendBack) throw new ForbiddenException();
 
     if (dto.toStep >= (currentTask.workflowStep ?? 0)) {
-      throw new BadRequestException('ขั้นเป้าหมายต้องก่อนขั้นปัจจุบัน');
+      throw new BadRequestException('ย้อนกลับได้เฉพาะขั้นที่อยู่ก่อนขั้นปัจจุบัน');
     }
 
     const targetTask = run.tasks.find((t) => t.workflowStep === dto.toStep);
-    if (!targetTask) throw new BadRequestException('ขั้นเป้าหมายไม่พบ');
+    if (!targetTask) throw new BadRequestException('ไม่พบขั้นที่เลือก');
     const dates = await this.planDueDates(
       run.tasks.filter((t) => (t.workflowStep ?? 0) >= dto.toStep).map((t) => t.workflowDurationDays ?? 1),
       new Date(),
@@ -552,7 +552,7 @@ export class WorkflowsService {
       },
     });
     if (!run) throw new NotFoundException('Workflow run not found');
-    if (run.status !== 'ACTIVE') throw new BadRequestException('สายงานนี้ไม่ได้เดินอยู่');
+    if (run.status !== 'ACTIVE') throw new BadRequestException('สายงานส่งต่อนี้หยุดหรือจบไปแล้ว');
 
     const legalCase = await this.prisma.case.findFirst({
       where: { id: run.caseId, firmId: user.firmId },

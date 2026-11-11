@@ -14,7 +14,7 @@ type Suggestions = Awaited<ReturnType<typeof api.getDriveFolderSuggestions>>;
 const CASE_FOLDER = /^\d+\./;
 
 /**
- * OneDrive/SharePoint tab of "จับคู่ folder": choose the parent folder that holds one folder per case,
+ * OneDrive/SharePoint tab of "จับคู่โฟลเดอร์": choose the parent folder that holds one folder per case,
  * review suggested cases (same matcher and table as Outlook), confirm — nothing is linked before "ยืนยัน".
  */
 export function DriveFolderMatchingTab() {
@@ -48,7 +48,7 @@ export function DriveFolderMatchingTab() {
           setItems(children);
         }
       } catch (e) {
-        setMessage(e instanceof ApiError ? e.message : 'โหลด folder ไม่สำเร็จ');
+        setMessage(e instanceof ApiError ? e.message : 'โหลดโฟลเดอร์ไม่สำเร็จ ลองโหลดหน้าใหม่');
       } finally {
         setLoading(false);
       }
@@ -98,8 +98,8 @@ export function DriveFolderMatchingTab() {
     }
     setMessage(
       failed.length
-        ? `ผูกแล้ว ${picks.length - failed.length} folder — ไม่สำเร็จ: ${failed.join(' · ')}`
-        : `ผูกแล้ว ${picks.length} folder`,
+        ? `ผูกแล้ว ${picks.length - failed.length} โฟลเดอร์ — ไม่สำเร็จ: ${failed.join(' · ')}`
+        : `ผูกแล้ว ${picks.length} โฟลเดอร์`,
     );
     await load(parent);
     setSaving(false);
@@ -107,13 +107,13 @@ export function DriveFolderMatchingTab() {
 
   const unlink = async (linkId: string) => {
     const caseId = items.find((r) => r.link?.id === linkId)?.link?.caseId;
-    if (!token || !parent || !caseId || !window.confirm('ยกเลิกการผูก folder นี้? ไฟล์ใน OneDrive จะไม่ถูกลบ')) return;
+    if (!token || !parent || !caseId || !window.confirm('ยกเลิกการผูกโฟลเดอร์นี้? ไฟล์ใน OneDrive ยังอยู่ครบ')) return;
     setMessage('');
     try {
       await api.unlinkCaseDriveFolder(token, caseId);
       await load(parent);
     } catch (e) {
-      setMessage(e instanceof ApiError ? e.message : 'ยกเลิกการผูกไม่สำเร็จ');
+      setMessage(e instanceof ApiError ? e.message : 'ยกเลิกการผูกไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -121,7 +121,7 @@ export function DriveFolderMatchingTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => setPickerOpen(true)} className="min-h-11 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {parent ? 'เปลี่ยน folder หลัก' : 'เลือก folder หลักที่เก็บ folder คดี'}
+          {parent ? 'เปลี่ยนโฟลเดอร์หลัก' : 'เลือกโฟลเดอร์หลักที่เก็บโฟลเดอร์คดี'}
         </button>
         {parent && <span className="text-sm text-muted-foreground">{parent.name}</span>}
       </div>
@@ -135,7 +135,7 @@ export function DriveFolderMatchingTab() {
       )}
       <DriveFolderPicker
         open={pickerOpen}
-        title="เลือก folder หลัก (ที่มี folder ย่อยแยกตามคดี) หรือ folder คดีเดียว"
+        title="เลือกโฟลเดอร์หลัก (ที่มีโฟลเดอร์ย่อยแยกตามคดี) หรือโฟลเดอร์คดีเดียว"
         onClose={closePicker}
         onPick={choose}
       />

@@ -13,7 +13,7 @@ import { StartWorkflowDrawer } from './StartWorkflowDrawer';
 import { fileSize, shortThaiDate } from './workflow-ui';
 
 const RUN_STATUS: Record<CaseWorkflowRun['status'], { label: string; variant: 'default' | 'success' | 'muted' }> = {
-  ACTIVE: { label: 'กำลังเดิน', variant: 'default' },
+  ACTIVE: { label: 'กำลังทำ', variant: 'default' },
   DONE: { label: 'เสร็จแล้ว', variant: 'success' },
   CANCELLED: { label: 'ยกเลิกแล้ว', variant: 'muted' },
 };
@@ -81,7 +81,7 @@ function RunCard({ run, token, onChanged }: { run: CaseWorkflowRun; token: strin
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true); setError('');
     try { await fn(); onChanged(); setSendBack(false); setReason(''); }
-    catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง'); }
     finally { setBusy(false); }
   };
 

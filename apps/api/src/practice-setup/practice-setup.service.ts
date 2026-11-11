@@ -143,13 +143,13 @@ export class PracticeSetupService {
       for (const item of ledger.cases) {
         await db.$queryRaw`SELECT "id" FROM "Case" WHERE "id" = ${item.id} FOR UPDATE`;
         const c = await db.case.findFirst({ where: { id: item.id, firmId: user.firmId }, include: { _count: true } });
-        if (!c || c.updatedAt.toISOString() !== item.updatedAt || Object.values(c._count).some(n => n > 0)) throw new ConflictException('คดีมีการแก้ไขหรือข้อมูลต่อเนื่องแล้ว ยกเลิกชุดนี้ไม่ได้ / Imported case changed or has dependent records');
+        if (!c || c.updatedAt.toISOString() !== item.updatedAt || Object.values(c._count).some(n => n > 0)) throw new ConflictException('คดีที่นำเข้าถูกแก้หรือมีงานต่อแล้ว ยกเลิกการนำเข้าชุดนี้ไม่ได้ / Imported case changed or has dependent records');
       }
       await db.case.deleteMany({ where: { firmId: user.firmId, id: { in: ledger.cases.map(c => c.id) } } });
       for (const item of ledger.clients) {
         await db.$queryRaw`SELECT "id" FROM "Client" WHERE "id" = ${item.id} FOR UPDATE`;
         const c = await db.client.findFirst({ where: { id: item.id, firmId: user.firmId }, include: { _count: true } });
-        if (!c || c.updatedAt.toISOString() !== item.updatedAt || Object.values(c._count).some(n => n > 0)) throw new ConflictException('ลูกความมีการใช้งานต่อแล้ว ยกเลิกชุดนี้ไม่ได้ / Imported client changed or is in use');
+        if (!c || c.updatedAt.toISOString() !== item.updatedAt || Object.values(c._count).some(n => n > 0)) throw new ConflictException('ลูกความที่นำเข้าถูกแก้หรือใช้งานแล้ว ยกเลิกการนำเข้าชุดนี้ไม่ได้ / Imported client changed or is in use');
       }
       await db.client.deleteMany({ where: { firmId: user.firmId, id: { in: ledger.clients.map(c => c.id) } } });
       await db.dataImportBatch.update({ where: { id }, data: { status: 'UNDONE', undoneAt: new Date() } });
@@ -182,7 +182,7 @@ export class PracticeSetupService {
   async listPlaybooks(user: AuthUser) { await this.ensureDefaultPlaybooks(user); await this.ensureCargoPlaybook(user); return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
   async publish(user: AuthUser, dto: { name: string; caseTypeId?: string; templateKey?: string; cargoTemplate?: CargoPlaybookTemplate; steps: PlaybookStep[] }) {
     this.owner(user);
-    if (!dto.name.trim() || !dto.steps.length || dto.steps.some((s) => !s.title.trim())) throw new BadRequestException('ชื่อ Playbook และชื่อขั้นตอนห้ามว่าง / Name and step titles are required');
+    if (!dto.name.trim() || !dto.steps.length || dto.steps.some((s) => !s.title.trim())) throw new BadRequestException('ใส่ชื่อชุดงานและชื่อทุกขั้นตอน / Name and step titles are required');
     for (const [index, step] of dto.steps.entries()) {
       if (!step.routine) continue;
       if (!step.instructions?.trim()) throw new BadRequestException('งานประจำต้องมีวิธีทำให้คนใหม่ทำตามได้');
@@ -192,7 +192,7 @@ export class PracticeSetupService {
     if (dto.templateKey === CARGO_CLAIM_PLAYBOOK_KEY) {
       const requirements = dto.cargoTemplate?.requirements ?? [];
       if (!requirements.length || requirements.some((item) => !item.code.trim() || !item.label.trim()) || new Set(requirements.map((item) => item.code)).size !== requirements.length) {
-        throw new BadRequestException('Cargo Playbook ต้องมีรายการเอกสารที่ code ไม่ซ้ำและชื่อไม่ว่าง');
+        throw new BadRequestException('ชุดงานคดี Cargo: รายการเอกสารต้องมีชื่อ และรหัสต้องไม่ซ้ำกัน');
       }
     } else if (dto.cargoTemplate) {
       throw new BadRequestException('Cargo template requires the Cargo Claim template key');
@@ -275,7 +275,7 @@ export class PracticeSetupService {
         const leadRole = firmMembers.find(m => m.userId === preview.ownerId)?.role;
         const reviewerId = (preview.ownerId && isEligibleReviewer({ role: leadRole, userId: preview.ownerId, caseLeadId: preview.ownerId, assigneeId }) ? preview.ownerId : undefined)
           ?? firmMembers.find(m => m.userId !== assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId;
-        if (!reviewerId) throw new BadRequestException('งานประจำต้องมี Owner หรือทนายอาวุโสอีกคนเป็นผู้ตรวจ');
+        if (!reviewerId) throw new BadRequestException('งานประจำต้องมีผู้ตรวจอีกคนที่เป็นเจ้าของสำนักงานหรือทนายอาวุโส');
         return { routine: json(taskRoutineSnapshot(preview.release, preview.steps.indexOf(step), step.routine)), requiresReview: true, reviewerId };
       };
       const taskIds: string[] = [];
@@ -457,7 +457,7 @@ export class PracticeSetupService {
       if (!task.routineSource) return {};
       const release = await this.prisma.playbookRelease.findFirst({ where: { id: task.routineSource.releaseId, firmId: user.firmId } });
       const step = (release?.steps as unknown as PlaybookStep[])?.[task.routineSource.stepIndex];
-      if (!release || !step?.routine || step.stage !== stage || !task.assigneeId) throw new BadRequestException('เลือกงานประจำจาก SOP ของขั้นนี้และระบุผู้ทำงาน');
+      if (!release || !step?.routine || step.stage !== stage || !task.assigneeId) throw new BadRequestException('เลือกงานประจำจากชุดงานของขั้นนี้ และระบุผู้ทำงาน');
       const leadRole = routineMembers.find(m => m.userId === c.leadLawyerId)?.role;
       const reviewerId = (c.leadLawyerId && isEligibleReviewer({ role: leadRole, userId: c.leadLawyerId, caseLeadId: c.leadLawyerId, assigneeId: task.assigneeId }) ? c.leadLawyerId : undefined)
         ?? routineMembers.find(m => m.userId !== task.assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId;

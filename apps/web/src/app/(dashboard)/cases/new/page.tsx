@@ -149,7 +149,7 @@ function NewCaseForm() {
       api.getCaseTypes(token),
       api.getClients(token).catch(() => {
         setLookupWarning(
-          'โหลดรายชื่อลูกค้าไม่สำเร็จ ลองโหลดใหม่ก่อนกรอกต่อ',
+          'โหลดรายชื่อลูกความไม่สำเร็จ ลองโหลดใหม่ก่อนกรอกต่อ',
         );
         return [] as ClientItem[];
       }),
@@ -171,7 +171,7 @@ function NewCaseForm() {
               setForm((f) => ({ ...f, clientId: client.id, clientName: client.name, clientType: client.type ?? 'INDIVIDUAL', useTmpClient: false }));
               clientContextApplied.current = true;
             } else {
-              setLookupWarning('ไม่พบลูกค้าที่เลือก กรุณาโหลดใหม่หรือเลือกลูกความก่อนเปิดคดี');
+              setLookupWarning('ไม่พบลูกความที่เลือก กรุณาโหลดใหม่หรือเลือกลูกความอีกครั้งก่อนเปิดคดี');
             }
           }
           setNextOwnRef(nextRef.ownRef);
@@ -248,7 +248,7 @@ function NewCaseForm() {
     if (!token || submittingRef.current) return;
     if (!createdCaseId.current) {
       if (requestedClientId && !clientContextApplied.current && !form.clientId && !form.clientName.trim() && !form.useTmpClient) {
-        setError('ไม่พบลูกค้าที่เลือก กรุณาเลือกลูกความหรือพิมพ์ชื่อใหม่ก่อนเปิดคดี');
+        setError('ไม่พบลูกความที่เลือก กรุณาเลือกลูกความหรือพิมพ์ชื่อใหม่ก่อนเปิดคดี');
         return;
       }
       if (missing.length) {
@@ -370,7 +370,7 @@ function NewCaseForm() {
         err instanceof ApiError
           ? err.message
           : createdCaseId.current
-            ? 'สร้างคดีแล้ว แต่ขั้นตอนถัดไปไม่สำเร็จ กรุณาลองใหม่'
+            ? 'สร้างคดีแล้ว แต่ขั้นตอนหลังสร้างคดียังไม่เสร็จ กดลองใหม่ได้โดยไม่สร้างคดีซ้ำ'
             : 'สร้างคดีไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ กรุณาลองใหม่',
       );
       submittingRef.current = false;
@@ -535,7 +535,7 @@ function NewCaseForm() {
                         onChange={(e) => setOpponents((rows) => rows.map((r, i) => i === index ? { ...r, name: e.target.value } : r))} className={inputClass} />
                       <select aria-label={`ฐานะคู่ความรายที่ ${index + 1}`} value={row.role}
                         onChange={(e) => setOpponents((rows) => rows.map((r, i) => i === index ? { ...r, role: e.target.value } : r))} className={inputClass}>
-                        <option value="">ตามฝ่ายของเรา (ถ้าระบุ)</option>
+                        <option value="">ตรงข้ามกับฝ่ายเรา (ค่าเริ่มต้น)</option>
                         <option value="PLAINTIFF">โจทก์</option><option value="DEFENDANT">จำเลย</option>
                         <option value="PETITIONER">ผู้ร้อง</option><option value="RESPONDENT">ผู้คัดค้าน</option>
                         <option value="OPPOSING_LAWYER">ทนายฝ่ายตรงข้าม</option><option value="OPPOSING_INSURER">บริษัทประกันฝ่ายตรงข้าม</option>
@@ -712,11 +712,11 @@ function NewCaseForm() {
 
               <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="border-b pb-3 text-lg font-semibold">5 อีเมลที่เกี่ยวข้อง (ไม่บังคับ)</h2><p className="text-sm text-muted-foreground">ผูกอีเมลที่มีอยู่แล้วเข้าคดีตอนสร้าง — ไฟล์แนบจะเข้าแท็บเอกสาร · แสดงเฉพาะอีเมลในกล่องของคุณ</p>{token && <EmailLinkCandidates token={token} clientId={form.clientId} selected={selectedEmails} onChange={setSelectedEmails} />}</section>
 </div></details>
-<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Settings2 aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ขั้นตอนงานสำเร็จรูป (SOP)</span><span className={`block ${styles.hint}`}>เลือกชุดงานมาตรฐาน ระบบจะสร้างรายการงานของคดีให้หลังเปิดคดี</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{playbookId || cargoClaimEnabled ? 'เลือกแล้ว' : 'ไม่ใช้'} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">              <details className="rounded-lg border border-border p-3">
+<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Settings2 aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ชุดงานอัตโนมัติ (SOP)</span><span className={`block ${styles.hint}`}>เลือกชุดงานอัตโนมัติ ระบบจะสร้างรายการงานของคดีให้หลังเปิดคดี</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{playbookId || cargoClaimEnabled ? 'เลือกแล้ว' : 'ไม่ใช้'} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">              <details className="rounded-lg border border-border p-3">
                 <summary className="min-h-6 cursor-pointer text-sm font-medium">ขั้นตอนงานอัตโนมัติ / Cargo Claim{(cargoClaimEnabled || playbookId) && ' · เลือกแล้ว'}</summary>
-                <p className="mt-2 text-xs text-muted-foreground">เปิดคดีก่อน แล้วดูรายการงานจาก SOP เพื่อยืนยันเพิ่มงานในหน้าคดี</p>
+                <p className="mt-2 text-xs text-muted-foreground">เปิดคดีก่อน แล้วดูรายการงานจากชุดงานเพื่อยืนยันเพิ่มงานในหน้าคดี</p>
               <label className="mt-4 block text-sm font-medium" htmlFor="new-case-playbook">
-                มาตรฐานงานอัตโนมัติ <span className="font-normal text-muted-foreground">(เลือกได้)</span>
+                ชุดงานอัตโนมัติ <span className="font-normal text-muted-foreground">(เลือกได้)</span>
                 <select
                   id="new-case-playbook"
                   className={inputClass}
@@ -729,7 +729,7 @@ function NewCaseForm() {
                     setPlaybookId(isCargoClaim ? '' : selected);
                   }}
                 >
-                  <option value="">ไม่ใช้มาตรฐานอัตโนมัติ</option>
+                  <option value="">ไม่ใช้ชุดงานอัตโนมัติ</option>
                   <option value={CARGO_CLAIM_PLAYBOOK_KEY}>{CARGO_CLAIM_PLAYBOOK_NAME} · รุ่นล่าสุด</option>
                   {playbooks.filter((playbook) => playbook.templateKey !== CARGO_CLAIM_PLAYBOOK_KEY).map((playbook) => (
                     <option key={playbook.id} value={playbook.id}>

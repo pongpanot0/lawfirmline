@@ -51,7 +51,7 @@ function ExpenseClaimContent() {
       .then((all) => {
         const selected = all.filter((e) => ids.includes(e.id));
         setItems(selected);
-        if (selected.length !== new Set(ids).size) { setItems([]); setError('บางรายการไม่พบหรือไม่มีสิทธิ์เข้าถึง กรุณากลับไปเลือกรายการใหม่'); return; }
+        if (selected.length !== new Set(ids).size) { setItems([]); setError('ไม่พบค่าใช้จ่ายบางรายการ หรือคุณไม่มีสิทธิ์ดู กลับไปเลือกรายการใหม่'); return; }
         if (selected.length === 0) {
           setError(d.expenses.claimEmpty);
         }
@@ -112,7 +112,7 @@ function ExpenseClaimContent() {
             const authToken = token ?? getStoredToken(); if (!authToken) return;
             setExporting(true); setError('');
             try { await downloadPettyCashCsv({ firmName: user?.firmName ?? '', requesterName: lawyerName, expenses: items, fetchReceipt: id => api.downloadExpenseReceipt(authToken, id) }); }
-            catch (e) { setError(e instanceof Error ? e.message : 'ดาวน์โหลดไม่สำเร็จ'); }
+            catch (e) { setError(e instanceof Error ? e.message : 'ดาวน์โหลดไม่สำเร็จ ลองใหม่อีกครั้ง'); }
             finally { setExporting(false); }
           }}><Download className="h-4 w-4" aria-hidden />{exporting ? 'กำลังรวมเอกสาร…' : 'ดาวน์โหลดใบเบิกพร้อมไฟล์แนบ'}</Button>
           <Button type="button" variant="outline" disabled={!items.length} onClick={() => window.print()}>
@@ -129,7 +129,7 @@ function ExpenseClaimContent() {
         </div>
       )}
 
-      <p className="mb-4 text-sm text-muted-foreground print:hidden">ไฟล์ ZIP มี CSV สำหรับ Excel ใบเสร็จต้นฉบับ และใบเบิกสำหรับพิมพ์ การดาวน์โหลดไม่ส่งอนุมัติ</p>
+      <p className="mb-4 text-sm text-muted-foreground print:hidden">ไฟล์ ZIP มี CSV สำหรับ Excel ใบเสร็จต้นฉบับ และใบเบิกสำหรับพิมพ์ ดาวน์โหลดแล้วยังไม่ถือว่าส่งอนุมัติ</p>
 
       <div className="print:hidden"><CheckoutSteps steps={[{ title: 'ตรวจรายการ', state: items.length ? 'done' : 'current' }, { title: 'ตรวจยอดและผู้เบิก', state: items.length ? 'current' : 'todo' }, { title: 'ส่งอนุมัติ', state: 'todo' }]} /></div>
       <form onSubmit={(event) => { event.preventDefault(); void handleSend(); }} className="space-y-4 pb-32 xl:pb-0">

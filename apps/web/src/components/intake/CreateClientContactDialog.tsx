@@ -45,21 +45,21 @@ export function CreateClientContactDialog({
     setError('');
     try {
       const { client: updated, contact } = await api.addClientContact(token, client.id, newContact);
-      if (!contact.id) throw new Error('ไม่พบคนติดต่อที่เพิ่งสร้าง');
+      if (!contact.id) throw new Error('ไม่พบผู้ติดต่อที่เพิ่งสร้าง ลองโหลดหน้าใหม่');
       onCreated(updated, contact.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'บันทึกคนติดต่อไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'บันทึกผู้ติดต่อไม่สำเร็จ ลองใหม่อีกครั้ง');
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal open onClose={onClose} closeOnBackdrop={!submitting} className="max-w-xl" ariaLabel="เพิ่มคนติดต่อ">
+    <Modal open onClose={onClose} closeOnBackdrop={!submitting} className="max-w-xl" ariaLabel="เพิ่มผู้ติดต่อ">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold">เพิ่มคนติดต่อของ {client.name}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">คนนี้จะถูกเลือกเป็นผู้ส่งเรื่องทันทีหลังบันทึก</p>
+            <p className="mt-1 text-sm text-muted-foreground">บันทึกแล้วระบบจะเลือกคนนี้เป็นผู้ส่งเรื่องให้ทันที</p>
           </div>
           <Button type="button" variant="ghost" size="icon" aria-label="ปิด" onClick={onClose} disabled={submitting}>
             <X className="h-4 w-4" aria-hidden />

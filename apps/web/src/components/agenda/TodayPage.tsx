@@ -46,7 +46,7 @@ export function TodayPage() {
       if (item.task.caseId) await api.updateTask(auth, item.task.caseId, item.task.id, { status: TaskStatus.DONE });
       else await api.updateTodo(auth, item.task.id, { status: TaskStatus.DONE });
       await load();
-    } catch (err) { setRowErrors(prev => ({ ...prev, [item.id]: err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ' })); }
+    } catch (err) { setRowErrors(prev => ({ ...prev, [item.id]: err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง' })); }
     finally { setBusy(''); }
   };
   if (error && !data) return <LoadFailed message={error} onRetry={() => void load()} />;

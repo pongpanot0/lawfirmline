@@ -312,7 +312,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
             </Button>
           </form></div>}
         {expenses.length ? <ul className="divide-y divide-[#e2e0d8] text-sm">{expenses.map((e) => <li key={e.id} className="px-5 py-3.5"><div className="flex items-center justify-between gap-3"><div><b>{e.description}</b><div className={v2.label}>{e.user.firstName} · {shortDate(e.date)} · {e.billable === false ? 'ไม่เรียกเก็บจากลูกความ' : 'เรียกเก็บจากลูกความ'}</div></div><div className="flex items-center gap-1 font-semibold">{formatCurrency(e.amount)} · {expenseState(e)}<DocsRowMenu name={e.description} items={[
-          ...(canApprove && e.status === ExpenseStatus.PENDING && token ? [{ label: 'อนุมัติ', hint: 'พร้อมเบิกจ่ายให้คนที่สำรองจ่าย', icon: Check, onClick: () => { setWriteOffError(''); void api.updateExpenseStatus(token!, e.id, 'APPROVED').then(load).catch((err: unknown) => setWriteOffError(err instanceof Error ? err.message : 'อนุมัติไม่สำเร็จ')); } }] : []),
+          ...(canApprove && e.status === ExpenseStatus.PENDING && token ? [{ label: 'อนุมัติ', hint: 'พร้อมเบิกจ่ายให้คนที่สำรองจ่าย', icon: Check, onClick: () => { setWriteOffError(''); void api.updateExpenseStatus(token!, e.id, 'APPROVED').then(load).catch((err: unknown) => setWriteOffError(err instanceof Error ? err.message : 'อนุมัติไม่สำเร็จ ลองใหม่อีกครั้ง')); } }] : []),
           ...(!e.invoiceId && !e.writtenOffAt ? [{ label: e.billable === false ? 'เรียกเก็บจากลูกความ' : 'ไม่เรียกเก็บจากลูกความ', hint: 'กำหนดว่าจะรวมในใบแจ้งหนี้หรือไม่', icon: Receipt, onClick: () => void handleSetBillable(e.id, e.billable === false) }] : []),
           ...(canWriteOff && canWriteOffExpense(e) && token ? [{ label: 'ตัดทิ้ง', hint: 'ระบุเหตุผล ย้อนคืนได้', icon: CircleSlash, onClick: () => setWriteOffTarget(e.id) }] : []),
           ...(canWriteOff && e.writtenOffAt && !e.invoiceId && token ? [{ label: 'ยกเลิกการตัดทิ้ง', hint: 'นำรายการกลับมา', icon: RotateCcw, onClick: () => void handleUndoWriteOff(() => api.undoExpenseWriteOff(e.id, token!)) }] : []),
@@ -334,7 +334,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
           <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(caseRevenue)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground sm:text-sm">ค่าใช้จ่ายอนุมัติ</dt>
+          <dt className="text-xs text-muted-foreground sm:text-sm">ค่าใช้จ่ายที่อนุมัติ</dt>
           <dd className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalSpent)}</dd>
         </div>
         <div>

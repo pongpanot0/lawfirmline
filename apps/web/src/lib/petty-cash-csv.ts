@@ -60,7 +60,7 @@ export function buildPettyCashCsv(opts: {
         e.description,
         e.case?.ownRef ?? '',
         ...cats.map((c) => (c === cat ? money(e.amount) : '')),
-        opts.receiptPaths?.get(e.id) ?? (e.receiptFilename ? 'ดาวน์โหลดไม่สำเร็จ' : ''),
+        opts.receiptPaths?.get(e.id) ?? (e.receiptFilename ? 'ดาวน์โหลดไม่สำเร็จ ลองใหม่อีกครั้ง' : ''),
       ]),
     );
   }

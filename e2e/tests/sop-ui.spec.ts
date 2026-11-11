@@ -272,11 +272,11 @@ for (const width of [375, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.getByText(autoName, { exact: true }).click();
       await page.getByRole('link', { name: 'ใช้กับคดี', exact: true }).click();
-      await expect(page.getByRole('heading', { name: 'เลือกคดีที่จะใช้ SOP', exact: true })).toBeVisible();
-      if (width < 768) await page.locator(`a[href="/cases/${legalCase.id}?tab=tasks&sop=${second.id}"]:visible`).click();
+      await expect(page.getByRole('heading', { name: 'เลือกคดีที่จะใช้ชุดงานอัตโนมัติ', exact: true })).toBeVisible();
+      if (width < 768) await page.locator(`a[href="/cases/${legalCase.id}?tab=tasks&sop=${second.id}"]:visible`).first().click();
       await page.locator(`a[href="/cases/${legalCase.id}?tab=tasks&sop=${second.id}"]:visible`).first().click();
       await expect(page).toHaveURL(`${origin}/cases/${legalCase.id}?tab=tasks&sop=${second.id}`);
-      const select = page.getByRole('combobox', { name: 'SOP อัตโนมัติ', exact: true });
+      const select = page.getByRole('combobox', { name: 'ชุดงานอัตโนมัติ', exact: true });
       await expect(select).toBeVisible(); // SOP and case context arrive with the preview open.
       await expect(select).toHaveValue(second.id);
       await expect(select.locator(`option[value="${first.id}"]`)).toHaveCount(0); // Latest version per SOP only.
@@ -284,12 +284,12 @@ for (const width of [375, 1440]) {
       expect(await data.db.task.count({ where: { caseId: legalCase.id } })).toBe(0);
       await expect(page.getByText('ตรวจต้นฉบับก่อนส่งทนาย', { exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'ยืนยันเพิ่มงานตามรายการ', exact: true }).click();
-      await expect(page.getByRole('status').filter({ hasText: 'เพิ่มงานจาก SOP แล้ว' })).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: 'เพิ่มงานจากชุดงานแล้ว' })).toBeVisible();
       const tasks = await data.db.task.findMany({ where: { caseId: legalCase.id } });
       expect(tasks.map(t => t.title).sort()).toEqual(['ตรวจเอกสารรับเรื่อง', 'ทนายสรุปแนวทาง'].sort());
       expect(tasks.every(t => t.assigneeId === auth.user.id)).toBe(true);
       await page.reload();
-      await expect(page.getByText('คดีนี้ใช้ SOP นี้แล้ว จะไม่เพิ่มงานซ้ำ', { exact: true })).toBeVisible();
+      await expect(page.getByText('คดีนี้ใช้ชุดงานนี้แล้ว ระบบจะไม่เพิ่มงานซ้ำ', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'ยืนยันเพิ่มงานตามรายการ', exact: true })).toBeDisabled();
       expect(await data.db.task.count({ where: { caseId: legalCase.id } })).toBe(2);
     } finally { await data.cleanup(); }

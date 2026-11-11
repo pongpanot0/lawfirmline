@@ -93,8 +93,8 @@ export function StageTasksDialog({
       {open && <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
         <div className="border-b border-[#e2e0d8] px-6 py-4">{caseRef && <p className={label}>{moving ? 'ย้ายคดี' : 'งานแนะนำของคดี'} {caseRef}</p>}<h2 id="stage-tasks-title" tabIndex={-1} autoFocus className="flex flex-wrap items-center gap-2 text-xl font-bold outline-none">{moving && fromLabel ? <>{fromLabel} <ArrowRight aria-hidden="true" className="h-[1.1em] w-[1.1em]" /> {stageLabel}</> : moving ? `ย้ายไปขั้น${stageLabel}` : `งานแนะนำขั้น${stageLabel}`}</h2></div>
         <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
-          <p><b>เลือกงานที่จะสร้างในขั้นใหม่</b> <span className={hint}>· {releases.length ? `แนะนำจาก SOP “${releases.join('”, “')}” — ` : ''}ติ๊กออกได้ถ้าไม่ต้องใช้</span></p>
-          {rows.length === 0 ? <p className={hint}>ขั้นนี้ไม่มีงานแนะนำจาก SOP — ย้ายขั้นได้เลย แล้วเพิ่มงานเองในแท็บงาน</p> : <ul className="divide-y divide-[#e2e0d8] rounded-lg border border-[#e2e0d8] bg-white text-sm">
+          <p><b>เลือกงานที่จะสร้างในขั้นใหม่</b> <span className={hint}>· {releases.length ? `แนะนำจากชุดงาน “${releases.join('”, “')}” — ` : ''}ติ๊กออกได้ถ้าไม่ต้องใช้</span></p>
+          {rows.length === 0 ? <p className={hint}>ขั้นนี้ไม่มีงานแนะนำจากชุดงาน — ย้ายขั้นได้เลย แล้วเพิ่มงานเองในแท็บงาน</p> : <ul className="divide-y divide-[#e2e0d8] rounded-lg border border-[#e2e0d8] bg-white text-sm">
             {rows.map((row, i) => {
               const rowFlags = row.dueDate ? leaveFlagsForDate(leaves, row.dueDate) : new Map();
               const rowAssignee = lawyers.find((u) => u.id === row.assigneeId);

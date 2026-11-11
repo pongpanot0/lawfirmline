@@ -29,7 +29,7 @@ export default function CheckedOutPaperFilesPage() {
     void api.getCheckedOutPaperFiles(token, page).then((result) => {
       if (!cancelled) setData(result);
     }).catch((err) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : 'โหลดรายการไม่สำเร็จ');
+      if (!cancelled) setError(err instanceof Error ? err.message : 'โหลดรายการไม่สำเร็จ ลองโหลดหน้าใหม่');
     });
     return () => { cancelled = true; };
   }, [token, canRunOps, page, revision]);

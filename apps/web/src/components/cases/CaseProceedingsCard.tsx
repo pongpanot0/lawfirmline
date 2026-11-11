@@ -96,7 +96,7 @@ export function CaseProceedingsCard({
       setAction(null);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setBusy(false);
     }

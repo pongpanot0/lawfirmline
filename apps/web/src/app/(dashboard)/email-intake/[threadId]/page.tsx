@@ -92,7 +92,7 @@ export default function EmailThreadDetailPage() {
     try {
       setData(await api.getEmailThread(token, threadId));
     } catch {
-      setError('รีเฟรชข้อมูลไม่สำเร็จ — แสดงข้อมูลล่าสุดที่โหลดได้');
+      setError('โหลดข้อมูลใหม่ไม่สำเร็จ — กำลังแสดงข้อมูลชุดล่าสุดที่โหลดได้');
     }
   }, [token, threadId]);
 
@@ -125,7 +125,7 @@ export default function EmailThreadDetailPage() {
       await api.linkEmailIntakeClient(token, threadId, payload);
       await refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'บันทึกลูกความไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'บันทึกลูกความไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setLinkingClient(false);
     }
@@ -141,7 +141,7 @@ export default function EmailThreadDetailPage() {
       if (path) router.push(path);
       else setError('ไม่พบคดีที่เชื่อมโยง');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'รวมเข้าคดีเดิมไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'รวมเข้าคดีเดิมไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setLinking(false);
     }
@@ -159,7 +159,7 @@ export default function EmailThreadDetailPage() {
       if (path) router.push(path);
       else setError('ไม่พบคดีที่เชื่อมโยง');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'สร้างคดีก่อนฟ้องไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'สร้างคดีก่อนฟ้องไม่สำเร็จ ลองใหม่อีกครั้ง');
       return;
     } finally {
       setLinking(false);
@@ -179,7 +179,7 @@ export default function EmailThreadDetailPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ดาวน์โหลดไฟล์ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'ดาวน์โหลดไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -190,7 +190,7 @@ export default function EmailThreadDetailPage() {
       const blob = await api.downloadIntakeDocument(token, data.thread.intake.id, doc.id);
       setPreview({ filename: doc.filename, mimeType: doc.mimeType, url: URL.createObjectURL(blob) });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'เปิดไฟล์ไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'เปิดไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -203,7 +203,7 @@ export default function EmailThreadDetailPage() {
     try {
       for (const id of ids) await api.resolveFieldProposal(token, data.thread.intake.id, id, { action: 'confirm' });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'ยืนยันบางรายการไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'ยืนยันบางรายการไม่สำเร็จ ลองยืนยันรายการที่เหลืออีกครั้ง');
     } finally {
       setConfirmingAll(false);
       await refresh();
@@ -220,7 +220,7 @@ export default function EmailThreadDetailPage() {
       const refreshed = await api.getEmailThread(token, threadId);
       setData(refreshed);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setResolvingId(null);
     }
@@ -238,7 +238,7 @@ export default function EmailThreadDetailPage() {
       setAiNote(cached ? `${note} (อีเมลและไฟล์ไม่เปลี่ยน ใช้ผลอ่านเดิม)` : note);
       await refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'AI อ่านอีเมลไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'AI อ่านอีเมลไม่สำเร็จ กด "ให้ AI อ่านใหม่" อีกครั้ง');
     } finally {
       setAiReading(false);
     }
@@ -265,7 +265,7 @@ export default function EmailThreadDetailPage() {
       if (path) router.push(path);
       else setError('ไม่พบคดีที่เชื่อมโยง');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'สร้างคดีก่อนฟ้องไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'สร้างคดีก่อนฟ้องไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setAccepting(false);
     }

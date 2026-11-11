@@ -81,7 +81,7 @@ export function RecordHearingOutcomeDialog({
       ) : error ? (
         <div className="py-4">
           <p role="alert">
-            {th ? 'โหลดนัดไม่สำเร็จ' : 'Unable to load appointments'}
+            {th ? 'โหลดนัดไม่สำเร็จ ลองโหลดหน้าใหม่' : 'Unable to load appointments'}
           </p>
           <Button variant="outline" onClick={load}>
             {th ? 'ลองใหม่' : 'Retry'}

@@ -67,7 +67,7 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
       });
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'สร้างรายการติดตามเคลมไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'สร้างรายการติดตามเคลมไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }
@@ -100,7 +100,7 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
       setEditing(false);
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'บันทึกข้อมูลประกันไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'บันทึกข้อมูลประกันไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }
@@ -116,7 +116,7 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
       await api.advanceInsuranceClaimStage(token, id, stage);
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เปลี่ยนสถานะไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : 'เปลี่ยนสถานะไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }

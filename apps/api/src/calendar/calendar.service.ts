@@ -334,7 +334,7 @@ export class CalendarService {
   async updateInternal(id: string, dto: UpdateEventDto & MeetingFields) {
     const existing = await this.findOneInternal(id);
     if (dto.startAt && new Date(dto.startAt).getTime() !== existing.startAt.getTime()) {
-      throw new ConflictException('กรุณาใช้เลื่อนนัดเพื่อตรวจผลกระทบก่อน / Use reschedule to review affected deadlines');
+      throw new ConflictException('ใช้ปุ่ม "เลื่อนนัด" เพื่อตรวจวันครบกำหนดที่กระทบก่อน / Use reschedule to review affected deadlines');
     }
     const { assigneeId: _legacyAssigneeId, assigneeIds: _assigneeIds, ...eventData } = dto;
     const nextType = dto.type ?? existing.type;

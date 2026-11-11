@@ -124,7 +124,7 @@ export default function OperationsPage() {
 
   return (
     <TeamRadar canManage onShowDaily={() => setTab('daily')}>{(counts, teamTable) => <>
-      {setupLeft > 0 && <div className="flex flex-wrap gap-3 text-sm"><Link href="/getting-started" className="min-h-11 content-center underline" title="ดำเนินการตั้งค่าสำนักงาน">ตั้งค่าสำนักงานเหลือ {setupLeft} ขั้น <ChevronRight className="inline h-4 w-4" aria-hidden /></Link></div>}
+      {setupLeft > 0 && <div className="flex flex-wrap gap-3 text-sm"><Link href="/getting-started" className="min-h-11 content-center underline" title="ตั้งค่าสำนักงานต่อ">ตั้งค่าสำนักงานเหลือ {setupLeft} ขั้น <ChevronRight className="inline h-4 w-4" aria-hidden /></Link></div>}
       <Tabs value={tab} onValueChange={setTab}>
 
         <TabsList className="grid grid-cols-4 gap-0 rounded-xl border bg-card shadow-sm">
@@ -242,7 +242,7 @@ export default function OperationsPage() {
           )}
           <p className="mb-3 text-sm text-muted-foreground">
             {locale === 'th'
-              ? 'ตัวชี้วัดกระบวนการ 30 วันล่าสุด — ใช้ดูว่างานไหลหรือไม่ ไม่ใช่จัดอันดับคน; เวลาเฉลี่ยใช้เฉพาะงานที่มีเวลาปิดจริง งานเก่าไม่รวม'
+              ? 'ตัวชี้วัด 30 วันล่าสุด ใช้ดูว่างานเดินหรือติด ไม่ใช่จัดอันดับคน · เวลาเฉลี่ยนับเฉพาะงานที่ปิดจริง ไม่รวมงานเก่า'
               : 'Operational metrics for the last 30 days, to understand flow rather than rank people. Turnaround uses actual completion timestamps; legacy tasks without one are excluded.'}
           </p>
           <Card>
@@ -252,7 +252,7 @@ export default function OperationsPage() {
                   <TableRow>
                     <TableHead>สมาชิก</TableHead>
                     <TableHead className="text-right">งานเสร็จ (30 วัน)</TableHead>
-                    <TableHead className="text-right">{locale === 'th' ? 'เวลาเฉลี่ย (วัน · ตัวอย่าง)' : 'Average days · samples'}</TableHead>
+                    <TableHead className="text-right">{locale === 'th' ? 'เวลาเฉลี่ย (วัน · จำนวนงานที่นับ)' : 'Average days · samples'}</TableHead>
                     <TableHead className="text-right">งานค้าง</TableHead>
                     <TableHead className="text-right">เลยกำหนด</TableHead>
                   </TableRow>
@@ -343,7 +343,7 @@ export default function OperationsPage() {
         <TabsContent value="health">
           <h2 className="mb-3 text-lg font-semibold">สุขภาพคดี</h2>
           <p className="mb-3 text-sm text-muted-foreground">
-            คดีที่เงียบเกินเกณฑ์ SLA และคดีที่ค้างสถานะเดิมนานเกินไป — กดชื่อคดีเพื่อเข้าไปดู
+            คดีที่เงียบเกินกำหนด และคดีที่ค้างสถานะเดิมนานเกินไป — กดชื่อคดีเพื่อเปิดดู
           </p>
           {healthState === 'loading' && (
             <div role="status" aria-label="กำลังโหลดสุขภาพคดี" className="grid gap-6 lg:grid-cols-2">

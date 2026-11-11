@@ -705,7 +705,7 @@ export class BillingService {
         dto.status === ExpenseStatus.PAID ||
         dto.status === ExpenseStatus.REJECTED)
     ) {
-      throw new BadRequestException('อนุมัติผ่านใบเบิกทั้งรอบเท่านั้น');
+      throw new BadRequestException('อนุมัติทีละรายการไม่ได้ ให้อนุมัติที่ใบเบิกทั้งใบ');
     }
 
     // A draft was never claimed, so approving it directly would skip the petty
@@ -914,7 +914,7 @@ export class BillingService {
         where: { id: claimId, firmId: user.firmId, status: claim.status },
         data: { status: next },
       });
-      if (!changed.count) throw new ConflictException('สถานะชุดเบิกเปลี่ยนแล้ว กรุณาโหลดล่าสุด');
+      if (!changed.count) throw new ConflictException('สถานะใบเบิกเปลี่ยนแล้ว กรุณาโหลดล่าสุด');
       if (next === ExpenseClaimStatus.APPROVED) {
         try {
           await this.pettyCash.deduct(user.firmId, claim.expenses.reduce((sum, item) => sum + item.amount, 0), tx);
@@ -1255,7 +1255,7 @@ export class BillingService {
   ) {
     const { caseId, intakeId } = target;
     if (dto.splits && dto.billToCustomerId) {
-      throw new BadRequestException('ระบุ splits กับ billToCustomerId พร้อมกันไม่ได้');
+      throw new BadRequestException('เลือกได้อย่างเดียว: แบ่งบิลหลายผู้จ่าย หรือวางบิลผู้ว่าจ้างรายเดียว');
     }
     // Who gets billed must be this firm's client: the invoice then prints their
     // tax id and address, and reminders go to their contacts.
@@ -1356,13 +1356,13 @@ export class BillingService {
       const known = new Set(caseCustomers.map((customer) => customer.customerId));
       const stranger = dto.splits.find((split) => !known.has(split.customerId));
       if (stranger) {
-        throw new BadRequestException('วางบิลได้เฉพาะลูกค้าที่อยู่ในงานนี้');
+        throw new BadRequestException('วางบิลได้เฉพาะผู้ว่าจ้างที่ผูกกับคดีหรือเรื่องนี้');
       }
     }
 
     if (discountAmount > 0 && recipients.length > 1) {
       // ส่วนลดใส่รายใบ ไม่กระจายข้ามกลุ่ม — ออกใบก่อนแล้วใส่ทีละใบที่ PATCH invoices/:id/discount
-      throw new BadRequestException('ใบที่แบ่งผู้จ่ายใส่ส่วนลดตอนสร้างไม่ได้ ใส่ทีละใบหลังออกใบ');
+      throw new BadRequestException('ใบแจ้งหนี้ที่แบ่งผู้จ่าย ใส่ส่วนลดตอนสร้างไม่ได้ — ออกใบก่อน แล้วใส่ส่วนลดทีละใบ');
     }
     // ใบที่แบ่งจากชุดเดียวกันใช้ splitGroupId ร่วมกัน; ใบเดียวไม่มี
     const splitGroupId = recipients.length > 1 ? randomUUID() : null;

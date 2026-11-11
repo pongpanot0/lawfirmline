@@ -175,7 +175,7 @@ export default function TimesheetPage() {
         title={d.timesheet.title}
         description="ตรวจเวลาที่บันทึก หรือเพิ่มเวลาทำงานในคดี"
         actions={
-          <div><Button type="button" variant="outline" onClick={() => { setShowAdd(true); setEditing(null); }}>เพิ่มเวลาเอง</Button><p className="mt-1 text-xs text-muted-foreground">กดเพื่อบันทึกเวลาที่ระบบดึงมาไม่ได้</p></div>
+          <div><Button type="button" variant="outline" onClick={() => { setShowAdd(true); setEditing(null); }}>เพิ่มเวลาเอง</Button><p className="mt-1 text-xs text-muted-foreground">บันทึกเวลาที่ระบบไม่ได้ดึงมาให้</p></div>
         }
       />
       {showAdd && <TimeEntryForm onCancel={() => setShowAdd(false)} onDone={afterTimeChange} />}

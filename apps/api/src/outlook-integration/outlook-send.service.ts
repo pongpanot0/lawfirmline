@@ -275,7 +275,7 @@ export class OutlookSendService {
       if (error instanceof GraphApiError && (error.status === 401 || error.status === 403)) {
         throw new BadRequestException('Microsoft ไม่อนุญาตให้ส่งอีเมลจากบัญชีนี้ — กรุณาเชื่อมต่อ Microsoft 365 ใหม่ในหน้าตั้งค่า');
       }
-      throw new BadRequestException('ส่งอีเมลไม่สำเร็จ — ถ้ามีร่างค้างในโฟลเดอร์ Drafts ของ Outlook ลบหรือส่งจาก Outlook ได้ และตรวจสอบโฟลเดอร์ Sent Items ก่อนส่งซ้ำ เพราะอีเมลอาจถูกส่งไปแล้ว');
+      throw new BadRequestException('ส่งอีเมลไม่สำเร็จ แต่อีเมลอาจถูกส่งไปแล้ว — ดูโฟลเดอร์ Sent Items ใน Outlook ก่อนส่งซ้ำ ถ้ามีร่างค้างใน Drafts ให้ลบหรือส่งจาก Outlook');
     }
 
     // Microsoft has the mail now. Nothing below may turn this into an error — a 500 here invites a second send.
@@ -441,7 +441,7 @@ export class OutlookSendService {
       where: { id: { in: ids }, caseId, storagePath: { not: '' } },
       select: { id: true, filename: true, mimeType: true, storagePath: true },
     });
-    if (documents.length !== ids.length) throw new NotFoundException('ไม่พบเอกสารบางรายการในคดีนี้');
+    if (documents.length !== ids.length) throw new NotFoundException('ไม่พบเอกสารบางไฟล์ในคดีนี้ โหลดหน้าใหม่แล้วเลือกไฟล์อีกครั้ง');
 
     const inline: LoadedAttachment[] = [];
     const linked: LinkedSource[] = [];
@@ -460,7 +460,7 @@ export class OutlookSendService {
       held.bytes += buffer.length;
       selected += buffer.length;
       if (selected > MAX_SEND_TOTAL_BYTES) {
-        throw new BadRequestException('ไฟล์ที่เลือกรวมกันเกิน 100 MB — ส่งทีละน้อยลง หรือแชร์จาก OneDrive โดยตรง');
+        throw new BadRequestException('ไฟล์ที่เลือกรวมกันเกิน 100 MB — แบ่งส่งหลายฉบับ หรือแชร์จาก OneDrive โดยตรง');
       }
       if (buffer.length > MAX_ATTACHMENT_BYTES || total + buffer.length > MAX_TOTAL_ATTACHMENT_BYTES) {
         linked.push({ documentId: document.id, filename: document.filename, mimeType: document.mimeType, buffer });

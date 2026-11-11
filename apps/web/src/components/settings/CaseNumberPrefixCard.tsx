@@ -21,7 +21,7 @@ export function CaseNumberPrefixCard() {
     if (!token) return;
     api.getFirmSettings(token)
       .then((s) => { setSaved(s.ownRefPrefix); setValue(s.ownRefPrefix); })
-      .catch(() => setMessage({ type: 'error', text: 'โหลดคำนำหน้าเลขคดีไม่สำเร็จ' }));
+      .catch(() => setMessage({ type: 'error', text: 'โหลดคำนำหน้าเลขคดีไม่สำเร็จ ลองโหลดหน้าใหม่' }));
   }, [token]);
 
   const normalized = value.trim().toUpperCase();
@@ -38,7 +38,7 @@ export function CaseNumberPrefixCard() {
       setValue(s.ownRefPrefix);
       setMessage({ type: 'success', text: 'บันทึกแล้ว คดีที่เปิดใหม่จะใช้คำนำหน้านี้' });
     } catch (err) {
-      setMessage({ type: 'error', text: err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ' });
+      setMessage({ type: 'error', text: err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
       setSaving(false);
     }
@@ -67,7 +67,7 @@ export function CaseNumberPrefixCard() {
           </Button>
         </div>
         {valid ? (
-          <p className="text-sm text-muted-foreground">เลขคดีถัดไปจะหน้าตาแบบ <span className="font-mono text-foreground">{normalized}{year}0001</span></p>
+          <p className="text-sm text-muted-foreground">ตัวอย่างเลขคดีถัดไป <span className="font-mono text-foreground">{normalized}{year}0001</span></p>
         ) : (
           <p role="alert" className="text-sm text-destructive">ใช้ได้เฉพาะ A–Z, 0–9 และ - ยาว 1–12 ตัว</p>
         )}

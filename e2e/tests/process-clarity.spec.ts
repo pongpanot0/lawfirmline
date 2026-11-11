@@ -89,7 +89,7 @@ test('process clarity click-through', async ({ page, request }) => {
     else results.push('- INFO todos: no assigned case task existed, so conditional completion was not exercised.');
   });
   for (const path of ['/expenses','/invoices','/leaves']) await flow(`7 ${path} tabs and empty states`, async () => {
-    await go(path); const tabs = page.getByRole('tablist', { name: 'ผู้ดำเนินการถัดไป' }).getByRole('tab'); await expect(tabs.first()).toBeVisible(); expect(await tabs.count()).toBeGreaterThan(1);
+    await go(path); const tabs = page.getByRole('tablist', { name: 'ใครต้องทำต่อ' }).getByRole('tab'); await expect(tabs.first()).toBeVisible(); expect(await tabs.count()).toBeGreaterThan(1);
     for (let i=0;i<await tabs.count();i++) { const tab=tabs.nth(i); await expect(tab.locator('span')).toHaveText(/\d+/); await tab.click(); await expect(page.getByText(/ไม่มีรายการที่ต้องทำ/).first()).toBeVisible(); }
   });
   await flow('7 expense creation', async () => {

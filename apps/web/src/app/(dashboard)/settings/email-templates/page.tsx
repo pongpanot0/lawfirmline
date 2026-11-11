@@ -51,7 +51,7 @@ function ReplyReminderCard() {
       setMsg({ ok: true, text: 'บันทึกแล้ว' });
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) setHidden(true);
-      setMsg({ ok: false, text: e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ' });
+      setMsg({ ok: false, text: e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
       setSaving(false);
     }
@@ -103,7 +103,7 @@ export default function EmailTemplatesPage() {
       setTemplates(list);
       setVariables(vars);
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'โหลดเทมเพลตไม่สำเร็จ');
+      setLoadError(err instanceof Error ? err.message : 'โหลดเทมเพลตไม่สำเร็จ ลองโหลดหน้าใหม่');
     }
   }, [token]);
 
@@ -145,7 +145,7 @@ export default function EmailTemplatesPage() {
       setDraft(null);
       await load();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
+      setFormError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }
@@ -160,7 +160,7 @@ export default function EmailTemplatesPage() {
       setDeletingId(null);
       await load();
     } catch (err) {
-      setListError(err instanceof Error ? err.message : 'ลบไม่สำเร็จ');
+      setListError(err instanceof Error ? err.message : 'ลบไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setDeleteBusy(false);
     }

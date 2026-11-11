@@ -31,7 +31,7 @@ export function OutlookChangesPanel({ eventId, onChanged }: { eventId: string; o
       if (reload) onChanged();
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) { setConfirming(null); setError('ข้อมูลเปลี่ยนแล้ว กรุณาลองใหม่'); await load(); }
-      else setError(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด');
+      else setError(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally { setBusy(false); }
   }
 

@@ -63,7 +63,7 @@ export function PleadingDraftDrawer({
       setEditing(false);
       setActiveCitation(null);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'สร้างร่างไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'สร้างร่างไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setGenerating(false);
     }
@@ -78,7 +78,7 @@ export function PleadingDraftDrawer({
       setDraft(updated);
       setEditing(false);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }
@@ -96,7 +96,7 @@ export function PleadingDraftDrawer({
       publishActionFeedback('success', 'บันทึกเป็นเอกสารแล้ว');
       onGenerated();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setApproving(false);
     }

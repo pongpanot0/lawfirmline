@@ -170,7 +170,7 @@ export class TaskDetailService {
     if (!comments.length) throw new BadRequestException('ยังไม่มีข้อความอัปเดตสำหรับวิเคราะห์');
 
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
-    if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า AI สำหรับสรุปงาน');
+    if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้เปิดใช้ AI สรุปงาน ติดต่อผู้ดูแลระบบ');
     let content: string;
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -195,7 +195,7 @@ export class TaskDetailService {
       if (choice?.message?.refusal || choice?.finish_reason === 'length' || !choice?.message?.content) throw new Error('incomplete analysis');
       content = choice.message.content;
     } catch {
-      throw new ServiceUnavailableException('วิเคราะห์งานไม่สำเร็จ ลองใหม่ได้โดยข้อมูลงานยังอยู่');
+      throw new ServiceUnavailableException('วิเคราะห์งานไม่สำเร็จ ข้อมูลงานยังอยู่ครบ ลองใหม่อีกครั้ง');
     }
     const result = parseTaskAiResult(content, comments.map((c) => ({ id: c.id, body: redactForAi(c.body.slice(0, 2000)).text })));
     const log = await this.prisma.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'TASK_AI_ANALYZED', metadata: { taskId, ...result, ...revision } } });
@@ -214,7 +214,7 @@ export class TaskDetailService {
   async createAiFollowUp(taskId: string, user: AuthUser, dto: CreateAiFollowUpDto, blockerRequest = false) {
     const task = await this.tasks.assertAccess(taskId, user);
     if (blockerRequest && (task.status === TaskStatus.DONE || (task.assigneeId !== user.id && user.firmRole !== FirmRole.OWNER))) {
-      throw new ForbiddenException('ผู้รับงานหรือ Owner เท่านั้นที่ส่งจุดติดขัดของงานที่ยังเปิดอยู่ได้');
+      throw new ForbiddenException('ส่งจุดติดขัดได้เฉพาะผู้รับงานหรือเจ้าของสำนักงาน และงานต้องยังเปิดอยู่');
     }
     if (!dto.quote.trim() || !dto.title.trim() || !dto.description.trim()) throw new BadRequestException('ระบุข้อความต้นทาง ชื่องาน และรายละเอียดให้ครบ');
     const latest = await this.prisma.taskComment.findFirst({ where: { taskId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true } });
@@ -222,7 +222,7 @@ export class TaskDetailService {
     const grounded = source && (blockerRequest
       ? source.kind === 'DAILY_UPDATE' && dailyUpdateParts(source.body).blocker === dto.quote.trim()
       : redactForAi(source.body.slice(0, 2000)).text.includes(dto.quote.trim()));
-    if (!grounded) throw new BadRequestException('ข้อความต้นทางไม่ตรงกับจุดติดขัดที่บันทึกไว้');
+    if (!grounded) throw new BadRequestException('ข้อความต้นทางไม่ตรงกับจุดติดขัดที่บันทึกไว้ โหลดหน้าใหม่แล้วลองอีกครั้ง');
     const linkBlocker = async (id: string) => {
       if (!blockerRequest) return;
       const linked = await this.prisma.task.updateMany({
@@ -245,7 +245,7 @@ export class TaskDetailService {
       throw new BadRequestException('วันติดตามต้องไม่เป็นวันที่ผ่านมาแล้ว');
     }
     try {
-      if (blockerRequest && !dto.assigneeId) throw new BadRequestException('เลือกคนรับแก้หรือ Owner');
+      if (blockerRequest && !dto.assigneeId) throw new BadRequestException('เลือกคนรับแก้หรือเจ้าของสำนักงาน');
       if (blockerRequest && task.blockedById) {
         const dependency = await this.prisma.task.findUnique({ where: { id: task.blockedById }, select: { status: true } });
         if (dependency?.status !== TaskStatus.DONE) throw new ConflictException('งานนี้มีเรื่องที่รอคนแก้อยู่แล้ว เปิดติดตามเรื่องเดิมก่อน');
@@ -317,12 +317,12 @@ export class TaskDetailService {
 
   async routineProgress(taskId: string, user: AuthUser, dto: TaskRoutineProgressDto) {
     const task = await this.tasks.assertAccess(taskId, user);
-    if (!task.routine) throw new BadRequestException('งานนี้ไม่มีรายการตรวจของ SOP');
+    if (!task.routine) throw new BadRequestException('งานนี้ไม่มีรายการตรวจจากชุดงาน');
     if (task.assigneeId !== user.id || !task.acknowledgedAt || ['DONE', 'PENDING_REVIEW'].includes(task.status)) {
       throw new ForbiddenException('ผู้รับงานที่รับทราบแล้วเท่านั้นที่บันทึกรายการตรวจได้');
     }
     const routine = task.routine as unknown as TaskRoutineSnapshot;
-    if (dto.completedChecks.some(index => !Number.isInteger(index) || index < 0 || index >= routine.checks.length)) throw new BadRequestException('รายการตรวจไม่ตรงกับรุ่น SOP ของงานนี้');
+    if (dto.completedChecks.some(index => !Number.isInteger(index) || index < 0 || index >= routine.checks.length)) throw new BadRequestException('รายการตรวจไม่ตรงกับชุดงานรุ่นที่ใช้กับงานนี้ โหลดงานใหม่');
     const result = await this.prisma.task.updateMany({
       where: { id: taskId, assigneeId: user.id, status: task.status, updatedAt: new Date(dto.expectedUpdatedAt) },
       data: { routineCompletedChecks: [...new Set(dto.completedChecks)] },
@@ -334,7 +334,7 @@ export class TaskDetailService {
   async dailyUpdate(taskId: string, user: AuthUser, dto: DailyTaskUpdateDto) {
     const task = await this.tasks.assertAccess(taskId, user);
     if (task.assigneeId !== user.id || [TaskStatus.PENDING_REVIEW, TaskStatus.DONE].includes(task.status as TaskStatus)) {
-      throw new ForbiddenException('ผู้ทำงานอัปเดตความคืบหน้าได้เฉพาะงานของตัวเองที่ยังไม่ส่งตรวจหรือเสร็จ');
+      throw new ForbiddenException('อัปเดตความคืบหน้าได้เฉพาะงานของตัวเองที่ยังไม่ส่งตรวจและยังไม่เสร็จ');
     }
     if (!dto.completed.trim() || !dto.remaining.trim()) throw new BadRequestException('ระบุว่าทำถึงไหนและเหลืออะไร');
     const previous = await this.prisma.taskComment.findFirst({

@@ -25,13 +25,13 @@ export function CaseJourneyPanel({ token, caseId, intakeId, partyNames, stage, t
   const refresh = async () => {
     const request = ++requestId.current;
     try { const result = await api.getCaseJourney(token, caseId); if (request === requestId.current) { setJourney(result); onJourneyRef.current?.(result); setError(''); } }
-    catch { if (request === requestId.current) setError('โหลดขั้นตอนคดีไม่สำเร็จ'); }
+    catch { if (request === requestId.current) setError('โหลดขั้นตอนคดีไม่สำเร็จ ลองโหลดหน้าใหม่'); }
   };
   useEffect(() => { void refresh(); return () => { requestId.current++; }; }, [token, caseId, stage, tasksVersion]);
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true); setError('');
     try { await action(); await refresh(); onChanged(); return true; }
-    catch (e) { setError(e instanceof ApiError ? e.message : 'ดำเนินการไม่สำเร็จ'); return false; }
+    catch (e) { setError(e instanceof ApiError ? e.message : 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง'); return false; }
     finally { setBusy(false); }
   };
   const completeTask = async (id: string, title: string, previous: string, nextTitle?: string) => {
@@ -61,7 +61,7 @@ export function CaseJourneyPanel({ token, caseId, intakeId, partyNames, stage, t
   if (resting) return <section aria-label="เส้นทางคดี" className="rounded-xl border-2 border-[#c9d6e3] bg-[#f3f7fb] p-5 shadow-[0_6px_20px_rgba(20,46,67,.08)]">
     <p className="text-sm font-semibold text-[#2b5a8a]">ตอนนี้ไม่มีงานค้าง</p>
     <div className="mt-1 flex flex-wrap items-start justify-between gap-4">
-      <div className="max-w-2xl"><h2 className="flex items-center gap-2 text-2xl font-bold"><Pause aria-hidden="true" className="h-[1.1em] w-[1.1em]" />คดีพักไว้ — รอลูกความแจ้ง</h2><p className="mt-1 text-muted-foreground">ทำงานที่ต้องทำครบแล้ว คดียังเปิดไว้ เผื่อลูกความกลับมาให้ทำต่อ</p><p className={hint}>ไม่ต้องปิดคดีเอง — ปิดเมื่อลูกความแจ้งว่าไม่จ้างต่อ หรือให้ปิด</p></div>
+      <div className="max-w-2xl"><h2 className="flex items-center gap-2 text-2xl font-bold"><Pause aria-hidden="true" className="h-[1.1em] w-[1.1em]" />คดีพักไว้ — รอลูกความแจ้ง</h2><p className="mt-1 text-muted-foreground">ทำงานที่ต้องทำครบแล้ว คดียังเปิดไว้ เผื่อลูกความกลับมาให้ทำต่อ</p><p className={hint}>ยังไม่ต้องปิดคดี — ปิดเมื่อลูกความแจ้งว่าไม่จ้างต่อหรือให้ปิด</p></div>
       <div className="flex flex-wrap gap-2"><div><Link href={`/cases/${caseId}?tab=tasks&newTask=1`} className={outlineBtn}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />เพิ่มงาน</Link><p className={`${hint} max-w-[11rem]`}>ลูกความติดต่อมา หรือมีเรื่องใหม่</p></div>{onCloseCase && <div><button type="button" onClick={onCloseCase} className={outlineBtn}><Archive aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ปิดคดี</button><p className={`${hint} max-w-[11rem]`}>ลูกความแจ้งว่าไม่จ้างต่อ หรือให้ปิด</p></div>}</div>
     </div>
     {idleDays != null && <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#d5e0ea] pt-4 text-sm"><span className="font-semibold">{idleDays === 0 ? 'มีความเคลื่อนไหวล่าสุดวันนี้' : `ไม่มีความเคลื่อนไหวมา ${idleDays} วัน`}</span><span className="text-muted-foreground">ถ้าลูกความเงียบไปนาน ลองโทรถามว่าจะให้ทำต่อหรือปิดคดี</span></div>}

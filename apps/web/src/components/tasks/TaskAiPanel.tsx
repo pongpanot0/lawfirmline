@@ -109,7 +109,7 @@ export function TaskAiPanel({ task, users, tab, onTabChange, onChanged, onNaviga
         setError(err.message);
         onChanged();
       } else {
-        setSaveError(err instanceof ApiError ? err.message : t('สร้างงานติดตามไม่สำเร็จ', 'Could not create follow-up task'));
+        setSaveError(err instanceof ApiError ? err.message : t('สร้างงานติดตามไม่สำเร็จ ลองใหม่อีกครั้ง', 'Could not create follow-up task'));
       }
     } finally {
       setSaving(false);
@@ -173,7 +173,7 @@ export function TaskAiPanel({ task, users, tab, onTabChange, onChanged, onNaviga
             <p className="mt-2 text-sm font-medium">{insight.title}</p>
             <p className="mt-1 text-xs leading-6 text-muted-foreground">{insight.description}</p>
             <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3 dark:border-input">
-              <span className="text-[11px] text-muted-foreground">{t('ไม่มีการสร้างงานหรือแจ้งเตือนก่อนยืนยัน', 'Nothing is created or sent before confirmation.')}</span>
+              <span className="text-[11px] text-muted-foreground">{t('ระบบจะยังไม่สร้างงานหรือแจ้งเตือนจนกว่าคุณจะยืนยัน', 'Nothing is created or sent before confirmation.')}</span>
               <Button size="sm" onClick={() => insight.existingFollowUpId ? onNavigate(insight.existingFollowUpId) : openConfirm()}>{insight.existingFollowUpId ? t('เปิดงานติดตาม', 'Open follow-up') : t('สร้างงานนี้', 'Create this task')}</Button>
             </div>
           </section>
@@ -198,14 +198,14 @@ export function TaskAiPanel({ task, users, tab, onTabChange, onChanged, onNaviga
     </section>}
 
     <dialog ref={dialogRef} onCancel={(event) => { if (saving) event.preventDefault(); }} onClose={() => setConfirm(false)} aria-labelledby="ai-followup-title" className="max-h-[calc(100dvh-2rem)] overflow-y-auto w-[min(28rem,calc(100vw-2rem))] rounded-2xl border border-border bg-card p-0 text-foreground shadow-2xl backdrop:bg-sidebar/50">
-      <div className="flex items-start justify-between gap-3 border-b p-5"><div><h2 id="ai-followup-title" className="font-semibold">{t('ตรวจและสร้างงานติดตาม', 'Review and create follow-up')}</h2><p className="mt-1 text-xs text-muted-foreground">{t('ข้อมูลนี้ยังไม่เปลี่ยนจนกว่าจะกดยืนยัน', 'Nothing changes until you confirm.')}</p></div><button type="button" aria-label={t('ปิด', 'Close')} onClick={() => setConfirm(false)} className="-m-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" aria-hidden /></button></div>
+      <div className="flex items-start justify-between gap-3 border-b p-5"><div><h2 id="ai-followup-title" className="font-semibold">{t('ตรวจและสร้างงานติดตาม', 'Review and create follow-up')}</h2><p className="mt-1 text-xs text-muted-foreground">{t('ระบบยังไม่บันทึกจนกว่าจะกดยืนยัน', 'Nothing changes until you confirm.')}</p></div><button type="button" aria-label={t('ปิด', 'Close')} onClick={() => setConfirm(false)} className="-m-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="h-4 w-4" aria-hidden /></button></div>
       <form onSubmit={(event) => void createFollowUp(event)} className="space-y-4 p-5">
         <fieldset disabled={saving} className="space-y-4">
         <label className="block text-xs font-medium">{t('ชื่องานติดตาม', 'Follow-up title')}<input required maxLength={200} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" /></label>
         <label className="block text-xs font-medium">{t('รายละเอียด', 'Details')}<textarea required maxLength={2000} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" /></label>
         <label className="block text-xs font-medium">{t('ผู้รับผิดชอบ', 'Assignee')}<select required value={draft.assigneeId} onChange={(event) => setDraft((current) => ({ ...current, assigneeId: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"><option value="">{t('เลือกผู้รับผิดชอบ', 'Choose assignee')}</option>{assignableUsers.map((member) => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}</select></label>
         <label className="block text-xs font-medium">{t('วันติดตาม', 'Follow-up date')}<input type="date" required min={bangkokDateInputValue(new Date())} value={draft.followUpDate} onChange={(event) => setDraft((current) => ({ ...current, followUpDate: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" /></label>
-        <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">{t('งานใหม่เชื่อมกับงานแม่และข้อความต้นทาง วันติดตามไม่เปลี่ยนกำหนดส่งเดิม', 'The new task links to this task and its source update. Its date does not change the original due date.')}</p>
+        <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">{t('งานใหม่จะเชื่อมกับงานหลักและข้อความต้นทาง วันติดตามไม่เปลี่ยนกำหนดส่งเดิม', 'The new task links to this task and its source update. Its date does not change the original due date.')}</p>
         {saveError && <p role="alert" className="text-xs text-destructive">{saveError}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={saving} onClick={() => setConfirm(false)}>{t('ยกเลิก', 'Cancel')}</Button><Button type="submit" disabled={saving || !draft.title.trim() || !draft.description.trim() || !draft.assigneeId || !draft.followUpDate}>{saving ? t('กำลังสร้าง…', 'Creating…') : t('ยืนยันสร้างงาน', 'Create follow-up')}</Button></div>
         </fieldset>

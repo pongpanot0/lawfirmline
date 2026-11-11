@@ -52,6 +52,6 @@ describe('PortalWorkroomService — case-backed requests', () => {
 
     await expect(
       service.proposal(lawyer, 'sub-1', { scopeText: 'x', proposedDate: '2026-10-01', version: 0 }),
-    ).rejects.toThrow('รับเข้า F01 หรือเปิดเป็นคดีก่อน');
+    ).rejects.toThrow('รับเรื่องเข้าหรือเปิดเป็นคดีก่อน');
   });
 });

@@ -46,7 +46,7 @@ export class TemplatesService {
   /** A firm edits only its own templates; built-ins (firmId null) only through /platform. */
   private async ownTemplate(firmId: string | null, id: string) {
     const template = await this.prisma.documentTemplate.findFirst({ where: { id, firmId } });
-    if (!template) throw new NotFoundException('ไม่พบ template ของสำนักงานนี้');
+    if (!template) throw new NotFoundException('ไม่พบแม่แบบเอกสารของสำนักงานนี้');
     return template;
   }
 
@@ -153,7 +153,7 @@ export class TemplatesService {
 
   async generate(user: AuthUser, caseId: string, templateId: string, content?: string) {
     const rendered = await this.render(user.firmId, templateId, caseId);
-    if (!rendered) throw new NotFoundException('ไม่พบ template หรือคดีนี้');
+    if (!rendered) throw new NotFoundException('ไม่พบแม่แบบเอกสารหรือคดีนี้');
 
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (content !== undefined && (!content.trim() || /\{\{[^{}]+\}\}/.test(content))) {

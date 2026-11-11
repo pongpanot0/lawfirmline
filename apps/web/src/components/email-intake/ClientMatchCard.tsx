@@ -6,7 +6,7 @@ import type { EmailThreadDetail } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-const reasonLabel = { EMAIL: 'อีเมลผู้ส่งตรงกับผู้ติดต่อ', DOMAIN: 'โดเมนอีเมลเดียวกัน', NAME: 'ชื่อคล้ายกัน' } as const;
+const reasonLabel = { EMAIL: 'อีเมลผู้ส่งตรงกับผู้ติดต่อ', DOMAIN: 'อีเมลบริษัทเดียวกัน', NAME: 'ชื่อคล้ายกัน' } as const;
 
 /** Is the sender an existing client? Pick one, or create the client from the sender in one click. */
 export function ClientMatchCard({ match, busy, onLink }: {
@@ -36,6 +36,6 @@ export function ClientMatchCard({ match, busy, onLink }: {
         <Input aria-label="ชื่อลูกความใหม่" value={name} onChange={(e) => setName(e.target.value)} className="min-w-0 flex-1" />
         <Button size="sm" disabled={busy || !name.trim()} onClick={() => onLink({ name: name.trim() })}>สร้างลูกความใหม่</Button>
       </div>
-    </div> : <button type="button" className="text-xs text-primary underline" onClick={() => setCreating(true)}>ไม่ใช่ทั้งหมด — สร้างลูกความใหม่</button>}
+    </div> : <button type="button" className="text-xs text-primary underline" onClick={() => setCreating(true)}>ไม่ตรงกับรายใด — สร้างลูกความใหม่</button>}
   </section>;
 }

@@ -17,7 +17,7 @@ type Msg = { role: 'user' | 'assistant'; content: string; cards?: SecretaryCard[
 /** Server accepts up to 20; the last 10 are what it actually uses. */
 const HISTORY_SENT = 10;
 
-const SUGGESTIONS = ['สัปดาห์นี้ผมมีนัดศาลที่ไหนบ้าง', 'คดีไหนงานค้างนานที่สุด', 'สัปดาห์หน้าใครลาบ้าง'];
+const SUGGESTIONS = ['สัปดาห์นี้ฉันมีนัดศาลที่ไหนบ้าง', 'คดีไหนงานค้างนานที่สุด', 'สัปดาห์หน้าใครลาบ้าง'];
 const FINANCE_SUGGESTIONS = ['ลูกหนี้ค้างเกิน 60 วันมีใครบ้าง'];
 
 /**
@@ -141,7 +141,7 @@ export function SecretaryChat() {
         {!loadingHistory && messages.length === 0 && (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              ถามเลขาได้ทุกคดีที่คุณเข้าถึงและงานสำนักงาน เช่น ภาพรวมคดี หาเอกสาร ดูนัด วันลา หรือขั้นตอน SOP — เลขาตอบจากข้อมูลในระบบเท่านั้น
+              ถามเลขาได้ทุกคดีที่คุณเข้าถึงและงานสำนักงาน เช่น ภาพรวมคดี หาเอกสาร ดูนัด วันลา หรือคู่มือการทำงาน — เลขาตอบจากข้อมูลในระบบเท่านั้น
             </p>
             <div className="flex flex-wrap gap-1.5">
               {suggestions.map((s) => (

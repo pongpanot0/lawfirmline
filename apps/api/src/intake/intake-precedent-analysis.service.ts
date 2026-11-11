@@ -170,7 +170,7 @@ export class IntakePrecedentAnalysisService {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       // Surface a real message instead of a blank 500 when the key is absent.
-      throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า AI (OPENAI_API_KEY) — ติดต่อผู้ดูแลระบบ');
+      throw new ServiceUnavailableException('ยังไม่ได้เปิดใช้ AI — ติดต่อผู้ดูแลระบบ');
     }
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -374,7 +374,7 @@ export class IntakePrecedentAnalysisService {
 
     if (!factsText.trim()) {
       throw new BadRequestException(
-        'ไม่สามารถอ่านข้อมูลจากเอกสารแนบได้ และไม่มีรายละเอียดเพิ่มเติม — กรุณาตรวจสอบไฟล์แนบหรือกรอกรายละเอียด',
+        'อ่านเอกสารแนบไม่ได้และยังไม่มีรายละเอียด — ตรวจไฟล์แนบหรือกรอกรายละเอียดก่อน',
       );
     }
 

@@ -41,7 +41,7 @@ export default function OutlookFolderMatchPage() {
       setFolders(folderRows);
       setCases(caseList);
     } catch (e) {
-      setLoadError(e instanceof ApiError ? e.message : 'ดึงรายชื่อ folder จาก Outlook ไม่สำเร็จ');
+      setLoadError(e instanceof ApiError ? e.message : 'ดึงรายชื่อโฟลเดอร์จาก Outlook ไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   }, [token]);
 
@@ -70,24 +70,24 @@ export default function OutlookFolderMatchPage() {
         token,
         items.map((i) => ({ folderId: i.id, caseId: i.caseId })),
       );
-      setNotice({ type: 'success', text: `ผูกแล้ว ${result.linked.length} folder — ระบบกำลังดึงอีเมลย้อนหลังเข้าแต่ละคดี` });
+      setNotice({ type: 'success', text: `ผูกแล้ว ${result.linked.length} โฟลเดอร์ — ระบบกำลังดึงอีเมลย้อนหลังเข้าแต่ละคดี` });
       await load();
     } catch (e) {
-      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ผูก folder ไม่สำเร็จ' });
+      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ผูกโฟลเดอร์ไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
       setSaving(false);
     }
   };
 
   const unlink = async (linkId: string) => {
-    if (!token || saving || !window.confirm('ยกเลิกการผูก folder นี้? อีเมลที่ดึงเข้าคดีแล้วจะยังอยู่ในคดี')) return;
+    if (!token || saving || !window.confirm('ยกเลิกการผูกโฟลเดอร์นี้? อีเมลที่ดึงเข้าคดีแล้วจะยังอยู่ในคดี')) return;
     setSaving(true);
     setNotice(null);
     try {
       await api.unlinkOutlookFolder(token, linkId);
       await load();
     } catch (e) {
-      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ยกเลิกการผูกไม่สำเร็จ' });
+      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ยกเลิกการผูกไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
       setSaving(false);
     }
@@ -107,7 +107,7 @@ export default function OutlookFolderMatchPage() {
 
       {connections && <div className="rounded-xl border border-l-4 border-l-[var(--color-brass)] bg-[var(--operations-highlight)] p-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{connections.some((account) => account.status === 'ACTIVE') ? 'เชื่อม Microsoft 365 แล้ว' : 'เชื่อม Microsoft 365'}</p><p className="text-sm text-muted-foreground">{connections.find((account) => account.status === 'ACTIVE')?.mailboxAddress ?? 'เชื่อมบัญชีเพื่อจับคู่โฟลเดอร์กับคดี'}</p></div>
-        {!connections.some((account) => account.status === 'ACTIVE') && <Button onClick={async () => { if (!token) return; try { window.location.href = (await api.getOutlookConnectUrl(token)).url; } catch (e) { setLoadError(e instanceof Error ? e.message : 'เริ่มการเชื่อมต่อไม่สำเร็จ'); } }}>เชื่อมต่อ</Button>}</div>
+        {!connections.some((account) => account.status === 'ACTIVE') && <Button onClick={async () => { if (!token) return; try { window.location.href = (await api.getOutlookConnectUrl(token)).url; } catch (e) { setLoadError(e instanceof Error ? e.message : 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง'); } }}>เชื่อมต่อ</Button>}</div>
       </div>}
       {connections?.some((account) => account.status === 'ACTIVE') && <>
       <Tabs value={matchTab} onValueChange={(v) => setMatchTab(v as 'outlook' | 'drive')}>
@@ -131,7 +131,7 @@ export default function OutlookFolderMatchPage() {
         </p>
       )}
 
-      {matchTab === 'outlook' && !rows && !loadError && <div role="status" aria-label="กำลังดึงรายชื่อ folder จาก Outlook" className="h-64 animate-pulse rounded-xl bg-muted" />}
+      {matchTab === 'outlook' && !rows && !loadError && <div role="status" aria-label="กำลังดึงรายชื่อโฟลเดอร์จาก Outlook" className="h-64 animate-pulse rounded-xl bg-muted" />}
 
       {matchTab === 'outlook' && rows && (
         <Card>

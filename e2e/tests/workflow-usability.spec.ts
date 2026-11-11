@@ -41,7 +41,7 @@ for (const width of [375, 1440]) {
       await expect(page.locator('#case-title')).toHaveValue(`${caseType.name} — ${client.name}`);
       await expect(page.locator('#new-case-playbook')).toHaveValue(sop.id);
       // A failed preview must leave the newly created case available for retry, with no hidden tasks.
-      await page.route('**/practice-setup/cases/*/preview', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"โหลดรายการงานไม่สำเร็จ"}' }));
+      await page.route('**/practice-setup/cases/*/preview', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"โหลดรายการงานไม่สำเร็จ ลองโหลดหน้าใหม่"}' }));
       await page.getByRole('button', { name: 'สร้างคดี', exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`/cases/[0-9a-f-]+\\?tab=tasks&sop=${sop.id}`));
       const legalCase = await data.db.case.findFirstOrThrow({ where: { firmId: auth.user.firmId } });
@@ -53,7 +53,7 @@ for (const width of [375, 1440]) {
       await page.getByRole('button', { name: 'ลองโหลดรายการงานอีกครั้ง', exact: true }).click();
       await expect(page.getByText('ตรวจเอกสารก่อนมอบหมาย', { exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'ยืนยันเพิ่มงานตามรายการ', exact: true }).click();
-      await expect(page.getByRole('status').filter({ hasText: 'เพิ่มงานจาก SOP แล้ว' })).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: 'เพิ่มงานจากชุดงานแล้ว' })).toBeVisible();
       expect(await data.db.task.count({ where: { caseId: legalCase.id } })).toBe(2);
 
       await page.getByRole('link', { name: 'เพิ่มงาน', exact: true }).click();

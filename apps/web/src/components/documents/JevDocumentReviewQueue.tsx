@@ -103,7 +103,7 @@ export function JevDocumentReviewQueue() {
       setItems((current) => current.filter((candidate) => candidate.documentId !== item.documentId));
       setError('');
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'บันทึกหมวดเอกสารไม่สำเร็จ');
+      setError(err instanceof Error && err.message ? err.message : 'บันทึกหมวดเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง');
     }
   };
 
@@ -130,7 +130,7 @@ export function JevDocumentReviewQueue() {
             <Button type="button" size="sm" disabled={!canConfirm} onClick={() => void confirm(item)}>ยืนยันหมวด</Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setItems((current) => current.filter((candidate) => candidate.documentId !== item.documentId))}>ข้าม</Button>
           </div>
-          {!canConfirm && <p className="mt-2 text-xs text-muted-foreground">รอผู้มีสิทธิ์ทนายยืนยันหมวดนี้</p>}
+          {!canConfirm && <p className="mt-2 text-xs text-muted-foreground">รอทนายที่มีสิทธิ์ยืนยันหมวดนี้</p>}
         </article>)}
       </div>}
     </section>

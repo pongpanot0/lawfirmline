@@ -829,18 +829,18 @@ export class CasesService {
   async update(user: AuthUser, id: string, dto: UpdateCaseDto, fromStage?: string) {
     const before = await this.findOne(user, id);
     if (fromStage !== undefined && before.stage !== fromStage) {
-      throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า');
+      throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง');
     }
 
     if (dto.status === CaseStatus.CLOSED || dto.status === CaseStatus.ARCHIVED) {
-      throw new BadRequestException('ใช้ปุ่มปิดคดี');
+      throw new BadRequestException('ปิดคดีด้วยปุ่ม "ปิดคดี"');
     }
     if (
       dto.status &&
       dto.status !== before.status &&
       (before.status === CaseStatus.CLOSED || before.status === CaseStatus.ARCHIVED)
     ) {
-      throw new BadRequestException('ใช้ปุ่มเปิดคดีอีกครั้ง');
+      throw new BadRequestException('เปิดคดีใหม่ด้วยปุ่ม "เปิดคดีอีกครั้ง"');
     }
     const leadChanged = !!dto.leadLawyerId && dto.leadLawyerId !== before.leadLawyerId;
     const stageChanged = !!dto.stage && dto.stage !== before.stage;
@@ -926,7 +926,7 @@ export class CasesService {
     };
     const updated = dto.stage !== undefined ? await this.prisma.$transaction(async (tx) => {
       const { legalCase, journey } = await this.journeyState(user, id, tx);
-      if (legalCase.stage !== before.stage) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า');
+      if (legalCase.stage !== before.stage) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง');
       if (stageChanged && !isBackwardStage(before.stage, dto.stage!) && journeyStage(before.stage) !== journeyStage(dto.stage!)) {
         assertJourneyAdvance(before.stage, dto.stage!, journey);
       }
@@ -935,7 +935,7 @@ export class CasesService {
         where: { id, stage: before.stage },
         data: { stage: dto.stage!, stageChangedAt: stageChanged ? new Date() : undefined },
       });
-      if (result.count === 0) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว รีเฟรชหน้า');
+      if (result.count === 0) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง');
       return write(tx);
     }) : leadChanged ? await this.prisma.$transaction(write) : await write(this.prisma);
     // The overview form always sends both, so only an actual change re-syncs our client's row.

@@ -1,7 +1,7 @@
 import { CASE_NUMBER_REGEX } from '@lawfirm/shared';
 import type { ImportCaseRow, ParsedCaseFolder } from './api';
 
-/** One editable row of "สร้างคดีใหม่จาก folder". Everything but the folder is a suggestion the importer can change. */
+/** One editable row of "สร้างคดีใหม่จากโฟลเดอร์". Everything but the folder is a suggestion the importer can change. */
 export interface ImportCaseDraft extends ImportCaseRow {
   selected: boolean;
   folderName: string;
@@ -46,8 +46,8 @@ export function draftFromSuggestion(
 /** Same rules the API enforces, said in Thai before the request goes out. */
 export function draftProblem(d: ImportCaseDraft): string | null {
   if (!d.leadLawyerId) return 'ยังไม่ได้เลือกทนายหลัก';
-  if (!d.title.trim()) return 'ชื่อคดีว่าง';
-  if (d.blackCaseNumber?.trim() && !CASE_NUMBER_REGEX.test(d.blackCaseNumber.trim())) return 'เลขคดีไม่ถูกรูปแบบ';
+  if (!d.title.trim()) return 'ยังไม่ได้ใส่ชื่อคดี';
+  if (d.blackCaseNumber?.trim() && !CASE_NUMBER_REGEX.test(d.blackCaseNumber.trim())) return 'รูปแบบเลขคดีไม่ถูกต้อง';
   if (d.closed && !d.outcome) return 'เลือกผลคดี';
   if (d.closed && (d.closingSummary ?? '').trim().length < 10) return 'สรุปตอนปิดต้องยาวอย่างน้อย 10 ตัวอักษร';
   return null;

@@ -1,5 +1,5 @@
 /** Thai relative time, e.g. "5 นาทีที่แล้ว". null/invalid → `never` text. */
-export function relativeTimeTh(iso: string | null | undefined, now: Date = new Date(), never = 'ยังไม่เคยซิงก์'): string {
+export function relativeTimeTh(iso: string | null | undefined, now: Date = new Date(), never = 'ยังไม่เคยดึงอีเมล'): string {
   if (!iso) return never;
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return never;

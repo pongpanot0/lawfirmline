@@ -26,7 +26,7 @@ export interface DriveImportItem {
 }
 
 /**
- * "สร้างคดีใหม่จาก folder": every unlinked folder as an editable draft. Nothing is created until
+ * "สร้างคดีใหม่จากโฟลเดอร์": every unlinked folder as an editable draft. Nothing is created until
  * "สร้าง N คดี"; files stay in OneDrive and the folder is linked with the importer's own account.
  */
 export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: string; items: DriveImportItem[]; onDone: () => void }) {
@@ -69,7 +69,7 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
       setResults(done.map((r) => ({ ...r, name: names.get(r.itemId) ?? r.itemId })));
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'สร้างคดีไม่สำเร็จ');
+      setError(e instanceof ApiError ? e.message : 'สร้างคดีไม่สำเร็จ ลองใหม่อีกครั้ง');
     } finally {
       setSaving(false);
     }
@@ -81,10 +81,10 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
     <section className="space-y-3 border-t pt-4" aria-labelledby="drive-import-heading">
       <div>
         <h3 id="drive-import-heading" className="text-sm font-semibold">
-          สร้างคดีใหม่จาก folder ที่ยังไม่ผูก <span className="tabular-nums">({items.length})</span>
+          สร้างคดีใหม่จากโฟลเดอร์ที่ยังไม่ผูก <span className="tabular-nums">({items.length})</span>
         </h3>
         <p className="text-xs text-muted-foreground">
-          ไฟล์ยังอยู่ใน OneDrive ที่เดิม — ระบบผูก folder ด้วยบัญชี Microsoft ของคุณ ควรให้เจ้าของ folder เป็นคนนำเข้า
+          ไฟล์ยังอยู่ใน OneDrive ที่เดิม ระบบเชื่อมโฟลเดอร์ผ่านบัญชี Microsoft ของคุณ จึงควรให้เจ้าของโฟลเดอร์เป็นคนนำเข้า
         </p>
       </div>
 
@@ -108,12 +108,12 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
       {drafts.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="tabular-nums">เลือก {selected.length} folder</span>
-          <select aria-label="ทนายหลักสำหรับที่เลือก" value={bulkLead} onChange={(e) => setBulkLead(e.target.value)} className={`${field} w-auto`}>
+          <select aria-label="ทนายหลักสำหรับโฟลเดอร์ที่เลือก" value={bulkLead} onChange={(e) => setBulkLead(e.target.value)} className={`${field} w-auto`}>
             <option value="">— ทนายหลัก —</option>
             {lawyers.map((l) => <option key={l.id} value={l.id}>{lawyerName.get(l.id)}</option>)}
           </select>
           <Button size="sm" variant="outline" disabled={!bulkLead || selected.length === 0} onClick={applyLead}>
-            ตั้งทนายหลักให้ที่เลือก
+            ตั้งทนายหลักให้โฟลเดอร์ที่เลือก
           </Button>
         </div>
       )}

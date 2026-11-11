@@ -124,7 +124,7 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
       setShowForm(false);
       setEditingId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     } finally {
       setSubmitting(false);
     }

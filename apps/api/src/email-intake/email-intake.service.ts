@@ -287,7 +287,7 @@ export class EmailIntakeService {
   async linkClientForThread(user: AuthUser, threadId: string, dto: LinkIntakeClientDto) {
     const thread = await this.getThreadOrThrow(user, threadId);
     if (!thread.intake) throw new BadRequestException('รับอีเมลนี้เป็นเรื่องก่อน');
-    if (!dto.clientId === !dto.name) throw new BadRequestException('เลือกลูกค้าเดิม หรือใส่ชื่อลูกค้าใหม่ อย่างใดอย่างหนึ่ง');
+    if (!dto.clientId === !dto.name) throw new BadRequestException('เลือกลูกความเดิม หรือใส่ชื่อลูกความใหม่ อย่างใดอย่างหนึ่ง');
     const party = await this.externalPartyOf(user, thread.messages);
     const contact = party ? { name: party.name?.trim() || party.address, email: party.address, isPrimary: true } : null;
     const client = dto.clientId
@@ -296,7 +296,7 @@ export class EmailIntakeService {
         data: { firmId: user.firmId, name: dto.name!.trim(), contacts: contact ? { create: [contact] } : undefined },
         select: { id: true, name: true },
       });
-    if (!client) throw new NotFoundException('ไม่พบลูกค้านี้');
+    if (!client) throw new NotFoundException('ไม่พบลูกความนี้');
     if (dto.clientId && contact) {
       // An existing client gains the sender as a contact, so the next e-mail from them matches directly.
       const known = await this.prisma.clientContact.count({ where: { clientId: client.id, email: { equals: contact.email, mode: 'insensitive' } } });
@@ -540,7 +540,7 @@ export class EmailIntakeService {
       .filter((m) => m.text.trim());
 
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
-    if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า AI');
+    if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้เปิดใช้ AI ติดต่อผู้ดูแลระบบ');
     const files = (await this.threadDocuments(thread.intake.id, thread.messages, thread.intake.case?.id)).slice(0, AI_FILES_LIMIT);
     if (!messages.length && !files.length) throw new BadRequestException('ไม่มีเนื้อหาอีเมลหรือไฟล์ให้ AI อ่าน');
     const documentRequests = await this.prisma.intakeDocumentRequest.findMany({ where: this.matterWhere(thread.intake.id, thread.intake.case?.id), select: { id: true, name: true } });
@@ -707,7 +707,7 @@ export class EmailIntakeService {
       // Lock before reading proposals/amounts: concurrent confirmations must append rather than overwrite.
       await tx.$queryRaw`SELECT "id" FROM "Intake" WHERE "id" = ${intakeId} FOR UPDATE`;
       const proposal = await tx.intakeFieldProposal.findFirst({ where: { id: proposalId, intakeId } });
-      if (!proposal) throw new NotFoundException('ไม่พบข้อมูลที่เสนอ');
+      if (!proposal) throw new NotFoundException('ไม่พบข้อมูลที่ AI เสนอ โหลดหน้าใหม่');
       if (proposal.status === FieldProposalStatus.CONFIRMED || proposal.status === FieldProposalStatus.REJECTED) return proposal;
       if (dto.action === 'reject') return tx.intakeFieldProposal.update({ where: { id: proposalId }, data: { status: FieldProposalStatus.REJECTED } });
 

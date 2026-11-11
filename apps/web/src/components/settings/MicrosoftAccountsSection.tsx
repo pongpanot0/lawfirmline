@@ -49,7 +49,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
       setNotice({ type: 'success', text: 'เชื่อมต่อ Outlook สำเร็จ' });
       loadConnections();
     } else if (outlookResult === 'error') {
-      setNotice({ type: 'error', text: searchParams.get('message') || 'เชื่อมต่อ Outlook ไม่สำเร็จ' });
+      setNotice({ type: 'error', text: searchParams.get('message') || 'เชื่อมต่อ Outlook ไม่สำเร็จ ลองใหม่อีกครั้ง' });
     }
   }, [searchParams, loadConnections]);
 
@@ -62,7 +62,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
       const { url } = await api.getOutlookConnectUrl(token);
       window.location.href = url;
     } catch (e) {
-      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'เริ่มการเชื่อมต่อไม่สำเร็จ' });
+      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง' });
       setConnecting(false);
     }
   };
@@ -76,7 +76,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
       setDisconnectCheck(null);
       await loadConnections();
     } catch (e) {
-      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ยกเลิกการเชื่อมต่อไม่สำเร็จ' });
+      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ยกเลิกการเชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
       setBusyId(null);
     }
@@ -109,7 +109,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
       const result = await api.importCaseDriveFolder(token, caseId);
       setNotice({ type: 'success', text: `นำเข้าแล้ว ${result.imported} ไฟล์` });
     } catch (e) {
-      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'นำเข้าไม่สำเร็จ' });
+      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'นำเข้าไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
       setImportingCaseId(null);
     }
@@ -121,10 +121,10 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
     setBusyId(id);
     try {
       const result = await api.syncOutlookNow(token, id);
-      setNotice({ type: 'success', text: `ซิงก์แล้ว — พบอีเมลใหม่ ${result.messagesSynced} ฉบับ` });
+      setNotice({ type: 'success', text: `ดึงอีเมลแล้ว — พบอีเมลใหม่ ${result.messagesSynced} ฉบับ` });
       await loadConnections();
     } catch (e) {
-      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ซิงก์ไม่สำเร็จ' });
+      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ดึงอีเมลไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
       setBusyId(null);
     }
@@ -138,7 +138,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
       const updated = await api.updateOutlookConnection(token, c.id, body);
       setConnections((list) => list.map((x) => (x.id === c.id ? { ...x, ...updated } : x)));
     } catch (e) {
-      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ' });
+      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
       setBusyId(null);
     }
@@ -152,7 +152,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
           <p className="truncate text-sm font-medium">{c.mailboxAddress}</p>
           <p className="text-xs text-muted-foreground">
             {OUTLOOK_STATUS_LABEL[c.status] ?? c.status}
-            {c.lastSyncedAt && ` · ซิงก์ล่าสุด ${formatDateTime(c.lastSyncedAt)}`}
+            {c.lastSyncedAt && ` · ดึงอีเมลล่าสุด ${formatDateTime(c.lastSyncedAt)}`}
           </p>
           {c.lastError && (
             <p className={`mt-0.5 text-xs ${c.status === 'ACTIVE' ? 'text-warning' : 'text-destructive'}`}>
@@ -164,7 +164,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
           <div className="flex shrink-0 flex-wrap gap-2">
             {c.status === 'ACTIVE' && (
               <Button size="sm" variant="outline" disabled={busyId === c.id} onClick={() => handleSyncNow(c.id)}>
-                ซิงก์ตอนนี้
+                ดึงอีเมลตอนนี้
               </Button>
             )}
             <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busyId === c.id} onClick={() => handleDisconnect(c.id)}>
@@ -183,7 +183,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
               disabled={busyId === c.id}
               onChange={(e) => toggle(c, { syncCalendar: e.target.checked })}
             />
-            ซิงก์นัดในระบบไปปฏิทิน Outlook
+            ส่งนัดในระบบเข้าปฏิทิน Outlook
           </label>
           <label className="flex min-h-11 items-center gap-2 text-xs sm:min-h-8">
             <input
@@ -194,7 +194,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
               onChange={(e) => {
                 if (
                   e.target.checked &&
-                  !window.confirm('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" เห็นเฉพาะคุณ จนกว่าจะผูกกับคดีหรือรับเป็นคดีก่อนฟ้อง ยืนยันไหม?')
+                  !window.confirm('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" และเห็นเฉพาะคุณจนกว่าจะผูกกับคดีหรือรับเป็นคดีก่อนฟ้อง ยืนยันไหม?')
                 )
                   return;
                 toggle(c, { syncInboxToIntake: e.target.checked });
@@ -256,7 +256,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
                     disabled={importingCaseId === folder.caseId}
                     className="min-h-11 rounded-lg border border-input bg-card px-2.5 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50 sm:min-h-8"
                   >
-                    {importingCaseId === folder.caseId ? 'กำลังนำเข้า…' : 'นำเข้าไฟล์ทั้ง folder'}
+                    {importingCaseId === folder.caseId ? 'กำลังนำเข้า…' : 'นำเข้าไฟล์ทั้งโฟลเดอร์'}
                   </button>
                 </li>
               ))}

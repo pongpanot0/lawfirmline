@@ -127,17 +127,17 @@ export class CaseDriveService {
   async linkFolder(user: AuthUser, caseId: string, dto: { driveId: string; itemId: string }) {
     const { connectionId, token } = await this.ownToken(user);
     const item = await this.drive.getItem(token, dto.driveId, dto.itemId).catch(rethrowDriveError);
-    if (!item.folder) throw new BadRequestException('เลือกได้เฉพาะ folder');
+    if (!item.folder) throw new BadRequestException('เลือกได้เฉพาะโฟลเดอร์ ไม่ใช่ไฟล์');
     // A SharePoint library root may come back without parentReference.
     const driveId = item.parentReference?.driveId ?? (dto.driveId !== 'me' ? dto.driveId : undefined);
-    if (!driveId) throw new BadRequestException('ไม่พบ drive ของ folder นี้');
+    if (!driveId) throw new BadRequestException('ไม่พบที่เก็บไฟล์ของโฟลเดอร์นี้ เลือกโฟลเดอร์ใหม่อีกครั้ง');
 
     // Firm-wide, like the import: a folder a colleague linked through their own account is taken too.
     const taken = await this.prisma.caseExternalLink.findFirst({
       where: { firmId: user.firmId, kind: DRIVE_FOLDER, driveId, externalId: item.id },
       select: { caseId: true },
     });
-    if (taken && taken.caseId !== caseId) throw new ConflictException('folder นี้ผูกกับคดีอื่นอยู่แล้ว');
+    if (taken && taken.caseId !== caseId) throw new ConflictException('โฟลเดอร์นี้ผูกกับคดีอื่นอยู่แล้ว');
 
     const existing = await this.findLinkOwnership(caseId);
     if (existing) this.assertCanChangeLink(user, existing, 'เปลี่ยน folder ได้เฉพาะผู้ที่ผูก เจ้าของกล่องอีเมล หรือผู้ดูแลสำนักงาน');
@@ -158,7 +158,7 @@ export class CaseDriveService {
         },
       });
     }).catch((error) => {
-      if ((error as { code?: string } | null)?.code === 'P2002') throw new ConflictException('folder นี้ผูกกับคดีอื่นอยู่แล้ว');
+      if ((error as { code?: string } | null)?.code === 'P2002') throw new ConflictException('โฟลเดอร์นี้ผูกกับคดีอื่นอยู่แล้ว');
       throw error;
     });
     await this.audit(user, 'DRIVE_FOLDER_LINKED', { caseId, linkId: link.id, displayPath: link.displayPath });
@@ -171,7 +171,7 @@ export class CaseDriveService {
    */
   async createAndLinkFolder(user: AuthUser, caseId: string, dto: { driveId: string; parentId: string; name: string }) {
     const { token } = await this.ownToken(user);
-    if (await this.findLinkOwnership(caseId)) throw new ConflictException('คดีนี้ผูก folder แล้ว — ยกเลิกการผูกก่อนถ้าจะสร้างใหม่');
+    if (await this.findLinkOwnership(caseId)) throw new ConflictException('คดีนี้ผูกโฟลเดอร์แล้ว — ยกเลิกการผูกก่อนถ้าจะสร้างใหม่');
     const created = await this.drive.createFolder(token, dto.driveId, dto.parentId, dto.name).catch(rethrowDriveError);
     return this.linkFolder(user, caseId, { driveId: created.parentReference?.driveId ?? dto.driveId, itemId: created.id });
   }
@@ -228,7 +228,7 @@ export class CaseDriveService {
 
   private async activeLink(caseId: string) {
     const link = await this.findLink(caseId);
-    if (!link?.driveId) throw new NotFoundException('คดีนี้ยังไม่ได้ผูก folder OneDrive');
+    if (!link?.driveId) throw new NotFoundException('คดีนี้ยังไม่ได้ผูกโฟลเดอร์ OneDrive');
     const token = await this.tokenForConnection(link.connectionId);
     if (!token) throw new BadRequestException(DRIVE_DISCONNECTED_MESSAGE);
     return { link, token, driveId: link.driveId };
@@ -241,7 +241,7 @@ export class CaseDriveService {
   private async linkedItem(caseId: string, itemId: string) {
     const { link, token, driveId } = await this.activeLink(caseId);
     const item = await this.drive.getItem(token, driveId, itemId).catch(rethrowDriveError);
-    if (item.parentReference?.id !== link.externalId) throw new NotFoundException('ไม่พบไฟล์นี้ใน folder ที่ผูกกับคดี');
+    if (item.parentReference?.id !== link.externalId) throw new NotFoundException('ไม่พบไฟล์นี้ในโฟลเดอร์ที่ผูกกับคดี');
     return { token, driveId, item };
   }
 
@@ -285,7 +285,7 @@ export class CaseDriveService {
   }
 
   private async importDriveFile(user: AuthUser, caseId: string, token: string, driveId: string, item: DriveItem) {
-    if (!item.file) throw new BadRequestException('นำเข้าได้เฉพาะไฟล์ ไม่ใช่ folder');
+    if (!item.file) throw new BadRequestException('นำเข้าได้เฉพาะไฟล์ ไม่ใช่โฟลเดอร์');
     if ((item.size ?? 0) > DRIVE_IMPORT_MAX_BYTES) throw new BadRequestException('ไฟล์ใหญ่เกิน 100 MB — ใช้ "เปิดใน Office ออนไลน์" แทน');
     const buffer = await this.drive.downloadContent(token, driveId, item.id).catch(rethrowDriveError);
     const document = await this.documents.createFromBuffer(user, caseId, {

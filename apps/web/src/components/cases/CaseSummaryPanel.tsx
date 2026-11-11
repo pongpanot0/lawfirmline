@@ -36,7 +36,7 @@ export function CaseSummaryPanel({ caseId, onChanged }: { caseId: string; onChan
     if (!token || lock.current) return;
     lock.current = true; setBusy(true); setError('');
     try { setResult(await api.summarizeCase(token, caseId)); setApplied([]); setCurrent(await api.getCase(token, caseId)); }
-    catch (e) { setError(e instanceof Error ? e.message : 'สรุปไม่สำเร็จ ผลเดิมยังอยู่'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'สรุปไม่สำเร็จ ผลเดิมยังอยู่ ลองใหม่อีกครั้ง'); }
     finally { lock.current = false; setBusy(false); }
   };
   const apply = async (key: string, field?: string, value?: string, taskId?: string) => {
@@ -91,7 +91,7 @@ export function CaseSummaryPanel({ caseId, onChanged }: { caseId: string; onChan
       <div className="space-y-3 border-t pt-3">
         <h3 className="text-sm font-semibold">ข้อมูลที่เสนอให้เติมลงคดี</h3>
         <p className="text-xs text-muted-foreground">ตรวจข้อความต้นทาง แล้วกดยืนยันเติมทีละช่อง ช่องที่มีข้อมูลอยู่แล้วให้ตรวจแก้ในข้อมูลคดี</p>
-        {!result.extractedFacts?.suggestions?.length && <p className="text-sm text-muted-foreground">ยังไม่มีข้อเสนอที่มีข้อความต้นทางรองรับ กดสรุปใหม่หลังเพิ่มข้อมูลได้</p>}
+        {!result.extractedFacts?.suggestions?.length && <p className="text-sm text-muted-foreground">ยังไม่มีข้อมูลที่เสนอให้เติมได้ — เพิ่มข้อมูลคดีแล้วกดสรุปใหม่</p>}
         {result.extractedFacts?.suggestions?.filter(s => FIELD_LABELS[s.field]).map((s, i) => {
           const key = `field:${i}`;
           const old = valueFor(current, s.field);
@@ -109,7 +109,7 @@ export function CaseSummaryPanel({ caseId, onChanged }: { caseId: string; onChan
         })}
       </div>
       {!!result.extractedFacts?.selectedAttachments?.length && <p className="text-xs text-muted-foreground">เอกสารที่ใช้: {result.extractedFacts.selectedAttachments.map(file => `${file.filename} · รุ่น ${file.version ?? '—'}`).join(', ')}</p>}
-      <p className="text-xs text-muted-foreground">สรุปเพื่อช่วยทบทวน โปรดตรวจข้อมูลและต้นฉบับก่อนใช้งาน</p>
+      <p className="text-xs text-muted-foreground">สรุปนี้ช่วยทบทวน ตรวจข้อมูลกับต้นฉบับก่อนใช้ทุกครั้ง</p>
     </>}
     {!loading && !busy && !result && !error && <InlineEmptyState title="ยังไม่มีสรุปคดี" />}
   </section>;
