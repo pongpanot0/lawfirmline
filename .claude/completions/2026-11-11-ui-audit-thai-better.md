@@ -7,3 +7,9 @@ Branch `claude/check-session-thai-ui-c52f0e` (uncommitted). Report + 31 Stitch m
 - Proof: web tsc ✓, web tests 218/218 ✓ (3 new). Not run: E2E (court-day spec updated for the new "กลับไปวันของฉัน" link), live click-through of the fixes.
 - Gotchas: the capture clicker mutated the shared local DB (10 deadline-rule overrides, 4 follow-ups + notifications — removed; e2e thread `e2e-thread-case-first` proposals changed + 1 OpenAI call — reseed before E2E). Local `.env` has a live LINE token and OpenAI key: skip-list any "ถาม/ส่ง/อ่านใหม่/ปิดสำหรับ" button in future crawlers. Agent tool: a hook appends a context block to prompts, so send the prompt without it and re-issue the hook's version once.
 - Pending user decisions: approve mockups; ลูกความ vs ลูกค้า; merge dashboard+my-day / court-schedule+calendar / playbooks→sops; Thai names for SOP/Playbook/Handoff/v1; 8 vs 11 portal steps; in-app confirm dialog; PR #175 is not on main.
+
+## Round 2 — mockups implemented (same day)
+- All 31 approved Stitch mockups built (Terra per batch, Claude screenshot-diffed each page against its mockup at 1440/390 and sent fix rounds). Commits: team workload, งานวันนี้+ตารางนัด, portal, email/clients/docs/timesheet, manuals/task sets/handoff/portal requests, settings/admin, team/reports/brief/court-day, term pass (ลูกความ / ผู้ว่าจ้าง).
+- API: `GET /clients` returns `openCaseCount`/`openTaskCount` (2 queries) — replaced a per-client overview fetch loop on /clients.
+- E2E gotchas: specs hardcode web port 3005 (run the worktree web on 3005 and add it to API CORS_ORIGIN); `register` uses MailThrottle (5/10 min) and login AuthThrottle (10/min), so a multi-project run hits 429 — relax both locally for the run and revert. sop-ui spec had drifted on main since 2026-10-25 (labels) — fixed here.
+- Not done before deploy (user asked to deploy first): the final full E2E rerun and the Cursor review.

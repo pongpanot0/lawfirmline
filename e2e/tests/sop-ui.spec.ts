@@ -18,22 +18,22 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
       await expect(page.getByRole('heading', { name: 'คู่มือการทำงาน', exact: true })).toBeVisible();
     };
     await signIn(auth);
-    await page.getByRole('button', { name: /สร้างใหม่/ }).click();
-    await page.getByRole('button', { name: /สายงานส่งต่อ/ }).last().click();
+    await page.locator('#workspace-content').getByRole('button', { name: /สร้างใหม่/ }).click();
+    await page.getByRole('menuitem', { name: /สายงานส่งต่อ/ }).click();
     const drawer = page.getByRole('dialog', { name: 'สร้างสายงานส่งต่อ', exact: true });
     await drawer.getByRole('button', { name: 'ใช้ตัวอย่างรับเรื่อง', exact: true }).click();
     await expect(drawer.getByLabel('ชื่อขั้นที่ 3', { exact: true })).toHaveValue('ตรวจแนวทางก่อนแจ้งลูกความ');
     expect(await data.db.workflowTemplate.count({ where: { firmId: auth.user.firmId } })).toBe(0);
     await drawer.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
-    await page.getByRole('button', { name: /สร้างใหม่/ }).click();
-    await page.getByRole('button', { name: /สายงานส่งต่อ/ }).last().click();
-    await drawer.getByRole('button', { name: 'บันทึก', exact: true }).click();
+    await page.locator('#workspace-content').getByRole('button', { name: /สร้างใหม่/ }).click();
+    await page.getByRole('menuitem', { name: /สายงานส่งต่อ/ }).click();
+    await drawer.getByRole('button', { name: 'บันทึกแม่แบบ', exact: true }).click();
     await expect(drawer.getByRole('alert')).toHaveText('ตั้งชื่อแม่แบบก่อน');
     const name = `ส่งต่อ ${data.tag} ${'A'.repeat(100)}`;
     await drawer.getByRole('textbox', { name: 'ชื่อแม่แบบ', exact: true }).fill(name);
     await drawer.getByText('คำอธิบาย (ไม่บังคับ)', { exact: true }).click();
     await drawer.getByLabel('อธิบาย (ไม่บังคับ)', { exact: true }).fill('ตรวจคำอธิบายก่อนส่งต่อ');
-    await drawer.getByRole('button', { name: 'บันทึก', exact: true }).click();
+    await drawer.getByRole('button', { name: 'บันทึกแม่แบบ', exact: true }).click();
     await expect(drawer.getByRole('alert')).toBeVisible();
     await drawer.getByLabel('ชื่อขั้นที่ 1', { exact: true }).fill('ตรวจต้นฉบับ');
     await expect(drawer.getByLabel('วิธีทำขั้นที่ 1', { exact: true })).toBeHidden();
@@ -63,11 +63,11 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
     await page.route('**/workflows/templates', route => route.request().method() === 'POST'
       ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"บันทึกไม่สำเร็จ ลองอีกครั้ง"}' })
       : route.continue(), { times: 1 });
-    await drawer.getByRole('button', { name: 'บันทึก', exact: true }).click();
+    await drawer.getByRole('button', { name: 'บันทึกแม่แบบ', exact: true }).click();
     await expect(drawer.getByRole('alert')).toContainText('บันทึกไม่สำเร็จ');
     await expect(drawer.getByRole('textbox', { name: 'ชื่อแม่แบบ', exact: true })).toHaveValue(name);
     await expect(drawer.getByLabel('ชื่อขั้นที่ 1', { exact: true })).toHaveValue('ตรวจต้นฉบับ');
-    await drawer.getByRole('button', { name: 'บันทึก', exact: true }).click();
+    await drawer.getByRole('button', { name: 'บันทึกแม่แบบ', exact: true }).click();
     await expect(drawer).toHaveCount(0);
     const template = await data.db.workflowTemplate.findFirstOrThrow({ where: { firmId: auth.user.firmId, name } });
     expect(template.steps).toEqual([
@@ -79,7 +79,7 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
     await page.getByRole('button', { name: 'บันทึกค่าเริ่มต้น' }).click();
     await expect(page.getByText('ค่าเริ่มต้นของสำนักงาน', { exact: true })).toHaveCount(1);
     await page.reload();
-    await page.getByRole('tab', { name: /สายงานส่งต่อ/ }).click();
+    await page.locator('#workspace-content').getByRole('button', { name: /^สายงานส่งต่อ/ }).click();
     const search = page.getByRole('textbox', { name: 'ค้นหาคู่มือหรือขั้นตอน', exact: true });
     await search.fill('หลักฐานเฉพาะสายงาน');
     await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
@@ -138,11 +138,11 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
       await page.getByRole('button', { name: 'ออกจากระบบ', exact: true }).click();
       await expect(page).toHaveURL(/\/login$/);
       await signIn(session);
-      await page.getByRole('tab', { name: /สายงานส่งต่อ/ }).click();
+      await page.locator('#workspace-content').getByRole('button', { name: /^สายงานส่งต่อ/ }).click();
       await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
       if (role === 'SENIOR_LAWYER') {
-        await page.getByRole('button', { name: /สร้างใหม่/ }).click();
-    await page.getByRole('button', { name: /สายงานส่งต่อ/ }).last().click();
+        await page.locator('#workspace-content').getByRole('button', { name: /สร้างใหม่/ }).click();
+    await page.getByRole('menuitem', { name: /สายงานส่งต่อ/ }).click();
         await expect(drawer).toBeVisible();
         await drawer.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
       } else {
@@ -178,11 +178,11 @@ for (const width of [375, 1440]) {
         await page.getByRole('button', { name: 'ดูคำแนะนำการใช้งานอีกครั้ง', exact: true }).click();
         await page.getByRole('button', { name: 'ปิดคำแนะนำ', exact: true }).click();
       }
-      await page.getByRole('button', { name: /สร้างใหม่/ }).click();
-      await page.getByRole('button', { name: /คู่มือการทำงาน/ }).last().click();
+      await page.locator('#workspace-content').getByRole('button', { name: /สร้างใหม่/ }).click();
+      await page.getByRole('menuitem', { name: /คู่มือการทำงาน/ }).click();
       const form = page.getByRole('form', { name: 'เขียนคู่มือ', exact: true });
-      const title = form.getByRole('textbox', { name: 'ชื่อคู่มือ *', exact: true });
-      const content = form.getByRole('textbox', { name: 'ขั้นตอนการทำงาน *', exact: true });
+      const title = form.getByRole('textbox', { name: 'ชื่อคู่มือ', exact: true });
+      const content = form.getByRole('textbox', { name: 'ขั้นตอนการทำงาน', exact: true });
       await form.getByRole('button', { name: 'บันทึกคู่มือ', exact: true }).click();
       expect(await title.evaluate((el: HTMLInputElement) => el.validity.valueMissing)).toBe(true);
       await title.fill('   '); await content.fill('   ');
@@ -218,8 +218,8 @@ for (const width of [375, 1440]) {
       await expect(form).toHaveCount(0);
       expect((await data.db.sop.findUniqueOrThrow({ where: { id: manual.id } })).category).toBe('');
 
-      await page.getByRole('button', { name: /สร้างใหม่/ }).click();
-      await page.getByRole('link', { name: /ชุดงานอัตโนมัติ/ }).click();
+      await page.locator('#workspace-content').getByRole('button', { name: /สร้างใหม่/ }).click();
+      await page.getByRole('menuitem', { name: /ชุดงานอัตโนมัติ/ }).click();
       const publish = page.locator('aside').getByRole('button', { name: /เผยแพร่ฉบับที่/ });
       const sopName = page.getByRole('textbox', { name: 'ชื่อชุดงานอัตโนมัติ', exact: true });
       await expect(sopName).toBeVisible();
@@ -260,7 +260,7 @@ for (const width of [375, 1440]) {
       const second = await data.db.playbookRelease.findFirstOrThrow({ where: { firmId: auth.user.firmId, name: autoName, version: 2 } });
       expect(second.steps).toEqual([{ title: 'ตรวจเอกสารรับเรื่อง', instructions: 'ตรวจต้นฉบับก่อนส่งทนาย' }, { title: 'ทนายสรุปแนวทาง', instructions: '' }]);
       expect((await data.db.playbookRelease.findUniqueOrThrow({ where: { id: first.id } })).steps).toEqual(first.steps);
-      await page.getByRole('link', { name: 'คู่มือการทำงาน', exact: true }).click();
+      await page.locator('#workspace-content').getByRole('link', { name: 'คู่มือการทำงาน', exact: true }).first().click();
       const search = page.getByRole('textbox', { name: 'ค้นหาคู่มือหรือขั้นตอน', exact: true });
       await search.fill('หลักฐานเฉพาะคู่มือ');
       await expect(page.getByRole('button', { name: new RegExp(`^${manualName}`) })).toBeVisible();

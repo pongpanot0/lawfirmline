@@ -106,12 +106,12 @@ function SopsContent() {
         title="คู่มือการทำงาน"
         description="วิธีทำงานของสำนักงาน ชุดงานที่ระบบสร้างให้ในคดี และสายงานส่งต่อ"
         actions={canEditFlows || canManageContent ? <div className="relative">
-          <Button onClick={() => setCreateOpen(!createOpen)} aria-expanded={createOpen} title="เลือกรูปแบบที่ต้องการสร้าง"><Plus className="h-4 w-4" />สร้างใหม่ <ChevronDown className="h-4 w-4" /></Button>
+          <Button onClick={() => setCreateOpen(!createOpen)} aria-expanded={createOpen} aria-haspopup="menu" title="เลือกรูปแบบที่ต้องการสร้าง"><Plus className="h-4 w-4" />สร้างใหม่ <ChevronDown className="h-4 w-4" /></Button>
           <p className="mt-1 text-xs text-muted-foreground">เลือกรูปแบบที่ต้องการสร้าง</p>
-          {createOpen && <div className="absolute right-0 z-20 w-72 max-w-[85vw] rounded-xl border bg-card p-2 shadow-lg">
-            {canManageContent && <button className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setEditing({}); setError(null); setSaved(''); setCreateOpen(false); }}>คู่มือการทำงาน <span className="block text-xs text-muted-foreground">เขียนขั้นตอนให้ทีมอ่าน</span></button>}
-            {canManageContent && <Link href="/playbooks/new" className="block rounded-md p-3 hover:bg-muted">ชุดงานอัตโนมัติ <span className="block text-xs text-muted-foreground">ระบบสร้างงานให้ในคดีตามขั้นตอนนี้</span></Link>}
-            {canEditFlows && <button className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); setCreateOpen(false); }}>สายงานส่งต่อ <span className="block text-xs text-muted-foreground">งานส่งต่อจากคนหนึ่งไปอีกคนทีละขั้น</span></button>}
+          {createOpen && <div role="menu" aria-label="สร้างใหม่" onKeyDown={(e) => { if (e.key === 'Escape') setCreateOpen(false); }} className="absolute right-0 z-20 w-72 max-w-[85vw] rounded-xl border bg-card p-2 shadow-lg">
+            {canManageContent && <button role="menuitem" className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setEditing({}); setError(null); setSaved(''); setCreateOpen(false); }}>คู่มือการทำงาน <span className="block text-xs text-muted-foreground">เขียนขั้นตอนให้ทีมอ่าน</span></button>}
+            {canManageContent && <Link role="menuitem" href="/playbooks/new" className="block rounded-md p-3 hover:bg-muted">ชุดงานอัตโนมัติ <span className="block text-xs text-muted-foreground">ระบบสร้างงานให้ในคดีตามขั้นตอนนี้</span></Link>}
+            {canEditFlows && <button role="menuitem" className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); setCreateOpen(false); }}>สายงานส่งต่อ <span className="block text-xs text-muted-foreground">งานส่งต่อจากคนหนึ่งไปอีกคนทีละขั้น</span></button>}
           </div>}
         </div> : undefined}
       />
