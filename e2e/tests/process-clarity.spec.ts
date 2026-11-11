@@ -32,7 +32,7 @@ test('process clarity click-through', async ({ page, request }) => {
     await go('/cases/new');
     await page.locator('#case-type').selectOption({ label: 'คดีความ' });
     await page.locator('#case-title').fill(title);
-    if (court) { await page.getByText('อยู่ในชั้นศาลแล้ว', { exact: true }).click(); await page.locator('#court-name').selectOption('__other__'); await page.locator('#court-name').locator('xpath=..').locator('input').last().fill('ศาลทดสอบ'); await page.locator('#black-case-number').fill('123/2569'); }
+    if (court) { await page.getByText('อยู่ในศาลแล้ว', { exact: true }).click(); await page.locator('#court-name').selectOption('__other__'); await page.locator('#court-name').locator('xpath=..').locator('input').last().fill('ศาลทดสอบ'); await page.locator('#black-case-number').fill('123/2569'); }
     await page.getByRole('button', { name: 'เปิดคดี', exact: true }).click();
     await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+\/opened/, { timeout: 15000 });
     return page.url().match(/\/cases\/([0-9a-f-]+)\/opened/)![1];
@@ -51,13 +51,13 @@ test('process clarity click-through', async ({ page, request }) => {
     await expect(page.locator('#case-title')).toBeVisible();
     await expect(page.locator('#client-combobox')).toBeVisible();
     await expect(page.locator('#lead-lawyer')).toBeVisible();
-    await expect(page.getByRole('radio', { name: 'ยังไม่ถึงชั้นศาล' })).toBeChecked();
-    await expect(page.locator('details').filter({ hasText: 'ข้อมูลเพิ่มเติม (ไม่บังคับ' }).first()).not.toHaveAttribute('open', '');
+    await expect(page.getByRole('radio', { name: 'ยังไม่ฟ้อง' })).toBeChecked();
+    await expect(page.locator('details').filter({ hasText: 'คู่ความและฝ่ายเรา' }).first()).not.toHaveAttribute('open', '');
     const strip = page.locator('div').filter({ has: page.getByText('เลขอ้างอิงสำนักงาน', { exact: true }) }).filter({ hasText: 'ระบบออกเลขให้อัตโนมัติ' }).last();
-    await expect(strip.locator('span').first()).not.toHaveText('กำลังออกเลขอ้างอิง');
-    ref = (await strip.locator('span').first().innerText()).trim();
+    await expect(strip).toContainText(/[A-Z]{2,}\d{6,}/);
+    ref = ((await strip.innerText()).match(/[A-Z]{2,}\d{6,}/) ?? [''])[0];
     await page.locator('#case-type').selectOption({ label: 'คดีความ' }); await page.locator('#case-title').fill(first);
-    await expect(page.getByText(/กรอกครบ/)).toBeVisible(); await shot('01-create');
+    await expect(page.getByText(/กรอกช่องบังคับครบแล้ว/)).toBeVisible(); await shot('01-create');
     await page.getByRole('button', { name: 'เปิดคดี', exact: true }).click();
     await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+\/opened/, { timeout: 15000 }); caseId = page.url().match(/\/cases\/([0-9a-f-]+)\/opened/)![1];
   });

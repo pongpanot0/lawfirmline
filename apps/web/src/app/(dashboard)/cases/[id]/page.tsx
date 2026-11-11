@@ -1012,7 +1012,9 @@ export default function CaseDetailPage() {
         {pendingStage && stageTaskError && <p role="alert" className="fixed left-4 top-4 z-[60] rounded-lg border border-destructive/30 bg-card p-3 text-sm text-destructive shadow-lg">{stageTaskError}</p>}
         <StageTasksDialog
           open={pendingStage !== null}
-          stageLabel={pendingStage ? journeyAdvance && legalCase.stage ? `${caseStageLabel(legalCase.stage, 'th')} ไป ${caseStageLabel(pendingStage, 'th')}` : caseStageLabel(pendingStage, 'th') : ''}
+          stageLabel={pendingStage ? caseStageLabel(pendingStage, 'th') : ''}
+          fromLabel={legalCase.stage ? caseStageLabel(legalCase.stage, 'th') : undefined}
+          caseRef={legalCase.ownRef}
           proposals={stageTaskProposals}
           lawyers={lawyers}
           busy={savingStage}

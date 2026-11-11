@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AlarmClock, ChevronDown, Plus, Scale, Users } from 'lucide-react';
 import v2 from '@/components/case-page/v2.module.css';
+import { CaseAppointmentDialog } from '@/components/case-page/CaseAppointmentDialog';
 import { DeadlineTrigger } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CalendarEventItem, CaseItem, UserItem } from '@/lib/api';
@@ -37,7 +38,7 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [dialog, setDialog] = useState<
-    { event: CalendarEventItem | null; defaultDate?: Date } | null
+    { event: CalendarEventItem | null; defaultDate?: Date; full?: boolean } | null
   >(null);
 
   useEffect(() => {
@@ -213,7 +214,10 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
       />
         </div>
       </details>
-      {dialog && (
+      {dialog && !dialog.event && !dialog.full && (
+        <CaseAppointmentDialog caseId={caseId} caseCourtName={legalCase?.courtName} caseOwnerId={legalCase?.leadLawyerId} users={users} onClose={() => setDialog(null)} onSaved={() => setReloadKey((n) => n + 1)} onMoreOptions={() => setDialog({ event: null, defaultDate: new Date(), full: true })} />
+      )}
+      {dialog && (dialog.event || dialog.full) && (
         <CalendarEventDialog
           caseId={caseId}
           caseCourtName={legalCase?.courtName}

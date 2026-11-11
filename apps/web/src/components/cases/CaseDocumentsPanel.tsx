@@ -3,10 +3,10 @@
 import { CaseKnowledgePanel } from '@/components/documents/CaseKnowledgePanel';
 import { CaseDriveSection } from '@/components/cases/CaseDriveSection';
 import { CaseEvidenceSection } from '@/components/cases/CaseEvidenceSection';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Download, Sparkles, CalendarSearch, ClipboardCheck, PenLine, RotateCcw, Check, X, FileText, Upload, Ellipsis, ArrowRight } from 'lucide-react';
+import { Download, Sparkles, CalendarSearch, ClipboardCheck, PenLine, RotateCcw, Check, X, FileText, Upload, Ellipsis, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import { CaseDocRequestsCard } from '@/components/case-page/CaseDocRequestsCard';
 import v2 from '@/components/case-page/v2.module.css';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,11 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
   const [allDocs, setAllDocs] = useState<DocumentItem[]>([]);
   const [showAllDocs, setShowAllDocs] = useState(false);
   const [managingDocId, setManagingDocId] = useState<string | null>(null);
+  type UploadRow = { name: string; status: 'uploading' | 'done' | 'error'; doc?: DocumentItem };
+  const [uploadRows, setUploadRowsState] = useState<UploadRow[]>([]);
+  const uploadRowsRef = useRef<UploadRow[]>([]);
+  const setUploadRows = (rows: UploadRow[]) => { uploadRowsRef.current = rows; setUploadRowsState(rows); };
+  const [uploadCategory, setUploadCategory] = useState<string>('OTHER');
   const [suggestionsKey, setSuggestionsKey] = useState(0);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -222,6 +227,25 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
     }
   };
 
+  const uploadMany = async (files: File[]) => {
+    if (!token || !id || !files.length) return;
+    setUploading(true); setError('');
+    for (const file of files) {
+      const index = uploadRowsRef.current.length;
+      uploadRowsRef.current = [...uploadRowsRef.current, { name: file.name, status: 'uploading' }];
+      setUploadRows(uploadRowsRef.current);
+      try {
+        const doc = await api.uploadDocument(token, id, file, { category: uploadCategory });
+        uploadRowsRef.current = uploadRowsRef.current.map((row, i) => (i === index ? { ...row, status: 'done', doc } : row));
+      } catch (e) {
+        uploadRowsRef.current = uploadRowsRef.current.map((row, i) => (i === index ? { ...row, status: 'error' } : row));
+        setError(e instanceof ApiError ? e.message : d.caseDocuments.uploadFailed);
+      }
+      setUploadRows(uploadRowsRef.current);
+    }
+    setUploading(false); load();
+  };
+
   const handleAnalyzeDocument = async (doc: DocumentItem) => {
     if (!token || !id) return;
     setAnalyzingId(doc.id);
@@ -261,7 +285,19 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
   const docCounts = allDocs.reduce<Record<string, number>>((acc, doc) => { const key = doc.category ?? 'OTHER'; acc[key] = (acc[key] ?? 0) + 1; return acc; }, {});
   return (
     <div>
-      <SideDrawer open={uploadOpen} title="แนบเอกสาร" onClose={() => setUploadOpen(false)}><div className="space-y-4"><p className="text-sm text-muted-foreground">เลือกไฟล์เพื่อเก็บเข้าแฟ้มคดี</p><DocumentDropZone onFile={(file) => { void handleUpload(file); setUploadOpen(false); }} loading={uploading} loadingLabel={d.caseDocuments.uploading} label={d.documents.dropHint} hint={d.documents.fileTypesHint} /></div></SideDrawer>
+      {uploadOpen && <dialog ref={(el) => { if (el && !el.open) el.showModal(); }} aria-labelledby="upload-title" onCancel={(e) => { e.preventDefault(); if (!uploading) { setUploadOpen(false); setUploadRows([]); } }} className="m-auto w-[min(36rem,calc(100vw-2rem))] max-w-none rounded-2xl bg-[#fffdfa] p-0 text-foreground shadow-2xl backdrop:bg-[#101d2a]/45">
+        <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
+          <div className="flex items-start justify-between border-b border-[#e2e0d8] px-6 py-4"><h2 id="upload-title" tabIndex={-1} autoFocus className="text-xl font-bold outline-none">แนบเอกสารเข้าคดี</h2><button type="button" aria-label="ปิดหน้าต่างแนบเอกสาร" disabled={uploading} onClick={() => { setUploadOpen(false); setUploadRows([]); }} className={`${v2.btn} ${v2.ghost}`}><X aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button></div>
+          <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
+            <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void uploadMany(Array.from(e.dataTransfer.files ?? [])); }} className="block cursor-pointer rounded-xl border-2 border-dashed border-[#b9bfb8] p-5 text-center focus-within:ring-2 focus-within:ring-ring"><input type="file" multiple className="sr-only" disabled={uploading} onChange={(e) => { void uploadMany(Array.from(e.target.files ?? [])); e.target.value = ''; }} /><b>ลากไฟล์มาวาง หรือ <span className="underline">เลือกไฟล์</span></b><p className={v2.hint}>PDF, Word, รูปภาพ · ไฟล์ละไม่เกิน 25 MB</p></label>
+            {uploadRows.map((row, index) => <div key={`${row.name}-${index}`} className="rounded-lg border border-[#e2e0d8] p-3"><div className="flex items-center justify-between gap-2 text-sm"><span className="flex min-w-0 items-center gap-2">{/\.(jpe?g|png|heic|gif|webp)$/i.test(row.name) ? <ImageIcon aria-hidden="true" className="h-[1.1em] w-[1.1em] shrink-0" /> : <FileText aria-hidden="true" className="h-[1.1em] w-[1.1em] shrink-0" />}<span className="truncate">{row.name}</span></span>{row.status === 'done' ? <span className="flex items-center gap-1 font-semibold text-[#227052]"><Check aria-hidden="true" className="h-[1.1em] w-[1.1em]" />อัปโหลดแล้ว</span> : row.status === 'error' ? <span className="font-semibold text-[#a83232]">อัปโหลดไม่สำเร็จ</span> : <span>กำลังอัปโหลด…</span>}</div>{row.status === 'uploading' && <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e7e4dc]"><div className="h-2 w-2/3 motion-safe:animate-pulse rounded-full bg-[#142e43]" /></div>}</div>)}
+            <label className="block"><span className={v2.flabel}>หมวดเอกสาร</span><select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value)} className={`${v2.field} text-base sm:text-[15px]`}>{DOCUMENT_CATEGORY_VALUES.map((value) => <option key={value} value={value}>{documentCategoryLabel(value, 'th')}</option>)}</select><p className={v2.hint}>ช่วยให้หาไฟล์ในแท็บเอกสารเจอเร็วขึ้น</p></label>
+            {uploadRows.some((row) => row.doc) && <div className="flex items-start gap-3 rounded-lg bg-[#eef3f8] p-3 text-sm"><Sparkles aria-hidden="true" className="mt-0.5 h-[1.1em] w-[1.1em] shrink-0" /><div><b>ให้ระบบช่วยอ่านไฟล์ไหม</b><p className={v2.hint}>ระบบจะอ่านไฟล์แล้วเสนอข้อมูล เช่น ชื่อพยาน ให้คุณตรวจก่อนบันทึก — ไม่บันทึกเองโดยไม่ถาม</p><button type="button" disabled={!!analyzingId} onClick={() => { const last = [...uploadRows].reverse().find((row) => row.doc)?.doc; if (last) void handleAnalyzeDocument(last); }} className={`${v2.btn} ${v2.outline} mt-2 min-h-0 py-2`}>{analyzingId ? d.caseDocuments.analyzing : 'อ่านไฟล์และเสนอข้อมูล'}</button></div></div>}
+            {error && <p role="alert" className={v2.error}>{error}</p>}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-[#e2e0d8] px-6 py-4"><button type="button" disabled={uploading} onClick={() => { setUploadOpen(false); setUploadRows([]); }} className={`${v2.btn} ${v2.primary}`}>เสร็จ</button></div>
+        </div>
+      </dialog>}
       {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="min-w-0 space-y-5 lg:col-span-2">

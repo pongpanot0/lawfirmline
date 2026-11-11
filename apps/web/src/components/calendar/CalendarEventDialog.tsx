@@ -181,8 +181,9 @@ export function CalendarEventDialog({
 
     try {
       if (savedId && prepPending) {
+        await api.updateCalendarEvent(token, savedId, payload);
         const due = new Date(`${eventDate}T00:00:00Z`); due.setUTCDate(due.getUTCDate() - 3);
-        await api.createTask(token, form.caseId, { title: `เตรียมตัวไปศาล: ${form.title}`, assigneeId: form.assigneeIds.find(id => id !== user?.id) ?? form.assigneeIds[0] ?? user?.id, dueDate: due.toISOString().slice(0, 10), createRequestId: `court-prep-${savedId}` });
+        await api.createTask(token, form.caseId, { title: `เตรียมตัวไปศาล: ${form.title}`, assigneeId: (form.assigneeIds.find(id => id !== user?.id) ?? form.assigneeIds[0] ?? caseOwnerId ?? user?.id), dueDate: due.toISOString().slice(0, 10), createRequestId: `court-prep-${savedId}` });
         setPrepPending(false); onSaved(); onClose(); return;
       }
       if (savedId) {
@@ -197,7 +198,7 @@ export function CalendarEventDialog({
       onSaved();
       if (form.type === 'COURT_DATE' && createPrep) {
         const due = new Date(`${eventDate}T00:00:00Z`); due.setUTCDate(due.getUTCDate() - 3);
-        try { await api.createTask(token, form.caseId, { title: `เตรียมตัวไปศาล: ${form.title}`, assigneeId: form.assigneeIds.find(id => id !== user?.id) ?? form.assigneeIds[0] ?? user?.id, dueDate: due.toISOString().slice(0, 10), createRequestId: `court-prep-${created.id}` }); }
+        try { await api.createTask(token, form.caseId, { title: `เตรียมตัวไปศาล: ${form.title}`, assigneeId: (form.assigneeIds.find(id => id !== user?.id) ?? form.assigneeIds[0] ?? caseOwnerId ?? user?.id), dueDate: due.toISOString().slice(0, 10), createRequestId: `court-prep-${created.id}` }); }
         catch { setPrepPending(true); setError('บันทึกนัดแล้ว แต่สร้างงานเตรียมตัวไม่สำเร็จ'); return; }
       }
 
@@ -500,7 +501,7 @@ export function CalendarEventDialog({
               })}
           </div>
 
-          {!event && form.type === 'COURT_DATE' && <div className="space-y-1"><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={createPrep} onChange={e => setCreatePrep(e.target.checked)} />สร้างงาน “เตรียมตัวไปศาล” ให้ {(() => { const person = users.find(u => u.id === (form.assigneeIds.find(id => id !== user?.id) ?? form.assigneeIds[0] ?? user?.id)); return person ? `${person.firstName} ${person.lastName}` : 'ผู้รับผิดชอบ'; })()}</label><p className="text-xs text-muted-foreground">ครบก่อนวันนัด 3 วัน — เช่น เตรียมแฟ้ม เอกสารพยาน ใบมอบอำนาจ</p></div>}
+          {!event && form.type === 'COURT_DATE' && <div className="space-y-1"><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={createPrep} onChange={e => setCreatePrep(e.target.checked)} />สร้างงาน “เตรียมตัวไปศาล” ให้ {(() => { const person = users.find(u => u.id === ((form.assigneeIds.find(id => id !== user?.id) ?? form.assigneeIds[0] ?? caseOwnerId ?? user?.id))); return person ? `${person.firstName} ${person.lastName}` : 'ผู้รับผิดชอบ'; })()}</label><p className="text-xs text-muted-foreground">ครบก่อนวันนัด 3 วัน — เช่น เตรียมแฟ้ม เอกสารพยาน ใบมอบอำนาจ</p></div>}
           {!event && <fieldset><legend className="text-sm">เตือนทีมก่อนวันนัด</legend><p className="text-xs text-muted-foreground">เช้าวันนัดแจ้งเวลา 08:00 น. หรือเวลานัดหากนัดก่อน 08:00 น.</p><div className="flex flex-wrap gap-3">{([[10080, '7 วัน'], [1440, '1 วัน'], [60, 'เช้าวันนัด']] as const).map(([minutes, label]) => <label key={minutes} className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={reminders.includes(minutes)} onChange={e => setReminders(e.target.checked ? [...reminders, minutes] : reminders.filter(n => n !== minutes))} />{label}</label>)}</div></fieldset>}
           {form.type === 'CLIENT_MEETING' && (
             <>

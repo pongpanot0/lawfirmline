@@ -10,7 +10,7 @@ import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { CreateClientContactDialog } from '@/components/intake/CreateClientContactDialog';
-import { OwnerPicker } from '@/components/cases/OwnerPicker';
+import { OwnerPicker } from '@/components/cases/new-case/OwnerPicker';
 import { EmailLinkCandidates } from '@/components/cases/EmailLinkCandidates';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -36,8 +36,8 @@ import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
 import { litigationPayload, openingStageError, type OpponentRow } from '@/lib/case-create';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Checkbox } from '@/components/ui/checkbox';
-import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
-import { ArrowLeft, Check, Loader2, Plus, X } from 'lucide-react';
+import styles from '@/components/case-page/v2.module.css';
+import { ArrowLeft, Building2, Check, ChevronDown, ClipboardList, Loader2, Paperclip, Plus, Scale, Settings2, Wallet, X } from 'lucide-react';
 import type { CaseFieldSchema } from '@lawfirm/shared';
 import {
   TMP_CLIENT_PLACEHOLDER,
@@ -240,8 +240,7 @@ function NewCaseForm() {
       element?.setAttribute('aria-invalid', String(invalid));
       if (invalid) element?.setAttribute('aria-describedby', `${id}-error`);
       else element?.removeAttribute('aria-describedby');
-      element?.classList.toggle('border-destructive', invalid);
-      element?.classList.toggle('border-2', invalid);
+      element?.classList.toggle(styles.invalid, invalid);
     }
   });
   const handleSubmit = async (conflictOverrideReason?: string) => {
@@ -398,24 +397,26 @@ function NewCaseForm() {
   };
 
   const inputClass =
-    'mt-1 min-h-11 min-w-0 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-base sm:text-sm transition-colors hover:border-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60';
-  const fieldLabel = 'block text-sm font-medium';
+    `${styles.field} min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60`;
+  const fieldLabel = `block ${styles.flabel}`;
+
+  if (submitting) return <section className="mx-auto max-w-6xl px-8 py-8" aria-live="polite"><h1 className="font-display text-[34px]">เปิดคดีใหม่</h1><div className={`${styles.card} mt-6 p-7 opacity-60`}><p className={styles.label}>ข้อมูลที่ต้องมี (ล็อกไว้ระหว่างบันทึก)</p><div className="mt-4 grid gap-4 md:grid-cols-2">{[0, 1, 2, 3].map((i) => <div key={i} className={styles.field} />)}</div></div><div className="mt-6 flex items-center justify-between rounded-xl border bg-[#fffdfa] px-6 py-4"><div><b>กำลังเปิดคดี…</b><p className={styles.hint}>สร้างแฟ้มคดี · ตรวจผลประโยชน์ขัดกัน · แจ้งทีม — อย่าปิดหน้านี้</p></div><button disabled className={`${styles.btn} ${styles.primary} px-8 opacity-80`}><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> กำลังบันทึก</button></div></section>;
 
   return (
     <div
       data-hallmark="case-create-flow"
-      className="mx-auto w-full max-w-6xl min-w-0 pb-28 [overflow-wrap:anywhere]"
+      className="mx-auto w-full max-w-6xl min-w-0 px-8 py-8 [overflow-wrap:anywhere]"
     >
       <Link
         href="/cases"
-        className="mb-2 inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:text-primary"
+        className="inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ArrowLeft aria-hidden="true" className="h-4 w-4" />
         เรื่องและคดี
       </Link>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h1 className="text-3xl font-semibold">เปิดคดีใหม่</h1><p className="mt-1 text-muted-foreground">กรอกแค่ช่องที่มีดอกจัน (*) ก็เปิดคดีได้ ข้อมูลอื่นเพิ่มทีหลังได้</p></div>
-        <div className="rounded-lg bg-muted px-5 py-3"><span className={fieldLabel}>เลขอ้างอิงสำนักงาน</span><div className="flex items-center gap-3">{editingRef ? <input disabled={submitting} aria-label="เลขอ้างอิงสำนักงาน" value={form.ownRef} onChange={(event) => setForm({ ...form, ownRef: event.target.value })} className={inputClass} /> : <span className="text-xl font-semibold">{form.ownRef || 'กำลังออกเลขอ้างอิง'}</span>}<button type="button" disabled={submitting} className="min-h-11 text-sm underline focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setEditingRef(!editingRef)}>{editingRef ? 'เสร็จ' : 'แก้ไข'}</button></div><p className="text-xs text-muted-foreground">ระบบออกเลขให้อัตโนมัติ</p></div>
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+        <div><h1 className="font-display text-[34px]">เปิดคดีใหม่</h1><p className="text-muted-foreground">กรอกแค่ช่องที่มีดอกจัน (*) ก็เปิดคดีได้ ข้อมูลอื่นเพิ่มทีหลังได้</p></div>
+        <div className="rounded-xl bg-[#eeebe3] px-5 py-3"><span className={styles.label}>เลขอ้างอิงสำนักงาน</span><div className="flex items-center gap-3">{editingRef ? <input disabled={submitting} aria-label="เลขอ้างอิงสำนักงาน" value={form.ownRef} onChange={(event) => setForm({ ...form, ownRef: event.target.value })} className={inputClass} /> : <span className="text-2xl font-bold">{form.ownRef || 'กำลังออกเลขอ้างอิง'}</span>}<button type="button" disabled={submitting} className="min-h-11 text-sm underline focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setEditingRef(!editingRef)}>{editingRef ? 'เสร็จ' : 'แก้ไข'}</button></div><p className={styles.hint}>ระบบออกเลขให้อัตโนมัติ</p></div>
       </div>
 
       <div className="min-w-0">
@@ -429,12 +430,12 @@ function NewCaseForm() {
               const details = (event.target as HTMLElement).closest('details');
               if (details) details.open = true;
             }}
-            className="mt-6 min-w-0 space-y-4 text-card-foreground"
+            className="mt-6 min-w-0 space-y-6 text-card-foreground"
           >
-            {showValidation && missing.length > 0 && <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-lg border-2 border-destructive bg-destructive/5 p-4 focus:outline-none"><p className="font-semibold text-destructive">ยังเปิดคดีไม่ได้ ต้องกรอกอีก {missing.length} ช่อง</p><p className="mt-1 text-sm">ไปที่ช่อง: {missing.map((item, index) => <span key={item.id}>{index > 0 && ' · '}<a href={`#${item.id}`} className="underline" onClick={(event) => { event.preventDefault(); document.getElementById(item.id)?.focus(); }}>{item.label}</a></span>)}</p></div>}
+            {showValidation && missing.length > 0 && <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-xl border-2 border-[#e9b9b9] bg-[#fbeaea] px-5 py-4 focus:outline-none"><p className="font-bold text-[#a83232]">ยังเปิดคดีไม่ได้ ต้องกรอกอีก {missing.length} ช่อง</p><p className="mt-1 text-sm">ไปที่ช่อง: {missing.map((item, index) => <span key={item.id}>{index > 0 && ' · '}<a href={`#${item.id}`} className="underline" onClick={(event) => { event.preventDefault(); document.getElementById(item.id)?.focus(); }}>{item.label}</a></span>)}</p></div>}
             <fieldset
               disabled={submitting || !!createdCaseId.current}
-              className="min-w-0 space-y-4"
+              className="min-w-0 space-y-3"
             >
           {(error || lookupWarning) && (
             <div
@@ -461,9 +462,9 @@ function NewCaseForm() {
             </div>
           )}
 
-            <div className="space-y-5 rounded-lg border bg-card p-4 shadow-sm sm:p-6"><div><h2 className="text-xl font-semibold">ข้อมูลที่ต้องมี</h2><p className="text-sm text-muted-foreground">4 ช่องนี้พอสำหรับเปิดคดี</p></div><div className="grid min-w-0 gap-x-8 gap-y-6 md:grid-cols-2">
+            <div className={`${styles.card} p-7 shadow-[0_6px_20px_rgba(20,46,67,.06)]`}><div className="flex items-center justify-between"><div><h2 className="text-xl font-bold">ข้อมูลที่ต้องมี</h2><p className={styles.hint}>4 ช่องนี้พอสำหรับเปิดคดี</p></div>{!missing.length && <span className="rounded-full bg-[#e6f3ec] px-3 py-1 text-sm font-semibold text-[#227052]"><Check aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ครบแล้ว</span>}</div><div className="mt-5 grid min-w-0 gap-x-8 gap-y-6 md:grid-cols-2">
               <label htmlFor="case-type" className={fieldLabel}>ประเภทคดี <span className="text-destructive">*</span>
-                <select id="case-type" aria-invalid={showValidation && !form.caseTypeId} aria-describedby={showValidation && !form.caseTypeId ? "case-type-error" : undefined} disabled={loadingTypes} value={form.caseTypeId} className={`${inputClass} ${showValidation && !form.caseTypeId ? 'border-2 border-destructive' : ''}`}
+                <select id="case-type" aria-invalid={showValidation && !form.caseTypeId} aria-describedby={showValidation && !form.caseTypeId ? "case-type-error" : undefined} disabled={loadingTypes} value={form.caseTypeId} className={`${inputClass} ${showValidation && !form.caseTypeId ? styles.invalid : ''}`}
                   onChange={(event) => setForm((current) => current.caseTypeId === event.target.value ? current : {
                     ...current, caseTypeId: event.target.value, chargeSection: '',
                     customFields: {
@@ -474,12 +475,12 @@ function NewCaseForm() {
                   <option value="">{loadingTypes ? 'กำลังโหลดประเภทคดี…' : 'เลือกประเภทคดี'}</option>
                   {caseTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
                 </select>
-                {showValidation && !form.caseTypeId && <span id="case-type-error" className="block text-sm text-destructive">ยังไม่ได้เลือกประเภทคดี</span>}<span className="mt-1 block text-xs font-normal text-muted-foreground">ประเภทคดีกำหนดขั้นตอนงานและข้อมูลที่ต้องกรอก</span>
+                {showValidation && !form.caseTypeId && <span id="case-type-error" className={`block ${styles.error}`}>ยังไม่ได้เลือกประเภทคดี</span>}<span className={`block font-normal ${styles.hint}`}>ประเภทคดีกำหนดขั้นตอนงานและข้อมูลที่ต้องกรอก</span>
               </label>
               <div>
                 <label htmlFor="case-title" className={fieldLabel}>ชื่อคดี <span className="text-destructive">*</span></label>
-                <input id="case-title" aria-invalid={showValidation && !form.title.trim()} aria-describedby={showValidation && !form.title.trim() ? "case-title-error" : undefined} value={form.title} onChange={(event) => { setAutoTitle(false); setForm({ ...form, title: event.target.value }); }} className={`${inputClass} ${showValidation && !form.title.trim() ? 'border-2 border-destructive' : ''}`} placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง" />
-                {showValidation && !form.title.trim() && <p id="case-title-error" className="text-sm text-destructive">ยังไม่มีชื่อคดี</p>}<p className="mt-1 text-xs text-muted-foreground">เลือกประเภทคดีและลูกความ แล้วระบบจะตั้งชื่อให้ (แก้ได้)</p>
+                <input id="case-title" aria-invalid={showValidation && !form.title.trim()} aria-describedby={showValidation && !form.title.trim() ? "case-title-error" : undefined} value={form.title} onChange={(event) => { setAutoTitle(false); setForm({ ...form, title: event.target.value }); }} className={`${inputClass} ${showValidation && !form.title.trim() ? styles.invalid : ''}`} placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง" />
+                {showValidation && !form.title.trim() && <p id="case-title-error" className={styles.error}>ยังไม่มีชื่อคดี</p>}<p className={styles.hint}>เลือกประเภทคดีและลูกความ แล้วระบบจะตั้งชื่อให้ (แก้ได้)</p>
               </div>
               <div>
                 <label htmlFor="client-combobox" className={fieldLabel}>ลูกความ <span className="font-normal text-muted-foreground">(ไม่บังคับ)</span></label>
@@ -493,42 +494,38 @@ function NewCaseForm() {
                     <option value="INDIVIDUAL">บุคคลธรรมดา</option><option value="COMPANY">นิติบุคคล</option>
                   </select>
                 </div>}
-                <p className="mt-1 text-xs text-muted-foreground">ถ้าไม่พบในรายชื่อ ระบบจะเพิ่มเป็นลูกความใหม่ให้</p>
+                <p className={styles.hint}>ถ้าไม่พบในรายชื่อ ระบบจะเพิ่มเป็นลูกความใหม่ให้</p>
                 {sameCustomer && <p className="mt-1 text-xs text-muted-foreground">ใช้ชื่อเดียวกับผู้ว่าจ้างรายแรก</p>}
               </div>
               <div><label htmlFor="lead-lawyer" className={fieldLabel}>ทนายผู้รับผิดชอบ <span className="text-destructive">*</span></label>
                 {token && <OwnerPicker id="lead-lawyer" token={token} currentUserId={user?.id} value={form.leadLawyerId} onChange={(leadLawyerId) => setForm((current) => ({ ...current, leadLawyerId }))}  />}
-                {showValidation && !form.leadLawyerId && <p id="lead-lawyer-error" className="text-sm text-destructive">ยังไม่ได้เลือกทนายผู้รับผิดชอบ</p>}<p className="mt-1 text-xs text-muted-foreground">ผู้ดูแลหลักของคดี 1 คน ได้รับแจ้งเตือนทุกเรื่อง</p>
+                {showValidation && !form.leadLawyerId && <p id="lead-lawyer-error" className={styles.error}>ยังไม่ได้เลือกทนายผู้รับผิดชอบ</p>}<p className={styles.hint}>ผู้ดูแลหลักของคดี 1 คน ได้รับแจ้งเตือนทุกเรื่อง</p>
               </div>
               <div><span className={fieldLabel}>ทีมคดี <span className="font-normal text-muted-foreground">(ไม่บังคับ · เลือกได้หลายคน)</span></span>
-                <div className="mt-1"><MultiUserSelect users={lawyers.filter((lawyer) => lawyer.id !== form.leadLawyerId)} value={teamIds.filter((id) => id !== form.leadLawyerId)} onChange={setTeamIds} placeholder="เพิ่มคนที่ทำคดีนี้ด้วย" /></div>
-                <p className="mt-1 text-xs text-muted-foreground">คนในทีมเห็นคดีนี้ ติ๊กงานได้ และได้รับแจ้งเตือน</p>
+                <details className="relative"><summary className={`${styles.field} flex min-h-11 cursor-pointer flex-wrap items-center gap-2 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring`}>{teamIds.filter((id) => id !== form.leadLawyerId).map((id) => { const person = lawyers.find((lawyer) => lawyer.id === id); return person ? <span key={id} className={styles.chip}>{person.firstName} {person.lastName}</span> : null; })}{teamIds.length > 0 ? <><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" /> เพิ่ม</> : 'เลือกคนที่ช่วยทำคดีนี้'}</summary><div className="absolute z-40 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-[#c9ccc6] bg-white p-1 shadow-lg">{lawyers.filter((lawyer) => lawyer.id !== form.leadLawyerId).map((lawyer) => <label key={lawyer.id} className="flex min-h-11 items-center gap-2 px-3 hover:bg-[#eeebe3]"><input type="checkbox" checked={teamIds.includes(lawyer.id)} onChange={() => setTeamIds((ids) => ids.includes(lawyer.id) ? ids.filter((id) => id !== lawyer.id) : [...ids, lawyer.id])} />{lawyer.firstName} {lawyer.lastName}</label>)}</div></details>
+                <p className={styles.hint}>คนในทีมเห็นคดีนี้ ติ๊กงานได้ และได้รับแจ้งเตือน</p>
               </div>
-              <fieldset><legend className={fieldLabel}>คดีนี้ฟ้องแล้วหรือยัง *</legend><div className="mt-2 flex flex-wrap gap-2">{[{ label: 'ยังไม่ฟ้อง', value: false }, { label: 'อยู่ในศาลแล้ว', value: true }].map((option) => <label key={option.label} className={`flex min-h-11 cursor-pointer items-center rounded-lg border px-3 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${(stageIndex > 0) === option.value ? 'border-2 border-primary bg-primary/10' : ''}`}><input type="radio" name="court-status" className="sr-only" checked={(stageIndex > 0) === option.value} onChange={() => setStage(option.value ? CaseStage.FILING : CaseStage.PRE_LITIGATION)} />{(stageIndex > 0) === option.value && <Check aria-hidden="true" className="mr-2 h-4 w-4" />}{option.label}</label>)}</div><p className="mt-1 text-xs text-muted-foreground">ถ้าอยู่ในศาลแล้ว จะถามชื่อศาลกับหมายเลขคดีดำเพิ่ม</p></fieldset>
+              <fieldset><legend className={fieldLabel}>คดีนี้ฟ้องแล้วหรือยัง *</legend><div className="mt-1 grid grid-cols-2 gap-2">{[{ label: 'ยังไม่ฟ้อง', value: false }, { label: 'อยู่ในศาลแล้ว', value: true }].map((option) => <label key={option.label} className={`${styles.btn} ${styles.opt} ${(stageIndex > 0) === option.value ? styles.on : ''} cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring`}><input type="radio" name="court-status" className="sr-only" checked={(stageIndex > 0) === option.value} onChange={() => setStage(option.value ? CaseStage.FILING : CaseStage.PRE_LITIGATION)} />{(stageIndex > 0) === option.value && <Check aria-hidden="true" className="h-[1.1em] w-[1.1em]" />}{option.label}</label>)}</div>{stageIndex === 0 && <p className={styles.hint}>ถ้าอยู่ในศาลแล้ว จะถามชื่อศาลกับหมายเลขคดีดำเพิ่ม</p>}</fieldset>
               {stageIndex > 0 && <>
-                <fieldset className="md:col-span-2"><legend className={fieldLabel}>ขั้นคดีในศาล *</legend><div className="mt-2 flex flex-wrap gap-2">{stages.slice(1).map((item) => <label key={item} className={`flex min-h-11 cursor-pointer items-center rounded-lg border px-3 text-sm hover:bg-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${stage === item ? 'border-primary bg-primary/10' : ''}`}><input type="radio" className="sr-only" name="stage" checked={stage === item} onChange={() => setStage(item)} />{CASE_STAGE_LABELS_TH[item]}</label>)}</div>{stageIndex > 0 && <p className="mt-2 text-sm text-muted-foreground">ขั้นก่อนหน้า {stageIndex} ขั้นจะขึ้นว่า "ข้ามตอนเปิดคดี" — ไม่สร้างงานย้อนหลัง</p>}</fieldset>
-                <div className="grid gap-4 sm:grid-cols-2 md:col-span-2">
-                  <label htmlFor="court-level" className={fieldLabel}>ระดับศาล
-                    <select id="court-level" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>
-                      {Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}
-                    </select>
-                  </label>
+                <label htmlFor="court-stage" className={fieldLabel}>ตอนนี้อยู่ขั้นไหนในศาล *<select id="court-stage" value={stage} onChange={(event) => setStage(event.target.value as CaseStage)} className={inputClass}>{stages.slice(1).map((item) => <option key={item} value={item}>{CASE_STAGE_LABELS_TH[item]}</option>)}</select></label>
+                <div className="grid grid-cols-2 gap-4">
                   <label htmlFor="court-name" className={fieldLabel}>ศาล{stageIndex > 0 ? ' *' : ''}
                     <CourtSelect id="court-name" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} />
-                    {showValidation && !form.courtName.trim() && <span id="court-name-error" className="block text-sm text-destructive">ยังไม่ได้เลือกชื่อศาล</span>}<span className="block text-xs font-normal text-muted-foreground">ใช้ระบุศาลที่รับคดี</span>
+                    {showValidation && !form.courtName.trim() && <span id="court-name-error" className="block text-sm text-destructive">ยังไม่ได้เลือกชื่อศาล</span>}<span className="sr-only">ใช้ระบุศาลที่รับคดี</span>
                   </label>
                   <label htmlFor="black-case-number" className={fieldLabel}>หมายเลขคดีดำ{stageIndex > 0 && !blackUnknown ? ' *' : ''}
                     <input id="black-case-number" aria-invalid={showValidation && !blackUnknown && !form.blackCaseNumber.trim()} aria-describedby={showValidation && !blackUnknown && !form.blackCaseNumber.trim() ? "black-case-number-error" : undefined} disabled={stageIndex > 0 && blackUnknown} value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })}
-                      placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={`${inputClass} ${showValidation && !blackUnknown && !form.blackCaseNumber.trim() ? 'border-2 border-destructive' : ''}`} />
-                    {showValidation && !blackUnknown && !form.blackCaseNumber.trim() && <span id="black-case-number-error" className="block text-sm text-destructive">ยังไม่ได้กรอกหมายเลขคดีดำ</span>}<span className="block text-xs font-normal text-muted-foreground">ใช้ค้นหาและอ้างอิงคดีในศาล</span>
+                      placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={`${inputClass} ${showValidation && !blackUnknown && !form.blackCaseNumber.trim() ? styles.invalid : ''}`} />
+                    {showValidation && !blackUnknown && !form.blackCaseNumber.trim() && <span id="black-case-number-error" className="block text-sm text-destructive">ยังไม่ได้กรอกหมายเลขคดีดำ</span>}<span className="sr-only">ใช้ค้นหาและอ้างอิงคดีในศาล</span>
                   </label>
+                  <label htmlFor="court-level" className={fieldLabel}>ระดับศาล<select id="court-level" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>{Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label>
                   {stageIndex > 0 && <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={blackUnknown} onChange={(e) => setBlackUnknown(e.target.checked)} />ยังไม่ทราบเลขคดี — สร้างงาน "ใส่หมายเลขคดีดำ" ให้ทนายผู้รับผิดชอบ</label>}
                 </div>
               </>}
             </div></div>
-<div><h2 className="text-xl font-semibold">ข้อมูลเพิ่มเติม <span className="text-sm font-normal text-muted-foreground">(ไม่บังคับ — กรอกตอนนี้หรือหลังเปิดคดีก็ได้)</span></h2></div>
-<details className="rounded-lg border bg-card p-4 sm:p-6"><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-semibold">คู่ความและฝ่ายเรา</span><span className="block text-sm text-muted-foreground">ใครฟ้องใคร — ใช้ในคำฟ้องและตรวจผลประโยชน์ขัดกัน</span></span><span className="rounded-full bg-muted px-3 py-1 text-sm">ไม่บังคับ</span></summary><div className="mt-4 space-y-4">                {stageIndex === 0 && <div className="grid gap-4 sm:grid-cols-2"><label htmlFor="court-level-pre" className={fieldLabel}>ระดับศาล<select id="court-level-pre" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>{Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label><label htmlFor="court-name-pre" className={fieldLabel}>ศาล<CourtSelect id="court-name-pre" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} /></label><label htmlFor="black-case-number-pre" className={fieldLabel}>หมายเลขคดีดำ<input id="black-case-number-pre" value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label></div>}
-                <fieldset><legend className={fieldLabel}>ฝ่ายเรา</legend><div className="mt-2 flex flex-wrap gap-2">{['', ...Object.values(PartyRole)].map((role) => <label key={role} className={`flex min-h-11 cursor-pointer items-center whitespace-nowrap rounded-lg border px-3 text-sm hover:bg-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${form.partyRole === role ? 'border-2 border-primary bg-primary/10' : ''}`}><input type="radio" name="party-role" className="sr-only" checked={form.partyRole === role} onChange={() => setForm({ ...form, partyRole: role })} />{form.partyRole === role && <Check aria-hidden="true" className="mr-2 h-4 w-4" />}{role ? PARTY_ROLE_LABELS[role as PartyRole] : 'ยังไม่ระบุ'}</label>)}</div></fieldset>
+<div className="pt-3"><h2 className="text-xl font-bold">ข้อมูลเพิ่มเติม <span className={styles.label}>(ไม่บังคับ — กรอกตอนนี้หรือหลังเปิดคดีก็ได้)</span></h2></div>
+<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Scale aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> คู่ความและฝ่ายเรา</span><span className={`block ${styles.hint}`}>ใครฟ้องใคร — ใช้ในคำฟ้องและตรวจผลประโยชน์ขัดกัน</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{(() => { const n = Number(!!form.partyRole) + Number(opponents.some((row) => !!row.name.trim())); return n ? `กรอกแล้ว ${n}/2` : 'ยังไม่กรอก'; })()} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">                {stageIndex === 0 && <div className="grid gap-4 sm:grid-cols-2"><label htmlFor="court-level-pre" className={fieldLabel}>ระดับศาล<select id="court-level-pre" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>{Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label><label htmlFor="court-name-pre" className={fieldLabel}>ศาล<CourtSelect id="court-name-pre" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} /></label><label htmlFor="black-case-number-pre" className={fieldLabel}>หมายเลขคดีดำ<input id="black-case-number-pre" value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label></div>}
+                <fieldset><legend className={fieldLabel}>เราเป็นทนายให้ฝ่ายไหน</legend><div className="mt-2 flex flex-wrap gap-2">{['', ...Object.values(PartyRole)].map((role) => <label key={role} className={`${styles.btn} ${styles.opt} ${form.partyRole === role ? styles.on : ''} cursor-pointer whitespace-nowrap has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring`}><input type="radio" name="party-role" className="sr-only" checked={form.partyRole === role} onChange={() => setForm({ ...form, partyRole: role })} />{form.partyRole === role && <Check aria-hidden="true" className="mr-2 h-4 w-4" />}{role ? PARTY_ROLE_LABELS[role as PartyRole] : 'ยังไม่ระบุ'}</label>)}</div></fieldset>
                 <fieldset className="min-w-0 space-y-2">
                   <legend className={fieldLabel}>คู่ความฝ่ายตรงข้าม</legend>
                   {opponents.map((row, index) => (
@@ -556,7 +553,7 @@ function NewCaseForm() {
                   </Button>
                 </fieldset>
 </div></details>
-<details className="rounded-lg border bg-card p-4 sm:p-6"><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-semibold">ทุนทรัพย์ ข้อหา และอายุความ</span><span className="block text-sm text-muted-foreground">ใช้คำนวณค่าขึ้นศาล และให้ระบบเตือนก่อนขาดอายุความ</span></span><span className="rounded-full bg-muted px-3 py-1 text-sm">ไม่บังคับ</span></summary><div className="mt-4 space-y-4"><div className="grid gap-4 sm:grid-cols-2">
+<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Wallet aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ทุนทรัพย์ ข้อหา และอายุความ</span><span className={`block ${styles.hint}`}>ใช้คำนวณค่าขึ้นศาล และให้ระบบเตือนก่อนขาดอายุความ</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{(() => { const n = [form.redCaseNumber, form.limitationDeadline, form.claimedAmount, form.chargeSection, form.description, form.customFields.incidentDate, form.customFields.estimatedDamage].filter(Boolean).length; return n ? `กรอกแล้ว ${n}/7` : 'ยังไม่กรอก'; })()} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4"><div className="grid gap-4 sm:grid-cols-2">
                   <label htmlFor="red-case-number" className={fieldLabel}>หมายเลขคดีแดง (ไม่บังคับ)<input id="red-case-number" value={form.redCaseNumber} onChange={(e) => setForm({ ...form, redCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label>
                   <div role="group" aria-labelledby="limitation-deadline-label" className={fieldLabel}>
                     <span id="limitation-deadline-label">วันครบอายุความ</span>
@@ -595,7 +592,9 @@ function NewCaseForm() {
                   <textarea rows={2} maxLength={2000} value={form.chargeSection} onChange={(event) => setForm({ ...form, chargeSection: event.target.value })} className={inputClass} />
                 </label>
               )}
-              {customFieldList.length > 0 && (
+
+</div></details>
+{fieldSchema.length > 0 && <details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><ClipboardList aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ข้อมูลเฉพาะ{selectedType?.name}</span><span className={`block ${styles.hint}`}>ช่องที่ประเภทคดีนี้ใช้ — กรอกตอนนี้หรือหลังเปิดคดีก็ได้</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{(() => { const n = customFieldList.filter((field) => !!form.customFields[field.key]).length; return n ? `กรอกแล้ว ${n}/${customFieldList.length}` : 'ยังไม่กรอก'; })()} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary>              {customFieldList.length > 0 && (
                 <section className="space-y-3 border-t border-border pt-5" aria-label="ข้อมูลของประเภทคดี">
                   <h3 className="text-sm font-semibold">ข้อมูลของประเภทคดีนี้</h3>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -614,9 +613,8 @@ function NewCaseForm() {
                     ))}
                   </div>
                 </section>
-              )}
-</div></details>
-<details className="rounded-lg border bg-card p-4 sm:p-6"><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-semibold">ผู้ว่าจ้าง / ผู้จ่ายค่าทนาย</span><span className="block text-sm text-muted-foreground">กรอกเฉพาะเมื่อคนจ่ายเงินไม่ใช่ลูกความ — ใช้ออกใบแจ้งหนี้</span></span><span className="rounded-full bg-muted px-3 py-1 text-sm">ไม่บังคับ</span></summary><div className="mt-4 space-y-4">                <details className="rounded-lg border border-border p-3">
+              )}</details>}
+<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Building2 aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ผู้ว่าจ้าง / ผู้จ่ายค่าทนาย</span><span className={`block ${styles.hint}`}>กรอกเฉพาะเมื่อคนจ่ายเงินไม่ใช่ลูกความ — ใช้ออกใบแจ้งหนี้</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{customers.filter((row) => row.customerId).length ? `กรอกแล้ว ${customers.filter((row) => row.customerId).length} ราย` : 'ใช้ลูกความ'} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">                <details className="rounded-lg border border-border p-3">
                   <summary className="min-h-6 cursor-pointer text-sm font-medium">ผู้ว่าจ้าง / ผู้จ่ายเงิน (ถ้าต่างจากลูกความ){customers.some((row) => row.customerId) && ' · ระบุแล้ว'}</summary>
                 <div className="mt-4 space-y-2">
                   {customers.map((row, index) => {
@@ -684,7 +682,7 @@ function NewCaseForm() {
                 </details>
 
 </div></details>
-<details className="rounded-lg border bg-card p-4 sm:p-6"><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-semibold">เอกสารและอีเมล</span><span className="block text-sm text-muted-foreground">แนบไฟล์หรือผูกอีเมลเข้าคดีเลย — ระบบช่วยอ่านไฟล์และเติมข้อมูลให้ได้</span></span><span className="rounded-full bg-muted px-3 py-1 text-sm">ไม่บังคับ</span></summary><div className="mt-4 space-y-4">              <details className="rounded-lg border border-border p-3">
+<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Paperclip aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> เอกสารและอีเมล</span><span className={`block ${styles.hint}`}>แนบไฟล์หรือผูกอีเมลเข้าคดีเลย — ระบบช่วยอ่านไฟล์และเติมข้อมูลให้ได้</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{files.length + selectedEmails.length ? `แนบแล้ว ${files.length + selectedEmails.length} รายการ` : 'ยังไม่แนบ'} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">              <details className="rounded-lg border border-border p-3">
                 <summary className="min-h-6 cursor-pointer text-sm font-medium">แนบเอกสาร / ช่วยกรอกด้วย AI (ไม่บังคับ){files.length > 0 && ` · ${files.length} ไฟล์`}</summary>
                 <div className="mt-4 space-y-4">
               <BatchAnalysisPanel
@@ -713,7 +711,7 @@ function NewCaseForm() {
 
               <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="border-b pb-3 text-lg font-semibold">5 อีเมลที่เกี่ยวข้อง (ไม่บังคับ)</h2><p className="text-sm text-muted-foreground">ผูกอีเมลที่มีอยู่แล้วเข้าคดีตอนสร้าง — ไฟล์แนบจะเข้าแท็บเอกสาร · แสดงเฉพาะอีเมลในกล่องของคุณ</p>{token && <EmailLinkCandidates token={token} clientId={form.clientId} selected={selectedEmails} onChange={setSelectedEmails} />}</section>
 </div></details>
-<details className="rounded-lg border bg-card p-4 sm:p-6"><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-semibold">ขั้นตอนงานสำเร็จรูป (SOP)</span><span className="block text-sm text-muted-foreground">เลือกชุดงานมาตรฐาน ระบบจะสร้างรายการงานของคดีให้หลังเปิดคดี</span></span><span className="rounded-full bg-muted px-3 py-1 text-sm">ไม่บังคับ</span></summary><div className="mt-4 space-y-4">              <details className="rounded-lg border border-border p-3">
+<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Settings2 aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ขั้นตอนงานสำเร็จรูป (SOP)</span><span className={`block ${styles.hint}`}>เลือกชุดงานมาตรฐาน ระบบจะสร้างรายการงานของคดีให้หลังเปิดคดี</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{playbookId || cargoClaimEnabled ? 'เลือกแล้ว' : 'ไม่ใช้'} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">              <details className="rounded-lg border border-border p-3">
                 <summary className="min-h-6 cursor-pointer text-sm font-medium">ขั้นตอนงานอัตโนมัติ / Cargo Claim{(cargoClaimEnabled || playbookId) && ' · เลือกแล้ว'}</summary>
                 <p className="mt-2 text-xs text-muted-foreground">เปิดคดีก่อน แล้วดูรายการงานจาก SOP เพื่อยืนยันเพิ่มงานในหน้าคดี</p>
               <label className="mt-4 block text-sm font-medium" htmlFor="new-case-playbook">
@@ -743,7 +741,7 @@ function NewCaseForm() {
 
 </div></details>
             </fieldset>
-            <aside aria-label="สรุปก่อนเปิดคดี" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4"><div>{submitting ? <><strong>กำลังเปิดคดี…</strong><p className="text-sm text-muted-foreground">สร้างแฟ้มคดี · ตรวจผลประโยชน์ขัดกัน · แจ้งทีม — อย่าปิดหน้านี้</p></> : missing.length ? <><strong>กรอกช่องบังคับแล้ว {completed} จาก 4</strong><p className="text-sm text-muted-foreground">ยังขาด: {missing.map((item) => item.label).join(' · ')}</p></> : <><strong>กรอกช่องบังคับครบแล้ว</strong><p className="text-sm text-muted-foreground">กด “เปิดคดี” แล้วระบบจะสร้างแฟ้มคดี ตรวจผลประโยชน์ขัดกัน และแจ้งทีมให้</p></>}</div><Button type="submit" className="min-h-11" aria-disabled={submitting}>{submitting ? <><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />กำลังเปิดคดี…</> : uploadFailures.length ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)` : 'เปิดคดี'}</Button></aside>
+            <aside aria-label="สรุปก่อนเปิดคดี" className={`mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-[#fffdfa] px-6 py-4 ${showValidation && missing.length ? "border-2 border-[#e9b9b9]" : ""}`}><div>{submitting ? <><strong>กำลังเปิดคดี…</strong><p className="text-sm text-muted-foreground">สร้างแฟ้มคดี · ตรวจผลประโยชน์ขัดกัน · แจ้งทีม — อย่าปิดหน้านี้</p></> : missing.length ? <><strong className="text-[#a83232]">กรอกช่องบังคับแล้ว {completed} จาก 4</strong><p className={styles.hint}>ยังขาด: {missing.map((item) => item.label).join(' · ')}</p></> : <><strong className="text-[#227052]"><Check aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> กรอกช่องบังคับครบแล้ว</strong><p className={styles.hint}>กด “เปิดคดี” แล้วระบบจะสร้างแฟ้มคดี ตรวจผลประโยชน์ขัดกัน และแจ้งทีมให้</p></>}</div><Button type="submit" className={`${styles.btn} ${styles.primary} px-8 text-base`} aria-disabled={submitting}>{submitting ? <><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />กำลังเปิดคดี…</> : uploadFailures.length ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)` : 'เปิดคดี'}</Button></aside>
           </form>
           {contactDialogCustomerIndex != null && (() => {
             const row = customers[contactDialogCustomerIndex];

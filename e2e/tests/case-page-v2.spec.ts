@@ -109,7 +109,7 @@ test('case page v2 click-through', async ({ page, request }) => {
     await shot('08-card-task');
     await doneButton.click();
     // the live region itself is zero-size (its child is position:fixed), so assert on the toast box
-    const toast = page.getByRole('status').locator('> div').filter({ hasText: 'ทำเสร็จแล้ว:' });
+    const toast = page.getByRole('status').locator('> div').filter({ hasText: /เสร็จแล้ว/ });
     await expect(toast).toBeVisible();
     await shot('09-done-toast');
     await toast.getByRole('button', { name: 'เลิกทำ' }).click();
@@ -123,7 +123,7 @@ test('case page v2 click-through', async ({ page, request }) => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await shot('10-link-email');
-    const search = dialog.getByRole('button', { name: /ค้นหาเอง/ }).or(dialog.getByText(/ค้นหาเอง/)).first();
+    const search = dialog.getByRole('button', { name: 'หาอีเมลอื่นไม่เจอ? ค้นหาเอง' });
     await search.click();
     await dialog.getByRole('searchbox').or(dialog.getByRole('textbox')).first().fill('thammaniti');
     await page.waitForTimeout(800);
