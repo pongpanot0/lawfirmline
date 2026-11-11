@@ -45,6 +45,11 @@ export class CasesController {
     return this.casesService.previewNextOwnRef(user);
   }
 
+  @Get('progress')
+  progress(@CurrentUser() user: AuthUser) {
+    return this.casesService.progress(user);
+  }
+
   @Get(':id')
   @UseGuards(CaseAccessGuard)
   findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {

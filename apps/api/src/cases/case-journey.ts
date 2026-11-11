@@ -14,6 +14,8 @@ type JourneyTask = {
   skippedReason: string | null;
 };
 type AppliedJourneyPlaybook = { taskIds: string[]; release: { steps: unknown } };
+type CaseJourneyNext = NonNullable<Journey['next']> & { kind: 'INFO' | 'PRELIT' | 'TASK' | 'ADVANCE' };
+type PreLitJourney = Omit<Journey, 'next'> & { next: (NonNullable<Journey['next']> & { kind: 'PRELIT' }) | null };
 
 export const MAIN_JOURNEY_STAGES: CaseStage[] = [
   CaseStage.PRE_LITIGATION, CaseStage.FILING, CaseStage.ANSWER, CaseStage.MEDIATION,
@@ -48,7 +50,7 @@ export function preLitChecklist(
   info: { title?: string | null; clientId?: string | null; clientName?: string | null },
   conflict: { result: string } | null,
   requests: { required: boolean; status: string }[],
-): Journey {
+): PreLitJourney {
   const required = requests.filter((r) => r.required);
   const resolved = required.filter((r) => !['REQUESTED', 'MISSING'].includes(r.status)).length;
   const missing = [!info.title?.trim() ? 'ชื่อเรื่อง' : '', !info.clientId && !info.clientName?.trim() ? 'ข้อมูลลูกความ' : ''].filter(Boolean);
@@ -63,7 +65,7 @@ export function preLitChecklist(
   const first = complete.indexOf(false);
   return {
     steps: keys.map((key, i) => ({ key, label: labels[i], state: complete[i] ? 'done' : 'current', summary: complete[i] ? labels[i] : texts[i] })),
-    next: first < 0 ? null : { text: texts[first], done: first === 2 ? resolved : 0, total: first === 2 ? required.length : 1 },
+    next: first < 0 ? null : { kind: 'PRELIT', text: texts[first], done: first === 2 ? resolved : 0, total: first === 2 ? required.length : 1 },
     canAdvance: first < 0,
     blockers: texts.filter((_, i) => !complete[i]),
   };
@@ -74,7 +76,8 @@ export function caseJourney(
   tasks: JourneyTask[],
   applied: AppliedJourneyPlaybook[],
   preLit?: Journey,
-): Journey & { preLitSteps: JourneyStep[]; preLitNext: Journey['next']; currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] } {
+  infoMissing: string[] = [],
+): Omit<Journey, 'next'> & { next: CaseJourneyNext | null; infoMissing: string[]; preLitSteps: JourneyStep[]; preLitNext: PreLitJourney['next']; currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] } {
   const stage = journeyStage(legalCase.stage);
   const stages = [...MAIN_JOURNEY_STAGES];
   if (stage === CaseStage.APPEAL || stage === CaseStage.SUPREME) stages.splice(6, 0, stage);
@@ -126,12 +129,15 @@ export function caseJourney(
       ...(i < opened ? { skippedAtOpen: true } : {}),
       unlockHint: i > current ? `ปลดล็อกเมื่อเสร็จขั้น${CASE_STAGE_LABELS_TH[stages[i - 1]]}` : null,
     })),
-    next: pending.length ? { text: `จัดการงานขั้น${CASE_STAGE_LABELS_TH[stage]}แล้ว ${done} จาก ${currentTasks.length} รายการ — ทำให้เสร็จหรือข้ามพร้อมเหตุผลอีก ${pending.length} รายการ`, done, total: currentTasks.length }
-      : nextStage ? { text: `งานขั้น${CASE_STAGE_LABELS_TH[stage]}ครบแล้ว — ไปขั้น${CASE_STAGE_LABELS_TH[nextStage]}`, done, total: currentTasks.length } : null,
+    next: infoMissing.length ? { kind: 'INFO', text: `เติมข้อมูลคดีให้ครบ (${infoMissing.join(', ')})`, done, total: currentTasks.length }
+      : preLit?.next ? { ...preLit.next, kind: 'PRELIT' }
+      : pending.length ? { kind: 'TASK', text: `จัดการงานขั้น${CASE_STAGE_LABELS_TH[stage]}แล้ว ${done} จาก ${currentTasks.length} รายการ — ทำให้เสร็จหรือข้ามพร้อมเหตุผลอีก ${pending.length} รายการ`, done, total: currentTasks.length }
+      : nextStage ? { kind: 'ADVANCE', text: `งานขั้น${CASE_STAGE_LABELS_TH[stage]}ครบแล้ว — ไปขั้น${CASE_STAGE_LABELS_TH[nextStage]}`, done, total: currentTasks.length } : null,
     preLitSteps: preLit?.steps ?? [],
-    preLitNext: preLit?.next ?? null,
-    canAdvance: pending.length === 0 && (preLit?.canAdvance ?? true),
-    blockers: [...(preLit?.blockers ?? []), ...pending.map((task) => `งานยังไม่เสร็จหรือข้าม: ${task.title}`)],
+    preLitNext: preLit?.next ? { ...preLit.next, kind: 'PRELIT' } : null,
+    infoMissing,
+    canAdvance: infoMissing.length === 0 && pending.length === 0 && (preLit?.canAdvance ?? true),
+    blockers: [...(infoMissing.length ? [`ข้อมูลคดียังไม่ครบ: ${infoMissing.join(', ')}`] : []), ...(preLit?.blockers ?? []), ...pending.map((task) => `งานยังไม่เสร็จหรือข้าม: ${task.title}`)],
     currentTasks,
   };
 }

@@ -1,5 +1,7 @@
 import { Journey } from '../intake/intake-journey';
 import { assertJourneyAdvance, caseJourney, journeyStage, nextJourneyStage, preLitChecklist, MAIN_JOURNEY_STAGES } from './case-journey';
+import { missingCaseInfo } from './case-info';
+import { caseProgress, CaseProgress } from './case-progress';
 import { AdvanceJourneyDto } from './dto/advance-journey.dto';
 import { assertFirmRefs } from '../common/firm-refs';
 import { syncLimitationReminder } from '../common/limitation-reminder';
@@ -69,6 +71,24 @@ type ProceedingsBefore = {
   redCaseNumber: string | null;
 };
 const LEVEL_SWITCH_NUMBERS_MESSAGE = 'เปลี่ยนระดับศาลแล้วบันทึกก่อน แล้วจึงแก้เลขคดีของศาลชั้นนั้น';
+
+const JOURNEY_TASK_SELECT = {
+  id: true, title: true, status: true, parentId: true, labels: true, dueDate: true, skippedReason: true,
+  assignee: { select: { firstName: true, lastName: true } },
+} as const;
+
+function groupBy<T>(rows: T[], key: (row: T) => string | null): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const value = key(row);
+    if (value !== null) {
+      const group = groups.get(value) ?? [];
+      group.push(row);
+      groups.set(value, group);
+    }
+  }
+  return groups;
+}
 
 /** One row of the OneDrive import. The caller has already checked team membership and the plan quota. */
 export interface CaseImportParams {
@@ -233,6 +253,81 @@ export class CasesService {
     });
   }
 
+  async progress(user: AuthUser): Promise<CaseProgress[]> {
+    const cases = await this.prisma.case.findMany({
+      where: { ...this.caseAccess.getCaseFilterForUser(user), deletedAt: null },
+      select: {
+        id: true, status: true, stage: true, openedAtStage: true, partyRole: true,
+        title: true, clientId: true, clientName: true, intakeId: true,
+        courtName: true, customFields: true, caseTypeId: true,
+        participants: { select: { name: true, side: true, role: true } },
+        intake: { select: { title: true, clientId: true, clientName: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (!cases.length) return [];
+    const caseIds = cases.map((c) => c.id);
+    const intakeIds = cases.flatMap((c) => c.intakeId ? [c.intakeId] : []);
+    const preLitCases = cases.filter((c) => journeyStage(c.stage) === CaseStage.PRE_LITIGATION);
+    const links = [{ caseId: { in: caseIds } }, { intakeId: { in: intakeIds } }];
+    const [tasks, applied, conflicts, requests, courtDates, caseTypes] = await Promise.all([
+      this.prisma.task.findMany({
+        where: { caseId: { in: caseIds } },
+        select: { ...JOURNEY_TASK_SELECT, caseId: true },
+        orderBy: [{ dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }, { id: 'asc' }],
+      }),
+      this.prisma.appliedPlaybook.findMany({
+        where: { caseId: { in: caseIds }, release: { firmId: user.firmId } },
+        select: { caseId: true, taskIds: true, release: { select: { steps: true } } },
+      }),
+      this.prisma.conflictCheck.findMany({
+        where: { firmId: user.firmId, OR: [
+          { caseId: { in: preLitCases.map((c) => c.id) } },
+          { intakeId: { in: preLitCases.flatMap((c) => c.intakeId ? [c.intakeId] : []) } },
+        ] },
+        select: { caseId: true, intakeId: true, result: true },
+        orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
+      }),
+      this.prisma.intakeDocumentRequest.findMany({
+        where: { OR: links }, select: { caseId: true, intakeId: true, required: true, status: true },
+      }),
+      this.prisma.calendarEvent.groupBy({
+        by: ['caseId'], where: { caseId: { in: caseIds }, type: 'COURT_DATE', startAt: { gte: new Date() } },
+        _min: { startAt: true },
+      }),
+      this.prisma.caseType.findMany({
+        where: { firmId: user.firmId, id: { in: [...new Set(cases.flatMap((c) => c.caseTypeId ? [c.caseTypeId] : []))] } },
+        select: { id: true, fieldSchema: true },
+      }),
+    ]);
+    const tasksByCase = groupBy(tasks, (t) => t.caseId);
+    const appliedByCase = groupBy(applied, (a) => a.caseId);
+    const requestsByCase = groupBy(requests, (r) => r.caseId);
+    const requestsByIntake = groupBy(requests, (r) => r.intakeId);
+    const caseByIntake = new Map(preLitCases.flatMap((c) => c.intakeId ? [[c.intakeId, c.id] as const] : []));
+    const latestConflicts = new Map<string, typeof conflicts[number]>();
+    for (const conflict of conflicts) {
+      const linkedIds = [conflict.caseId, conflict.intakeId ? caseByIntake.get(conflict.intakeId) : null];
+      for (const id of linkedIds) if (id && !latestConflicts.has(id)) latestConflicts.set(id, conflict);
+    }
+    const schemas = new Map(caseTypes.map((t) => [t.id, t.fieldSchema]));
+    const dates = new Map(courtDates.map((d) => [d.caseId, d._min.startAt?.toISOString() ?? null]));
+    return cases.map((legalCase) => {
+      const docs = [...new Set([...(requestsByCase.get(legalCase.id) ?? []), ...(legalCase.intakeId ? requestsByIntake.get(legalCase.intakeId) ?? [] : [])])];
+      let preLit: Journey | undefined;
+      if (journeyStage(legalCase.stage) === CaseStage.PRE_LITIGATION) {
+        preLit = preLitChecklist({
+          title: legalCase.intake?.title?.trim() || legalCase.title,
+          clientId: legalCase.intake?.clientId || legalCase.clientId,
+          clientName: legalCase.intake?.clientName?.trim() || legalCase.clientName,
+        }, latestConflicts.get(legalCase.id) ?? null, docs);
+      }
+      const journey = caseJourney(legalCase, tasksByCase.get(legalCase.id) ?? [], appliedByCase.get(legalCase.id) ?? [], preLit,
+        missingCaseInfo(legalCase, schemas.get(legalCase.caseTypeId ?? '')));
+      return caseProgress(legalCase, journey, docs, dates.get(legalCase.id) ?? null);
+    });
+  }
+
   async findOne(user: AuthUser, id: string) {
     const hasAccess = await this.caseAccess.canAccessCase(user, id);
     if (!hasAccess) {
@@ -300,14 +395,20 @@ export class CasesService {
   private async journeyState(user: AuthUser, id: string, db: Prisma.TransactionClient = this.prisma) {
     const legalCase = await db.case.findFirst({
       where: { id, firmId: user.firmId, deletedAt: null },
-      select: { stage: true, openedAtStage: true, partyRole: true, intakeId: true, title: true, clientId: true, clientName: true },
+      select: {
+        stage: true, openedAtStage: true, partyRole: true, intakeId: true, title: true, clientId: true, clientName: true,
+        courtName: true, customFields: true,
+        caseType: { select: { fieldSchema: true } },
+        participants: { select: { name: true, side: true, role: true } },
+      },
     });
     if (!legalCase) throw new NotFoundException('Case not found');
     const [tasks, applied] = await Promise.all([
       db.task.findMany({
         where: { caseId: id },
-        select: { id: true, title: true, status: true, parentId: true, labels: true, dueDate: true, skippedReason: true, assignee: { select: { firstName: true, lastName: true } } },
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: JOURNEY_TASK_SELECT,
+        // Same order as progress(): the case page and the case list must name the same next task.
+        orderBy: [{ dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }, { id: 'asc' }],
       }),
       db.appliedPlaybook.findMany({
         where: { caseId: id, release: { firmId: user.firmId } },
@@ -331,7 +432,7 @@ export class CasesService {
         clientName: intake?.clientName?.trim() || legalCase.clientName,
       }, conflict, requests);
     }
-    return { legalCase, journey: caseJourney(legalCase, tasks, applied, preLit) };
+    return { legalCase, journey: caseJourney(legalCase, tasks, applied, preLit, missingCaseInfo(legalCase, legalCase.caseType?.fieldSchema)) };
   }
 
   async advanceJourney(user: AuthUser, id: string, dto: AdvanceJourneyDto) {

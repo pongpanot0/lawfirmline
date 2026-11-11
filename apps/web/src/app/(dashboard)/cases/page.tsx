@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Download, ArrowUpDown, Columns3, ClipboardList, Briefcase, Upload } from 'lucide-react';
 import { FirmRole, Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CaseListItem, UserItem } from '@/lib/api';
+import { api, CaseListItem, CaseProgress, CaseTypeItem, UserItem } from '@/lib/api';
 import { CaseViewToggle } from '@/components/cases/CaseViewToggle';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
@@ -14,7 +14,7 @@ import { caseStatusOptions, getCaseStatusDisplay } from '@/lib/case-status';
 import { caseStageLabel, caseStageOptions } from '@/lib/stage-labels';
 import { caseNumberDisplay } from '@/lib/case-number-display';
 import { casePartyDisplay } from '@/lib/case-party-display';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,6 +22,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { WhoActsTabs } from '@/components/process/WhoActsTabs';
+import { FilterChips } from '@/components/process/FilterChips';
+import { StepTracker } from '@/components/process/StepTracker';
+import { dueLabel } from '@/components/process/helpers';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const PAGE_SIZE = 10;
@@ -60,6 +64,11 @@ function CasesPageContent() {
   const sopId = searchParams.get('sop');
   const newCaseHref = sopId ? `/cases/new?sop=${encodeURIComponent(sopId)}` : '/cases/new';
   const caseHref = (id: string) => `/cases/${id}${sopId ? `?tab=tasks&sop=${encodeURIComponent(sopId)}` : ''}`;
+  const [progress, setProgress] = useState<CaseProgress[]>([]);
+  const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
+  const [typeFilter, setTypeFilter] = useState('');
+  const [phase, setPhase] = useState('ALL');
+  const tab = ['TODO', 'WAITING_CLIENT', 'WAITING_COURT', 'CLOSED'].includes(searchParams.get('tab') ?? '') ? searchParams.get('tab')! : 'TODO';
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -86,24 +95,26 @@ function CasesPageContent() {
     if (!token) return;
     setLoading(true);
     setLoadError(false);
-    api
-      .getCases(token, {
+    Promise.all([api.getCaseProgress(token), api.getCases(token, {
         search: search || undefined,
         status: statusFilter || undefined,
         stage: stageFilter || undefined,
         userId: lawyerFilter || undefined,
-      })
-      .then((result) => {
+        caseTypeId: typeFilter || undefined,
+      })])
+      .then(([progressRows, result]) => {
+        setProgress(progressRows);
         setCases(result);
         setSelected(new Set());
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [token, search, statusFilter, stageFilter, lawyerFilter, reloadKey]);
+  }, [token, search, statusFilter, stageFilter, lawyerFilter, typeFilter, reloadKey]);
 
   useEffect(() => {
     if (!token) return;
     api.getLawyers(token).then(setLawyers).catch(() => {});
+    api.getCaseTypes(token).then(setCaseTypes).catch(() => {});
   }, [token]);
 
   useEffect(() => {
@@ -246,6 +257,13 @@ function CasesPageContent() {
     URL.revokeObjectURL(url);
   };
 
+  const phases: Record<string, string[]> = { PRE: ['INTAKE_REVIEW', 'FACT_GATHERING', 'PRE_LITIGATION'], COURT: ['FILING', 'ANSWER', 'MEDIATION', 'HEARING', 'AWAITING_JUDGMENT', 'APPEAL', 'SUPREME'], ENFORCEMENT: ['ENFORCEMENT', 'CLOSING'] };
+  const progressById = new Map(progress.map((row) => [row.caseId, row]));
+  const listedRows = cases.flatMap((item) => { const state = progressById.get(item.id); return state ? [{ item, state }] : []; });
+  const bucketRows = listedRows.filter(({ state }) => state.bucket === tab);
+  const displayed = bucketRows.filter(({ item }) => phase === 'ALL' || phases[phase]?.includes(item.stage ?? ''));
+  const tabs = [{ key: 'TODO', label: 'ต้องทำ' }, { key: 'WAITING_CLIENT', label: 'รอลูกความ' }, { key: 'WAITING_COURT', label: 'รอศาล' }, { key: 'CLOSED', label: 'ปิดแล้ว' }].map((item) => ({ ...item, count: listedRows.filter(({ state }) => state.bucket === item.key).length }));
+  const chips = [{ key: 'ALL', label: 'ทั้งหมด' }, { key: 'PRE', label: 'ก่อนฟ้อง' }, { key: 'COURT', label: 'ในศาล' }, { key: 'ENFORCEMENT', label: 'บังคับคดี' }].map((item) => ({ ...item, count: bucketRows.filter(({ item: legalCase }) => item.key === 'ALL' || phases[item.key]?.includes(legalCase.stage ?? '')).length }));
   return (
     <div>
       <PageHeader
@@ -253,15 +271,6 @@ function CasesPageContent() {
         description={sopId ? 'เลือกคดีเพื่อดูรายการงานก่อนยืนยันเพิ่ม ระบบจะเก็บคดีและ SOP ที่เลือกไว้ให้' : d.cases.description}
         actions={
           <>
-            <Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={exportCsv}>
-              <Download aria-hidden="true" className="h-4 w-4" />
-              {d.common.export}
-            </Button>
-            {canCreate && (
-              <Button variant="outline" size="sm" onClick={() => router.push('/cases/import')}>
-                <Upload aria-hidden="true" className="h-4 w-4" />นำเข้าจาก Excel
-              </Button>
-            )}
             {canCreate && (
               <Button size="sm" onClick={() => router.push(newCaseHref)}>
                 <Plus aria-hidden="true" className="h-4 w-4" />{d.cases.newCase}
@@ -271,19 +280,16 @@ function CasesPageContent() {
         }
       />
 
-      <Card className="mb-4" aria-label="สรุปคดี">
-        <CardContent className="grid grid-cols-2 divide-x p-0">
-          <div className="min-w-0 p-4">
-            <p className="text-xs text-muted-foreground sm:text-sm">คดีทั้งหมดตามตัวกรอง</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground" aria-live="polite">{loading ? '—' : cases.length}</p>
-          </div>
-          <div className="min-w-0 p-4">
-            <p className="text-xs text-muted-foreground sm:text-sm">ก่อนฟ้อง</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground" aria-live="polite">{loading ? '—' : cases.filter((legalCase) => legalCase.stage === 'PRE_LITIGATION').length}</p>
-          </div>
-        </CardContent>
-      </Card>
-
+      <WhoActsTabs tabs={tabs} value={tab} onChange={() => { setPhase('ALL'); setPage(0); }} />
+      <div className="my-4 flex flex-wrap items-center justify-between gap-3"><FilterChips items={chips} value={phase} onChange={setPhase} /><Input aria-label="ค้นหาคดี" placeholder={d.cases.searchPlaceholder} value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-full sm:w-64" /></div>
+      {loadError ? <LoadFailed onRetry={() => setReloadKey((k) => k + 1)} /> : loading ? <PageLoading variant="list" title={d.cases.loading} lines={3} /> : displayed.length === 0 ? <EmptyState icon={Briefcase} title={{ TODO: 'ไม่มีคดีที่ต้องทำ', WAITING_CLIENT: 'ไม่มีคดีที่รอลูกความ', WAITING_COURT: 'ไม่มีคดีที่รอศาล', CLOSED: 'ไม่มีคดีที่ปิดแล้ว' }[tab] ?? 'ไม่มีคดี'} description="ลองเปลี่ยนตัวกรองหรือค้นหาอีกครั้ง" /> : <div className="space-y-3">{displayed.map(({ item, state }) => {
+        const due = state.next?.dueDate ? dueLabel(state.next.dueDate) : null;
+        const steps = Array.from({ length: state.stepTotal }, (_, index) => ({ key: String(index), label: index === state.stepIndex ? state.stepLabel : '', state: (index < state.stepIndex ? 'done' : index === state.stepIndex ? 'current' : 'todo') as 'done' | 'current' | 'todo' }));
+        const href = state.next?.kind === 'TASK' && state.next.taskId ? `/cases/${item.id}?task=${encodeURIComponent(state.next.taskId)}` : caseHref(item.id);
+        return <article key={item.id} className="space-y-3 rounded-lg border bg-card p-4"><div className="flex flex-wrap items-center gap-3"><span className="rounded bg-muted px-2 py-1 font-mono text-sm">{item.ownRef}</span><h2 className="font-semibold">{item.title}</h2></div><div className="flex flex-wrap items-center gap-3">{state.total > 0 && <span className="rounded bg-muted px-2 py-1 text-sm">งานขั้นนี้ {state.done}/{state.total}</span>}<div className="w-56"><StepTracker steps={steps} variant="mini" /></div></div>{state.next && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"><p className="text-sm font-medium">▸ ต่อไป: {state.next.text} {due && <span className={`ml-2 rounded px-2 py-1 ${due.urgent ? 'bg-destructive/10 text-destructive' : 'bg-muted'}`}>{due.text}</span>}{state.next.assigneeName && state.next.assigneeName !== `${user?.firstName} ${user?.lastName}` && <span className="ml-2 text-muted-foreground">{state.next.assigneeName}</span>}</p><Link className={buttonVariants()} href={href}>ทำเลย →</Link></div>}</article>;
+      })}</div>}
+      <details className="mt-6"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">มุมมองตาราง · ตัวกรองเพิ่ม · นำเข้า/ส่งออก</summary>
+      <div className="mb-4 flex gap-2"><Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={exportCsv}><Download className="h-4 w-4" />{d.common.export}</Button>{canCreate && <Button variant="outline" size="sm" onClick={() => router.push('/cases/import')}><Upload className="h-4 w-4" />นำเข้าจาก Excel</Button>}</div>
       {canManageLegacyIntakes && ((unlinkedIntakeCount ?? 0) > 0 || legacyConversionMessage) && (
         <Card className="mb-4 border-warning/40 bg-warning/5">
           <CardContent className="flex flex-wrap items-center gap-3 p-4">
@@ -357,6 +363,7 @@ function CasesPageContent() {
               <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
             ))}
           </select>
+          <select aria-label="กรองตามประเภทคดี" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(0); }} className="min-h-11 rounded-lg border border-input bg-card px-3 text-sm"><option value="">ทุกประเภทคดี</option>{caseTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select>
           <CaseViewToggle current="list" />
           <details className="group relative">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
@@ -579,6 +586,7 @@ function CasesPageContent() {
           )}
         </CardContent>
       </Card>
+      </details>
     </div>
   );
 }

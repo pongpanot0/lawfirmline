@@ -31,7 +31,7 @@ import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { CourtSelect } from '@/components/cases/CourtSelect';
 import { ConflictOverrideDialog } from '@/components/ConflictOverrideDialog';
 import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
-import { litigationPayload, missingRequiredMessage, openingStageError, type OpponentRow } from '@/lib/case-create';
+import { litigationPayload, openingStageError, type OpponentRow } from '@/lib/case-create';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft, Plus, X } from 'lucide-react';
@@ -87,7 +87,7 @@ function NewCaseForm() {
   const [limitationIncomplete, setLimitationIncomplete] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState<LinkCandidate[]>([]);
   const [blackUnknown, setBlackUnknown] = useState(false);
-  const [leadName, setLeadName] = useState<string | null>(null);
+  const [editingRef, setEditingRef] = useState(false);
   const [stage, setStage] = useState<CaseStage>(CaseStage.PRE_LITIGATION);
   const [conflict, setConflict] = useState<ConflictMatchItem[] | null>(null);
 
@@ -125,7 +125,6 @@ function NewCaseForm() {
   ) as CaseFieldSchema[];
 
   // chargeSection and the keys with their own input elsewhere on the form are not repeated here.
-  const isRequired = (key: string) => fieldSchema.some((field) => field.key === key && field.required);
   const customFieldList = fieldSchema.filter((field) => !['chargeSection', 'incidentDate', 'estimatedDamage', 'opposingParty'].includes(field.key));
 
   const stages = [CaseStage.PRE_LITIGATION, CaseStage.FILING, CaseStage.ANSWER, CaseStage.MEDIATION, CaseStage.HEARING, CaseStage.AWAITING_JUDGMENT, CaseStage.ENFORCEMENT];
@@ -219,8 +218,6 @@ function NewCaseForm() {
     if (!form.caseTypeId) return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
     if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
     if (limitationIncomplete) return 'กรอกวันครบอายุความให้ครบ (วัน/เดือน/ปี พ.ศ.) หรือเว้นว่างทั้งหมด';
-    const missing = missingRequiredMessage(fieldSchema, { chargeSection: form.chargeSection, customFields: form.customFields, opponents });
-    if (missing) return missing;
     if (!form.leadLawyerId) return 'กรุณาเลือกทนายผู้รับผิดชอบ';
     const stageError = openingStageError(stage, form.courtName, form.blackCaseNumber, blackUnknown);
     if (stageError) return stageError;
@@ -230,9 +227,7 @@ function NewCaseForm() {
     ['ประเภทคดี', !!form.caseTypeId],
     ['ชื่อคดี', !!form.title.trim()],
     ['ทนายผู้รับผิดชอบ', !!form.leadLawyerId],
-    ['ข้อมูลบังคับของประเภทคดี', !missingRequiredMessage(fieldSchema, { chargeSection: form.chargeSection, customFields: form.customFields, opponents })],
     ['ข้อมูลศาลและขั้นเริ่มต้น', !openingStageError(stage, form.courtName, form.blackCaseNumber, blackUnknown)],
-    ['วันครบอายุความ', !limitationIncomplete],
   ] as const;
   const completed = checklist.filter(([, done]) => done).length;
   const handleSubmit = async (conflictOverrideReason?: string) => {
@@ -340,7 +335,7 @@ function NewCaseForm() {
         router.push(`/cases/${createdCaseId.current}?tab=email&emailLinkFailures=${emailFailures.current}`);
         return;
       }
-      router.push(`/cases/${createdCaseId.current}${cargoClaimEnabled ? '?tab=cargo-claim' : `?tab=tasks${playbookId ? `&sop=${encodeURIComponent(playbookId)}` : ''}`}`);
+      router.push(`/cases/${createdCaseId.current}/opened${playbookId ? `?sop=${encodeURIComponent(playbookId)}` : ''}`);
     } catch (err) {
       const matches = conflictMatchesFrom(err);
       setConflict(matches);
@@ -397,7 +392,7 @@ function NewCaseForm() {
         เรื่องและคดี
       </Link>
       <PageHeader
-        title="สร้างคดีใหม่"
+        title="เปิดคดีใหม่"
         description="กรอกเท่าที่รู้ — แก้ไขภายหลังได้"
       />
 
@@ -412,7 +407,7 @@ function NewCaseForm() {
               const details = (event.target as HTMLElement).closest('details');
               if (details) details.open = true;
             }}
-            className="grid min-w-0 gap-4 text-card-foreground xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start"
+            className="mx-auto max-w-3xl min-w-0 space-y-4 text-card-foreground"
           >
             <fieldset
               disabled={submitting || !!createdCaseId.current}
@@ -443,7 +438,8 @@ function NewCaseForm() {
             </div>
           )}
 
-            <div className="space-y-5 rounded-lg border bg-card p-4 sm:p-6"><h2 className="border-b pb-3 text-lg font-semibold">1 ประเภทและชื่อคดี</h2>
+            <div className="rounded-lg border bg-muted p-4"><label htmlFor="case-number" className={fieldLabel}>เลขอ้างอิงสำนักงาน</label><p className="text-xs text-muted-foreground">ระบบออกเลขให้อัตโนมัติ แก้ไขได้</p><div className="flex items-center gap-3">{editingRef ? <input id="case-number" value={form.ownRef} onChange={(event) => setForm({ ...form, ownRef: event.target.value })} className={inputClass} /> : <span className="text-xl font-semibold">{form.ownRef || 'กำลังออกเลขอ้างอิง'}</span>}<button type="button" className="min-h-11 text-sm underline" onClick={() => setEditingRef(!editingRef)}>{editingRef ? 'เสร็จ' : 'แก้ไข'}</button></div></div>
+            <div className="space-y-5 rounded-lg border bg-card p-4 sm:p-6">
               <label htmlFor="case-type" className={fieldLabel}>ประเภทคดี <span className="text-destructive">*</span>
                 <select id="case-type" required disabled={loadingTypes} value={form.caseTypeId} className={inputClass}
                   onChange={(event) => setForm((current) => current.caseTypeId === event.target.value ? current : {
@@ -462,11 +458,6 @@ function NewCaseForm() {
                 <input id="case-title" required value={form.title} onChange={(event) => { setAutoTitle(false); setForm({ ...form, title: event.target.value }); }} className={inputClass} placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง" />
                 {autoTitle && <p className="mt-1 text-xs text-muted-foreground">ตั้งชื่อจากประเภทคดีและลูกความให้อัตโนมัติ แก้ไขได้</p>}
               </div>
-              <div><label htmlFor="lead-lawyer" className={fieldLabel}>ทนายผู้รับผิดชอบ <span className="text-destructive">*</span></label>
-                {token && <OwnerPicker id="lead-lawyer" token={token} currentUserId={user?.id} value={form.leadLawyerId} onChange={(leadLawyerId) => setForm((current) => ({ ...current, leadLawyerId }))} onResolvedName={setLeadName} />}
-              </div>
-            </div>
-            <section className="space-y-5 rounded-lg border bg-card p-4 sm:p-6"><h2 className="border-b pb-3 text-lg font-semibold">2 ลูกความ</h2>
               <div>
                 <label htmlFor="client-combobox" className={fieldLabel}>ลูกความ <span className="font-normal text-muted-foreground">(เติมภายหลังได้)</span></label>
                 <ClientCombobox id="client-combobox" clients={clients} clientId={form.clientId} clientName={form.clientName}
@@ -481,11 +472,32 @@ function NewCaseForm() {
                 </div>}
                 {sameCustomer && <p className="mt-1 text-xs text-muted-foreground">ใช้ชื่อเดียวกับผู้ว่าจ้างรายแรก</p>}
               </div>
+              <div><label htmlFor="lead-lawyer" className={fieldLabel}>ทนายผู้รับผิดชอบ <span className="text-destructive">*</span></label>
+                {token && <OwnerPicker id="lead-lawyer" token={token} currentUserId={user?.id} value={form.leadLawyerId} onChange={(leadLawyerId) => setForm((current) => ({ ...current, leadLawyerId }))}  />}
+              </div>
+              <fieldset><legend className={fieldLabel}>ตอนนี้คดีอยู่ขั้นไหน *</legend><div className="mt-2 flex flex-wrap gap-2">{[{ label: 'ยังไม่ถึงชั้นศาล', value: false }, { label: 'อยู่ในชั้นศาลแล้ว', value: true }].map((option) => <label key={option.label} className={`flex min-h-11 cursor-pointer items-center rounded-lg border px-3 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${(stageIndex > 0) === option.value ? 'bg-primary text-primary-foreground' : ''}`}><input type="radio" name="court-status" className="sr-only" checked={(stageIndex > 0) === option.value} onChange={() => setStage(option.value ? CaseStage.FILING : CaseStage.PRE_LITIGATION)} />{option.label}</label>)}</div></fieldset>
+              {stageIndex > 0 && <>
+                <fieldset><legend className={fieldLabel}>ขั้นคดีในศาล *</legend><div className="mt-2 flex flex-wrap gap-2">{stages.slice(1).map((item) => <label key={item} className={`flex min-h-11 cursor-pointer items-center rounded-lg border px-3 text-sm hover:bg-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${stage === item ? 'border-primary bg-primary/10' : ''}`}><input type="radio" className="sr-only" name="stage" checked={stage === item} onChange={() => setStage(item)} />{CASE_STAGE_LABELS_TH[item]}</label>)}</div>{stageIndex > 0 && <p className="mt-2 text-sm text-muted-foreground">ขั้นก่อนหน้า {stageIndex} ขั้นจะขึ้นว่า "ข้ามตอนเปิดคดี" — ไม่สร้างงานย้อนหลัง</p>}</fieldset>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label htmlFor="court-level" className={fieldLabel}>ระดับศาล
+                    <select id="court-level" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>
+                      {Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}
+                    </select>
+                  </label>
+                  <label htmlFor="court-name" className={fieldLabel}>ศาล{stageIndex > 0 ? ' *' : ''}
+                    <CourtSelect id="court-name" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} />
+                  </label>
+                  <label htmlFor="black-case-number" className={fieldLabel}>หมายเลขคดีดำ{stageIndex > 0 && !blackUnknown ? ' *' : ''}
+                    <input id="black-case-number" disabled={stageIndex > 0 && blackUnknown} value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })}
+                      placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} />
+                  </label>
+                  {stageIndex > 0 && <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={blackUnknown} onChange={(e) => setBlackUnknown(e.target.checked)} />ยังไม่ทราบเลขคดี — สร้างงาน "ใส่หมายเลขคดีดำ" ให้ทนายผู้รับผิดชอบ</label>}
+                </div>
+              </>}
+            </div>
+            <details className="space-y-4 rounded-lg border bg-card p-4"><summary className="min-h-11 cursor-pointer font-medium">ข้อมูลเพิ่มเติม (ไม่บังคับ — กรอกภายหลังได้)</summary>
+                {stageIndex === 0 && <div className="grid gap-4 sm:grid-cols-2"><label htmlFor="court-level-pre" className={fieldLabel}>ระดับศาล<select id="court-level-pre" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>{Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label><label htmlFor="court-name-pre" className={fieldLabel}>ศาล<CourtSelect id="court-name-pre" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} /></label><label htmlFor="black-case-number-pre" className={fieldLabel}>หมายเลขคดีดำ<input id="black-case-number-pre" value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label></div>}
                 <fieldset><legend className={fieldLabel}>ฝ่ายเรา</legend><div className="mt-2 flex flex-wrap gap-2">{['', ...Object.values(PartyRole)].map((role) => <label key={role} className={`flex min-h-11 cursor-pointer items-center whitespace-nowrap rounded-lg border px-3 text-sm hover:bg-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${form.partyRole === role ? 'border-primary bg-primary text-primary-foreground' : ''}`}><input type="radio" name="party-role" className="sr-only" checked={form.partyRole === role} onChange={() => setForm({ ...form, partyRole: role })} />{role ? PARTY_ROLE_LABELS[role as PartyRole] : 'ยังไม่ระบุ'}</label>)}</div></fieldset>
-            </section>
-              <section className="space-y-4 rounded-lg border bg-card p-4 sm:p-6" aria-label="คู่ความและศาล">
-                <h2 className="border-b pb-3 text-lg font-semibold">3 คู่ความ ศาล และขั้นปัจจุบัน</h2>
-                <fieldset><legend className={fieldLabel}>ขั้นปัจจุบันของคดี *</legend><div className="mt-2 flex flex-wrap gap-2">{stages.map((item) => <label key={item} className={`flex min-h-11 cursor-pointer items-center rounded-lg border px-3 text-sm hover:bg-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${stage === item ? 'border-primary bg-primary/10' : ''}`}><input type="radio" className="sr-only" name="stage" checked={stage === item} onChange={() => setStage(item)} />{CASE_STAGE_LABELS_TH[item]}</label>)}</div>{stageIndex > 0 && <p className="mt-2 text-sm text-muted-foreground">ขั้นก่อนหน้า {stageIndex} ขั้นจะขึ้นว่า "ข้ามตอนเปิดคดี" — ไม่สร้างงานย้อนหลัง</p>}</fieldset>
                 <fieldset className="min-w-0 space-y-2">
                   <legend className={fieldLabel}>คู่ความฝ่ายตรงข้าม</legend>
                   {opponents.map((row, index) => (
@@ -512,29 +524,15 @@ function NewCaseForm() {
                     <Plus className="h-3.5 w-3.5" /> เพิ่มคู่ความ
                   </Button>
                 </fieldset>
-                {stageIndex > 0 && <h4 className="text-sm font-semibold">ข้อมูลศาล</h4>}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label htmlFor="court-level" className={fieldLabel}>ระดับศาล
-                    <select id="court-level" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>
-                      {Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}
-                    </select>
-                  </label>
-                  <label htmlFor="court-name" className={fieldLabel}>ศาล{stageIndex > 0 ? ' *' : ''}
-                    <CourtSelect id="court-name" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} />
-                  </label>
-                  <label htmlFor="black-case-number" className={fieldLabel}>หมายเลขคดีดำ{stageIndex > 0 && !blackUnknown ? ' *' : ''}
-                    <input id="black-case-number" disabled={stageIndex > 0 && blackUnknown} value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })}
-                      placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} />
-                  </label>
-                  {stageIndex > 0 && <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={blackUnknown} onChange={(e) => setBlackUnknown(e.target.checked)} />ยังไม่ทราบเลขคดี — สร้างงาน "ใส่หมายเลขคดีดำ" ให้ทนายผู้รับผิดชอบ</label>}
+<div className="grid gap-4 sm:grid-cols-2">
                   <label htmlFor="red-case-number" className={fieldLabel}>หมายเลขคดีแดง (ไม่บังคับ)<input id="red-case-number" value={form.redCaseNumber} onChange={(e) => setForm({ ...form, redCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label>
                   <div role="group" aria-labelledby="limitation-deadline-label" className={fieldLabel}>
                     <span id="limitation-deadline-label">วันครบอายุความ</span>
                     <ThaiDateInput id="limitation-deadline" className="mt-1" value={form.limitationDeadline} onChange={(limitationDeadline) => setForm((current) => ({ ...current, limitationDeadline }))} onIncompleteChange={setLimitationIncomplete} />
                     <span className="mt-1 block text-xs font-normal text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน</span>
                   </div>
-                </div>
-              </section>
+
+</div>
               <div className="space-y-5 rounded-lg border bg-card p-4 sm:p-6"><h2 className="border-b pb-3 text-lg font-semibold">4 ข้อมูลของประเภทคดีนี้</h2>
               <details className="rounded-lg border border-border p-3">
                 <summary className="min-h-6 cursor-pointer text-sm font-medium">แนบเอกสาร / ช่วยกรอกด้วย AI (ไม่บังคับ){files.length > 0 && ` · ${files.length} ไฟล์`}</summary>
@@ -668,27 +666,16 @@ function NewCaseForm() {
                   <Checkbox checked={form.useTmpClient} onChange={(event) => setForm({ ...form, useTmpClient: event.target.checked, clientId: event.target.checked ? '' : form.clientId })} />
                   ยังไม่ทราบชื่อลูกความ
                 </label>
-                <label htmlFor="case-number" className={fieldLabel}>เลขอ้างอิงสำนักงาน</label>
-                <input
-                  id="case-number"
-                  value={form.ownRef}
-                  onChange={(event) => setForm({ ...form, ownRef: event.target.value })}
-                  className={inputClass}
-                  placeholder={nextOwnRef || "เช่น TSBREF20260001"}
-                />
-                {nextOwnRef && !form.ownRef && (
-                  <p className="mt-1 text-xs text-muted-foreground">ใช้เลขที่แนะนำ: {nextOwnRef}</p>
-                )}
               </div>
               <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
                 <label className={fieldLabel}>วันเกิดเหตุ
-                  <input type="date" required={isRequired('incidentDate')} value={form.customFields.incidentDate?.slice(0, 10) ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, incidentDate: event.target.value } }))} className={inputClass} />
+                  <input type="date" value={form.customFields.incidentDate?.slice(0, 10) ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, incidentDate: event.target.value } }))} className={inputClass} />
                 </label>
                 <label className={fieldLabel}>ทุนทรัพย์ที่เรียกร้อง (บาท)
                   <MoneyInput min={0} max={FEE_MAX} value={form.claimedAmount} onValueChange={(next) => setForm((current) => ({ ...current, claimedAmount: next }))} className={inputClass} />
                 </label>
                 <label className={fieldLabel}>ความเสียหายโดยประมาณ (บาท)
-                  <MoneyInput min={0} max={FEE_MAX} required={isRequired('estimatedDamage')} value={form.customFields.estimatedDamage ?? ''} onValueChange={(next) => setForm((current) => ({ ...current, customFields: { ...current.customFields, estimatedDamage: next } }))} className={inputClass} />
+                  <MoneyInput min={0} max={FEE_MAX} value={form.customFields.estimatedDamage ?? ''} onValueChange={(next) => setForm((current) => ({ ...current, customFields: { ...current.customFields, estimatedDamage: next } }))} className={inputClass} />
                 </label>
                 <label className="text-sm font-medium sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี
                   <textarea rows={4} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className={inputClass} />
@@ -698,8 +685,8 @@ function NewCaseForm() {
 
               {fieldSchema.some((field) => field.key === 'chargeSection') && (
                 <label className="block text-sm font-medium">
-                  ข้อหาหรือฐานความผิด{fieldSchema.find((field) => field.key === 'chargeSection')?.required ? ' *' : ''}
-                  <textarea required={fieldSchema.find((field) => field.key === 'chargeSection')?.required} rows={2} maxLength={2000} value={form.chargeSection} onChange={(event) => setForm({ ...form, chargeSection: event.target.value })} className={inputClass} />
+                  ข้อหาหรือฐานความผิด
+                  <textarea rows={2} maxLength={2000} value={form.chargeSection} onChange={(event) => setForm({ ...form, chargeSection: event.target.value })} className={inputClass} />
                 </label>
               )}
               {customFieldList.length > 0 && (
@@ -708,14 +695,14 @@ function NewCaseForm() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     {customFieldList.map((field) => (
                       <label key={field.key} htmlFor={"custom-" + field.key} className="block text-sm font-medium">
-                        {field.label}{field.required ? ' *' : ''}
+                        {field.label}
                         {field.type === 'select' ? (
-                          <select id={"custom-" + field.key} required={field.required} value={form.customFields[field.key] ?? ''} onChange={(event) => setForm({ ...form, customFields: { ...form.customFields, [field.key]: event.target.value } })} className={inputClass}>
+                          <select id={"custom-" + field.key} value={form.customFields[field.key] ?? ''} onChange={(event) => setForm({ ...form, customFields: { ...form.customFields, [field.key]: event.target.value } })} className={inputClass}>
                             <option value="">เลือก{field.label}</option>
                             {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
                           </select>
                         ) : (
-                          <input id={"custom-" + field.key} type={field.type} step={field.type === 'number' ? 'any' : undefined} required={field.required} value={form.customFields[field.key] ?? ''} onChange={(event) => setForm({ ...form, customFields: { ...form.customFields, [field.key]: event.target.value } })} className={inputClass} />
+                          <input id={"custom-" + field.key} type={field.type} step={field.type === 'number' ? 'any' : undefined} value={form.customFields[field.key] ?? ''} onChange={(event) => setForm({ ...form, customFields: { ...form.customFields, [field.key]: event.target.value } })} className={inputClass} />
                         )}
                       </label>
                     ))}
@@ -724,42 +711,11 @@ function NewCaseForm() {
               )}
             </div>
               <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="border-b pb-3 text-lg font-semibold">5 อีเมลที่เกี่ยวข้อง (ไม่บังคับ)</h2><p className="text-sm text-muted-foreground">ผูกอีเมลที่มีอยู่แล้วเข้าคดีตอนสร้าง — ไฟล์แนบจะเข้าแท็บเอกสาร · แสดงเฉพาะอีเมลในกล่องของคุณ</p>{token && <EmailLinkCandidates token={token} clientId={form.clientId} selected={selectedEmails} onChange={setSelectedEmails} />}</section>
+            </details>
             </fieldset>
-            <aside className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t bg-card p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] xl:sticky xl:top-4 xl:block xl:rounded-lg xl:border xl:p-5">
-              <div className="hidden space-y-4 xl:block"><h2 className="border-b pb-3 text-lg font-semibold">สรุปก่อนสร้าง</h2>
-                <dl className="space-y-2 text-sm">{[
-                  ['ประเภท', selectedType?.name], ['ชื่อคดี', form.title], ['ลูกความ', clientLabel], ['ฝ่ายเรา', form.partyRole ? PARTY_ROLE_LABELS[form.partyRole as PartyRole] : ''], ['ทนาย', form.leadLawyerId ? leadName ?? 'เลือกแล้ว' : ''], ['ศาล', form.courtName], ['ขั้นเริ่มต้น', CASE_STAGE_LABELS_TH[stage]], ['อีเมลที่จะผูก', `${selectedEmails.length} ฉบับ · ${selectedEmails.reduce((sum, row) => sum + row.attachmentCount, 0)} ไฟล์`],
-                ].map(([label, value]) => <div key={label} className="flex justify-between gap-3"><dt className="shrink-0 text-muted-foreground">{label}</dt><dd className="min-w-0 break-words text-right">{value || '—'}</dd></div>)}</dl>
-                <div className="border-t pt-4 text-sm"><h3 className="font-semibold">ข้อมูลบังคับขั้นต่ำ · ครบ {completed} จาก {checklist.length}</h3><ul className="mt-2 space-y-1">{checklist.map(([label, done]) => <li key={label}>{done ? '✓' : '○'} {label}</li>)}</ul></div>
-              </div>
-              <span className="text-sm tabular-nums xl:hidden">ครบ {completed} จาก {checklist.length}</span>
-            <div className="flex flex-wrap items-center gap-3 xl:flex-col xl:items-stretch">
-          <Button
-            type="button"
-            variant="outline"
-            className="hidden min-h-11 whitespace-nowrap active:bg-accent/80 xl:inline-flex"
-            disabled={submitting}
-            onClick={() => router.push(createdCaseId.current ? `/cases/${createdCaseId.current}?tab=documents` : '/cases')}
-          >
-            {createdCaseId.current ? 'ไปยังคดี' : 'ยกเลิก'}
-          </Button>
-          <Button
-            type="submit"
-            className="min-h-11 whitespace-nowrap px-5 active:bg-primary/80"
-            disabled={
-              submitting ||
-              analysisBusy ||
-              loadingTypes ||
-              !caseTypes.length
-            }
-          >
-            {submitting
-              ? 'กำลังบันทึก…'
-              : uploadFailures.length
-                ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)`
-              : `สร้างคดีที่ขั้น${CASE_STAGE_LABELS_TH[stage]}`}
-          </Button>
-            </div>
+            <aside aria-label="สรุปก่อนเปิดคดี" className="sticky bottom-0 z-[45] flex items-center justify-between gap-3 rounded-lg border bg-card p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] shadow-lg">
+              <span className="text-sm tabular-nums">กรอกครบ {completed} จาก {checklist.length}</span>
+              <Button type="submit" className="min-h-11" disabled={submitting || analysisBusy || loadingTypes || !caseTypes.length}>{submitting ? 'กำลังบันทึก…' : uploadFailures.length ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)` : 'เปิดคดี'}</Button>
             </aside>
           </form>
           {contactDialogCustomerIndex != null && (() => {

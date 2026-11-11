@@ -1,5 +1,8 @@
 'use client';
 
+import dynamic from 'next/dynamic';
+const CaseMessagesPanel = dynamic(() => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
+import { CaseSectionContent } from '@/components/case-page/CaseSectionContent';
 import { CaseJourneyPanel } from '@/components/journey/CaseJourneyPanel';
 import { OwnerPicker } from '@/components/cases/OwnerPicker';
 import { canChangeOwner } from '@/components/journey/case-journey-helpers';
@@ -7,7 +10,7 @@ import { allowedStageChange } from '@/components/journey/allowed-stage-change';
 
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CasePrintForms } from '@/components/cases/CasePrintForms';
-import { CaseOverviewForm, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
+import { CaseOverviewForm, caseOverviewCustomFields, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
 import { CaseProceedingsCard } from '@/components/cases/CaseProceedingsCard';
 import { PaperFileCard } from '@/components/cases/PaperFileCard';
 import { CaseBriefCard } from '@/components/cases/CaseBriefCard';
@@ -29,7 +32,6 @@ import { PRE_LITIGATION_STATUS_LABELS } from '@/lib/pre-litigation';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import {
   Gavel,
   FileText,
@@ -64,7 +66,6 @@ import {
 } from '@lawfirm/shared';
 import { additionalClientsPatch, limitationPatch } from '@/lib/case-overview';
 import {
-  CASE_TAB_IDS,
   CASE_TAB_LABELS,
   caseTabHref,
   parseCaseTab,
@@ -75,54 +76,6 @@ import { buildCasePrioritySummary } from '@/lib/case-workbench';
 import './tokens.css';
 import styles from './case-detail.module.css';
 
-const CaseWorkflows = dynamic(
-  () => import('@/components/workflows/CaseWorkflows').then((m) => m.CaseWorkflows),
-  { ssr: false },
-);
-const CaseTasksPanel = dynamic(
-  () => import('@/components/cases/CaseTasksPanel').then((m) => m.CaseTasksPanel),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
-
-const CaseCalendarPanel = dynamic(
-  () => import('@/components/cases/CaseCalendarPanel').then((m) => m.CaseCalendarPanel),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
-
-const CaseDocumentsPanel = dynamic(
-  () => import('@/components/cases/CaseDocumentsPanel').then((m) => m.CaseDocumentsPanel),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
-
-const CaseBillingPanel = dynamic(
-  () => import('@/components/cases/CaseBillingPanel').then((m) => m.CaseBillingPanel),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
-
-const CaseAskAiPanel = dynamic(
-  () => import('@/components/cases/CaseAskAiPanel'),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
-
-const CaseMessagesPanel = dynamic(
-  () => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
-
-const CaseClosingReportPanel = dynamic(
-  () => import('@/components/cases/CaseClosingReportPanel').then((m) => m.CaseClosingReportPanel),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
-
-const CaseCommentsPanel = dynamic(
-  () => import('@/components/cases/CaseCommentsPanel').then((m) => m.CaseCommentsPanel),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
-
-const CaseEmailPanel = dynamic(
-  () => import('@/components/cases/CaseEmailPanel').then((m) => m.CaseEmailPanel),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
 import { useAuth } from '@/lib/auth';
 import { latestPlaybookReleases, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -149,7 +102,6 @@ import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
 import { AiTrayCards } from '@/components/ai/AiTrayCards';
-import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
 import { CaseNumberInline } from '@/components/cases/CaseNumberInline';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -194,14 +146,16 @@ export default function CaseDetailPage() {
   const { token, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = parseCaseTab(searchParams.get('tab'));
+  const activeTab = searchParams.has('task') ? 'tasks' : searchParams.has('tab') ? parseCaseTab(searchParams.get('tab')) : null;
   const selectTab = (tab: CaseTabId) => {
-    router.replace(caseTabHref(id, tab), { scroll: false });
+    router.replace(`/cases/${id}?tab=${tab}`, { scroll: false });
   };
   const [legalCase, setCase] = useState<CaseDetail | null>(null);
+  useEffect(() => { if (activeTab && searchParams.has('tab')) document.getElementById(`case-tab-${activeTab}`)?.scrollIntoView({ block: 'start' }); }, [activeTab, searchParams, legalCase]);
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
   const [emailTimeline, setEmailTimeline] = useState<EmailTimelineItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [commentCount, setCommentCount] = useState<number | null>(null);
   const [checklistStatusFilter, setChecklistStatusFilter] = useState('ALL');
   const [checklistOwnerFilter, setChecklistOwnerFilter] = useState('ALL');
   const [requiredDocs, setRequiredDocs] = useState<RequiredDocumentsResult>({ required: [], missing: [] });
@@ -216,6 +170,17 @@ export default function CaseDetailPage() {
   const [showAllTimeline, setShowAllTimeline] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingOverview, setEditingOverview] = useState(false);
+  const [focusMissing, setFocusMissing] = useState<string | null>(null);
+  useEffect(() => {
+    if (!editingOverview || activeTab !== 'overview' || !focusMissing) return;
+    const form = document.querySelector('[data-testid=case-information-edit]');
+    const schema = Array.isArray(legalCase?.caseType?.fieldSchema) ? legalCase.caseType.fieldSchema as Array<{key: string; label: string}> : [];
+    const key = schema.find((field) => field.label === focusMissing)?.key;
+    const label = key === 'chargeSection' ? 'ข้อหาหรือฐานความผิด' : key === 'incidentDate' ? 'วันเกิดเหตุ' : key === 'estimatedDamage' ? 'มูลค่าความเสียหาย' : focusMissing;
+    const field = (key && document.getElementById(`custom-${key}`)) || [...(form?.querySelectorAll('label') ?? [])].find((item) => item.textContent?.trim().startsWith(label))?.querySelector<HTMLElement>('input, select, textarea');
+    field?.focus();
+    setFocusMissing(null);
+  }, [editingOverview, activeTab, focusMissing, legalCase]);
   const [editingOwner, setEditingOwner] = useState(false);
   const [loadingTeam, setLoadingTeam] = useState(false);
   const [ownerId, setOwnerId] = useState('');
@@ -248,6 +213,7 @@ export default function CaseDetailPage() {
     additionalClientIds: [] as string[],
     clientId: '',
     clientName: '',
+    customFields: {} as Record<string, string>,
     customers: [] as CaseOverviewCustomerValue[],
   });
   const [showCloseForm, setShowCloseForm] = useState(false);
@@ -303,6 +269,7 @@ export default function CaseDetailPage() {
       .listCasePrecedentAnalyses(token, id)
       .then(setPrecedentAnalyses)
       .catch(() => setPrecedentAnalyses([]));
+    api.getCaseComments(token, id).then((comments) => setCommentCount(comments.length)).catch(() => setCommentCount(null));
     api.getRequiredDocuments(token, id).then(setRequiredDocs).catch(() => setRequiredDocs({ required: [], missing: [] }));
     api.getCaseEmailThreads(token, id).then((t) => setEmailTimeline(emailTimelineItems(t))).catch(() => setEmailTimeline([]));
     setupRequest<PlaybookRelease[]>(token, '/playbooks').then(items => setPlaybooks(latestPlaybookReleases(items))).catch(() => setPlaybooks([]));
@@ -645,6 +612,7 @@ export default function CaseDetailPage() {
       additionalClientIds: (legalCase.additionalClients ?? []).map((ac) => ac.clientId),
       clientId: legalCase.clientId ?? '',
       clientName: legalCase.client?.name ?? legalCase.clientName ?? '',
+      customFields: Object.fromEntries(caseOverviewCustomFields(legalCase.caseType?.fieldSchema).map((field) => [field.key, String(legalCase.customFields?.[field.key] ?? '')])),
       customers: legalCase.customers?.length
         ? legalCase.customers.map((customer) => ({
             customerId: customer.customerId,
@@ -728,6 +696,7 @@ export default function CaseDetailPage() {
         claimedAmount: overviewForm.claimedAmount.trim() ? Number(overviewForm.claimedAmount) : null,
         customFields: {
           ...Object.fromEntries(Object.entries(legalCase.customFields ?? {}).filter(([key]) => key !== 'opposingParty')),
+          ...Object.fromEntries(Object.entries(overviewForm.customFields).map(([key, fieldValue]) => [key, fieldValue.trim()])),
           chargeSection: overviewForm.chargeSection.trim(),
           incidentDate: overviewForm.incidentDate,
           estimatedDamage: overviewForm.estimatedDamage,
@@ -925,36 +894,22 @@ export default function CaseDetailPage() {
                 onSaved={(ownRef) => setCase((prev) => (prev ? { ...prev, ownRef } : prev))}
               />
             </p>
-              {legalCase.partyRole && (
-                <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-foreground">
-                  {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}
-                </span>
-              )}
-              {legalCase.stage && (
-                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                  {caseStageLabel(legalCase.stage, 'th')}
-                </span>
-              )}
-              <CaseStatusBadge status={legalCase.status} />
+
             </div>
             <h1 className={styles.title}>{legalCase.title}</h1>
             <div className={styles.identityMeta}>
-              <span>ลูกความ <strong>{clientDisplay}</strong></span>
-              {showCustomer && <span>ผู้ว่าจ้าง <strong>{customerDisplay}</strong></span>}
-              <span>ทนายผู้รับผิดชอบ <strong>{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</strong></span>
-              {legalCase.courtName && <span>ศาล <strong>{legalCase.courtName}</strong></span>}
               {legalCase.blackCaseNumber && <span>คดีดำ <strong>{legalCase.blackCaseNumber}</strong></span>}
+              {legalCase.courtName && <span>ศาล <strong>{legalCase.courtName}</strong></span>}
             </div>
           </div>
           <div className={styles.identityActions}>
-            <Button className="min-h-11" onClick={() => setRecordingOutcome(true)}>
-              <Gavel aria-hidden="true" className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
-            </Button>
-            <CasePrintForms key={legalCase.id} legalCase={legalCase} />
+
             <details data-overflow-menu className="relative">
               <summary aria-label="การดำเนินการเพิ่มเติม" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-md border bg-card text-xl hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">⋯</summary>
               <div className="absolute right-0 z-30 mt-1 w-[min(90vw,24rem)] max-h-[70vh] overflow-auto rounded-lg border bg-card p-3 shadow-lg">
-                {legalCase.intake && preFiling && activeTab !== 'overview' && <Button variant="ghost" className="min-h-11" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>}
+                <details><summary className="min-h-11 cursor-pointer py-3 text-sm">ป้ายแฟ้ม</summary><PaperFileCard key={id} caseId={id} /></details>
+                <Button variant="ghost" onClick={() => setRecordingOutcome(true)}><Gavel aria-hidden="true" className="h-4 w-4" />บันทึกผลหลังขึ้นศาล</Button><CasePrintForms key={legalCase.id} legalCase={legalCase} />
+                {legalCase.intake && preFiling && <Button variant="ghost" className="min-h-11" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>}
             <details className="w-full"><summary className="min-h-11 cursor-pointer py-3 text-sm">เปลี่ยนขั้นตอนเอง…</summary>
       <div className={styles.stagePanel} data-testid="case-stage-control">
         <div className={styles.stageHeader}>
@@ -1026,47 +981,14 @@ export default function CaseDetailPage() {
         </div>
       </header>
 
-      {token && <div className="mb-6 grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <CaseJourneyPanel token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} stage={legalCase.stage ?? null} tasksVersion={tasks} onChanged={loadCase} onEdit={() => { selectTab('overview'); void startEditOverview(); }} />
-        {bannerProposals.length > 0 && pendingStage === null && legalCase.stage && <div className="min-w-0 text-sm text-muted-foreground xl:col-start-1">มีงานแนะนำจาก SOP {bannerProposals.length} งาน · <button type="button" className="min-h-11 text-primary underline" onClick={openBannerProposals}>ดูและสร้างงาน</button></div>}
-        <aside className="min-w-0 space-y-4 xl:col-start-2 xl:row-start-2 xl:row-span-2">
-          <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="font-semibold">ทีมคดี ({1 + legalCase.assignments.length})</h2>
-            <div className="border-t pt-3"><p className="text-xs text-muted-foreground">เจ้าของคดี</p><p className="break-words font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName} {legalCase.intake?.receivedById === legalCase.leadLawyer.id && <span className="text-xs text-muted-foreground">· ผู้รับเรื่อง</span>}</p></div>
-            {legalCase.assignments.map(({ user: member }) => <div key={member.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><span className="min-w-0 break-words">{member.firstName} {member.lastName} {legalCase.intake?.receivedById === member.id && <span className="text-xs text-muted-foreground">· ผู้รับเรื่อง</span>}</span>{member.id === user?.id && member.id !== legalCase.leadLawyer.id && <Button variant="outline" size="sm" disabled={ownerBusy} onClick={() => { if (!confirm('ออกจากทีมคดีนี้?')) return; setOwnerBusy(true); setOwnerError(''); void api.leaveCaseTeam(token, id).then(() => loadCase()).catch((e) => setOwnerError(e instanceof Error ? e.message : 'ออกจากทีมไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>ออกจากทีม</Button>}</div>)}
-            {handedOver && <p className="text-sm text-success">ส่งต่อแล้ว — คุณยังอยู่ในทีมคดี</p>}
-            {ownerError && <p role="alert" className="text-sm text-destructive">{ownerError}</p>}
-            {canChangeOwner(hasFirmCapability(user?.firmRole, 'reassignCaseLead'), user?.id, legalCase.leadLawyer.id, legalCase.intake?.receivedById) && (editingOwner ? <div className="space-y-2"><label htmlFor="case-owner" className="text-sm">เจ้าของคดีคนใหม่</label><OwnerPicker id="case-owner" token={token} value={ownerId} onChange={setOwnerId} currentUserId={user?.id} /><div className="flex flex-wrap gap-2"><Button disabled={ownerBusy || !ownerId || ownerId === legalCase.leadLawyer.id} onClick={() => { setOwnerBusy(true); setOwnerError(''); const receiver = user?.id === legalCase.intake?.receivedById && user?.id === legalCase.leadLawyer.id; void api.updateCase(token, id, { leadLawyerId: ownerId }).then(() => { setEditingOwner(false); if (receiver) setHandedOver(true); return loadCase(); }).catch((e) => setOwnerError(e instanceof Error ? e.message : 'เปลี่ยนเจ้าของคดีไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>{ownerBusy ? 'กำลังบันทึก…' : 'บันทึก'}</Button><Button variant="outline" onClick={() => setEditingOwner(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={() => { setOwnerId(legalCase.leadLawyer.id); setEditingOwner(true); }}>เปลี่ยนเจ้าของคดี</Button>)}
-            {(hasFirmCapability(user?.firmRole, 'reassignCaseLead') || user?.id === legalCase.leadLawyer.id) && (editingTeam ? <div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">คนในทีม <span className="font-normal text-muted-foreground">· เลือกได้หลายคน</span></p>{loadingTeam && <p className="text-sm text-muted-foreground">กำลังโหลดรายชื่อ…</p>}<div className="max-h-80 space-y-0.5 overflow-y-auto">{teamPeople.filter((p) => p.userId !== legalCase.leadLawyer.id).map((p) => <label key={p.userId} className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-1 py-2 text-sm hover:bg-muted/50"><input type="checkbox" className="mt-1" checked={teamForm.buddyIds.includes(p.userId)} onChange={() => setTeamForm((f) => ({ ...f, buddyIds: f.buddyIds.includes(p.userId) ? f.buddyIds.filter((x) => x !== p.userId) : [...f.buddyIds, p.userId] }))} /><span className="min-w-0"><span className="block break-words font-medium">{p.firstName} {p.lastName}{p.userId === user?.id ? ' (ฉัน)' : ''}</span><span className="block text-xs text-muted-foreground">เปิดอยู่ {p.openCaseCount} · <span className={p.overdueTaskCount ? 'text-destructive' : ''}>เลยกำหนด {p.overdueTaskCount}</span>{p.leave ? ` · ลา ${p.leave.startDate.slice(8)}/${p.leave.startDate.slice(5, 7)}–${p.leave.endDate.slice(8)}/${p.leave.endDate.slice(5, 7)}` : ''}</span></span></label>)}</div>{teamError && <p role="alert" className="text-sm text-destructive">{teamError}</p>}<div className="flex flex-wrap gap-2"><Button disabled={savingTeam || loadingTeam || teamPeople.length === 0} onClick={handleSaveTeam}>{savingTeam ? 'กำลังบันทึก…' : `บันทึกทีม (${teamForm.buddyIds.filter((x) => x !== legalCase.leadLawyer.id).length} คน)`}</Button><Button variant="outline" onClick={() => setEditingTeam(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={startEditTeam}>{legalCase.assignments.length ? 'แก้ไขทีม' : '+ เพิ่มคนในทีม'}</Button>)}
-          </section>
-          {legalCase.originThread && <section className="space-y-2 rounded-lg border bg-card p-4"><h2 className="font-semibold">ที่มาของเรื่อง</h2><p className="text-sm">รับจากอีเมล {formatDate(legalCase.originThread.receivedAt)}{legalCase.intake?.receivedBy && ` โดย ${legalCase.intake.receivedBy.firstName} ${legalCase.intake.receivedBy.lastName}`}</p><Link className="inline-block min-h-11 text-sm text-primary underline" href={`/email-intake/${legalCase.originThread.id}`}>เปิดอีเมลต้นทาง →</Link><p className="text-sm text-muted-foreground">ไฟล์แนบ {legalCase.originThread.attachmentCount} ไฟล์ อยู่ในแท็บเอกสาร</p></section>}
-        </aside>
+      {token && <div className="mb-6 min-w-0 space-y-4">
+        <CaseJourneyPanel token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} stage={legalCase.stage ?? null} tasksVersion={tasks} onChanged={loadCase} onEdit={(missing) => { selectTab('overview'); void startEditOverview(); if (missing?.length) setFocusMissing(missing[0]); }} onOpenTask={(taskId) => router.push(`/cases/${id}?task=${encodeURIComponent(taskId)}`)} />
+
+
       </div>}
 
 
-      <AiTrayCards caseId={id} onChanged={loadCase} />
-
-      <section className={styles.signalStrip} aria-label="สัญญาณสำคัญของคดี" data-testid="case-priority-signals">
-        <button type="button" onClick={() => selectTab('calendar')} className={styles.signalButton}>
-          <span className={styles.signalLabel}>นัดหมายถัดไป</span>
-          <strong className={styles.signalValue}>{priority.nextEvent?.title ?? 'ยังไม่มีนัดถัดไป'}</strong>
-          <span className={styles.signalMeta}>{priority.nextEvent ? formatDateTime(priority.nextEvent.startAt) : 'เปิดไทม์ไลน์เพื่อเพิ่มนัด'}</span>
-        </button>
-        <div className={styles.signal}>
-          <span className={styles.signalLabel}>อายุความ</span>
-          <strong className={`${styles.signalValue} ${priority.limitationDays != null && priority.limitationDays <= 30 ? "text-destructive" : ""}`}>{priority.limitationDays == null ? 'ยังไม่ระบุ' : `อีก ${priority.limitationDays} วัน`}</strong>
-          <span className={styles.signalMeta}>{legalCase.limitationDeadline ? `ครบ ${formatDate(legalCase.limitationDeadline)}` : 'ยังไม่มีวันที่ให้ประเมิน'}</span>
-        </div>
-        <button type="button" onClick={() => selectTab('tasks')} className={styles.signalButton}>
-          <span className={styles.signalLabel}>งานค้าง</span>
-          <strong className={styles.signalValue}>{priority.pendingTaskCount} รายการ</strong>
-          <span className={styles.signalMeta}>{priority.nextPendingTask?.dueDate ? `ใกล้สุด ${formatDate(priority.nextPendingTask.dueDate)}` : priority.nextPendingTask ? 'งานถัดไปยังไม่กำหนดวันส่ง' : 'ไม่มีงานค้าง'}</span>
-        </button>
-        <button type="button" onClick={() => selectTab('documents')} className={styles.signalButton}>
-          <span className={styles.signalLabel}>เอกสารที่ต้องมี</span>
-          <strong className={styles.signalValue}>{priority.presentRequiredDocumentCount}/{priority.requiredDocumentCount}</strong>
-          <span className={styles.signalMeta}>{priority.missingRequiredDocumentCount > 0 ? `ขาด ${priority.missingRequiredDocumentCount} รายการ` : priority.requiredDocumentCount > 0 ? 'ครบตามรายการ' : 'ยังไม่มีรายการบังคับ'}</span>
-        </button>
-      </section>
+      {(legalCase.calendarEvents?.some(event => event.type === 'COURT_DATE' && new Date(event.startAt) >= new Date()) || legalCase.limitationDeadline) && <p className="mb-5 text-sm text-muted-foreground">ระบบจะแจ้งเตือน: {[(() => { const event = legalCase.calendarEvents?.filter(item => item.type === 'COURT_DATE' && new Date(item.startAt) >= new Date()).sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt))[0]; return event && `นัดศาล ${formatDate(event.startAt)}`; })(), legalCase.limitationDeadline && `อายุความครบ ${formatDate(legalCase.limitationDeadline)}`].filter(Boolean).join(' · ')}</p>}
 
         <StageTasksDialog
           open={pendingStage !== null}
@@ -1080,18 +1002,6 @@ export default function CaseDetailPage() {
           onConfirm={handleStageAndCreateTasks}
         />
 
-      <div className="mb-5">
-        {activeTab !== 'tasks' && suggestedPlaybook && !hasAppliedPlaybook && (
-          <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-            <p className="text-sm">
-              แนะนำ SOP <span className="font-medium">{suggestedPlaybook.name}</span> · {suggestedPlaybook.steps.length} ขั้นตอน
-            </p>
-            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => previewPlaybook(suggestedPlaybook.id)}>
-              ดูรายการงานจาก SOP
-            </Button>
-          </div>
-        )}
-      </div>
 
       {showCloseForm && (
         <Card id="case-close-form" className="mb-6 scroll-mt-24 border-warning/40 bg-warning/5">
@@ -1200,6 +1110,16 @@ export default function CaseDetailPage() {
         </Card>
       )}
 
+      <div aria-label="พื้นที่ทำงานคดี" className="mb-4 space-y-2">
+        <div>
+          <button type="button" id="case-tab-overview" aria-expanded={activeTab === 'overview'} aria-controls="case-tabpanel-overview" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'overview' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('overview')}><span>{'ข้อมูลคดี'}</span><span aria-hidden>{activeTab === 'overview' ? '−' : '›'}</span></button>
+      {activeTab === 'overview' && (
+      <div
+        role="tabpanel"
+        id="case-tabpanel-overview"
+        aria-labelledby="case-tab-overview"
+        className="min-w-0"
+      >
       {legalCase.status === CaseStatus.CLOSED && legalCase.closingSummary && (
         <Card className="mb-6">
           <CardHeader><CardTitle className="text-sm">สรุปคดี</CardTitle></CardHeader>
@@ -1209,160 +1129,62 @@ export default function CaseDetailPage() {
         </Card>
       )}
 
-      <nav className={styles.tabDock} aria-label="พื้นที่ทำงานคดี">
-        <div className={styles.tabScroller}>
-          <div role="tablist" aria-label="เมนูคดี" className={styles.tabList}>
-            {CASE_TAB_IDS.map((tabId) => {
-              const selected = activeTab === tabId;
-              return (
-                <button
-                  key={tabId}
-                  type="button"
-                  role="tab"
-                  id={`case-tab-${tabId}`}
-                  aria-selected={selected}
-                  aria-controls={`case-tabpanel-${tabId}`}
-                  tabIndex={selected ? 0 : -1}
-                  className={selected ? `${styles.tabButton} ${styles.tabSelected}` : styles.tabButton}
-                  onClick={() => selectTab(tabId)}
-                >
-                  {CASE_TAB_LABELS[tabId]} {tabId === 'tasks' && <span className="rounded-full bg-muted px-2 text-xs tabular-nums">{tasks.length}</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </nav>
-
-      {activeTab === 'tasks' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-tasks"
-          aria-labelledby="case-tab-tasks"
-          className="min-w-0"
-        >
-          <CaseWorkflows caseId={id} />
-          <CaseTasksPanel caseId={id} onTasksChanged={setTasks} />
-        </div>
-      )}
-
-      {activeTab === 'calendar' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-calendar"
-          aria-labelledby="case-tab-calendar"
-          className="min-w-0"
-        >
-          <CaseCalendarPanel caseId={id} onChanged={loadCase} />
-        </div>
-      )}
-
-      {activeTab === 'documents' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-documents"
-          aria-labelledby="case-tab-documents"
-          className="min-w-0"
-        >
-          <div className="mb-3 flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-expanded={showAiAnalysis}
-              aria-controls="case-ai-analysis-panel"
-              onClick={() => setShowAiAnalysis(true)}
-            >
-              <Sparkles aria-hidden="true" className="h-4 w-4" />สรุปเอกสารรวม
+      <AiTrayCards caseId={id} onChanged={loadCase} />
+      <CaseStatusBadge status={legalCase.status} />
+        {bannerProposals.length > 0 && pendingStage === null && legalCase.stage && <div className="min-w-0 text-sm text-muted-foreground xl:col-start-1">มีงานแนะนำจาก SOP {bannerProposals.length} งาน · <button type="button" className="min-h-11 text-primary underline" onClick={openBannerProposals}>ดูและสร้างงาน</button></div>}
+      <div className="mb-5">
+        {suggestedPlaybook && !hasAppliedPlaybook && (
+          <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+            <p className="text-sm">
+              แนะนำ SOP <span className="font-medium">{suggestedPlaybook.name}</span> · {suggestedPlaybook.steps.length} ขั้นตอน
+            </p>
+            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => previewPlaybook(suggestedPlaybook.id)}>
+              ดูรายการงานจาก SOP
             </Button>
           </div>
-          <CaseDocumentsPanel caseId={id} onChanged={loadCase} newFolderName={`${legalCase.ownRef} - ${legalCase.title}`} />
-        </div>
-      )}
+        )}
+      </div>
 
-      {activeTab === 'email' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-email"
-          aria-labelledby="case-tab-email"
-          className="min-w-0"
-        >
-          <CaseEmailPanel key={id} caseId={id} caseRef={legalCase.ownRef} initialThreadId={searchParams.get('thread')} onOpenSuggestions={() => selectTab('documents')} />
+      <details className="mb-4"><summary className="min-h-11 cursor-pointer">สัญญาณสำคัญของคดี</summary>
+      <section className={styles.signalStrip} aria-label="สัญญาณสำคัญของคดี" data-testid="case-priority-signals">
+        <button type="button" onClick={() => selectTab('calendar')} className={styles.signalButton}>
+          <span className={styles.signalLabel}>นัดหมายถัดไป</span>
+          <strong className={styles.signalValue}>{priority.nextEvent?.title ?? 'ยังไม่มีนัดถัดไป'}</strong>
+          <span className={styles.signalMeta}>{priority.nextEvent ? formatDateTime(priority.nextEvent.startAt) : 'เปิดไทม์ไลน์เพื่อเพิ่มนัด'}</span>
+        </button>
+        <div className={styles.signal}>
+          <span className={styles.signalLabel}>อายุความ</span>
+          <strong className={`${styles.signalValue} ${priority.limitationDays != null && priority.limitationDays <= 30 ? "text-destructive" : ""}`}>{priority.limitationDays == null ? 'ยังไม่ระบุ' : `อีก ${priority.limitationDays} วัน`}</strong>
+          <span className={styles.signalMeta}>{legalCase.limitationDeadline ? `ครบ ${formatDate(legalCase.limitationDeadline)}` : 'ยังไม่มีวันที่ให้ประเมิน'}</span>
         </div>
-      )}
+        <button type="button" onClick={() => selectTab('tasks')} className={styles.signalButton}>
+          <span className={styles.signalLabel}>งานค้าง</span>
+          <strong className={styles.signalValue}>{priority.pendingTaskCount} รายการ</strong>
+          <span className={styles.signalMeta}>{priority.nextPendingTask?.dueDate ? `ใกล้สุด ${formatDate(priority.nextPendingTask.dueDate)}` : priority.nextPendingTask ? 'งานถัดไปยังไม่กำหนดวันส่ง' : 'ไม่มีงานค้าง'}</span>
+        </button>
+        <button type="button" onClick={() => selectTab('documents')} className={styles.signalButton}>
+          <span className={styles.signalLabel}>เอกสารที่ต้องมี</span>
+          <strong className={styles.signalValue}>{priority.presentRequiredDocumentCount}/{priority.requiredDocumentCount}</strong>
+          <span className={styles.signalMeta}>{priority.missingRequiredDocumentCount > 0 ? `ขาด ${priority.missingRequiredDocumentCount} รายการ` : priority.requiredDocumentCount > 0 ? 'ครบตามรายการ' : 'ยังไม่มีรายการบังคับ'}</span>
+        </button>
+      </section>
 
-      {activeTab === 'comments' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-comments"
-          aria-labelledby="case-tab-comments"
-          className="min-w-0"
-        >
-          <CaseCommentsPanel
-            caseId={id}
-            teamMembers={[legalCase.leadLawyer, ...legalCase.assignments.map((a) => a.user)].filter(
-              (m, i, all) => all.findIndex((x) => x.id === m.id) === i,
-            )}
-          />
-        </div>
-      )}
-
-      {activeTab === 'cargo-claim' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-cargo-claim"
-          aria-labelledby="case-tab-cargo-claim"
-          className="min-w-0"
-        >
-          <CargoClaimPanel caseId={id} />
-        </div>
-      )}
-
-      {activeTab === 'billing' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-billing"
-          aria-labelledby="case-tab-billing"
-          className="min-w-0"
-        >
-          <CaseBillingPanel caseId={id} />
-        </div>
-      )}
-
-      {activeTab === 'ask-ai' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-ask-ai"
-          aria-labelledby="case-tab-ask-ai"
-          className="min-w-0"
-        >
-          <CaseAskAiPanel caseId={id} />
-        </div>
-      )}
-
-      {activeTab === 'closing-report' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-closing-report"
-          aria-labelledby="case-tab-closing-report"
-          className="min-w-0"
-        >
-          <CaseClosingReportPanel caseId={id} />
-        </div>
-      )}
-
-      {activeTab === 'overview' && (
-      <div
-        role="tabpanel"
-        id="case-tabpanel-overview"
-        aria-labelledby="case-tab-overview"
-        className="min-w-0"
-      >
+      </details>
       <CaseBriefCard caseId={id} />
+              {token && <aside className="min-w-0 space-y-4 xl:col-start-2 xl:row-start-2 xl:row-span-2">
+          <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="font-semibold">ทีมคดี ({1 + legalCase.assignments.length})</h2>
+            <div className="border-t pt-3"><p className="text-xs text-muted-foreground">เจ้าของคดี</p><p className="break-words font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName} {legalCase.intake?.receivedById === legalCase.leadLawyer.id && <span className="text-xs text-muted-foreground">· ผู้รับเรื่อง</span>}</p></div>
+            {legalCase.assignments.map(({ user: member }) => <div key={member.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><span className="min-w-0 break-words">{member.firstName} {member.lastName} {legalCase.intake?.receivedById === member.id && <span className="text-xs text-muted-foreground">· ผู้รับเรื่อง</span>}</span>{member.id === user?.id && member.id !== legalCase.leadLawyer.id && <Button variant="outline" size="sm" disabled={ownerBusy} onClick={() => { if (!confirm('ออกจากทีมคดีนี้?')) return; setOwnerBusy(true); setOwnerError(''); void api.leaveCaseTeam(token, id).then(() => loadCase()).catch((e) => setOwnerError(e instanceof Error ? e.message : 'ออกจากทีมไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>ออกจากทีม</Button>}</div>)}
+            {handedOver && <p className="text-sm text-success">ส่งต่อแล้ว — คุณยังอยู่ในทีมคดี</p>}
+            {ownerError && <p role="alert" className="text-sm text-destructive">{ownerError}</p>}
+            {canChangeOwner(hasFirmCapability(user?.firmRole, 'reassignCaseLead'), user?.id, legalCase.leadLawyer.id, legalCase.intake?.receivedById) && (editingOwner ? <div className="space-y-2"><label htmlFor="case-owner" className="text-sm">เจ้าของคดีคนใหม่</label><OwnerPicker id="case-owner" token={token} value={ownerId} onChange={setOwnerId} currentUserId={user?.id} /><div className="flex flex-wrap gap-2"><Button disabled={ownerBusy || !ownerId || ownerId === legalCase.leadLawyer.id} onClick={() => { setOwnerBusy(true); setOwnerError(''); const receiver = user?.id === legalCase.intake?.receivedById && user?.id === legalCase.leadLawyer.id; void api.updateCase(token, id, { leadLawyerId: ownerId }).then(() => { setEditingOwner(false); if (receiver) setHandedOver(true); return loadCase(); }).catch((e) => setOwnerError(e instanceof Error ? e.message : 'เปลี่ยนเจ้าของคดีไม่สำเร็จ')).finally(() => setOwnerBusy(false)); }}>{ownerBusy ? 'กำลังบันทึก…' : 'บันทึก'}</Button><Button variant="outline" onClick={() => setEditingOwner(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={() => { setOwnerId(legalCase.leadLawyer.id); setEditingOwner(true); }}>เปลี่ยนเจ้าของคดี</Button>)}
+            {(hasFirmCapability(user?.firmRole, 'reassignCaseLead') || user?.id === legalCase.leadLawyer.id) && (editingTeam ? <div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">คนในทีม <span className="font-normal text-muted-foreground">· เลือกได้หลายคน</span></p>{loadingTeam && <p className="text-sm text-muted-foreground">กำลังโหลดรายชื่อ…</p>}<div className="max-h-80 space-y-0.5 overflow-y-auto">{teamPeople.filter((p) => p.userId !== legalCase.leadLawyer.id).map((p) => <label key={p.userId} className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-1 py-2 text-sm hover:bg-muted/50"><input type="checkbox" className="mt-1" checked={teamForm.buddyIds.includes(p.userId)} onChange={() => setTeamForm((f) => ({ ...f, buddyIds: f.buddyIds.includes(p.userId) ? f.buddyIds.filter((x) => x !== p.userId) : [...f.buddyIds, p.userId] }))} /><span className="min-w-0"><span className="block break-words font-medium">{p.firstName} {p.lastName}{p.userId === user?.id ? ' (ฉัน)' : ''}</span><span className="block text-xs text-muted-foreground">เปิดอยู่ {p.openCaseCount} · <span className={p.overdueTaskCount ? 'text-destructive' : ''}>เลยกำหนด {p.overdueTaskCount}</span>{p.leave ? ` · ลา ${p.leave.startDate.slice(8)}/${p.leave.startDate.slice(5, 7)}–${p.leave.endDate.slice(8)}/${p.leave.endDate.slice(5, 7)}` : ''}</span></span></label>)}</div>{teamError && <p role="alert" className="text-sm text-destructive">{teamError}</p>}<div className="flex flex-wrap gap-2"><Button disabled={savingTeam || loadingTeam || teamPeople.length === 0} onClick={handleSaveTeam}>{savingTeam ? 'กำลังบันทึก…' : `บันทึกทีม (${teamForm.buddyIds.filter((x) => x !== legalCase.leadLawyer.id).length} คน)`}</Button><Button variant="outline" onClick={() => setEditingTeam(false)}>ยกเลิก</Button></div></div> : <Button variant="outline" onClick={startEditTeam}>{legalCase.assignments.length ? 'แก้ไขทีม' : '+ เพิ่มคนในทีม'}</Button>)}
+          </section>
+          {legalCase.originThread && <section className="space-y-2 rounded-lg border bg-card p-4"><h2 className="font-semibold">ที่มาของเรื่อง</h2><p className="text-sm">รับจากอีเมล {formatDate(legalCase.originThread.receivedAt)}{legalCase.intake?.receivedBy && ` โดย ${legalCase.intake.receivedBy.firstName} ${legalCase.intake.receivedBy.lastName}`}</p><Link className="inline-block min-h-11 text-sm text-primary underline" href={`/email-intake/${legalCase.originThread.id}`}>เปิดอีเมลต้นทาง →</Link><p className="text-sm text-muted-foreground">ไฟล์แนบ {legalCase.originThread.attachmentCount} ไฟล์ อยู่ในแท็บเอกสาร</p></section>}
+        </aside>}
       <div className={styles.workspace}>
         <section className={styles.mainPane} aria-label="ข้อมูลและประวัติคดี">
           <CaseSummaryPanel caseId={id} onChanged={loadCase} />
-          <PaperFileCard key={id} caseId={id} />
           <Card data-testid="case-information">
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-base">{editingOverview ? 'แก้ไขข้อมูลคดี' : 'ข้อมูลคดี'}</CardTitle>
@@ -1413,10 +1235,10 @@ export default function CaseDetailPage() {
                     <p className="text-xs text-muted-foreground">ประเภทคดี</p>
                     <p className="font-medium">{legalCase.caseType?.name ?? '—'}</p>
                   </div>
-                  <div>
+                  {legalCase.insuranceClaim && <div>
                     <p className="text-xs text-muted-foreground">Policy Ref</p>
                     <p className="font-medium">{policyRef}</p>
-                  </div>
+                  </div>}
                   <div>
                     <p className="text-xs text-muted-foreground">Customer Ref</p>
                     <p className="font-medium">{legalCase.customerRef ?? '—'}</p>
@@ -1532,21 +1354,6 @@ export default function CaseDetailPage() {
                   <Button size="sm" onClick={() => setNoticeOpen(true)}><Plus aria-hidden="true" className="h-4 w-4" />ออก Notice{legalCase.intake.noticeIssuedAt ? 'ฉบับใหม่' : ''}</Button>
                 </div>
               </CardHeader>
-              <CaseNoticeDialog
-                intakeId={legalCase.intake.id}
-                defaultRecipient={legalCase.intake.noticeRecipient}
-                open={noticeOpen}
-                onClose={() => setNoticeOpen(false)}
-                onDone={loadCase}
-              />
-              <PreLitigationUpdateDialog
-                intakeId={legalCase.intake.id}
-                currentStatus={legalCase.intake.preLitigationStatus}
-                currentOffer={legalCase.intake.settlementOfferAmount}
-                open={preLitOpen}
-                onClose={() => setPreLitOpen(false)}
-                onDone={loadCase}
-              />
               <CardContent className="space-y-2 text-sm">
                 {legalCase.intake.noticeIssuedAt ? (
                   <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2">
@@ -2015,6 +1822,62 @@ export default function CaseDetailPage() {
       </div>
       </div>
       )}
+        </div>
+        <div>
+          <button type="button" id="case-tab-documents" aria-expanded={activeTab === 'documents'} aria-controls="case-tabpanel-documents" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'documents' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('documents')}><span>{'เอกสาร' + ` (${legalCase._count.documents})`}</span><span aria-hidden>{activeTab === 'documents' ? '−' : '›'}</span></button>
+      {activeTab === 'documents' && <CaseSectionContent tab="documents" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        </div>
+        <div>
+          <button type="button" id="case-tab-billing" aria-expanded={activeTab === 'billing'} aria-controls="case-tabpanel-billing" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'billing' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('billing')}><span>{'บัญชี'}</span><span aria-hidden>{activeTab === 'billing' ? '−' : '›'}</span></button>
+      {activeTab === 'billing' && <CaseSectionContent tab="billing" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        </div>
+        <div>
+          <button type="button" id="case-tab-comments" aria-expanded={activeTab === 'comments'} aria-controls="case-tabpanel-comments" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'comments' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('comments')}><span>{'ข้อความ'}{commentCount !== null && ` (${commentCount})`}</span><span aria-hidden>{activeTab === 'comments' ? '−' : '›'}</span></button>
+      {activeTab === 'comments' && <CaseSectionContent tab="comments" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        </div>
+        <div>
+          <button type="button" id="case-tab-tasks" aria-expanded={activeTab === 'tasks'} aria-controls="case-tabpanel-tasks" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'tasks' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('tasks')}><span>{CASE_TAB_LABELS['tasks'] + ` (${tasks.length})`}</span><span aria-hidden>{activeTab === 'tasks' ? '−' : '›'}</span></button>
+      {activeTab === 'tasks' && <CaseSectionContent tab="tasks" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        </div>
+        <div>
+          <button type="button" id="case-tab-calendar" aria-expanded={activeTab === 'calendar'} aria-controls="case-tabpanel-calendar" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'calendar' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('calendar')}><span>{'ปฏิทิน'}</span><span aria-hidden>{activeTab === 'calendar' ? '−' : '›'}</span></button>
+      {activeTab === 'calendar' && <CaseSectionContent tab="calendar" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        </div>
+        <div>
+          <button type="button" id="case-tab-email" aria-expanded={activeTab === 'email'} aria-controls="case-tabpanel-email" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'email' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('email')}><span>{CASE_TAB_LABELS['email']}</span><span aria-hidden>{activeTab === 'email' ? '−' : '›'}</span></button>
+      {activeTab === 'email' && <CaseSectionContent tab="email" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        </div>
+        {(!!legalCase.cargoClaim) && <div>
+          <button type="button" id="case-tab-cargo-claim" aria-expanded={activeTab === 'cargo-claim'} aria-controls="case-tabpanel-cargo-claim" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'cargo-claim' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('cargo-claim')}><span>{CASE_TAB_LABELS['cargo-claim']}</span><span aria-hidden>{activeTab === 'cargo-claim' ? '−' : '›'}</span></button>
+      {activeTab === 'cargo-claim' && <CaseSectionContent tab="cargo-claim" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        </div>}
+        <div>
+          <button type="button" id="case-tab-ask-ai" aria-expanded={activeTab === 'ask-ai'} aria-controls="case-tabpanel-ask-ai" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'ask-ai' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('ask-ai')}><span>{CASE_TAB_LABELS['ask-ai']}</span><span aria-hidden>{activeTab === 'ask-ai' ? '−' : '›'}</span></button>
+      {activeTab === 'ask-ai' && <CaseSectionContent tab="ask-ai" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        </div>
+        {(legalCase.stage === 'CLOSING' || legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED') && <div>
+          <button type="button" id="case-tab-closing-report" aria-expanded={activeTab === 'closing-report'} aria-controls="case-tabpanel-closing-report" className="flex min-h-11 w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left font-medium" onClick={() => activeTab === 'closing-report' ? router.replace(`/cases/${id}`, { scroll: false }) : selectTab('closing-report')}><span>{CASE_TAB_LABELS['closing-report']}</span><span aria-hidden>{activeTab === 'closing-report' ? '−' : '›'}</span></button>
+      {activeTab === 'closing-report' && <CaseSectionContent tab="closing-report" caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
+        </div>}
+      </div>
+
+      {legalCase.intake && preFiling && <>
+              <CaseNoticeDialog
+                intakeId={legalCase.intake.id}
+                defaultRecipient={legalCase.intake.noticeRecipient}
+                open={noticeOpen}
+                onClose={() => setNoticeOpen(false)}
+                onDone={loadCase}
+              />
+              <PreLitigationUpdateDialog
+                intakeId={legalCase.intake.id}
+                currentStatus={legalCase.intake.preLitigationStatus}
+                currentOffer={legalCase.intake.settlementOfferAmount}
+                open={preLitOpen}
+                onClose={() => setPreLitOpen(false)}
+                onDone={loadCase}
+              />
+      </>}
 
       {/* AI file analysis opens as a right panel so the case page URL and
           overview stay put — helper work, not a navigation target. */}

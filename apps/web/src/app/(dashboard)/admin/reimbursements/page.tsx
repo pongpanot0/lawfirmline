@@ -21,6 +21,8 @@ import { CashAdvanceReconciliation } from '@/components/CashAdvanceReconciliatio
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState, InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
+import { WhoActsTabs } from '@/components/process/WhoActsTabs';
+import { StepTracker } from '@/components/process/StepTracker';
 
 const FILTERS = ['', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
@@ -44,8 +46,9 @@ export default function ReimbursementsPage() {
   const [advanceError, setAdvanceError] = useState('');
   const [filter, setFilter] = useState(() => {
     if (typeof window === 'undefined') return '';
-    const status = new URLSearchParams(window.location.search).get('status') ?? '';
-    return (FILTERS as readonly string[]).includes(status) ? status : '';
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('tab') ?? params.get('status') ?? '';
+    return status && (FILTERS as readonly string[]).includes(status) ? status : 'PENDING';
   });
   const [requesterFilter, setRequesterFilter] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -69,7 +72,6 @@ export default function ReimbursementsPage() {
     setError('');
     Promise.all([
       api.getExpenseClaims(authToken, {
-        ...(filter ? { status: filter } : {}),
         ...(requesterFilter ? { userId: requesterFilter } : {}),
       }),
       api.getTeamMembers(authToken).catch(() => [] as TeamMember[]),
@@ -90,7 +92,7 @@ export default function ReimbursementsPage() {
   useEffect(() => {
     setLoading(true);
     load();
-  }, [token, filter, requesterFilter]);
+  }, [token, requesterFilter]);
 
   const updateClaim = async (id: string, status: ExpenseClaimStatus) => {
     const authToken = token ?? getStoredToken();
@@ -160,7 +162,6 @@ export default function ReimbursementsPage() {
         <>
           <Button
             size="sm"
-            variant="outline"
             onClick={() => updateClaim(claim.id, 'APPROVED' as ExpenseClaimStatus)}
           >
             {d.reimbursements.approveRound}
@@ -283,44 +284,29 @@ export default function ReimbursementsPage() {
       {tab === 'advances' && canIssueAdvances ? (
         <CashAdvanceReconciliation token={token ?? getStoredToken() ?? ''} onBusyChange={setAdvanceBusy} />
       ) : <>
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border bg-card p-4">
-        <Tabs value={filter} onValueChange={setFilter} className="min-w-0 flex-1">
-          <TabsList>
-            {FILTERS.map((s) => (
-              <TabsTrigger key={s || 'all'} value={s}>
-                {s ? statusLabels[s] : d.reimbursements.all}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <SelectField
-          label={d.reimbursements.filterRequester}
-          containerClassName="w-full sm:w-56"
-          value={requesterFilter}
-          onChange={(e) => setRequesterFilter(e.target.value)}
-        >
+      <WhoActsTabs value={filter} onChange={setFilter} tabs={[
+        { key: 'PENDING', label: 'รออนุมัติ', count: claims.filter(c => c.status === 'PENDING').length },
+        { key: 'APPROVED', label: 'รอจ่าย', count: claims.filter(c => c.status === 'APPROVED').length },
+        { key: 'PAID', label: 'จ่ายแล้ว', count: claims.filter(c => c.status === 'PAID').length },
+        { key: 'REJECTED', label: 'ไม่อนุมัติ', count: claims.filter(c => c.status === 'REJECTED').length },
+      ]} />
+      <details className="my-4 rounded-lg border bg-card p-4"><summary className="cursor-pointer">ตัวกรองเพิ่ม</summary>
+        <SelectField label={d.reimbursements.filterRequester} containerClassName="mt-3 w-full sm:w-56" value={requesterFilter} onChange={(e) => setRequesterFilter(e.target.value)}>
           <option value="">{d.reimbursements.allRequesters}</option>
-          {members.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.firstName} {m.lastName}
-            </option>
-          ))}
+          {members.map((m) => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}
         </SelectField>
-      </div>
+      </details>
       {actionError && <p role="alert" className="mb-3 text-sm text-destructive">{actionError}</p>}
 
       {loading ? (
         <PageLoading title={d.common.loading} lines={4} />
       ) : error ? (
         <LoadFailed message={error} onRetry={() => { setLoading(true); load(); }} />
-      ) : claims.length === 0 ? (
-        <EmptyState
-          title={d.reimbursements.empty}
-          description={d.reimbursements.emptyHint}
-        />
+      ) : claims.filter(c => c.status === filter).length === 0 ? (
+        <EmptyState title="ไม่มีรายการที่ต้องทำ" />
       ) : (
         <div className="space-y-3">
-          {claims.map((claim) => {
+          {claims.filter(c => c.status === filter).map((claim) => {
             const open = expandedId === claim.id;
             const name = `${claim.submittedBy.firstName} ${claim.submittedBy.lastName}`.trim();
             return (
@@ -358,6 +344,7 @@ export default function ReimbursementsPage() {
                       <ActionButtons claim={claim} />
                     </div>
                   </div>
+                  <div className="px-4 pb-4"><StepTracker variant="mini" steps={['ส่งเบิก', 'อนุมัติ', 'จ่ายแล้ว'].map((label, i) => { const current = claim.status === 'PENDING' || claim.status === 'REJECTED' ? 0 : claim.status === 'APPROVED' ? 1 : 2; return { key: label, label, state: i < current ? 'done' : i === current ? 'current' : 'todo' }; })} /></div>
                   {open && <ClaimDetails claim={claim} />}
                 </CardContent>
               </Card>

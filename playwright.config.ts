@@ -28,6 +28,7 @@ export default defineConfig({
     { name: 'mobile-routine', testMatch: /mobile-routine\.spec\.ts/ },
     { name: 'workflow-usability', testMatch: /workflow-usability\.spec\.ts/ },
     { name: 'sop-ui', testMatch: /sop-ui\.spec\.ts/ },
+    { name: 'process-clarity', testMatch: /process-clarity\.spec\.ts/ },
     { name: 'simple-forms', testMatch: /simple-forms\.spec\.ts/ },
     { name: 'practice-setup', testMatch: /practice-setup\.spec\.ts/ },
     { name: 'court-offline', testMatch: /court-offline\.spec\.ts/ },

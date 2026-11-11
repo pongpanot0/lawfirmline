@@ -16,6 +16,8 @@ import { AlertTriangle } from 'lucide-react';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { leaveApprovalQueue } from '@/lib/leave-flags';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { WhoActsTabs } from '@/components/process/WhoActsTabs';
+import { StepTracker } from '@/components/process/StepTracker';
 
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -41,7 +43,9 @@ export default function LeavesPage() {
     VACATION: d.leaves.typeVacation,
   };
 
-  const [leaves, setLeaves] = useState<LeaveItem[]>([]);
+  const [leaves, setLeaves] = useState<(LeaveItem & { createdAt?: string })[]>([]);
+  const [tab, setTab] = useState('MY');
+  useEffect(() => { const requested = new URLSearchParams(window.location.search).get('tab'); if (requested && ['MY', 'DONE', ...(canApproveLeave ? ['APPROVE'] : [])].includes(requested)) setTab(requested); else if (canApproveLeave) setTab('APPROVE'); }, [canApproveLeave]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -64,7 +68,7 @@ export default function LeavesPage() {
       const today = new Date();
       const from = dateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30));
       const to = dateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 180));
-      setLeaves(await api.getLeaves(token, from, to));
+      setLeaves(await api.getLeaves(token, from, to) as (LeaveItem & { createdAt?: string })[]);
     } catch (err) {
       setLoadError(err instanceof ApiError ? err.message : d.leaves.loadFailed);
     } finally {
@@ -126,13 +130,15 @@ export default function LeavesPage() {
   const today = dateKey(new Date());
   const myLeaves = user ? leaves.filter((leave) => leave.userId === user.id) : [];
   const pending = canApproveLeave && user ? leaveApprovalQueue(leaves, user) : [];
+  const activeLeaves = myLeaves.filter(leave => leave.status === 'PENDING');
+  const completedLeaves = myLeaves.filter(leave => leave.status !== 'PENDING');
 
   return (
     <div className="w-full space-y-6">
       <PageHeader title={d.leaves.title} description={d.leaves.description} />
 
 
-      <form onSubmit={handleSubmit} className="space-y-4 [&>aside]:static [&>aside]:rounded-lg [&>aside]:border [&>aside]:shadow-none">
+      <details><summary className="cursor-pointer py-3 font-medium">ยื่นคำขอลา</summary><form onSubmit={handleSubmit} className="space-y-4 [&>aside]:static [&>aside]:rounded-lg [&>aside]:border [&>aside]:shadow-none">
         <Card>
           <CardHeader><CardTitle>1. {d.leaves.formTitle}</CardTitle></CardHeader>
           <CardContent>
@@ -167,9 +173,14 @@ export default function LeavesPage() {
           { label: d.leaves.startDate, done: !!form.startDate },
           { label: d.leaves.endDate, done: !!form.endDate },
         ]} loading={submitting} label={d.leaves.submit} loadingLabel={d.leaves.submitting} />
-      </form>
+      </form></details>
 
-      {canApproveLeave && (
+      <WhoActsTabs value={tab} onChange={setTab} tabs={[
+        ...(canApproveLeave ? [{ key: 'APPROVE', label: 'รอฉันอนุมัติ', count: pending.length }] : []),
+        { key: 'MY', label: 'ใบลาของฉัน', count: activeLeaves.length },
+        { key: 'DONE', label: 'เสร็จแล้ว', count: completedLeaves.length },
+      ]} />
+      {canApproveLeave && tab === 'APPROVE' && (
         <Card>
           <CardHeader>
             <CardTitle>{d.leaves.pendingQueue}</CardTitle>
@@ -179,7 +190,7 @@ export default function LeavesPage() {
             {loadError ? (
               <LoadFailed message={loadError} onRetry={() => setReloadKey((k) => k + 1)} />
             ) : pending.length === 0 ? (
-              <InlineEmptyState title={d.leaves.noPending} />
+              <InlineEmptyState title="ไม่มีรายการที่ต้องทำ" />
             ) : (
               pending.map((leave) => (
                 <div key={leave.id} className="rounded-xl border bg-card p-4">
@@ -187,11 +198,12 @@ export default function LeavesPage() {
                     <div>
                       <p className="font-medium">{leave.user.firstName} {leave.user.lastName}</p>
                       <p className="text-sm text-muted-foreground">
-                        {typeLabel[leave.type]} · {rangeText(leave)}
+                        {typeLabel[leave.type]} · {Math.floor((Date.parse(leave.endDate.slice(0, 10)) - Date.parse(leave.startDate.slice(0, 10))) / 86400000) + 1} วัน · {rangeText(leave)}{leave.createdAt ? ` · ยื่น ${formatDate(leave.createdAt)}` : ''}
                       </p>
                     </div>
                     <StatusBadge status={leave.status} d={d} />
                   </div>
+                  <div className="mt-3"><StepTracker variant="mini" steps={['ยื่นแล้ว', 'รออนุมัติ', 'อนุมัติแล้ว/ไม่อนุมัติ'].map((label, i) => ({ key: label, label, state: i < 1 ? 'done' : i === 1 ? 'current' : 'todo' }))} /></div>
                   {!!leave.courtConflicts?.length && (
                     <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
                       <p className="flex items-start gap-1.5 font-medium"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{d.leaves.conflictWarning}</p>
@@ -219,7 +231,7 @@ export default function LeavesPage() {
         </Card>
       )}
 
-      <Card>
+      {tab !== 'APPROVE' && <Card>
         <CardHeader>
           <CardTitle>{d.leaves.myRequests}</CardTitle>
         </CardHeader>
@@ -227,14 +239,14 @@ export default function LeavesPage() {
           {!canApproveLeave && actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
           {loadError ? (
             <LoadFailed message={loadError} onRetry={() => setReloadKey((k) => k + 1)} />
-          ) : myLeaves.length === 0 ? (
-            <InlineEmptyState title={d.leaves.noRequests} description="เลือกประเภทและวันที่ลาด้านบน แล้วกดส่งคำขอลา" />
+          ) : (tab === 'MY' ? activeLeaves : completedLeaves).length === 0 ? (
+            <InlineEmptyState title="ไม่มีรายการที่ต้องทำ" />
           ) : (
-            myLeaves.map((leave) => (
+            (tab === 'MY' ? activeLeaves : completedLeaves).map((leave) => (
               <div key={leave.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4">
                 <div>
-                  <p className="font-medium">{typeLabel[leave.type]}</p>
-                  <p className="text-sm text-muted-foreground">{rangeText(leave)}</p>
+                  <p className="font-medium">{leave.user.firstName} {leave.user.lastName} · {typeLabel[leave.type]} · {Math.floor((Date.parse(leave.endDate.slice(0, 10)) - Date.parse(leave.startDate.slice(0, 10))) / 86400000) + 1} วัน</p>
+                  <p className="text-sm text-muted-foreground">{rangeText(leave)}{leave.createdAt ? ` · ยื่น ${formatDate(leave.createdAt)}` : ''}</p><div className="mt-2 min-w-48"><StepTracker variant="mini" steps={['ยื่นแล้ว', 'รออนุมัติ', leave.status === 'REJECTED' ? 'ไม่อนุมัติ' : 'อนุมัติแล้ว'].map((label, i) => { const current = leave.status === 'PENDING' ? 1 : 2; return { key: label, label, state: i < current ? 'done' : i === current ? 'current' : 'todo' }; })} /></div>
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={leave.status} d={d} />
@@ -248,7 +260,7 @@ export default function LeavesPage() {
             ))
           )}
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

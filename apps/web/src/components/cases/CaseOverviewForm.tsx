@@ -23,6 +23,8 @@ export interface CaseOverviewValues {
   partyRole: string; claimedAmount: string; chargeSection: string; estimatedFee: string; description: string;
   incidentDate: string; estimatedDamage: string; limitationDeadline: string; additionalClientIds: string[];
   clientId: string; clientName: string; customers: CaseOverviewCustomerValue[];
+  /** Case-type fields without their own input above (by fieldSchema key). */
+  customFields: Record<string, string>;
 }
 
 export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts, clients, onClientCreated, saving, error, onSave, onCancel, onLimitationIncompleteChange }: {
@@ -40,10 +42,12 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
   /** true while the limitation date is half typed or impossible — the page blocks saving then. */
   onLimitationIncompleteChange?: (incomplete: boolean) => void;
 }) {
-  const set = (key: Exclude<keyof CaseOverviewValues, 'customers' | 'additionalClientIds'>, next: string) => onChange({ ...value, [key]: next });
+  const set = (key: Exclude<keyof CaseOverviewValues, 'customers' | 'additionalClientIds' | 'customFields'>, next: string) => onChange({ ...value, [key]: next });
   const input = 'mt-1 min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   const group = 'grid min-w-0 gap-4 border-b border-border pb-5 sm:grid-cols-2';
   // Numbers typed while switching level would land on the old level — the API rejects that, so lock them.
+  const schemaSource = caseTypes.find(t => t.id === value.caseTypeId)?.fieldSchema ?? (value.caseTypeId === legalCase.caseType?.id ? legalCase.caseType?.fieldSchema : undefined);
+  const caseTypeFields = caseOverviewCustomFields(schemaSource);
   const levelSwitching = (value.courtLevel || 'TRIAL') !== (legalCase.courtLevel || 'TRIAL');
 
   return <form className="col-span-full min-w-0" data-testid="case-information-edit" onSubmit={e => { e.preventDefault(); onSave(); }}>
@@ -62,6 +66,11 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
         <label className="text-sm sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี<textarea rows={4} value={value.description} onChange={e => set('description', e.target.value)} placeholder="สรุปเหตุการณ์และประเด็นสำคัญของคดี" className={input} /></label>
         <div role="group" aria-labelledby="overview-limitation-label" className="text-sm"><span id="overview-limitation-label">วันครบอายุความ</span><ThaiDateInput id="overview-limitation-deadline" className="mt-1" value={value.limitationDeadline} onChange={next => set('limitationDeadline', next)} onIncompleteChange={onLimitationIncompleteChange} /><span className="mt-1 block text-xs text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน · คู่ความแก้ที่ส่วน &quot;คู่ความและผู้เกี่ยวข้อง&quot;</span></div>
         <label className="text-sm">วันเกิดเหตุ<input type="date" value={value.incidentDate.slice(0, 10)} onChange={e => set('incidentDate', e.target.value)} className={input} /></label>
+        {caseTypeFields.map(field => <label key={field.key} htmlFor={`custom-${field.key}`} className="text-sm">{field.label}{field.required ? ' *' : ''}
+          {field.type === 'select'
+            ? <select id={`custom-${field.key}`} value={value.customFields[field.key] ?? ''} onChange={e => onChange({ ...value, customFields: { ...value.customFields, [field.key]: e.target.value } })} className={input}><option value="">เลือก{field.label}</option>{field.options?.map(option => <option key={option} value={option}>{option}</option>)}</select>
+            : <input id={`custom-${field.key}`} type={field.type === 'number' || field.type === 'date' ? field.type : 'text'} value={value.customFields[field.key] ?? ''} onChange={e => onChange({ ...value, customFields: { ...value.customFields, [field.key]: e.target.value } })} className={input} />}
+        </label>)}
       </section>
       <section className={group} aria-labelledby="case-people-heading">
         <div className="sm:col-span-2"><h3 id="case-people-heading" className="text-base font-bold tracking-tight">ลูกความและผู้ว่าจ้าง</h3><p className="mt-1 text-xs text-muted-foreground">ลูกความคือฝ่ายที่สำนักงานว่าความให้ ส่วนผู้ว่าจ้างคือผู้ติดต่อหรือผู้ชำระค่าบริการ</p></div>
@@ -130,4 +139,12 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
       </div>
     </fieldset>
   </form>;
+}
+
+type CaseOverviewField = { key: string; label: string; required?: boolean; type?: string; options?: string[] };
+/** Case-type fields the form has no dedicated input for; the journey asks for the required ones. */
+export function caseOverviewCustomFields(schema: unknown): CaseOverviewField[] {
+  if (!Array.isArray(schema)) return [];
+  return schema.filter((field): field is CaseOverviewField => !!field && typeof field.key === 'string' && typeof field.label === 'string'
+    && !['chargeSection', 'incidentDate', 'estimatedDamage', 'opposingParty'].includes(field.key));
 }
