@@ -76,7 +76,7 @@ test('workroom agreements, concurrent upload retries, bytes, tenant scope and se
     // Exercise the actual client composer with its authenticated portal session.
     await page.addInitScript(token => localStorage.setItem('lawfirm_portal_access_token', token), f.original.token);
     await page.goto(`http://localhost:3005/portal/intake/${f.room.id}`);
-    const workroom = page.locator('section').filter({ has: page.getByRole('heading', { name: /ห้องทำงานร่วมกัน|Shared workroom/ }) });
+    const workroom = page.locator('section').filter({ has: page.getByRole('heading', { name: /ข้อความกับสำนักงาน|Messages with the office/ }) });
     await expect(workroom).toBeVisible();
     await workroom.locator('textarea').first().fill(`Browser message ${f.tag}`);
     await workroom.getByRole('button', { name: /ส่งข้อความและไฟล์|Send message and file/ }).click();
@@ -86,7 +86,9 @@ test('workroom agreements, concurrent upload retries, bytes, tenant scope and se
     const handoff = new URLSearchParams({ access_token: f.auth.accessToken, refresh_token: f.auth.refreshToken, next: '/intake/portal-submissions', locale: 'en' });
     await page.goto(`${staffOrigin}/handoff#${handoff}`);
     await expect(page).toHaveURL(`${staffOrigin}/intake/portal-submissions`);
-    await page.getByRole('combobox').first().selectOption(f.room.id);
+    // An accepted request lives under "รับแล้ว"; opening it shows the shared workroom.
+    await page.getByRole('button', { name: /^รับแล้ว/ }).click();
+    await page.getByRole('button', { name: new RegExp(f.room.title) }).click();
     await expect(page.getByRole('heading', { name: /ห้องทำงานร่วมกัน|Shared workroom/ })).toBeVisible();
     await expect(page.getByText(`Browser message ${f.tag}`, { exact: true })).toBeVisible();
     await page.screenshot({ path: 'e2e/shots/portal-workroom-staff.png', fullPage: true });
