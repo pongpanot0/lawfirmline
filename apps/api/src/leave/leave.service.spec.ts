@@ -109,6 +109,17 @@ describe('LeaveService approval workflow', () => {
     } as any;
   }
 
+  it('list returns the name of who decided each leave', async () => {
+    const prisma = makePrisma();
+    prisma.leaveRequest.findMany = jest.fn(async () => []);
+    await new LeaveService(prisma, {} as any, notifier, center).list(
+      { id: 'alice', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any, inDays(0), inDays(30),
+    );
+    expect(prisma.leaveRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({ decidedBy: { select: { firstName: true, lastName: true } } }),
+    }));
+  });
+
   it('a SICK request is created APPROVED and never triggers an owner approval push', async () => {
     const prisma = makePrisma();
     const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;

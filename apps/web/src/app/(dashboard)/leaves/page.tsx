@@ -258,7 +258,7 @@ export default function LeavesPage() {
               <div key={leave.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4">
                 <div>
                   <p className="font-medium">{leave.user.firstName} {leave.user.lastName} · {typeLabel[leave.type]} · {Math.floor((Date.parse(leave.endDate.slice(0, 10)) - Date.parse(leave.startDate.slice(0, 10))) / 86400000) + 1} วัน</p>
-                  <p className="text-sm text-muted-foreground">{rangeText(leave)}{leave.createdAt ? ` · ยื่น ${formatDate(leave.createdAt)}` : ''}</p><div className="mt-2 min-w-48"><StepTracker variant="mini" steps={['ยื่นแล้ว', 'รออนุมัติ', leave.status === 'REJECTED' ? 'ไม่อนุมัติ' : 'อนุมัติแล้ว'].map((label, i) => { const current = leave.status === 'PENDING' ? 1 : 2; return { key: label, label, state: i < current ? 'done' : i === current ? 'current' : 'todo' }; })} /></div>
+                  <p className="text-sm text-muted-foreground">{rangeText(leave)}{leave.createdAt ? ` · ยื่น ${formatDate(leave.createdAt)}` : ''}{leave.decidedBy ? ` · ${leave.status === 'REJECTED' ? 'ปฏิเสธ' : 'อนุมัติ'}โดย ${leave.decidedBy.firstName} ${leave.decidedBy.lastName}` : ''}</p><div className="mt-2 min-w-48"><StepTracker variant="mini" steps={['ยื่นแล้ว', 'รออนุมัติ', leave.status === 'REJECTED' ? 'ไม่อนุมัติ' : 'อนุมัติแล้ว'].map((label, i) => { const current = leave.status === 'PENDING' ? 1 : 2; return { key: label, label, state: i < current ? 'done' : i === current ? 'current' : 'todo' }; })} /></div>
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={leave.status} d={d} />
