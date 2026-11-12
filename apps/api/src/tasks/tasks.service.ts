@@ -817,7 +817,9 @@ export class TasksService {
     const { observerIds, ...fields } = dto;
     const addedObserverIds = observerIds ? await this.syncObservers(id, observerIds, user) : [];
 
-    const updated = await this.updateWithHistory({ where: { id, ...(mcpOwnCompletion ? { assigneeId: user.id, requiresReview: false, case: this.caseAccess.getOwnCaseFilterForUser(user) } : {}) }, data: {
+    // MCP closes only the caller's own task: on one of their cases, or a personal to-do (no case).
+    const mcpGuard = mcpOwnCompletion ? { assigneeId: user.id, requiresReview: false, OR: [{ case: this.caseAccess.getOwnCaseFilterForUser(user) }, { caseId: null, firmId: user.firmId }] } : {};
+    const updated = await this.updateWithHistory({ where: { id, ...mcpGuard }, data: {
         ...fields,
         scheduledFor: dto.scheduledFor === null ? null : dto.scheduledFor ? new Date(`${dto.scheduledFor.slice(0, 10)}T00:00:00Z`) : undefined,
         assignedAt: dto.assigneeId && dto.assigneeId !== task.assigneeId ? new Date() : undefined,

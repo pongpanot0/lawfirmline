@@ -575,6 +575,7 @@ describe('TasksService.update — who may change a status', () => {
   const mockCaseAccess = {
     getTaskFilterForUser: jest.fn(),
     getTaskAccessFilterForUser: jest.fn().mockReturnValue({}),
+    getOwnCaseFilterForUser: jest.fn().mockReturnValue({ firmId: 'firm-1', leadLawyerId: 'user-1' }),
   };
 
   const lawyer = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
@@ -623,6 +624,14 @@ describe('TasksService.update — who may change a status', () => {
     await service.update('task-1', { status: TaskStatus.DONE }, lawyer);
 
     expect(mockPrisma.task.update).toHaveBeenCalled();
+  });
+
+  it('lets MCP close the caller\'s own personal to-do (no case) — guard accepts caseId null', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1', caseId: null, firmId: lawyer.firmId, assigneeId: lawyer.id, requiresReview: false, title: 'ประชุม' });
+    await service.update('task-1', { status: TaskStatus.DONE }, lawyer, undefined, true);
+    const where = mockPrisma.task.update.mock.calls[0][0].where;
+    expect(where).toMatchObject({ id: 'task-1', assigneeId: lawyer.id, requiresReview: false });
+    expect(where.OR).toContainEqual({ caseId: null, firmId: lawyer.firmId });
   });
 
   it('leaves an unassigned task open to anyone who can reach the case', async () => {

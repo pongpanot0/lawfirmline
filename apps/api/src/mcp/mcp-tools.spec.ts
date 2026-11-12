@@ -61,6 +61,20 @@ describe('MCP tools', () => {
     await tools.get('lawyer_licenses')!.run({});
     expect(secretary.run).toHaveBeenCalledWith(user, 'lawyer_licenses', {}, 'own');
   });
+  it('returns the same data as structuredContent and as text (ChatGPT reads structuredContent)', async () => {
+    secretary.run.mockResolvedValueOnce({ content: { licences: [{ name: 'A' }] }, cards: [] });
+    const out = await tools.get('lawyer_licenses')!.run({});
+    expect(out.structuredContent).toEqual(decode(out));
+    expect(out.structuredContent.content.licences).toHaveLength(1);
+  });
+  it('read errors say what went wrong instead of always "case not found"', async () => {
+    secretary.run.mockResolvedValueOnce({ content: { error: 'invalid_date_range' }, cards: [] });
+    const range = await tools.get('lawyer_licenses')!.run({});
+    expect(range.isError).toBe(true);
+    expect(decode(range).error).toContain('62 วัน');
+    secretary.run.mockResolvedValueOnce({ content: { error: 'not_found' }, cards: [] });
+    expect(decode(await tools.get('lawyer_licenses')!.run({})).error).toBe('ไม่พบข้อมูลนี้ในงานของคุณ');
+  });
   it('refuses a case outside own work for a LAWYER', async () => {
     prisma.case.findFirst.mockResolvedValue(null);
     const result = await tools.get('create_task')!.run({ caseId: 'other', title: 'Task' });
