@@ -65,7 +65,7 @@ describe('MCP tools', () => {
   it('create_sop: any member (here a LAWYER) saves a firm SOP, audited', async () => {
     prisma.sop = { create: jest.fn().mockResolvedValue({ id: 'sop-1', title: 'รับเรื่องใหม่', category: null }) };
     const out = decode(await tools.get('create_sop')!.run({ title: 'รับเรื่องใหม่', content: '1. ตรวจเอกสาร' }));
-    expect(prisma.sop.create).toHaveBeenCalledWith(expect.objectContaining({ data: { firmId: 'firm-1', title: 'รับเรื่องใหม่', content: '1. ตรวจเอกสาร', category: null, updatedById: 'user-1' } }));
+    expect(prisma.sop.create).toHaveBeenCalledWith(expect.objectContaining({ data: { firmId: 'firm-1', title: 'รับเรื่องใหม่', content: '1. ตรวจเอกสาร', category: null, updatedById: 'user-1', createdById: 'user-1' } }));
     expect(prisma.auditLog.create).toHaveBeenLastCalledWith({ data: expect.objectContaining({ action: 'mcp.create_sop', metadata: expect.objectContaining({ entityId: 'sop-1' }) }) });
     expect(out).toMatchObject({ id: 'sop-1', sopsUrl: 'https://firm.samnuan.com/sops' });
   });

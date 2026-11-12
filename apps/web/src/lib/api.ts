@@ -342,6 +342,8 @@ export interface SopItem {
   category: string | null;
   updatedAt: string;
   updatedBy: { firstName: string; lastName: string };
+  /** Author (may edit/delete it); null for handbooks written before authors were recorded. */
+  createdById?: string | null;
 }
 
 export interface WorkloadCaseItem {
@@ -1814,6 +1816,7 @@ export interface WorkflowTemplate {
   steps: WorkflowStepDef[];
   isActive: boolean;
   isDefault: boolean;
+  createdById: string;
 }
 
 export interface WorkflowAssignee {

@@ -11,8 +11,9 @@ import { ROLE_LABELS } from './workflow-ui';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { Select } from '@/components/ui/select';
 
-export function WorkflowTemplates({ token, canEdit, canCreate = canEdit, search = '', editor, onEditorChange }: {
-  token: string; canEdit: boolean; /** Make new templates; editing others' still needs canEdit. */ canCreate?: boolean; search?: string;
+export function WorkflowTemplates({ token, canEdit, canCreate = canEdit, userId, search = '', editor, onEditorChange }: {
+  token: string; canEdit: boolean; /** Make new templates; editing others' still needs canEdit. */ canCreate?: boolean;
+  /** The viewer: they may edit and delete templates they made. */ userId?: string; search?: string;
   editor?: WorkflowTemplate | 'new' | null;
   onEditorChange?: (template: WorkflowTemplate | 'new' | null) => void;
 }) {
@@ -20,6 +21,7 @@ export function WorkflowTemplates({ token, canEdit, canCreate = canEdit, search 
   const [localEditor, setLocalEditor] = useState<WorkflowTemplate | 'new' | null>(null);
   const editing = editor === undefined ? localEditor : editor;
   const setEditor = onEditorChange ?? setLocalEditor;
+  const isMine = (t: WorkflowTemplate) => !!userId && t.createdById === userId;
   const closeEditor = useCallback(() => setEditor(null), [setEditor]);
   const [error, setError] = useState('');
   const [savingDefault, setSavingDefault] = useState(false);
@@ -88,9 +90,10 @@ export function WorkflowTemplates({ token, canEdit, canCreate = canEdit, search 
               {t.isDefault && <Badge className="mt-1" variant="default">ค่าเริ่มต้นของสำนักงาน</Badge>}
               {t.description && <p className="text-sm text-muted-foreground">{t.description}</p>}
             </div>
-            {canEdit && <>
+            {(canEdit || isMine(t)) && <>
               <Button size="icon" variant="ghost" aria-label={`แก้ ${t.name}`} onClick={() => setEditor(t)}><Pencil className="h-4 w-4" aria-hidden /></Button>
-              <Button size="icon" variant="ghost" aria-label={`ลบ ${t.name}`} className="text-destructive hover:text-destructive" onClick={() => remove(t)}><Trash2 className="h-4 w-4" aria-hidden /></Button>
+              {/* The firm default is removed by owner/senior only. */}
+              {(canEdit || !t.isDefault) && <Button size="icon" variant="ghost" aria-label={`ลบ ${t.name}`} className="text-destructive hover:text-destructive" onClick={() => remove(t)}><Trash2 className="h-4 w-4" aria-hidden /></Button>}
             </>}
           </div>
           <details className="group mt-3 border-t pt-2">
@@ -108,7 +111,7 @@ export function WorkflowTemplates({ token, canEdit, canCreate = canEdit, search 
           </details>
         </article>
       ))}
-      {(canEdit || canCreate) && <TemplateDrawer open={editing !== null && (canEdit || editing === 'new')} token={token} template={editing === 'new' ? null : editing} onClose={closeEditor} onSaved={load} />}
+      {(canEdit || canCreate) && <TemplateDrawer open={editing !== null && (canEdit || editing === 'new' || isMine(editing))} token={token} template={editing === 'new' ? null : editing} onClose={closeEditor} onSaved={load} />}
     </section>
   );
 }

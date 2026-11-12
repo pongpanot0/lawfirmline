@@ -155,7 +155,7 @@ export class McpToolsService {
             message: status === LeaveStatus.PENDING ? 'ส่งคำขอลาแล้ว รอผู้มีสิทธิ์อนุมัติ' : 'บันทึกการลาแล้ว' };
         } else if (name === 'create_sop') {
           const sop = await this.prisma.$transaction(async (tx) => {
-            const created = await tx.sop.create({ data: { firmId: user.firmId, title: a.title as string, content: a.content as string, category: (a.category as string | undefined) ?? null, updatedById: user.id }, select: { id: true, title: true, category: true } });
+            const created = await tx.sop.create({ data: { firmId: user.firmId, title: a.title as string, content: a.content as string, category: (a.category as string | undefined) ?? null, updatedById: user.id, createdById: user.id }, select: { id: true, title: true, category: true } });
             await tx.auditLog.create({ data: this.audit(user, connection, name, undefined, created.id) });
             return created;
           });
