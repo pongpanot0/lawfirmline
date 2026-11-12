@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leaveApprovalQueue, leaveDayEvents, leaveFlagsForDate, leaveWarning } from './leave-flags.ts';
+import { leaveApprovalQueue, leaveDayEvents, leaveDecisionText, leaveFlagsForDate, leaveWarning } from './leave-flags.ts';
 
 const base = { userId: 'u1', type: 'SICK' as const, startDate: '2026-10-01', endDate: '2026-10-05' };
 
@@ -74,4 +74,13 @@ test('leaveDayEvents shows pending only when asked, and never rejected', () => {
   const shown = leaveDayEvents([pending, rejected], { includePending: true });
   assert.equal(shown.length, 1);
   assert.equal(shown[0].leavePending, true);
+});
+
+test('leaveDecisionText names the approver or rejecter, and marks self-approved leave', () => {
+  const decidedBy = { firstName: 'สมชาย', lastName: 'ใจดี' };
+  assert.equal(leaveDecisionText({ status: 'APPROVED', decidedAt: '2026-10-01T03:00:00Z', decidedBy }), 'อนุมัติโดย สมชาย ใจดี');
+  assert.equal(leaveDecisionText({ status: 'REJECTED', decidedAt: '2026-10-01T03:00:00Z', decidedBy }), 'ปฏิเสธโดย สมชาย ใจดี');
+  assert.equal(leaveDecisionText({ status: 'APPROVED', decidedAt: null, decidedBy: null }), 'อนุมัติอัตโนมัติ');
+  assert.equal(leaveDecisionText({ status: 'APPROVED', decidedAt: '2026-10-01T03:00:00Z', decidedBy: null }), null);
+  assert.equal(leaveDecisionText({ status: 'PENDING', decidedAt: null, decidedBy: null }), null);
 });
