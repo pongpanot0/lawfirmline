@@ -83,3 +83,10 @@ export function leaveDayEvents(
       return days;
     });
 }
+
+/** Who decided a leave, for list rows: "อนุมัติโดย …" / "ปฏิเสธโดย …"; sick or owner leave approves itself with no decider. */
+export function leaveDecisionText(leave: Pick<LeaveItem, 'status' | 'decidedAt' | 'decidedBy'>): string | null {
+  if (leave.status === 'PENDING') return null;
+  if (leave.decidedBy) return `${leave.status === 'REJECTED' ? 'ปฏิเสธ' : 'อนุมัติ'}โดย ${leave.decidedBy.firstName} ${leave.decidedBy.lastName}`;
+  return leave.status === 'APPROVED' && !leave.decidedAt ? 'อนุมัติอัตโนมัติ' : null;
+}
