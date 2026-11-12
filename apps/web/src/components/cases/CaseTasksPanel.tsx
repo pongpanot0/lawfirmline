@@ -61,7 +61,8 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
   const visibleTasks = applyTaskFilters(tasks, filters);
   const [showFilters, setShowFilters] = useState(false);
-  const [showSop, setShowSop] = useState(false);
+  // Arriving from "ใช้กับคดี" (?sop=) opens the task-set picker with that set chosen.
+  const [showSop, setShowSop] = useState(() => Boolean(searchParams.get('sop')));
   const filterCount = Object.values(filters).filter(Boolean).length;
   const newTaskDate = newDueDate || bangkokDateInputValue(new Date());
   const newTaskLeaveFlags = useLeaveFlags(token, newTaskDate);

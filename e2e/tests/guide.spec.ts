@@ -100,7 +100,7 @@ test('05 — สร้างคดีใหม่', async ({ page }) => {
       { selector: 'input[aria-label*="ชื่อคดี"], label:has-text("ชื่อคดี")', label: '3. ตั้งชื่อคดี (บังคับ)', place: 'right' },
       { selector: '[aria-label*="ทนายผู้รับผิดชอบ"], label:has-text("ทนายผู้รับผิดชอบ")', label: '4. เลือกทนายผู้รับผิดชอบ', place: 'right' },
       { selector: 'h3:has-text("คู่ความและศาล")', label: '5. คู่ความฝ่ายตรงข้ามและศาล (ถ้ามี)', place: 'right' },
-      { selector: 'button:has-text("สร้างคดี")', label: 'กดเพื่อบันทึกคดี', place: 'top' },
+      { selector: 'button:has-text("เปิดคดี")', label: 'กดเพื่อบันทึกคดี', place: 'top' },
     ],
   });
 });

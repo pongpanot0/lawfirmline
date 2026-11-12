@@ -42,25 +42,31 @@ for (const width of [375, 1440]) {
       await expect(page.locator('#new-case-playbook')).toHaveValue(sop.id);
       // A failed preview must leave the newly created case available for retry, with no hidden tasks.
       await page.route('**/practice-setup/cases/*/preview', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"โหลดรายการงานไม่สำเร็จ ลองโหลดหน้าใหม่"}' }));
-      await page.getByRole('button', { name: 'สร้างคดี', exact: true }).click();
+      await page.getByRole('button', { name: 'เปิดคดี', exact: true }).click();
+      // Opening a case lands on its summary; the first step carries the chosen task set to the tasks tab.
+      await expect(page).toHaveURL(new RegExp(`/cases/[0-9a-f-]+/opened\\?sop=${sop.id}`));
+      await page.getByRole('link', { name: /^เริ่มขั้นที่ 1/ }).click();
       await expect(page).toHaveURL(new RegExp(`/cases/[0-9a-f-]+\\?tab=tasks&sop=${sop.id}`));
       const legalCase = await data.db.case.findFirstOrThrow({ where: { firmId: auth.user.firmId } });
       expect(legalCase.clientId).toBe(client.id);
       expect(await data.db.client.count({ where: { firmId: auth.user.firmId } })).toBe(1);
       await expect(page.getByRole('button', { name: 'ยืนยันเพิ่มงานตามรายการ', exact: true })).toBeDisabled();
-      expect(await data.db.task.count({ where: { caseId: legalCase.id } })).toBe(0);
+      // A new case may start with its own first task; only the task set's tasks are counted here.
+      const fromSop = { caseId: legalCase.id, labels: { has: `playbook:${sop.id}` } };
+      expect(await data.db.task.count({ where: fromSop })).toBe(0);
       await page.unroute('**/practice-setup/cases/*/preview');
       await page.getByRole('button', { name: 'ลองโหลดรายการงานอีกครั้ง', exact: true }).click();
       await expect(page.getByText('ตรวจเอกสารก่อนมอบหมาย', { exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'ยืนยันเพิ่มงานตามรายการ', exact: true }).click();
       await expect(page.getByRole('status').filter({ hasText: 'เพิ่มงานจากชุดงานแล้ว' })).toBeVisible();
-      expect(await data.db.task.count({ where: { caseId: legalCase.id } })).toBe(2);
+      expect(await data.db.task.count({ where: fromSop })).toBe(2);
 
-      await page.getByRole('link', { name: 'เพิ่มงาน', exact: true }).click();
+      const before = await data.db.task.count({ where: { caseId: legalCase.id } });
+      await page.getByRole('link', { name: 'เพิ่มงาน', exact: true }).first().click();
       const form = page.getByRole('dialog', { name: 'เพิ่มงาน', exact: true });
-      await expect(form).toContainText(legalCase.title);
+      await expect(form).toContainText(legalCase.ownRef);
       await expect(form.locator('#case-task-priority')).toBeHidden();
-      expect(await form.locator('input, select, textarea').evaluateAll(elements => elements.filter(el => !el.closest('details:not([open])') && el.getClientRects().length).length)).toBe(3);
+      expect(await form.locator('input, select, textarea').evaluateAll(elements => elements.filter(el => !el.closest('details:not([open])') && el.getClientRects().length).length)).toBe(4);
       const taskTitle = `งานต้องส่งตรวจ ${data.tag}`;
       await form.locator('#case-task-title').fill(taskTitle);
       await form.locator('#case-task-assignee').selectOption(worker.id);
@@ -70,24 +76,23 @@ for (const width of [375, 1440]) {
       await expect(form.locator('#case-task-reviewer')).toHaveValue(auth.user.id);
       await form.locator('#case-task-reviewer').selectOption('');
       await form.locator('summary').click();
-      await form.getByRole('button', { name: 'สร้าง', exact: true }).click();
+      await form.getByRole('button', { name: 'บันทึกงาน', exact: true }).click();
       await expect(form.locator('#case-task-reviewer')).toBeVisible();
       expect(await form.locator('#case-task-reviewer').evaluate((el: HTMLSelectElement) => el.validity.valueMissing)).toBe(true);
       await form.locator('#case-task-reviewer').selectOption(auth.user.id);
       await form.locator('summary').click();
       await page.route('**/cases/*/tasks', route => route.request().method() === 'POST'
         ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"บันทึกงานไม่สำเร็จ ลองอีกครั้ง"}' }) : route.continue(), { times: 1 });
-      await form.getByRole('button', { name: 'สร้าง', exact: true }).click();
+      await form.getByRole('button', { name: 'บันทึกงาน', exact: true }).click();
       await expect(form.getByRole('alert')).toContainText('บันทึกงานไม่สำเร็จ');
       await expect(form.locator('#case-task-title')).toHaveValue(taskTitle);
-      await form.getByRole('button', { name: 'สร้าง', exact: true }).click();
+      await form.getByRole('button', { name: 'บันทึกงาน', exact: true }).click();
       await expect(form).toHaveCount(0);
-      await expect(page.locator('#td-status')).toBeVisible(); // Saved work opens immediately.
+      await expect(page.locator('#td-status')).toBeAttached(); // Saved work opens its drawer; status sits under ข้อมูลเพิ่มเติม.
       const task = await data.db.task.findFirstOrThrow({ where: { caseId: legalCase.id, title: taskTitle } });
       expect(task.assigneeId).toBe(worker.id); expect(task.reviewerId).toBe(auth.user.id); expect(task.requiresReview).toBe(true);
       expect(task.dueDate?.toISOString().slice(0, 10)).toBe('2026-10-14');
-      expect(await data.db.task.count({ where: { caseId: legalCase.id } })).toBe(3);
-      await expect(page.getByRole('button', { name: /^งานค้าง 3 รายการ/ })).toHaveCount(1);
+      expect(await data.db.task.count({ where: { caseId: legalCase.id } })).toBe(before + 1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
       const workerAuthResponse = await request.post(`${API}/auth/login`, { data: { email: worker.email, password: data.password } });
@@ -98,6 +103,10 @@ for (const width of [375, 1440]) {
       await workerPage.goto(`${origin}/handoff#${workerHash}`);
       await workerPage.locator('main').getByText(taskTitle, { exact: true }).click();
       await expect(workerPage.getByRole('button', { name: 'ตรวจผ่านและปิดงาน', exact: true })).toHaveCount(0);
+      // Acknowledge and commit-to-today sit under the drawer's ข้อมูลเพิ่มเติม section.
+      const more = workerPage.locator('details').filter({ has: workerPage.locator('summary', { hasText: 'ข้อมูลเพิ่มเติม' }) }).first();
+      await expect(more).toBeVisible();
+      if (!(await more.evaluate(el => (el as HTMLDetailsElement).open))) await more.locator(':scope > summary').click();
       await workerPage.getByRole('button', { name: 'ยืนยันรับทราบงาน', exact: true }).click();
       await workerPage.getByRole('button', { name: 'ยืนยันว่าจะทำงานนี้วันนี้', exact: true }).click();
       await expect(workerPage.getByRole('textbox', { name: 'ทำถึงไหนแล้ว', exact: true })).toBeHidden();
@@ -106,15 +115,18 @@ for (const width of [375, 1440]) {
       await workerPage.getByRole('textbox', { name: 'เหลืออะไร', exact: true }).fill('รอผู้ตรวจยืนยัน');
       await workerPage.getByRole('button', { name: 'บันทึกความคืบหน้าวันนี้', exact: true }).click();
       await expect(workerPage.getByRole('status').filter({ hasText: 'บันทึกความคืบหน้าแล้ว' })).toBeVisible();
-      await workerPage.getByRole('button', { name: 'ส่งผลงานให้ตรวจ', exact: true }).click();
+      await workerPage.getByRole('textbox', { name: 'หมายเหตุถึงผู้ตรวจ', exact: true }).fill('ตรวจเอกสารครบทุกหน้าแล้ว พร้อมให้ตรวจ');
+      await workerPage.getByRole('button', { name: /^ส่งให้ .+ ตรวจ$/ }).click();
       await expect.poll(async () => (await data.db.task.findUniqueOrThrow({ where: { id: task.id } })).status).toBe('PENDING_REVIEW');
       expect((await request.post(`${API}/cases/${legalCase.id}/tasks/${task.id}/accept`, { headers: { Authorization: `Bearer ${workerAuth.accessToken}` } })).status()).toBe(403);
       await workerPage.goto(`${origin}/todos`);
+      // Sent for review, the task waits on someone else.
+      await workerPage.getByRole('tab', { name: /^รอคนอื่น/ }).click();
       await expect(workerPage.locator('main').getByText(taskTitle, { exact: true })).toBeVisible();
       await workerPage.locator('main').getByText(taskTitle, { exact: true }).click();
 
       await page.goto(`${origin}/todos`);
-      await page.getByRole('button', { name: /^รอฉันตรวจ/ }).click();
+      // The reviewer finds it under ต้องทำ.
       await page.locator('main').getByText(taskTitle, { exact: true }).click();
       await expect(page.locator('aside').last()).toContainText('ตรวจเอกสารครบทั้งชุด');
       const reject = page.getByRole('button', { name: 'ส่งกลับให้แก้ไข', exact: true });
@@ -125,19 +137,20 @@ for (const width of [375, 1440]) {
       await workerPage.reload();
       await expect(workerPage.locator('#td-status')).toHaveValue('NEEDS_REVISION');
       await expect(workerPage.locator('aside').last()).toContainText('ตรวจชื่อในเอกสารหน้าแรกอีกครั้ง');
-      await workerPage.getByRole('button', { name: 'ส่งผลงานให้ตรวจ', exact: true }).click();
+      await workerPage.getByRole('textbox', { name: 'หมายเหตุถึงผู้ตรวจ', exact: true }).fill('ตรวจเอกสารครบทุกหน้าแล้ว พร้อมให้ตรวจ');
+      await workerPage.getByRole('button', { name: /^ส่งให้ .+ ตรวจ$/ }).click();
       await expect.poll(async () => (await data.db.task.findUniqueOrThrow({ where: { id: task.id } })).status).toBe('PENDING_REVIEW');
       await page.reload();
       await page.getByRole('button', { name: 'ตรวจผ่านและปิดงาน', exact: true }).click();
       await expect.poll(async () => (await data.db.task.findUniqueOrThrow({ where: { id: task.id } })).status).toBe('DONE');
       await workerPage.goto(`${origin}/todos`);
-      await workerPage.getByRole('button', { name: /^แสดงงานที่เสร็จแล้ว/ }).click();
+      await workerPage.getByRole('tab', { name: /^เสร็จแล้ว/ }).click();
       await expect(workerPage.locator('main').getByText(taskTitle, { exact: true })).toBeVisible();
       await page.goto(`${origin}/cases/${legalCase.id}?tab=tasks`);
-      await page.getByRole('link', { name: 'เพิ่มงาน', exact: true }).click();
+      await page.getByRole('link', { name: 'เพิ่มงาน', exact: true }).first().click();
       const ownTitle = `งานเริ่มจากชื่อ ${data.tag}`;
       await form.locator('#case-task-title').fill(ownTitle);
-      await form.getByRole('button', { name: 'สร้าง', exact: true }).click();
+      await form.getByRole('button', { name: 'บันทึกงาน', exact: true }).click();
       await expect(page.getByRole('button', { name: 'ยืนยันว่าจะทำงานนี้วันนี้', exact: true })).toBeVisible();
       const ownTask = await data.db.task.findFirstOrThrow({ where: { caseId: legalCase.id, title: ownTitle } });
       expect(ownTask.assigneeId).toBe(auth.user.id); expect(ownTask.dueDate).toBeNull(); expect(ownTask.requiresReview).toBe(false);

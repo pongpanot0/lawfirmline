@@ -292,6 +292,9 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     }
   };
 
+  // ข้อมูลเพิ่มเติม opens once per task when the task waits on this user, then stays as they leave it.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreAutoFor = useRef<string | null>(null);
   if (!taskId) return null;
 
   const statusLabel: Record<TaskStatus, string> = {
@@ -311,6 +314,12 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const mentionMatches = mentionCtx ? users.filter((u) => `${u.firstName} ${u.lastName}`.toLowerCase().includes(mentionCtx.query)).slice(0, 6) : [];
   const canHold = !!user && !!task?.caseId && canHoldStatus(task.status) && (task.assignee?.id === user.id || task.case?.leadLawyerId === user.id || hasFirmCapability(user.firmRole, 'runOperations'));
   const canReview = !!user && !!task && canActOnReview({ status: task.status, reviewerId: task.reviewerId, assigneeId: task.assignee?.id, caseId: task.caseId, leadLawyerId: task.case?.leadLawyerId }, user.id, user.firmRole);
+  if (task && moreAutoFor.current !== task.id) {
+    moreAutoFor.current = task.id;
+    // Your own active work keeps its actions (acknowledge, plan today, send for review) in view.
+    const want = canReview || (ownWork && task.status !== TaskStatus.DONE && task.status !== TaskStatus.PENDING_REVIEW);
+    if (want !== moreOpen) setMoreOpen(want);
+  }
   const statusOptions = task?.requiresReview ? STATUS_OPTIONS.filter((s) => s !== TaskStatus.DONE) : STATUS_OPTIONS;
 
   return (
@@ -581,7 +590,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               </form>
             </section>
 
-            <details className="rounded-xl border border-[#e2e0d8]">
+            <details open={moreOpen} onToggle={(event) => setMoreOpen(event.currentTarget.open)} className="rounded-xl border border-[#e2e0d8]">
               <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-4 py-3 text-sm font-semibold">ข้อมูลเพิ่มเติม <span className="text-[.8rem] font-normal text-muted-foreground">· สถานะ · ความสำคัญ · รายละเอียด · ผู้เกี่ยวข้อง · แผนงาน · พักงาน · ประวัติ</span></summary>
               <div className="space-y-6 border-t border-[#e2e0d8] p-4">
             <section className="grid gap-3 sm:grid-cols-2" aria-label="สถานะและความสำคัญ">

@@ -43,8 +43,8 @@ test('new firm → first client and task → invitation → member permissions �
     const authResponse = await page.request.post(`${API}/auth/login`, { data: { email: data.email, password: data.password } });
     expect(authResponse.ok()).toBe(true);
     const session = await authResponse.json();
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.locator('main h1')).toHaveText('ภาพรวม');
+    await expect(page).toHaveURL(/\/operations$/);
+    await expect(page.locator('main h1')).toHaveText('ภาระงานทีม');
     expect(new URL(page.url()).hostname).toBe(`${session.user.firmSlug}.localhost`);
     const origin = new URL(page.url()).origin;
     const adminLogin = await page.request.post(`${API}/auth/login`, { data: { email: 'admin@lawfirm.com', password: 'password123' } });
@@ -55,11 +55,11 @@ test('new firm → first client and task → invitation → member permissions �
     const forbiddenCase = await page.request.get(`${API}/cases/${otherCase.id}`, { headers: { Authorization: `Bearer ${session.accessToken}` } });
     expect([403, 404]).toContain(forbiddenCase.status());
     await page.reload();
-    await expect(page.locator('main h1')).toHaveText('ภาพรวม');
-    await expect(page.locator('main')).toContainText(data.firmName);
+    await expect(page.locator('main h1')).toHaveText('ภาระงานทีม');
+    // The owner landing page doesn't print the firm name; the subdomain check below proves the tenant.
 
     await page.goto(`${origin}/clients/new`);
-    await page.locator('main input').first().fill(`ลูกค้าทดสอบ ${data.tag}`);
+    await page.locator('main').getByRole('textbox').first().fill(`ลูกค้าทดสอบ ${data.tag}`);
     await page.locator('form button[type="submit"]').click();
     await expect(page).toHaveURL(/\/clients\?id=/);
     await expect(page.locator('main')).toContainText(`ลูกค้าทดสอบ ${data.tag}`);
@@ -67,16 +67,18 @@ test('new firm → first client and task → invitation → member permissions �
     await page.goto(`${origin}/cases/new`);
     await page.locator('#case-type').selectOption({ label: 'คดีความ' });
     await page.getByRole('textbox', { name: 'ชื่อคดี *', exact: true }).fill(`คดีทดสอบ ${data.tag}`);
-    await page.locator('#lead-lawyer').selectOption(session.user.id);
-    await page.getByRole('button', { name: 'สร้างคดี', exact: true }).click();
-    await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+\?tab=tasks/, { timeout: 45_000 });
-    await expect(page.locator('main')).toContainText(`คดีทดสอบ ${data.tag}`);
+    // The owner picker defaults to the person opening the case.
+    await expect(page.locator('#lead-lawyer')).toContainText(session.user.firstName);
+    await page.getByRole('button', { name: 'เปิดคดี', exact: true }).click();
+    await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+\/opened/, { timeout: 45_000 });
+    // The case-opened summary shows the new case's office reference.
+    await expect(page.locator('main')).toContainText('เลขอ้างอิงสำนักงาน');
 
     await page.goto(`${origin}/expenses/new`);
-    await page.locator('form input[type="number"]').fill('125.50');
+    await page.locator('#expense-amount').fill('125.50');
     await page.locator('form input[required]').nth(1).fill(`ค่าเอกสารทดสอบ ${data.tag}`);
     await page.locator('form button[type="submit"]').click();
-    await expect(page.getByRole('status')).toContainText('บันทึกแล้ว');
+    await expect(page.locator('main').getByRole('status')).toContainText('บันทึกแล้ว');
     await page.getByRole('button', { name: 'ไปหน้าค่าใช้จ่าย →' }).click();
     await expect(page).toHaveURL(/\/expenses$/);
     await page.getByRole('tab', { name: /ต้องทำ/ }).click();
@@ -85,20 +87,21 @@ test('new firm → first client and task → invitation → member permissions �
     await page.goto(`${origin}/todos`);
     await page.getByRole('button', { name: 'เพิ่มงาน', exact: true }).click();
     await page.getByPlaceholder('ชื่องาน...').fill(`เตรียมเอกสาร ${data.tag}`);
-    await page.locator('form button[type="submit"]').click();
+    await page.locator('button[form="create-personal-task"]').click();
     await expect(page.locator('main')).toContainText(`เตรียมเอกสาร ${data.tag}`);
     await page.reload();
     await expect(page.locator('main')).toContainText(`เตรียมเอกสาร ${data.tag}`);
 
     await page.getByText(`เตรียมเอกสาร ${data.tag}`, { exact: true }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    // The task opens beside the list; status sits under ข้อมูลเพิ่มเติม.
+    const more = page.locator('details').filter({ has: page.locator('summary', { hasText: 'ข้อมูลเพิ่มเติม' }) }).first();
+    await expect(more).toBeVisible();
+    if (!(await more.evaluate(el => (el as HTMLDetailsElement).open))) await more.locator(':scope > summary').click();
     await page.locator('#td-status').selectOption('IN_PROGRESS');
     await expect(page.locator('#td-status')).toBeEnabled();
-    await page.getByPlaceholder('ชื่องานย่อย...').fill(`ตรวจรายการ ${data.tag}`);
-    await page.getByRole('button', { name: 'เพิ่มงานย่อย', exact: true }).click();
-    await expect(page.getByRole('dialog')).toContainText(`ตรวจรายการ ${data.tag}`);
-    await page.getByRole('dialog').press('Escape');
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    // The v2 task drawer has no subtask box; Escape closes it.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#td-status')).toHaveCount(0);
 
     await page.goto(`${origin}/team`);
     await expect(page.locator('main h1')).toHaveText('จัดการทีม');
@@ -115,30 +118,34 @@ test('new firm → first client and task → invitation → member permissions �
       await member.getByLabel('รหัสผ่าน', { exact: true }).fill(data.password);
       await member.getByRole('button', { name: 'เข้าร่วมสำนักงาน', exact: true }).click();
       await expect(member).toHaveURL(/\/dashboard$/);
-      await expect(member.locator('main h1')).toContainText('ทนายทดสอบ');
+      // The approved งานวันนี้ page heading carries no name.
+      await expect(member.locator('main h1')).toHaveText('งานวันนี้');
       const memberLogin = await member.request.post(`${API}/auth/login`, { data: { email: `${data.tag}-member@example.test`, password: data.password } });
       const memberSession = await memberLogin.json();
       const restrictedTeam = await member.request.get(`${API}/saas/members`, { headers: { Authorization: `Bearer ${memberSession.accessToken}` } });
       expect(restrictedTeam.status()).toBe(403);
       await member.goto(`${origin}/team`);
-      await expect(member.locator('main')).toContainText('เฉพาะเจ้าของ');
-      await member.getByRole('button', { name: 'ออกจากระบบ', exact: true }).click();
+      await expect(member.locator('main')).toContainText('หน้านี้สำหรับเจ้าของ');
+      await member.getByRole('button', { name: 'เมนูบัญชี', exact: true }).click();
+      await member.getByRole('menuitem', { name: 'ออกจากระบบ', exact: true }).click();
       await expect(member).toHaveURL(/\/login$/);
       await member.goto(`${origin}/dashboard`);
-      await expect(member).toHaveURL(/\/login$/);
+      // Signed out, a protected page sends you to sign in and remembers where you were going.
+      await expect(member).toHaveURL(/\/login(\?next=%2Fdashboard)?$/);
       await member.goto(`${origin}/invite/${inviteToken}`);
       await expect(member.locator('p[role="alert"]')).toContainText('หมดอายุ');
     } finally { await memberContext.close(); }
 
     await page.goto(`${origin}/team`);
-    await expect(page.locator('table')).toContainText('ทนายทดสอบ');
-    await page.getByRole('button', { name: 'ออกจากระบบ', exact: true }).click();
+    await expect(page.locator('main')).toContainText('ทนายทดสอบ');
+    await page.getByRole('button', { name: 'เมนูบัญชี', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'ออกจากระบบ', exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.getByLabel('อีเมล', { exact: true }).fill(data.email);
     await page.getByLabel('รหัสผ่าน', { exact: true }).fill(data.password);
     await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.locator('main h1')).toHaveText('ภาพรวม');
+    await expect(page).toHaveURL(/\/operations$/);
+    await expect(page.locator('main h1')).toHaveText('ภาระงานทีม');
     expect(errors).toEqual([]);
   } finally { await data.cleanup(); }
 });
@@ -214,7 +221,8 @@ for (const width of [320, 375, 414, 768, 1440]) {
       await expect(main).toBeVisible();
       await expect(main).not.toContainText(/Application error|Internal Server Error/);
       expect(await main.evaluate(el => el.scrollWidth - el.clientWidth), route).toBeLessThanOrEqual(1);
-      if (width < 768) expect(await page.getByRole('navigation', { name: 'เมนูพอร์ทัล', exact: true })
+      // The new-request form hides the bottom menu to keep its submit bar in reach.
+      if (width < 768 && route !== '/portal/intake/new') expect(await page.getByRole('navigation', { name: 'เมนูพอร์ทัล', exact: true })
         .evaluate(el => el.scrollWidth - el.clientWidth), route).toBeLessThanOrEqual(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), route).toBeLessThanOrEqual(1);
       if (route === '/portal' && [375, 1440].includes(width)) await page.screenshot({ path: testInfo.outputPath(`portal-${width}.png`), fullPage: true });
@@ -249,8 +257,8 @@ test('English stays selected after login hands off to the firm', async ({ page }
   await page.getByLabel('Email', { exact: true }).fill('admin@lawfirm.com');
   await page.getByLabel('Password', { exact: true }).fill('password123');
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.locator('main h1')).toHaveText('Dashboard');
+  await expect(page).toHaveURL(/\/operations$/);
+  await expect(page.locator('main h1')).toHaveText('Operations');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 });
 
@@ -269,7 +277,7 @@ test('password reset changes only the test account, rejects reuse, and allows lo
     await page.getByLabel('อีเมล', { exact: true }).fill(data.email);
     await page.getByLabel('รหัสผ่าน', { exact: true }).fill(`${data.password}-changed`);
     await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/operations$/);
     await expect(page.locator('main h1')).toBeVisible();
     const oldPassword = await request.post(`${API}/auth/login`, { data: { email: data.email, password: data.password } });
     expect(oldPassword.status()).toBe(401);
@@ -291,7 +299,7 @@ test('invalid handoff cannot borrow an existing logged-in session', async ({ pag
   await page.getByLabel('อีเมล', { exact: true }).fill('admin@lawfirm.com');
   await page.getByLabel('รหัสผ่าน', { exact: true }).fill('password123');
   await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page).toHaveURL(/\/operations$/);
   await expect(page.locator('main h1')).toBeVisible();
   const origin = new URL(page.url()).origin;
   await page.goto(`${origin}/handoff#access_token=invalid&refresh_token=invalid`);

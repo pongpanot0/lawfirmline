@@ -28,7 +28,7 @@ export function AuthShell({ title, description, children }: {
             <LanguageSwitcher />
           </div>
           <h1 className="font-display text-3xl font-semibold leading-relaxed">{title}</h1>
-          <p className="mb-6 mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
+          {description && <p className="mb-6 mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>}
           {children}
         </div>
       </main>

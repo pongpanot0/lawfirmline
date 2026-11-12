@@ -39,17 +39,19 @@ function OpenedContent() {
   for (const event of legalCase.calendarEvents ?? []) if (event.type === 'COURT_DATE') completed.push(`นัดศาล ${event.title} · ${date(event.startAt, true)}`);
   const next: string[] = [];
   if (proposals.length) next.push(`สร้างงานตามชุดงานอัตโนมัติ (${proposals.length} งาน)`);
+  else if (sop) next.push('เพิ่มงานจากชุดงานที่เลือกตอนเปิดคดี');
   if (journey.infoMissing.length) next.push(`เติมข้อมูลคดีให้ครบ (${journey.infoMissing.join(', ')})`);
   if (journey.preLitNext && !next.includes(journey.preLitNext.text)) next.push(journey.preLitNext.text);
   if (!next.length && journey.next) next.push(journey.next.text);
   const proposalSop = sop || proposals[0]?.routineSource?.releaseId;
-  const firstHref = proposals.length ? `/cases/${id}?tab=tasks${proposalSop ? `&sop=${encodeURIComponent(proposalSop)}` : ''}` : `/cases/${id}`;
-  return <main className="mx-auto max-w-2xl px-6 py-10 text-center">
+  // A task set picked on the create form goes with the first step even before any stage proposal exists.
+  const firstHref = proposals.length || sop ? `/cases/${id}?tab=tasks${proposalSop ? `&sop=${encodeURIComponent(proposalSop)}` : ''}` : `/cases/${id}`;
+  return <div className="mx-auto max-w-2xl px-6 py-10 text-center">
     <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#e6f3ec] text-3xl text-[#227052]"><Check aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></div>
     <h1 className="font-display mt-3 text-[32px]">เปิดคดีสำเร็จ</h1>
     <p className="mt-1">เลขอ้างอิงสำนักงาน <b className="font-mono">{legalCase.ownRef}</b> <button type="button" className={`${styles.btn} ${styles.ghost} min-w-11 py-1 focus-visible:ring-2 focus-visible:ring-ring`} aria-label="คัดลอกเลขอ้างอิงสำนักงาน" onClick={() => void navigator.clipboard.writeText(legalCase.ownRef).then(() => setCopied(true))}><Copy aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button>{copied && <span>คัดลอกแล้ว</span>}</p>
     {completed.length > 0 && <section className={`${styles.card} mt-6 p-5 text-left shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><h2 className="font-bold">สิ่งที่ระบบทำให้แล้ว</h2><ul className="mt-3 space-y-2">{completed.map((item) => <li key={item} className="flex items-start gap-1 text-[#227052]"><Check aria-hidden="true" className="mt-1 h-[1.1em] w-[1.1em] shrink-0" /><span className="text-foreground">{item}</span></li>)}</ul></section>}
     <section className={`${styles.card} mt-4 p-5 text-left shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><h2 className="font-bold">ขั้นต่อไปของคดีนี้</h2>{next.length ? <ol className="mt-3 space-y-2">{next.map((item, index) => <li key={item} className={`rounded-lg border px-4 py-3 ${index === 0 ? 'border-[#c9d6e3] bg-[#f3f7fb]' : 'border-border'}`}><b>{index + 1}</b> {item}</li>)}</ol> : <p className={styles.hint}>ตรวจรายละเอียดคดีเพื่อดำเนินการต่อ</p>}</section>
     <div className="mt-6 grid gap-3"><Link className={`${styles.btn} ${styles.primary}`} href={firstHref}>เริ่มขั้นที่ 1 <ArrowRight aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></Link><p className={`${styles.hint} -mt-1`}>{proposals.length ? 'เปิดหน้าคดีพร้อมรายการงานจากชุดงานอัตโนมัติให้เลือกสร้าง' : 'เปิดหน้าคดีเพื่อดำเนินการต่อ'}</p><Link className={`${styles.btn} ${styles.outline}`} href={`/cases/${id}`}>ไปหน้าคดี</Link>{sop && !proposals.length && <Link href={`/cases/${id}?tab=tasks&sop=${encodeURIComponent(sop)}`} className="min-h-11 text-sm underline">ดูชุดงานที่เลือก</Link>}{legalCase.cargoClaim && <Link href={`/cases/${id}?tab=cargo-claim`} className="min-h-11 text-sm underline">ไปยัง Cargo Claim</Link>}<Link href="/cases/new" className="min-h-11 text-sm underline">เปิดคดีใหม่อีกคดี</Link><Link href="/cases" className="min-h-11 text-sm underline">กลับไปหน้ารวมคดี</Link></div>
-  </main>;
+  </div>;
 }

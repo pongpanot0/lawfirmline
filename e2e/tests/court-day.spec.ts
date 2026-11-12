@@ -198,7 +198,9 @@ test('court day: prepare from My Day → download → record → follow-up + dra
     await expect(page.locator('main')).toContainText('มีฉบับใหม่');
     // The existing case action must reach the same saved appointment file.
     await page.getByRole('link', { name: 'เปิดหน้าคดี', exact: true }).click();
-    await page.getByRole('button', { name: 'บันทึกผลหลังขึ้นศาล', exact: true }).click();
+    // The case page keeps this action in its "อื่น ๆ" menu.
+    await page.getByRole('button', { name: 'อื่น ๆ', exact: true }).click();
+    await page.getByRole('menuitem', { name: /^บันทึกผลหลังขึ้นศาล/ }).click();
     await page.getByRole('dialog').getByRole('link').filter({ hasText: `นัดศาล ${f.tag}` }).click();
     await expect(page).toHaveURL(`${f.origin}/court-day/${f.event.id}`);
     await expect(page.getByLabel('ตรวจวัน เวลา และสถานที่นัด', { exact: true })).toBeChecked();
