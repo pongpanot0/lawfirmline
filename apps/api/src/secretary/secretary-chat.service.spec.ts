@@ -1,6 +1,7 @@
 import { BadGatewayException, BadRequestException } from '@nestjs/common';
 import type { AuthUser } from '@lawfirm/shared';
 import { SecretaryChatService } from './secretary-chat.service';
+import { SecretaryActionsService } from './secretary-actions.service';
 
 describe('SecretaryChatService', () => {
   const user = { id: 'u1', firmId: 'f1', firstName: 'สมชาย', lastName: 'ใจดี' } as AuthUser;
@@ -197,5 +198,49 @@ describe('SecretaryChatService', () => {
     const sys: string = body(0).messages[0].content;
     expect(sys.startsWith('คุณคือเลขาส่วนตัว AI ในสำนักงานกฎหมาย')).toBe(true);
     expect(sys.split('\n').at(-1)).toContain('สมชาย ใจดี');
+  });
+
+  describe('with actions (LINE)', () => {
+    const tasks = { create: jest.fn() };
+    const actions = new SecretaryActionsService({} as any, {} as any, tasks as any, {} as any, {} as any, {} as any, {} as any);
+    const call = (name: string, args: unknown) => json({
+      choices: [{ message: { content: null, tool_calls: [{ id: 'w1', type: 'function', function: { name, arguments: JSON.stringify(args) } }] } }],
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    });
+    const withActions = () => {
+      const built = build();
+      return { ...built, svc: new SecretaryChatService({ get: () => 'sk-test' } as any, built.tools as any, built.rag as any, built.prisma as any, actions) };
+    };
+
+    it('offers write tools and returns a proposal instead of saving', async () => {
+      const { svc, prisma } = withActions();
+      fetchSpy.mockResolvedValueOnce(call('create_task', { title: 'นัดลูกความ', dueDate: '2026-11-20' }));
+      const r = await svc.chat(user, msgs, { actions: true });
+      const b = body(0);
+      expect(b.tools.map((t: any) => t.function.name)).toEqual(expect.arrayContaining(['create_task', 'request_leave']));
+      expect(b.tools.find((t: any) => t.function.name === 'create_task').function.parameters).toMatchObject({ type: 'object', required: ['title'] });
+      expect(b.messages[0].content).toContain('กดยืนยันก่อนบันทึก');
+      expect(r.action).toEqual({ name: 'create_task', args: { title: 'นัดลูกความ', dueDate: '2026-11-20' } });
+      expect(r.reply).toContain('ชื่องาน: นัดลูกความ');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(tasks.create).not.toHaveBeenCalled();
+      expect(prisma.secretaryMessage.createMany.mock.calls[0][0].data[1].content).toContain('ชื่องาน: นัดลูกความ');
+    });
+
+    it('bad arguments go back to the model, which asks instead', async () => {
+      const { svc } = withActions();
+      fetchSpy.mockResolvedValueOnce(call('request_leave', { type: 'SICK' })).mockResolvedValueOnce(final('ลาวันไหนครับ'));
+      const r = await svc.chat(user, msgs, { actions: true });
+      expect(r.action).toBeUndefined();
+      expect(r.reply).toBe('ลาวันไหนครับ');
+      expect(body(1).messages.at(-1).content).toContain('error');
+    });
+
+    it('without actions the model never sees a write tool', async () => {
+      const { svc } = withActions();
+      fetchSpy.mockResolvedValue(final('ok'));
+      await svc.chat(user, msgs);
+      expect(body(0).tools.map((t: any) => t.function.name)).not.toContain('create_task');
+    });
   });
 });

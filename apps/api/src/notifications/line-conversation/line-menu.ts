@@ -4,6 +4,8 @@ import { FlowType } from './line-conversation.types';
 export const MYDAY_COMMAND = 'งานของฉันวันนี้';
 export const MENU_COMMAND = 'เมนู';
 export const CANCEL_COMMAND = 'ยกเลิก';
+/** The only thing that saves what the AI proposed. */
+export const AI_CONFIRM_COMMAND = 'ยืนยันบันทึก';
 
 /** Every wording that starts a flow — imagemap taps, rich-menu taps, typing. */
 export const MENU_SELECTION_MAP: Record<string, FlowType> = {

@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AgendaItem, AuthUser, secretaryCardLabel, secretaryCardPath } from '@lawfirm/shared';
 import { FirmLinkService } from '../firm-link.service';
-import { SecretaryChatService } from '../../secretary/secretary-chat.service';
+import { ProposedAction, SecretaryChatService } from '../../secretary/secretary-chat.service';
+import { SecretaryActionsService } from '../../secretary/secretary-actions.service';
 import { AgendaService } from '../../agenda/agenda.service';
 import { LineMessagingService } from '../line-messaging.service';
 import { LineAuthContextService } from './line-auth-context.service';
@@ -18,6 +19,7 @@ import { LineQuickActionsService } from './line-quick-actions.service';
 import { CASE_SEARCH_COMMAND, LineQueryService, OPEN_TASKS_COMMAND, QueryReply } from './line-query.service';
 import { ConversationSession, ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
 import {
+  AI_CONFIRM_COMMAND,
   CANCEL_COMMAND,
   MENU_COMMAND,
   MENU_HINT,
@@ -37,6 +39,10 @@ const AI_LINKS_MAX = 3;
  * feeding them in made the same question get a different answer for each person.
  */
 const AI_FOLLOW_UP_MS = 30 * 60_000;
+const AI_CONFIRM_QUICK_REPLY = [
+  { label: '✅ ยืนยันบันทึก', text: AI_CONFIRM_COMMAND },
+  { label: '❌ ยกเลิก', text: CANCEL_COMMAND },
+];
 
 /** Which chat a message came from — a session belongs to one chat, not to a user. */
 export function chatKey(target: ConversationTarget): string {
@@ -64,6 +70,7 @@ export class LineBotRouterService {
     private query: LineQueryService,
     private reviewFlow: LineTaskReviewFlowService,
     private secretary: SecretaryChatService,
+    private actions: SecretaryActionsService,
   ) {}
 
   async route(
@@ -74,7 +81,7 @@ export class LineBotRouterService {
   ): Promise<void> {
     const stored = this.store.get(lineUserId);
     // A session started in another chat must not swallow messages here.
-    const existing = stored && chatKey(stored.target) === chatKey(target) ? stored : undefined;
+    let existing = stored && chatKey(stored.target) === chatKey(target) ? stored : undefined;
     const isGroupOrRoom = target.sourceType === 'group' || target.sourceType === 'room';
 
     // In a group/room, only react to a fresh mention — never to ambient chatter.
@@ -93,7 +100,7 @@ export class LineBotRouterService {
     if (reviewNote) {
       // Guard on the user's session in any chat; only a review flow may be replaced.
       const active = this.store.get(lineUserId);
-      if (active?.flowType && active.flowType !== FlowType.TASK_REVIEW) {
+      if (active?.flowType && active.flowType !== FlowType.TASK_REVIEW && active.flowType !== FlowType.AI_ACTION) {
         await this.reply(lineUserId, target, { text: 'ทำรายการเดิมให้เสร็จหรือพิมพ์ "ยกเลิก" ก่อน แล้วกดปุ่มอีกครั้งครับ' });
         return;
       }
@@ -120,6 +127,20 @@ export class LineBotRouterService {
     if (actionReply !== null) {
       await this.reply(lineUserId, target, { text: actionReply });
       return;
+    }
+
+    // What the AI proposed is saved only by this tap, by the same person, before it expires.
+    if (text === AI_CONFIRM_COMMAND) {
+      const pending = existing?.flowType === FlowType.AI_ACTION && existing.userId === authUser.id && existing.firmId === authUser.firmId
+        ? existing.data.action as ProposedAction : undefined;
+      if (existing) this.store.clear(lineUserId);
+      if (!pending) return this.reply(lineUserId, target, { text: 'รายการนี้หมดเวลาแล้วครับ (เกิน 10 นาที) พิมพ์สั่งใหม่ได้เลย' }, MENU_QUICK_REPLY);
+      return this.runAiAction(authUser, lineUserId, target, pending);
+    }
+    // Anything else drops the proposal and is read as a new message.
+    if (existing?.flowType === FlowType.AI_ACTION) {
+      this.store.clear(lineUserId);
+      existing = undefined;
     }
 
     // Read-only questions answer from anywhere and leave an in-progress flow untouched.
@@ -275,21 +296,49 @@ export class LineBotRouterService {
     const isPrivate = chatKey(target) === 'user';
     if (isPrivate) await this.line.showLoading(lineUserId);
     let text: string;
+    let quickReply = MENU_QUICK_REPLY;
     try {
       // History is the user's one secretary chat, so a question just asked on the web can be followed up here.
       const past = await this.secretary.history(user, new Date(Date.now() - AI_FOLLOW_UP_MS));
-      const { reply, cards } = await this.secretary.chat(user, [...past, { role: 'user', content: question }]);
-      const origin = this.firmLink.originForSlug(user.firmSlug);
-      const links = cards.slice(0, AI_LINKS_MAX).map((c) => `🔗 ${secretaryCardLabel(c)}\n${origin}${secretaryCardPath(c)}`);
-      text = [reply, ...links].join('\n\n').slice(0, LINE_TEXT_MAX);
+      // Writes only in the 1:1 chat: the summary and the confirm tap must stay with the asker.
+      const { reply, cards, action } = await this.secretary.chat(user, [...past, { role: 'user', content: question }], { actions: isPrivate });
+      if (action) {
+        this.store.start({
+          lineUserId, userId: user.id, firmId: user.firmId,
+          flowType: FlowType.AI_ACTION, step: ConversationStep.AI_ACTION_CONFIRM, data: { action }, target,
+        });
+        quickReply = AI_CONFIRM_QUICK_REPLY;
+        text = `ตรวจสอบก่อนบันทึกครับ\n\n${reply}`.slice(0, LINE_TEXT_MAX - 60) + `\n\nกด "${AI_CONFIRM_COMMAND}" เพื่อบันทึก`;
+      } else {
+        const origin = this.firmLink.originForSlug(user.firmSlug);
+        const links = cards.slice(0, AI_LINKS_MAX).map((c) => `🔗 ${secretaryCardLabel(c)}\n${origin}${secretaryCardPath(c)}`);
+        text = [reply, ...links].join('\n\n').slice(0, LINE_TEXT_MAX);
+      }
     } catch (err) {
       this.logger.warn(`LINE AI answer failed: ${err}`);
       text = `ผู้ช่วย AI ตอบไม่ได้ในขณะนี้ครับ ลองถามใหม่อีกครั้ง\n\n${MENU_HINT}`;
     }
     if (!isPrivate) return this.replyPrivately(lineUserId, target, { text });
     // A slow answer can outlive the reply token; push so the answer is never lost.
-    const replied = target.replyToken && (await this.line.replyWithQuickReply(target.replyToken, text, MENU_QUICK_REPLY));
-    if (!replied) await this.line.pushTo(lineUserId, text, MENU_QUICK_REPLY);
+    const replied = target.replyToken && (await this.line.replyWithQuickReply(target.replyToken, text, quickReply));
+    if (!replied) await this.line.pushTo(lineUserId, text, quickReply);
+  }
+
+  /** Runs a confirmed AI action as the person, through the same checks as the app and MCP. */
+  private async runAiAction(user: AuthUser, lineUserId: string, target: ConversationTarget, action: ProposedAction) {
+    let text: string;
+    try {
+      const result = await this.actions.run(user, { kind: 'line_ai', id: 'line', clientName: 'LINE' }, action.name, action.args);
+      const origin = this.firmLink.originForSlug(user.firmSlug);
+      const caseId = typeof result.caseId === 'string' ? result.caseId : null;
+      const url = result.leavesUrl ?? result.expensesUrl ?? result.intakeUrl
+        ?? (result.kind === 'TASK' ? (caseId ? `${origin}/cases/${caseId}?task=${result.id}` : `${origin}/todos?task=${result.id}`) : caseId ? `${origin}/cases/${caseId}` : null);
+      text = [typeof result.message === 'string' ? result.message : 'บันทึกแล้วครับ ✅', url ? `🔗 ${url}` : null].filter(Boolean).join('\n\n');
+    } catch (err) {
+      if (!(err instanceof HttpException)) this.logger.error(`LINE AI action ${action.name} failed: ${err}`);
+      text = err instanceof HttpException && /[ก-๙]/.test(err.message) ? err.message : 'บันทึกไม่สำเร็จครับ ลองใหม่อีกครั้ง หรือทำผ่านแอป';
+    }
+    await this.reply(lineUserId, target, { text }, MENU_QUICK_REPLY);
   }
 
   private startFlow(flowType: FlowType, session: ConversationSession, command?: string): Promise<void> {
@@ -308,6 +357,8 @@ export class LineBotRouterService {
         return this.leaveFlow.start(session, command);
       case FlowType.TASK_REVIEW:
         throw new Error('TASK_REVIEW starts from a postback, not a menu command');
+      case FlowType.AI_ACTION:
+        throw new Error('AI_ACTION starts from an AI answer, not a menu command');
     }
   }
 

@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { FirmLinkService } from '../firm-link.service';
 import { LineBotRouterService } from './line-bot-router.service';
 import { ConversationSession, ConversationStep, FlowType } from './line-conversation.types';
@@ -13,6 +14,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
     showLoading: jest.fn(),
   } as any;
   const secretary = { history: jest.fn(), chat: jest.fn() } as any;
+  const aiActions = { run: jest.fn() } as any;
   const auth = {
     resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'OWNER' }),
   } as any;
@@ -64,6 +66,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
       { caseQuery: jest.fn().mockReturnValue(null), openTasks: jest.fn(), findCase: jest.fn() } as any,
       { begin: jest.fn(), handle: jest.fn() } as any,
       secretary,
+      aiActions,
     );
   });
 
@@ -107,6 +110,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
       expect(secretary.chat).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'u1' }),
         [expect.objectContaining({ content: 'ก่อนหน้า' }), expect.objectContaining({ content: 'ตอบก่อนหน้า' }), { role: 'user', content: 'พรุ่งนี้มีนัดอะไร' }],
+        { actions: true },
       );
       const text = line.replyWithQuickReply.mock.calls[0][1] as string;
       expect(text).toContain('พรุ่งนี้มีนัด 1 นัดครับ');
@@ -192,6 +196,66 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
     const since: Date = secretary.history.mock.calls[0][1];
     expect(Date.now() - since.getTime()).toBeCloseTo(30 * 60_000, -3);
     expect(leaveFlow.start).not.toHaveBeenCalled();
+  });
+
+  describe('AI actions wait for one confirm tap', () => {
+    const action = { name: 'create_task', args: { title: 'นัดลูกความ', dueDate: '2026-11-20' } };
+    const pending = () => midFlow({ flowType: FlowType.AI_ACTION, step: ConversationStep.AI_ACTION_CONFIRM, data: { action } });
+    beforeEach(() => {
+      secretary.history.mockResolvedValue([]);
+      line.replyWithQuickReply.mockResolvedValue(true);
+    });
+
+    it('a proposed action is held with a confirm button and nothing is saved', async () => {
+      store.get.mockReturnValue(undefined);
+      secretary.chat.mockResolvedValue({ reply: '📝 สร้างงาน\nชื่องาน: นัดลูกความ', cards: [], action });
+      await router.route('L1', 'สร้างงานนัดลูกความวันที่ 20', target, false);
+      expect(store.start).toHaveBeenLastCalledWith(expect.objectContaining({ flowType: FlowType.AI_ACTION, data: { action } }));
+      const [, text, buttons] = line.replyWithQuickReply.mock.calls[0];
+      expect(text).toContain('ชื่องาน: นัดลูกความ');
+      expect(buttons).toEqual(expect.arrayContaining([expect.objectContaining({ text: 'ยืนยันบันทึก' })]));
+      expect(aiActions.run).not.toHaveBeenCalled();
+    });
+
+    it('"ยืนยันบันทึก" runs it once as the person over LINE', async () => {
+      store.get.mockReturnValue(pending());
+      aiActions.run.mockResolvedValue({ id: 't1', kind: 'TASK', caseId: null });
+      await router.route('L1', 'ยืนยันบันทึก', target, false);
+      expect(store.clear).toHaveBeenCalledWith('L1');
+      expect(aiActions.run).toHaveBeenCalledWith(expect.objectContaining({ id: 'u1' }), expect.objectContaining({ kind: 'line_ai' }), 'create_task', action.args);
+      expect(line.replyWithQuickReply.mock.calls[0][1]).toContain('/todos?task=t1');
+      expect(secretary.chat).not.toHaveBeenCalled();
+    });
+
+    it('"ยืนยันบันทึก" with nothing pending saves nothing', async () => {
+      store.get.mockReturnValue(undefined);
+      await router.route('L1', 'ยืนยันบันทึก', target, false);
+      expect(aiActions.run).not.toHaveBeenCalled();
+      expect(line.replyWithQuickReply.mock.calls[0][1]).toContain('หมดเวลา');
+    });
+
+    it('a refused action answers with the reason', async () => {
+      store.get.mockReturnValue(pending());
+      aiActions.run.mockRejectedValue(new NotFoundException('ไม่พบคดีนี้ในงานของคุณ'));
+      await router.route('L1', 'ยืนยันบันทึก', target, false);
+      expect(line.replyWithQuickReply.mock.calls[0][1]).toBe('ไม่พบคดีนี้ในงานของคุณ');
+    });
+
+    it('typing something else drops the proposal and asks the AI', async () => {
+      store.get.mockReturnValue(pending());
+      secretary.chat.mockResolvedValue({ reply: 'ok', cards: [] });
+      await router.route('L1', 'ไม่เอาแล้ว ขอดูงานพรุ่งนี้', target, false);
+      expect(store.clear).toHaveBeenCalledWith('L1');
+      expect(aiActions.run).not.toHaveBeenCalled();
+      expect(secretary.chat).toHaveBeenCalled();
+    });
+
+    it('in a group the AI stays read-only', async () => {
+      store.get.mockReturnValue(undefined);
+      secretary.chat.mockResolvedValue({ reply: 'ok', cards: [] });
+      await router.route('L1', 'สร้างงาน', { replyToken: 'rt', sourceType: 'group', groupId: 'G1' }, true);
+      expect(secretary.chat).toHaveBeenCalledWith(expect.anything(), expect.anything(), { actions: false });
+    });
   });
 });
 
