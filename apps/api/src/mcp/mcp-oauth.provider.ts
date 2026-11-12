@@ -109,8 +109,17 @@ export class McpOAuthProvider implements OAuthServerProvider {
   async exchangeRefreshToken(client: OAuthClientInformationFull, refreshToken: string, scopes?: string[], resource?: URL): Promise<OAuthTokens> {
     this.validateResource(resource);
     this.validateScopes(scopes);
+    const hash = tokenHash(refreshToken);
+    // A rotated-away refresh token coming back means it leaked: kill the connection (committed before we answer).
+    const replayed = await this.prisma.mcpUsedRefreshToken.findUnique({ where: { hash }, include: { connection: true } });
+    if (replayed) {
+      const { connection } = replayed;
+      const revoked = await this.prisma.mcpConnection.updateMany({ where: { id: connection.id, revokedAt: null }, data: { revokedAt: new Date() } });
+      if (revoked.count) await this.prisma.auditLog.create({ data: { firmId: connection.firmId, userId: connection.userId, action: 'mcp.disconnect',
+        metadata: { connectionId: connection.id, clientName: connection.clientName, reason: 'refresh_token_reuse' } } });
+      throw new InvalidGrantError('Refresh token was already used; reconnect');
+    }
     return this.prisma.$transaction(async tx => {
-      const hash = tokenHash(refreshToken);
       const connection = await this.active(tx, await tx.mcpConnection.findUnique({ where: { refreshTokenHash: hash } }));
       if (connection.clientId !== client.client_id || !connection.refreshExpiresAt || connection.refreshExpiresAt <= new Date()) throw new InvalidGrantError('Invalid refresh token');
       return this.issue(tx, connection, hash);
@@ -133,6 +142,8 @@ export class McpOAuthProvider implements OAuthServerProvider {
       },
     });
     if (changed.count !== 1) throw new InvalidGrantError('Connection was revoked or refreshed');
+    // ponytail: rows live until the connection is deleted; prune by usedAt > 90 d if the table grows.
+    if (refreshHash) await tx.mcpUsedRefreshToken.create({ data: { hash: refreshHash, connectionId: connection.id } });
     return { access_token: access, token_type: 'Bearer', expires_in: ACCESS_SECONDS, refresh_token: refresh, scope: 'mcp' };
   }
 

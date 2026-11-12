@@ -34,9 +34,20 @@ describe('MCP OAuth provider', () => {
     const { provider, client } = oauthFixture();
     const issued = await provider.exchangeRefreshToken(client, 'refresh');
     await expect(provider.verifyAccessToken('access')).rejects.toThrow(InvalidTokenError);
-    await expect(provider.exchangeRefreshToken(client, 'refresh')).rejects.toThrow(InvalidGrantError);
     expect((await provider.verifyAccessToken(issued.access_token)).clientId).toBe(client.client_id);
     expect((await provider.exchangeRefreshToken(client, issued.refresh_token!)).access_token).not.toBe(issued.access_token);
+    // the old refresh token is now a replay (covered below) — it must not be accepted
+    await expect(provider.exchangeRefreshToken(client, 'refresh')).rejects.toThrow(InvalidGrantError);
+  });
+
+  it('replaying a rotated refresh token revokes the connection, so the thief loses the new pair too', async () => {
+    const { provider, prisma, client, connection } = oauthFixture();
+    const stolen = await provider.exchangeRefreshToken(client, 'refresh'); // attacker rotates first
+    await expect(provider.exchangeRefreshToken(client, 'refresh')).rejects.toThrow(InvalidGrantError); // victim replays
+    expect(connection.revokedAt).toBeInstanceOf(Date);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: 'mcp.disconnect' }) }));
+    await expect(provider.exchangeRefreshToken(client, stolen.refresh_token!)).rejects.toThrow(InvalidGrantError);
+    await expect(provider.verifyAccessToken(stolen.access_token)).rejects.toThrow(InvalidTokenError);
   });
 
   it('rejects expired access and refresh tokens and a refresh belonging to another client', async () => {

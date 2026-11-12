@@ -14,6 +14,7 @@ export function oauthFixture() {
     mcpClient: { findUnique: jest.fn(), create: jest.fn() },
     mcpConnection: { findUnique: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn() },
     mcpAuthCode: { findUnique: jest.fn(), updateMany: jest.fn() },
+    mcpUsedRefreshToken: { findUnique: jest.fn(), create: jest.fn() },
     firm: { findUnique: jest.fn().mockResolvedValue({ mcpEnabled: true }) },
     firmMember: { findUnique: jest.fn().mockResolvedValue({ id: 'member' }) },
     auditLog: { create: jest.fn() },
@@ -26,6 +27,9 @@ export function oauthFixture() {
     if (code.usedAt) return { count: 0 };
     code.usedAt = new Date(); return { count: 1 };
   });
+  const usedRefresh = new Set<string>();
+  prisma.mcpUsedRefreshToken.create.mockImplementation(async ({ data }) => { usedRefresh.add(data.hash); return data; });
+  prisma.mcpUsedRefreshToken.findUnique.mockImplementation(async ({ where }) => usedRefresh.has(where.hash) ? { hash: where.hash, connectionId: connection.id, connection } : null);
   prisma.mcpConnection.findUnique.mockImplementation(async ({ where }) => (
     where.id === connection.id || (where.accessTokenHash && where.accessTokenHash === connection.accessTokenHash) || (where.refreshTokenHash && where.refreshTokenHash === connection.refreshTokenHash) ? connection : null));
   prisma.mcpConnection.updateMany.mockImplementation(async ({ where, data }) => {

@@ -3202,9 +3202,21 @@ model McpConnection {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   client    McpClient @relation(fields: [clientId], references: [clientId])
   authCodes McpAuthCode[]
+  usedRefreshTokens McpUsedRefreshToken[]
 
   @@index([firmId])
   @@index([userId])
+}
+
+/// Hashes of refresh tokens already rotated away. Presenting one again means the
+/// token was stolen, so the whole connection is revoked (RFC 9700 §4.14.2).
+model McpUsedRefreshToken {
+  hash         String        @id
+  connectionId String
+  usedAt       DateTime      @default(now())
+  connection   McpConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId])
 }
 
 model McpAuthCode {
