@@ -3,7 +3,6 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { Prisma } from '../generated/prisma';
 import { ReviewResearchFactDto } from './dto/research.dto';
 import { ConfigService } from '@nestjs/config';
-import { chatModel } from '../common/openai-model';
 import { AuthUser, RedactionCounts, redactForAi, isUnusableAnalysis } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient, type IappDekaSearchResult } from '../intelligence/iapp-legal.client';
@@ -12,6 +11,8 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { RelevanceService } from '../rag/relevance.service';
 
+/** Precedent search only — other AI features keep `chatModel()` (OPENAI_MODEL_MAIN). */
+const PRECEDENT_AI_MODEL = 'gpt-6-luna';
 
 /**
  * Cap on extracted attachment text — applied both when storing `extractedFacts`
@@ -180,12 +181,12 @@ export class IntakePrecedentAnalysisService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: chatModel(this.config),
+        // No `temperature`: GPT-5+ models reject it.
+        model: PRECEDENT_AI_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
         ],
-        temperature: 0.3,
         ...(options?.json ? { response_format: { type: 'json_object' } } : {}),
       }),
     });
