@@ -19,6 +19,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { StepTracker } from '@/components/process/StepTracker';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { TeamLeaveCalendar } from '@/components/leaves/TeamLeaveCalendar';
 
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -149,6 +150,7 @@ export default function LeavesPage() {
     <div className="w-full space-y-6">
       <PageHeader title={d.leaves.title} description={d.leaves.description} />
 
+      <TeamLeaveCalendar token={token} reloadKey={reloadKey} />
 
       <details open><summary className="disclosure cursor-pointer py-3 font-medium">ยื่นคำขอลา</summary><form onSubmit={handleSubmit} className="space-y-4 [&>aside]:static [&>aside]:rounded-lg [&>aside]:border [&>aside]:shadow-none">
         <Card>

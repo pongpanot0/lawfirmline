@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leaveApprovalQueue, leaveFlagsForDate, leaveWarning } from './leave-flags.ts';
+import { leaveApprovalQueue, leaveDayEvents, leaveFlagsForDate, leaveWarning } from './leave-flags.ts';
 
 const base = { userId: 'u1', type: 'SICK' as const, startDate: '2026-10-01', endDate: '2026-10-05' };
 
@@ -57,4 +57,21 @@ test('leaveApprovalQueue hides an approver\'s own pending leave unless they are 
   ] as never[];
   assert.deepEqual(leaveApprovalQueue(leaves, { id: 'om', firmRole: 'OFFICE_MANAGER' }).map((l: { id: string }) => l.id), ['b']);
   assert.deepEqual(leaveApprovalQueue(leaves, { id: 'om', firmRole: 'OWNER' }).map((l: { id: string }) => l.id), ['a', 'b']);
+});
+
+test('leaveDayEvents expands a leave into one entry per day', () => {
+  const leave = { id: 'l1', userId: 'u1', type: 'VACATION' as const, status: 'APPROVED' as const, startDate: '2026-11-29T00:00:00.000Z', endDate: '2026-12-01T00:00:00.000Z', user: { firstName: 'Nat', lastName: 'S' } };
+  const days = leaveDayEvents([leave]);
+  assert.deepEqual(days.map((d) => d.startAt.slice(0, 10)), ['2026-11-29', '2026-11-30', '2026-12-01']);
+  assert.equal(days[0].title, 'ลาพักร้อน · Nat S');
+  assert.equal(days[0].leavePending, undefined);
+});
+
+test('leaveDayEvents shows pending only when asked, and never rejected', () => {
+  const pending = { id: 'l2', userId: 'u2', type: 'PERSONAL' as const, status: 'PENDING' as const, startDate: '2026-11-25', endDate: '2026-11-25', user: { firstName: 'Piya', lastName: 'K' } };
+  const rejected = { ...pending, id: 'l3', status: 'REJECTED' as const };
+  assert.equal(leaveDayEvents([pending, rejected]).length, 0);
+  const shown = leaveDayEvents([pending, rejected], { includePending: true });
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].leavePending, true);
 });
