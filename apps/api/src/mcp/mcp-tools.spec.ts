@@ -98,6 +98,20 @@ describe('MCP tools', () => {
     await tools.get('complete_task')!.run({ taskId: 'task' });
     expect(tasks.update).toHaveBeenCalledWith('task', { status: 'DONE' }, user, 'case-1', true, expect.any(Function));
   });
+  it('create_task without a case is a personal to-do; never checks a case and links to /todos', async () => {
+    prisma.case.findFirst.mockClear();
+    tasks.create.mockImplementationOnce(async () => ({ id: 'task-9', caseId: null, source: 'MCP' }));
+    const out = decode(await tools.get('create_task')!.run({ title: 'ประชุมทีม' }));
+    expect(prisma.case.findFirst).not.toHaveBeenCalled();
+    expect(tasks.create).toHaveBeenCalledWith(user, null, expect.objectContaining({ title: 'ประชุมทีม', assigneeId: user.id }), 'MCP', undefined, 0, undefined, expect.any(Function));
+    expect(out.url).toBe('https://firm.samnuan.com/todos?task=task-9');
+  });
+  it('complete_task closes your own personal to-do without a case', async () => {
+    prisma.task.findFirst.mockResolvedValue({ id: 'task-9', caseId: null, assigneeId: user.id, requiresReview: false });
+    await tools.get('complete_task')!.run({ taskId: 'task-9' });
+    expect(prisma.task.findFirst.mock.calls[0][0].where.OR[1]).toEqual({ caseId: null, assigneeId: user.id, firmId: user.firmId });
+    expect(tasks.update).toHaveBeenCalledWith('task-9', { status: 'DONE' }, user, null, true, expect.any(Function));
+  });
   it('marks writes and audits identifiers without note text', async () => {
     await tools.get('create_task')!.run({ caseId: 'case-1', title: 'Task' });
     expect(tasks.create).toHaveBeenCalledWith(user, 'case-1', expect.objectContaining({ assigneeId: user.id }), 'MCP', undefined, 0, undefined, expect.any(Function));

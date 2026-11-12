@@ -32,7 +32,7 @@ const readSchemas = {
   my_work: {},
 };
 const writeSchemas = {
-  create_task: { caseId: text, title, description: note.optional(), dueDate: date.optional() },
+  create_task: { caseId: text.optional(), title, description: note.optional(), dueDate: date.optional() },
   complete_task: { taskId: text },
   add_case_note: { caseId: text, text: note },
   log_time: { caseId: text, hours: z.number().min(0.1).max(24).multipleOf(0.01), description: text.max(500), date: date.optional(), billable: z.boolean().optional() },
@@ -42,8 +42,8 @@ const writeSchemas = {
   draft_notice: { caseId: text.optional(), intakeId: text.optional(), content: text.max(20000), recipient: title.optional(), deadline: date.optional() },
 };
 const descriptions: Record<keyof typeof writeSchemas, string> = {
-  create_task: 'Create a task in your own case, assigned to you.',
-  complete_task: 'Complete your assigned task in your own case. Tasks requiring review must be submitted in the app.',
+  create_task: 'Create a task assigned to you. Pass caseId only when the work belongs to one of your cases; leave it out for a personal to-do (a meeting, office work) — never ask the user for a case just to create a task.',
+  complete_task: 'Complete a task assigned to you (on your own case or a personal to-do). Tasks requiring review must be submitted in the app.',
   add_case_note: 'Add a case comment marked as AI-created, without mentions.',
   log_time: 'Log your time on your own case, using your default hourly rate.',
   propose_court_date: 'Propose a court date for a person to accept in the case page. Never creates a calendar event.',
@@ -103,9 +103,9 @@ export class McpToolsService {
         let entity: { id: string };
         const audit = (entityId: string) => this.audit(user, connection, name, caseId, entityId);
         if (name === 'complete_task') {
-          const task = await this.prisma.task.findFirst({ where: { id: a.taskId as string, case: this.caseFilter(user) } });
-          if (!task?.caseId) throw new NotFoundException('ไม่พบคดีนี้ในงานของคุณ');
-          caseId = task.caseId;
+          const task = await this.prisma.task.findFirst({ where: { id: a.taskId as string, OR: [{ case: this.caseFilter(user) }, { caseId: null, assigneeId: user.id, firmId: user.firmId }] } });
+          if (!task) throw new NotFoundException('ไม่พบงานนี้ในงานของคุณ');
+          caseId = task.caseId as string; // null for a personal to-do: update() then skips the case binding
           if (task.assigneeId !== user.id) throw new BadRequestException('ปิดได้เฉพาะงานที่มอบหมายให้คุณ');
           if (task.requiresReview) throw new BadRequestException('งานนี้ต้องส่งตรวจ กรุณากดส่งตรวจในแอป');
           entity = await this.tasks.update(task.id, { status: TaskStatus.DONE }, user, caseId, true, audit);
@@ -114,6 +114,10 @@ export class McpToolsService {
           if (caseId) await this.assertOwnCase(user, caseId);
           entity = await this.billing.createAiExpenseDraft(user, { caseId: caseId ?? null, amount: a.amount as number, description: a.description as string,
             category: a.category as string | undefined, date: a.date as string | undefined }, audit);
+        } else if (name === 'create_task') {
+          // No case = a personal to-do (e.g. a meeting); with a case it must be one this person may see.
+          if (caseId) await this.assertOwnCase(user, caseId);
+          entity = await this.tasks.create(user, caseId ?? null, { title: a.title as string, description: a.description as string | undefined, dueDate: a.dueDate as string | undefined, assigneeId: user.id }, TaskSource.MCP, undefined, 0, undefined, audit);
         } else if (name === 'request_leave') {
           // Always the caller's own leave; same rules, approvals and notices as the app and LINE.
           const { id, type, status, startDate, endDate } = await this.leaves.create(user, { type: a.type as LeaveType, startDate: a.startDate as string, endDate: a.endDate as string }, audit);
@@ -142,8 +146,7 @@ export class McpToolsService {
             message: 'บันทึกร่างหนังสือทวงถามแล้ว ทนายต้องตรวจแก้และกดออกหนังสือในแอป' };
         } else {
           await this.assertOwnCase(user, caseId);
-          if (name === 'create_task') entity = await this.tasks.create(user, caseId, { title: a.title as string, description: a.description as string | undefined, dueDate: a.dueDate as string | undefined, assigneeId: user.id }, TaskSource.MCP, undefined, 0, undefined, audit);
-          else if (name === 'add_case_note') entity = await this.comments.createComment(user, caseId, a.text as string, [], { viaAi: true, audit });
+          if (name === 'add_case_note') entity = await this.comments.createComment(user, caseId, a.text as string, [], { viaAi: true, audit });
           else if (name === 'log_time') entity = await this.billing.createTimeEntry(user, caseId, { hours: a.hours as number, description: a.description as string, date: a.date as string | undefined, billable: a.billable as boolean | undefined }, { viaAi: true, audit });
           else entity = await this.prisma.$transaction(async (tx) => {
             const suggestion = await tx.documentDateSuggestion.create({ data: {
@@ -156,7 +159,7 @@ export class McpToolsService {
             return suggestion;
           });
         }
-        return { ...entity, caseId, ...(name === 'complete_task' || name === 'create_task' ? { kind: 'TASK' } : {}), ...(name === 'propose_court_date' ? { message: 'เสนอวันนัดแล้ว รอผู้ใช้ยอมรับในหน้าคดี' } : {}),
+        return { ...entity, caseId: caseId ?? null, ...(name === 'complete_task' || name === 'create_task' ? { kind: 'TASK' } : {}), ...(name === 'propose_court_date' ? { message: 'เสนอวันนัดแล้ว รอผู้ใช้ยอมรับในหน้าคดี' } : {}),
           ...(name === 'draft_expense' ? { message: 'บันทึกเป็นร่างเบิกแล้ว แนบใบเสร็จและกดส่งเบิกในแอป', expensesUrl: `${origin}/expenses` } : {}) };
       }));
     }
@@ -212,6 +215,7 @@ function redactWithLinks(value: unknown, origin: string, key = '', parentCaseId?
   const row = value as Record<string, unknown>;
   const isTask = row.kind === 'TASK' || key === 'openTasks';
   const caseId = row.caseId ?? ((row.kind === 'case' || row.type === 'case') ? row.id : isTask ? parentCaseId : undefined);
-  const url = typeof caseId === 'string' ? `${origin}/cases/${encodeURIComponent(caseId)}${isTask && typeof row.id === 'string' ? `?task=${encodeURIComponent(row.id)}` : ''}` : undefined;
+  const url = typeof caseId === 'string' ? `${origin}/cases/${encodeURIComponent(caseId)}${isTask && typeof row.id === 'string' ? `?task=${encodeURIComponent(row.id)}` : ''}`
+    : isTask && row.caseId === null && typeof row.id === 'string' ? `${origin}/todos?task=${encodeURIComponent(row.id)}` : undefined;
   return { ...Object.fromEntries(Object.entries(row).map(([k, v]) => [k, redactWithLinks(v, origin, k, typeof caseId === 'string' ? caseId : parentCaseId)])), ...(url ? { url } : {}) };
 }
