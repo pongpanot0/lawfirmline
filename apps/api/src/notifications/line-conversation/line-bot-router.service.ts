@@ -24,6 +24,7 @@ import {
   MENU_QUICK_REPLY,
   MENU_SELECTION_MAP,
   MYDAY_COMMAND,
+  leaveIntent,
 } from './line-menu';
 
 const MYDAY_SECTION_LIMIT = 5;
@@ -31,6 +32,11 @@ const MYDAY_SECTION_LIMIT = 5;
 const LINE_TEXT_MAX = 5000;
 /** Links under an AI answer; more turns a phone screen into a list of URLs. */
 const AI_LINKS_MAX = 3;
+/**
+ * Only turns this recent count as the conversation. Older ones are a different topic, and
+ * feeding them in made the same question get a different answer for each person.
+ */
+const AI_FOLLOW_UP_MS = 30 * 60_000;
 
 /** Which chat a message came from — a session belongs to one chat, not to a user. */
 export function chatKey(target: ConversationTarget): string {
@@ -148,7 +154,10 @@ export class LineBotRouterService {
       return;
     }
 
-    const directFlow = MENU_SELECTION_MAP[text];
+    // A typed leave request ("ขอลาพรุ่งนี้") opens the leave form rather than the AI — but only
+    // outside a flow, where it could be the answer to a step (a task titled "ลางานบวช").
+    const typedLeave = !MENU_SELECTION_MAP[text] && !existing?.flowType ? leaveIntent(text) : null;
+    const directFlow = MENU_SELECTION_MAP[text] ?? (typedLeave ? FlowType.LEAVE : undefined);
     if (text === MENU_COMMAND || directFlow) {
       const interrupted = Boolean(existing?.flowType);
       const started = this.store.start({
@@ -167,7 +176,7 @@ export class LineBotRouterService {
             'ออกจากรายการที่ทำค้างไว้ แล้วเริ่มรายการใหม่ให้ครับ',
           );
         }
-        await this.startFlow(directFlow, started, text);
+        await this.startFlow(directFlow, started, typedLeave ?? text);
         return;
       }
       await this.showMainMenu(lineUserId, target);
@@ -267,8 +276,8 @@ export class LineBotRouterService {
     if (isPrivate) await this.line.showLoading(lineUserId);
     let text: string;
     try {
-      // History is the user's one secretary chat, so a question asked on the web can be followed up here.
-      const past = await this.secretary.history(user);
+      // History is the user's one secretary chat, so a question just asked on the web can be followed up here.
+      const past = await this.secretary.history(user, new Date(Date.now() - AI_FOLLOW_UP_MS));
       const { reply, cards } = await this.secretary.chat(user, [...past, { role: 'user', content: question }]);
       const origin = this.firmLink.originForSlug(user.firmSlug);
       const links = cards.slice(0, AI_LINKS_MAX).map((c) => `🔗 ${secretaryCardLabel(c)}\n${origin}${secretaryCardPath(c)}`);

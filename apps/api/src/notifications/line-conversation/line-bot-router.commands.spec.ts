@@ -1,6 +1,7 @@
 import { FirmLinkService } from '../firm-link.service';
 import { LineBotRouterService } from './line-bot-router.service';
 import { ConversationSession, ConversationStep, FlowType } from './line-conversation.types';
+import { leaveIntent } from './line-menu';
 
 describe('LineBotRouter — menu commands never get eaten by a flow', () => {
   const line = {
@@ -21,6 +22,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
   const expenseFlow = { start: jest.fn(), handle: jest.fn(), handleImage: jest.fn() } as any;
   const advanceFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const agenda = { getMyDay: jest.fn() } as any;
+  const leaveFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const config = {
     get: jest.fn((key: string) =>
       key === 'ROOT_DOMAIN' ? 'example.com' : 'https://app.example.com',
@@ -57,7 +59,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
     router = new LineBotRouterService(
       line, auth, store, caseFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
       new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
-      { start: jest.fn(), handle: jest.fn() } as any,
+      leaveFlow,
       { handle: jest.fn().mockResolvedValue(null) } as any,
       { caseQuery: jest.fn().mockReturnValue(null), openTasks: jest.fn(), findCase: jest.fn() } as any,
       { begin: jest.fn(), handle: jest.fn() } as any,
@@ -166,4 +168,45 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
       expect.any(Array),
     );
   });
+
+  it('typed "ขอลาป่วยพรุ่งนี้" opens the sick-leave form, not the AI', async () => {
+    store.get.mockReturnValue(undefined);
+    await router.route('L1', 'ขอลาป่วยพรุ่งนี้', target, false);
+    expect(leaveFlow.start).toHaveBeenCalledWith(expect.anything(), 'ลาป่วย');
+    expect(secretary.chat).not.toHaveBeenCalled();
+  });
+
+  it('typed leave mid-flow is an answer to the step, not a new leave', async () => {
+    store.get.mockReturnValue(midFlow());
+    store.update.mockReturnValue(midFlow());
+    await router.route('L1', 'ลาพรุ่งนี้', target, false);
+    expect(leaveFlow.start).not.toHaveBeenCalled();
+    expect(expenseFlow.handle).toHaveBeenCalled();
+  });
+
+  it('the AI only sees the last 30 minutes of the chat', async () => {
+    store.get.mockReturnValue(undefined);
+    secretary.history.mockResolvedValue([]);
+    secretary.chat.mockResolvedValue({ reply: 'ok', cards: [] });
+    await router.route('L1', 'วันนี้ใครลาบ้าง', target, false);
+    const since: Date = secretary.history.mock.calls[0][1];
+    expect(Date.now() - since.getTime()).toBeCloseTo(30 * 60_000, -3);
+    expect(leaveFlow.start).not.toHaveBeenCalled();
+  });
+});
+
+describe('leaveIntent', () => {
+  it.each([
+    ['ลา', 'ลางาน'],
+    ['ขอลาพรุ่งนี้', 'ลางาน'],
+    ['ขอลาป่วยครับ', 'ลาป่วย'],
+    ['จะลากิจวันศุกร์', 'ลากิจ'],
+    ['ขอลาพักร้อน 3 วัน', 'พักร้อน'],
+    ['ผมขอหยุดงานพรุ่งนี้', 'ลางาน'],
+    ['ลา ไม่สบายครับ', 'ลาป่วย'],
+  ])('%s → %s', (text, command) => expect(leaveIntent(text)).toBe(command));
+
+  it.each(['ลาออก', 'ลาเต้', 'ลายเซ็นอยู่ไหน', 'วันนี้ใครลาบ้าง', 'ลาเหลือกี่วัน', 'ลาป่วยได้กี่วัน', 'เวลานัดศาล', 'สวัสดี'])(
+    '%s is not a leave request', (text) => expect(leaveIntent(text)).toBeNull(),
+  );
 });
