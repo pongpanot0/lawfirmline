@@ -1,4 +1,5 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import type { AuthUser } from '@lawfirm/shared';
 import { AI_WRITE_TOOLS, AiWriteProposal, AiWriteTool, AiWriteToolsService, AiWriteVia } from '../../secretary/ai-write-tools.service';
 import { SecretaryChatService } from '../../secretary/secretary-chat.service';
@@ -11,10 +12,13 @@ import { CANCEL_COMMAND } from './line-menu';
 /** The LINE AI offers every MCP write; each still waits for the person's "ยืนยัน". */
 export const LINE_AI_WRITES: AiWriteTool[] = AI_WRITE_TOOLS;
 export const AI_CONFIRM_COMMAND = 'ยืนยัน';
-export const AI_CONFIRM_QUICK_REPLY: QuickReplyItem[] = [
-  { label: '✅ ยืนยัน', text: AI_CONFIRM_COMMAND },
+/** The ยืนยัน button's postback: it names the one proposal it confirms, so a late tap can't save a newer one. */
+export const AI_CONFIRM_ACTION = /^ai-write:confirm:([0-9a-f-]{36})$/i;
+export const aiConfirmQuickReply = (id: string): QuickReplyItem[] => [
+  { label: '✅ ยืนยัน', text: AI_CONFIRM_COMMAND, data: `ai-write:confirm:${id}` },
   { label: '❌ ยกเลิก', text: CANCEL_COMMAND },
 ];
+const STALE = 'ปุ่มนี้เป็นของรายการเก่าครับ ไม่ได้บันทึก กดยืนยันที่ข้อความตรวจสอบล่าสุด';
 const VIA: AiWriteVia = { auditPrefix: 'line_ai', auditMetadata: { channel: 'line' }, clientName: 'LINE' };
 
 /**
@@ -32,23 +36,35 @@ export class LineAiWriteService {
     private firmLink: FirmLinkService,
   ) {}
 
-  /** Holds the proposal in the 1:1 chat — it may name a case the group cannot see. */
-  hold(user: AuthUser, lineUserId: string, proposal: AiWriteProposal): void {
+  /** Holds the proposal in the 1:1 chat (it may name a case the group cannot see); returns its confirm buttons. */
+  hold(user: AuthUser, lineUserId: string, proposal: AiWriteProposal): QuickReplyItem[] {
+    const id = randomUUID();
     this.store.start({
       lineUserId, userId: user.id, firmId: user.firmId,
       flowType: FlowType.AI_WRITE, step: ConversationStep.AI_WRITE_CONFIRM,
-      data: { proposal }, target: { sourceType: 'user' },
+      data: { proposal, id }, target: { sourceType: 'user' },
     });
+    return aiConfirmQuickReply(id);
+  }
+
+  /** The buttons of the proposal held now, for re-showing them. */
+  heldQuickReply(lineUserId: string): QuickReplyItem[] | undefined {
+    const held = this.store.get(lineUserId);
+    return held?.flowType === FlowType.AI_WRITE ? aiConfirmQuickReply(held.data.id as string) : undefined;
   }
 
   /**
    * Saves the held proposal and returns the reply, or null when nothing is held. Taking it out of the store
    * happens before any await, so two quick taps (two webhooks) can never both save it.
    */
-  async confirm(user: AuthUser, lineUserId: string): Promise<string | null> {
+  async confirm(user: AuthUser, lineUserId: string, id: string): Promise<string | null> {
     const held = this.store.get(lineUserId);
+    // Nothing held: the second tap of a button whose first tap already saved it.
     if (held?.flowType !== FlowType.AI_WRITE) return null;
+    if (held.data.id !== id) return STALE;
     this.store.clear(lineUserId);
+    // Proposed for this person in this firm only — a relinked LINE account or a changed firm never inherits it.
+    if (held.userId !== user.id || held.firmId !== user.firmId) return 'รายการนี้หมดอายุแล้วครับ ไม่ได้บันทึก';
     const proposal = held.data.proposal as AiWriteProposal;
     let reply: string;
     try {

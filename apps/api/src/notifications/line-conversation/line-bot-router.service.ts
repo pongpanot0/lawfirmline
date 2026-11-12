@@ -15,7 +15,7 @@ import { LineAdvanceFlowService } from './flows/line-advance-flow.service';
 import { LineTaskReviewFlowService, REVIEW_NOTE_ACTION } from './flows/line-task-review-flow.service';
 import { LineLeaveFlowService } from './flows/line-leave-flow.service';
 import { LineQuickActionsService } from './line-quick-actions.service';
-import { AI_CONFIRM_COMMAND, AI_CONFIRM_QUICK_REPLY, LINE_AI_WRITES, LineAiWriteService } from './line-ai-write.service';
+import { AI_CONFIRM_ACTION, AI_CONFIRM_COMMAND, LINE_AI_WRITES, LineAiWriteService } from './line-ai-write.service';
 import { CASE_SEARCH_COMMAND, LineQueryService, OPEN_TASKS_COMMAND, QueryReply } from './line-query.service';
 import { ConversationSession, ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
 import {
@@ -115,6 +115,15 @@ export class LineBotRouterService {
           await this.reply(lineUserId, target, { text: 'ส่งขั้นตอนต่อไปที่แชตส่วนตัวกับบอทแล้วครับ' });
         }
       }
+      return;
+    }
+
+    // An AI-write ยืนยัน button saves exactly the proposal it was drawn for, whatever the chat state now.
+    const aiConfirm = AI_CONFIRM_ACTION.exec(text);
+    if (aiConfirm) {
+      const saved = await this.aiWrite.confirm(authUser, lineUserId, aiConfirm[1].toLowerCase());
+      // null: a second tap of the same button — the first one already saved it.
+      if (saved) await this.reply(lineUserId, target, { text: saved }, MENU_QUICK_REPLY);
       return;
     }
 
@@ -223,11 +232,9 @@ export class LineBotRouterService {
     if (existing.flowType === FlowType.TASK_REVIEW) return this.reviewFlow.handle(updated, text);
     if (existing.flowType === FlowType.LEAVE) return this.leaveFlow.handle(updated, text);
     if (existing.flowType === FlowType.AI_WRITE) {
+      // Typed "ยืนยัน" names no proposal; only the button does — show it again.
       if (text === AI_CONFIRM_COMMAND) {
-        const saved = await this.aiWrite.confirm(authUser, lineUserId);
-        // null: a second tap of the same button — the first one already saved it.
-        if (saved) await this.reply(lineUserId, target, { text: saved }, MENU_QUICK_REPLY);
-        return;
+        return this.reply(lineUserId, target, { text: 'กดปุ่ม ✅ ยืนยัน ด้านล่างเพื่อบันทึกครับ', quickReply: this.aiWrite.heldQuickReply(lineUserId) });
       }
       // Anything else is a new message: the waiting write is dropped (the AI may propose a corrected one).
       this.store.clear(lineUserId);
@@ -297,10 +304,7 @@ export class LineBotRouterService {
       const links = cards.slice(0, AI_LINKS_MAX).map((c) => `🔗 ${secretaryCardLabel(c)}\n${origin}${secretaryCardPath(c)}`);
       text = [notice, reply, ...(proposal ? [] : links)].filter(Boolean).join('\n\n').slice(0, LINE_TEXT_MAX);
       // A proposed write saves nothing yet: it waits for the person's own "ยืนยัน".
-      if (proposal) {
-        this.aiWrite.hold(user, lineUserId, proposal);
-        quickReply = AI_CONFIRM_QUICK_REPLY;
-      }
+      if (proposal) quickReply = this.aiWrite.hold(user, lineUserId, proposal);
     } catch (err) {
       this.logger.warn(`LINE AI answer failed: ${err}`);
       text = `ผู้ช่วย AI ตอบไม่ได้ในขณะนี้ครับ ลองถามใหม่อีกครั้ง\n\n${MENU_HINT}`;

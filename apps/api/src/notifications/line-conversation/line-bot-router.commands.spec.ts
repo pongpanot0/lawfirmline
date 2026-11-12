@@ -220,7 +220,9 @@ describe('LineBotRouter — AI writes wait for "ยืนยัน"', () => {
   const auth = { resolve: jest.fn().mockResolvedValue(user) } as any;
   const store = { get: jest.fn(), start: jest.fn((s) => s), update: jest.fn((_id, patch) => ({ ...patch })), clear: jest.fn() } as any;
   const secretary = { history: jest.fn().mockResolvedValue([]), chat: jest.fn() } as any;
-  const aiWrite = { hold: jest.fn(), confirm: jest.fn() } as any;
+  const ID = '11111111-2222-3333-4444-555555555555';
+  const buttons = [{ label: '✅ ยืนยัน', text: 'ยืนยัน', data: `ai-write:confirm:${ID}` }, { label: '❌ ยกเลิก', text: 'ยกเลิก' }];
+  const aiWrite = { hold: jest.fn(() => buttons), confirm: jest.fn(), heldQuickReply: jest.fn(() => buttons) } as any;
   const config = { get: jest.fn(() => 'https://app.example.com') } as any;
   const flow = () => ({ start: jest.fn(), handle: jest.fn() }) as any;
   const dm = { replyToken: 'rt', sourceType: 'user' as const };
@@ -257,11 +259,11 @@ describe('LineBotRouter — AI writes wait for "ยืนยัน"', () => {
     expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('แชตส่วนตัว'), undefined);
   });
 
-  it('"ยืนยัน" saves the held write and replies with the result', async () => {
+  it('the ยืนยัน button saves the proposal it names and replies with the result', async () => {
     store.get.mockReturnValue(held);
     aiWrite.confirm.mockResolvedValue('✅ บันทึกแล้วครับ: สร้างงาน "เตรียมพยาน"');
-    await router.route('L1', 'ยืนยัน', dm, false);
-    expect(aiWrite.confirm).toHaveBeenCalledWith(user, 'L1');
+    await router.route('L1', `ai-write:confirm:${ID}`, dm, true);
+    expect(aiWrite.confirm).toHaveBeenCalledWith(user, 'L1', ID);
     expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('บันทึกแล้ว'), expect.any(Array));
     expect(secretary.chat).not.toHaveBeenCalled();
   });
@@ -269,8 +271,23 @@ describe('LineBotRouter — AI writes wait for "ยืนยัน"', () => {
   it('a second "ยืนยัน" tap that finds nothing held stays silent', async () => {
     store.get.mockReturnValue(held);
     aiWrite.confirm.mockResolvedValue(null);
-    await router.route('L1', 'ยืนยัน', dm, false);
+    await router.route('L1', `ai-write:confirm:${ID}`, dm, true);
     expect(line.replyWithQuickReply).not.toHaveBeenCalled();
+  });
+
+  it('typed "ยืนยัน" saves nothing and shows the button again', async () => {
+    store.get.mockReturnValue(held);
+    await router.route('L1', 'ยืนยัน', dm, false);
+    expect(aiWrite.confirm).not.toHaveBeenCalled();
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('กดปุ่ม'), buttons);
+    expect(store.clear).not.toHaveBeenCalled();
+  });
+
+  it('a confirm button tapped while another flow is open still goes to the confirm check, never into that flow', async () => {
+    store.get.mockReturnValue({ flowType: FlowType.EXPENSE, step: ConversationStep.EXPENSE_AMOUNT, data: {}, target: dm });
+    aiWrite.confirm.mockResolvedValue('ปุ่มนี้เป็นของรายการเก่าครับ');
+    await router.route('L1', `ai-write:confirm:${ID}`, dm, true);
+    expect(aiWrite.confirm).toHaveBeenCalledWith(user, 'L1', ID);
   });
 
   it('"ยกเลิก" drops the held write without saving', async () => {
