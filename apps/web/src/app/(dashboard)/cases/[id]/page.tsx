@@ -1389,6 +1389,12 @@ export default function CaseDetailPage() {
                 ) : (
                   <p className="text-muted-foreground">ยังไม่ออกหนังสือ</p>
                 )}
+                {legalCase.intake.noticeDraft && (
+                  <p className="flex items-start gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                    <Sparkles aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>มีร่างหนังสือจาก {legalCase.intake.noticeDraft.clientName} รอตรวจ — กด “ออก Notice” เพื่อตรวจแก้แล้วออกหนังสือ</span>
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   สถานะเจรจา: {legalCase.intake.preLitigationStatus ? (PRE_LITIGATION_STATUS_LABELS[legalCase.intake.preLitigationStatus] ?? legalCase.intake.preLitigationStatus) : '—'}
                   {legalCase.intake.settlementOfferAmount != null && ` · ข้อเสนอจ่ายล่าสุด ${legalCase.intake.settlementOfferAmount.toLocaleString('th-TH')} บาท`}
@@ -1741,7 +1747,9 @@ export default function CaseDetailPage() {
       {legalCase.intake && preFiling && <>
               <CaseNoticeDialog
                 intakeId={legalCase.intake.id}
+                key={legalCase.intake.noticeDraft?.draftedAt ?? 'no-draft'}
                 defaultRecipient={legalCase.intake.noticeRecipient}
+                draft={legalCase.intake.noticeDraft}
                 open={noticeOpen}
                 onClose={() => setNoticeOpen(false)}
                 onDone={loadCase}

@@ -339,6 +339,8 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
   const [noticeContent, setNoticeContent] = useState('');
   const [noticeReviewed, setNoticeReviewed] = useState(false);
   const [noticeAckMissingDocs, setNoticeAckMissingDocs] = useState(false);
+  /** App name when the form was prefilled from an MCP draft (Intake.noticeDraft). */
+  const [noticeFromAi, setNoticeFromAi] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
 
   const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([]);
@@ -776,10 +778,12 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
 
   const openNoticeModal = (analysisId?: string) => {
     if (analysisId) setSelectedAnalysisId(analysisId);
-    setNoticeRecipient('');
-    setNoticeDeadline('');
+    const draft = analysisId ? null : intake?.noticeDraft;
+    setNoticeRecipient(draft?.recipient ?? '');
+    setNoticeDeadline(draft?.deadline ?? '');
     setNoticeResult('');
-    setNoticeContent('');
+    setNoticeContent(draft?.content ?? '');
+    setNoticeFromAi(draft?.clientName ?? null);
     setNoticeReviewed(false);
     setError('');
     setModal('notice');
@@ -796,6 +800,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
         selectedAnalysisId ?? undefined,
       );
       setNoticeContent(content);
+      setNoticeFromAi(null);
       setNoticeReviewed(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
@@ -1466,6 +1471,12 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
               ) : (
                 <p className="text-sm text-muted-foreground">ยังไม่ออกหนังสือทวงถาม — ทุกฉบับจะเก็บประวัติไว้ที่นี่</p>
               )}
+              {intake.noticeDraft && (
+                <p className="mt-2 flex items-start gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                  <Sparkles aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <span>มีร่างหนังสือจาก {intake.noticeDraft.clientName} รอตรวจ — กด “ออกหนังสือทวงถามฉบับใหม่” เพื่อตรวจแก้แล้วออกหนังสือ</span>
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -1556,7 +1567,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             </>
           ) : (
             <>
-              <p className="mt-0.5 text-sm font-bold">ยังไม่ออกหนังสือทวงถาม</p>
+              <p className="mt-0.5 text-sm font-bold">{intake.noticeDraft ? `มีร่างจาก ${intake.noticeDraft.clientName} รอตรวจ` : 'ยังไม่ออกหนังสือทวงถาม'}</p>
               <button type="button" className="inline-flex min-h-[44px] items-center gap-0.5 text-xs font-medium text-primary hover:underline disabled:opacity-50 sm:min-h-0" disabled={stepLocked('CASE')} title={stepLocked('CASE') ? hint('CASE') : undefined} onClick={() => openNoticeModal()}>
                 ออกหนังสือทวงถาม
                 <ChevronRight className="h-3.5 w-3.5" aria-hidden />
@@ -2144,6 +2155,12 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
               <>
                 <h2 className="mb-4 text-lg font-semibold">ออกหนังสือทวงถาม</h2>
                 <div className="space-y-3">
+                  {noticeFromAi && (
+                    <p className="flex items-start gap-1.5 rounded-lg border border-primary/30 bg-primary/5 p-2 text-xs">
+                      <Sparkles aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                      ร่างจาก {noticeFromAi} ผ่าน AI — ตรวจแก้ทุกช่องให้ถูกต้องก่อนออกหนังสือ
+                    </p>
+                  )}
                   <div>
                     <label className="block text-sm font-medium">ผู้รับหนังสือทวงถาม</label>
                     <input

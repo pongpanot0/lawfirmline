@@ -154,6 +154,7 @@ export class CasesService {
         noticeDeadline: true,
         noticeRecipient: true,
         noticeResult: true,
+        noticeDraft: true,
         preLitigationStatus: true,
         settlementOfferAmount: true,
       },
