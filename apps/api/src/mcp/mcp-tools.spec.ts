@@ -14,6 +14,7 @@ const ownIntake = { firmId: 'firm-1', ownIntake: true };
 const radar = { start: '2026-11-12', days: ['2026-11-12'], members: [
   { userId: 'u-a', firstName: 'A', lastName: 'One', role: 'LAWYER', openCount: 6, openPoints: 12, overdueCount: 1, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 2, points: 4, eventCount: 1, courtCount: 1, onLeave: false }] },
   { userId: 'u-b', firstName: 'B', lastName: 'Two', role: 'LAWYER', openCount: 1, openPoints: 2, overdueCount: 0, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 0, points: 0, eventCount: 0, courtCount: 0, onLeave: true }] },
+  { userId: 'u-c', firstName: 'C', lastName: 'Three', role: 'LAWYER', openCount: 1, openPoints: 1, overdueCount: 1, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 0, points: 0, eventCount: 0, courtCount: 0, onLeave: false }] },
 ] };
 const decode = (r: any) => JSON.parse(r.content[0].text);
 
@@ -84,9 +85,9 @@ describe('MCP tools', () => {
     const out = decode(await tools.get('team_workload')!.run({ from: '2026-11-12' }));
     expect(operations.radar).toHaveBeenCalledWith(expect.objectContaining({ firmRole: FirmRole.OWNER }), '2026-11-12');
     expect(out.standardPoints).toBe(10);
-    expect(out.members.map((m: any) => [m.firstName, m.status, m.loadPercent])).toEqual([['A', 'over_standard', 120], ['B', 'on_leave_this_week', 20]]);
+    expect(out.members.map((m: any) => [m.firstName, m.status, m.loadPercent])).toEqual([['A', 'over_standard', 120], ['B', 'on_leave_this_week', 20], ['C', 'has_overdue', 10]]);
     expect(out.members[1].leaveDays).toEqual(['2026-11-12']);
-    expect(JSON.stringify(out)).not.toMatch(/u-a|u-b|caseId|title/);
+    expect(JSON.stringify(out)).not.toMatch(/u-a|u-b|u-c|caseId|title/);
   });
   it.each([{ assigneeId: 'other', requiresReview: false }, { assigneeId: user.id, requiresReview: true }])('refuses other assignees and review work', async (task) => {
     prisma.task.findFirst.mockResolvedValue({ id: 'task', caseId: 'case-1', ...task });
