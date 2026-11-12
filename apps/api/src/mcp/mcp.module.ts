@@ -12,9 +12,10 @@ import { McpService } from './mcp.service';
 import { McpConsentController, McpConnectionsController } from './mcp.controller';
 import { McpToolsService } from './mcp-tools.service';
 import { OperationsModule } from '../operations/operations.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Module({
-  imports: [JwtModule.register({}), SaasModule, SecretaryModule, TasksModule, CasesModule, BillingModule, NotificationsModule, OperationsModule],
+  imports: [JwtModule.register({}), SaasModule, SecretaryModule, TasksModule, CasesModule, BillingModule, NotificationsModule, OperationsModule, WorkflowsModule],
   controllers: [McpConsentController, McpConnectionsController],
   providers: [McpConsentGuard, McpOAuthProvider, McpService, McpToolsService],
   exports: [McpOAuthProvider, McpToolsService],
