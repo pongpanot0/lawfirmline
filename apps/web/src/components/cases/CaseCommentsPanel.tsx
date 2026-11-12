@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const TIME = new Intl.DateTimeFormat('th-TH', {
   hour: '2-digit',
@@ -233,7 +234,7 @@ export function CaseCommentsPanel({
     if (!token || !caseId) return;
     const target = comments.find((item) => item.id === commentId);
     const preview = target ? target.body.slice(0, 40) : '';
-    if (!window.confirm(`ลบบันทึก "${preview}${target && target.body.length > 40 ? '…' : ''}"?`)) return;
+    if (!await confirmDialog(`ลบบันทึก "${preview}${target && target.body.length > 40 ? '…' : ''}"?`)) return;
     try {
       await api.deleteCaseComment(token, caseId, commentId);
       load();

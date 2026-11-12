@@ -16,6 +16,7 @@ import { EmptyState, Skeleton } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { DocumentCategory } from '@lawfirm/shared';
 import { documentCategoryLabel } from '@/lib/stage-labels';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 export default function CaseTypesPage() {
   const d = useDashboardT();
@@ -70,7 +71,7 @@ export default function CaseTypesPage() {
 
   const handleDelete = async (type: CaseTypeItem) => {
     if (!token) return;
-    if (!window.confirm(`ลบประเภทคดี "${type.name}" ใช่ไหม`)) return;
+    if (!await confirmDialog(`ลบประเภทคดี "${type.name}" ใช่ไหม`)) return;
     setActionError('');
     try {
       await api.deleteCaseType(token, type.id);

@@ -16,6 +16,7 @@ import {
 } from '@/lib/portal-api';
 import { PortalShell } from '@/components/layout/PortalShell';
 import { Bell, Check, Clock, Copy, ExternalLink, Lock, Mail, MessageCircle } from 'lucide-react';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 export default function PortalSettingsPage() {
   const router = useRouter();
@@ -95,7 +96,7 @@ export default function PortalSettingsPage() {
 
   const handleDisconnect = async () => {
     if (!token) return;
-    if (!window.confirm('ยกเลิกการเชื่อมต่อบัญชี LINE กับพอร์ทัลนี้? คุณจะไม่ได้รับแจ้งเตือนทาง LINE จนกว่าจะเชื่อมต่อใหม่')) return;
+    if (!await confirmDialog('ยกเลิกการเชื่อมต่อบัญชี LINE กับพอร์ทัลนี้? คุณจะไม่ได้รับแจ้งเตือนทาง LINE จนกว่าจะเชื่อมต่อใหม่')) return;
     setDisconnecting(true);
     setActionError(null);
     try {

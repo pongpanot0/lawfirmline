@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { InlineEmptyState, Modal, Skeleton } from '@/components/ui/misc';
 import { StartWorkflowDrawer } from './StartWorkflowDrawer';
 import { fileSize, shortThaiDate } from './workflow-ui';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const RUN_STATUS: Record<CaseWorkflowRun['status'], { label: string; variant: 'default' | 'success' | 'muted' }> = {
   ACTIVE: { label: 'กำลังทำ', variant: 'default' },
@@ -122,7 +123,7 @@ function RunCard({ run, token, onChanged }: { run: CaseWorkflowRun; token: strin
         )}
         {run.status === 'ACTIVE' && (
           <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busy}
-            onClick={() => { if (window.confirm(`ยกเลิกสายงาน "${run.name}"? ขั้นที่ยังไม่เสร็จจะถูกลบ`)) act(() => api.cancelWorkflow(token, run.id)); }}>
+            onClick={async () => { if (await confirmDialog(`ยกเลิกสายงาน "${run.name}"? ขั้นที่ยังไม่เสร็จจะถูกลบ`)) act(() => api.cancelWorkflow(token, run.id)); }}>
             ยกเลิกสายงาน
           </Button>
         )}

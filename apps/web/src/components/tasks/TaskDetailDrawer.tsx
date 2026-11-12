@@ -23,6 +23,7 @@ import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { TaskAiPanel } from './TaskAiPanel';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 interface Props {
   taskId: string | null;
@@ -216,7 +217,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   // Not through run(): reloading a deleted task would only 404.
   const removeTask = async () => {
     if (!token || !task || busy) return;
-    if (!window.confirm(text(
+    if (!await confirmDialog(text(
       `ลบงาน "${task.title}" ถาวร? งานย่อย ความคิดเห็น และไฟล์แนบจะถูกลบด้วย กู้คืนไม่ได้`,
       `Delete "${task.title}" permanently? Subtasks, comments and attachments go with it. This cannot be undone.`,
     ))) return;
@@ -534,7 +535,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   <span className="min-w-0 flex-1 basis-40 break-words">{a.filename}</span>
                   <span className="text-xs text-muted-foreground">{formatBytes(a.size)} · {a.uploadedBy.firstName}</span>
                   <button type="button" disabled={downloadingId === a.id} aria-label={`${d.taskDetail.download} ${a.filename}`} onClick={() => void download(a.id, a.filename)} className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-muted disabled:opacity-50"><Download className="h-4 w-4" aria-hidden /></button>
-                  <button type="button" aria-label={`${d.taskDetail.delete} ${a.filename}`} disabled={busy} onClick={() => window.confirm(d.taskDetail.confirmDeleteAttachment) && run(() => api.deleteTaskAttachment(token!, task.id, a.id))} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive"><Trash2 className="h-4 w-4" aria-hidden /></button>
+                  <button type="button" aria-label={`${d.taskDetail.delete} ${a.filename}`} disabled={busy} onClick={async () => await confirmDialog(d.taskDetail.confirmDeleteAttachment) && run(() => api.deleteTaskAttachment(token!, task.id, a.id))} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive"><Trash2 className="h-4 w-4" aria-hidden /></button>
                 </li>)}
                 {task.attachments.length === 0 && <li className="text-xs text-muted-foreground">{d.taskDetail.noAttachments}</li>}
               </ul>
@@ -547,7 +548,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   <li key={c.id} className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
                     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                       <span>{c.author.firstName} {c.author.lastName} · {formatDateTime(c.createdAt)}</span>
-                      <button type="button" aria-label={d.taskDetail.delete} disabled={busy} onClick={() => window.confirm(d.taskDetail.confirmDeleteComment) && run(() => api.deleteTaskComment(token!, task.id, c.id))} className="-my-2 inline-flex h-9 w-9 items-center justify-center rounded-lg hover:text-destructive"><X className="h-3.5 w-3.5" aria-hidden /></button>
+                      <button type="button" aria-label={d.taskDetail.delete} disabled={busy} onClick={async () => await confirmDialog(d.taskDetail.confirmDeleteComment) && run(() => api.deleteTaskComment(token!, task.id, c.id))} className="-my-2 inline-flex h-9 w-9 items-center justify-center rounded-lg hover:text-destructive"><X className="h-3.5 w-3.5" aria-hidden /></button>
                     </div>
                     <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
                   </li>

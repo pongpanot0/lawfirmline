@@ -13,6 +13,7 @@ import { bangkokDateInputValue } from '@/lib/bangkok';
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 /**
  * งาน/checklist ของเรื่องรับเข้า — intake คืองานก่อนฟ้องที่ทนายทำจริง
@@ -78,7 +79,7 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
   };
 
   const remove = async (taskId: string, taskTitle: string) => {
-    if (!token || !window.confirm(`ลบงาน "${taskTitle}"?`)) return;
+    if (!token || !await confirmDialog(`ลบงาน "${taskTitle}"?`)) return;
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     await api.deleteIntakeTask(token, intakeId, taskId).catch(() => reload());
   };

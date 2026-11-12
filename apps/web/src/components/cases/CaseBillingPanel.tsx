@@ -23,6 +23,7 @@ import { SelectField, TextField } from '@/components/ui/form-fields';
 import { Plus, Check, Receipt, CircleSlash, Pencil, Trash2, Timer, RotateCcw } from 'lucide-react';
 import { DocsRowMenu } from '@/components/case-page/DocsRowMenu';
 import v2 from '@/components/case-page/v2.module.css';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const WRITE_OFF_MIN_REASON = 5;
 
@@ -218,7 +219,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   };
 
   const handleDeleteTime = async (entryId: string) => {
-    if (!token || !window.confirm('ลบบันทึกเวลานี้?')) return;
+    if (!token || !await confirmDialog('ลบบันทึกเวลานี้?')) return;
     setTimeError('');
     try {
       await api.deleteTimeEntry(token, id, entryId);

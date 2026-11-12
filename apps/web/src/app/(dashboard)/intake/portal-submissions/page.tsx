@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Inbox, X } from 'lucide-react';
 import { ConflictOverrideDialog } from '@/components/ConflictOverrideDialog';
 import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 export default function PortalSubmissionsPage() {
   const { token } = useAuth();
@@ -100,7 +101,7 @@ export default function PortalSubmissionsPage() {
         </CardContent>
       </Card>
       </div>}</div>
-      {selected && token && <aside className="min-w-0 rounded-xl border bg-card p-4 lg:col-span-2"><div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold">ตรวจคำขอ</h2><Button variant="ghost" size="icon" aria-label="ปิดแผงตรวจ" onClick={() => setSelected('')}><X className="h-4 w-4" /></Button></div>{items.filter(item => item.id === selected).map(item => <div key={item.id} className="space-y-3 border-b pb-4"><p className="text-sm text-muted-foreground">{item.referenceNumber}</p><h3 className="font-semibold">{item.title}</h3><p className="whitespace-pre-wrap break-words">{item.detail}</p><p className="text-sm">ลูกความ: {item.client.name} · {item.clientContact.name}</p></div>)}<RequestWorkroom key={selected} id={selected} token={token} staff />{items.find(item => item.id === selected) && <div className="mt-4 border-t pt-4"><Button disabled={converting} title="รับเรื่องเข้าสำนักงานและเปิดเป็นคดีขั้นก่อนฟ้อง" onClick={() => { const item = items.find(entry => entry.id === selected); if (item && window.confirm(`รับเรื่อง "${item.title}" เข้าสำนักงาน?\nระบบจะเปิดเป็นคดีขั้นก่อนฟ้อง`)) void handleConvert(item.id); }}>รับเข้าเป็นคดีก่อนฟ้อง</Button><p className="mt-1 text-xs text-muted-foreground">ระบบถามยืนยันก่อน แล้วสร้างคดีก่อนฟ้อง</p></div>}</aside>}</div>
+      {selected && token && <aside className="min-w-0 rounded-xl border bg-card p-4 lg:col-span-2"><div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold">ตรวจคำขอ</h2><Button variant="ghost" size="icon" aria-label="ปิดแผงตรวจ" onClick={() => setSelected('')}><X className="h-4 w-4" /></Button></div>{items.filter(item => item.id === selected).map(item => <div key={item.id} className="space-y-3 border-b pb-4"><p className="text-sm text-muted-foreground">{item.referenceNumber}</p><h3 className="font-semibold">{item.title}</h3><p className="whitespace-pre-wrap break-words">{item.detail}</p><p className="text-sm">ลูกความ: {item.client.name} · {item.clientContact.name}</p></div>)}<RequestWorkroom key={selected} id={selected} token={token} staff />{items.find(item => item.id === selected) && <div className="mt-4 border-t pt-4"><Button disabled={converting} title="รับเรื่องเข้าสำนักงานและเปิดเป็นคดีขั้นก่อนฟ้อง" onClick={async () => { const item = items.find(entry => entry.id === selected); if (item && await confirmDialog(`รับเรื่อง "${item.title}" เข้าสำนักงาน?\nระบบจะเปิดเป็นคดีขั้นก่อนฟ้อง`)) void handleConvert(item.id); }}>รับเข้าเป็นคดีก่อนฟ้อง</Button><p className="mt-1 text-xs text-muted-foreground">ระบบถามยืนยันก่อน แล้วสร้างคดีก่อนฟ้อง</p></div>}</aside>}</div>
       {conflict && (
         <ConflictOverrideDialog matches={conflict.matches} busy={converting} onCancel={() => setConflict(null)} onConfirm={conflict.retry} />
       )}

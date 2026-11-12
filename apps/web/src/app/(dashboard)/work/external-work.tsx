@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { EmptyState, Skeleton } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { fileSize, saveBlob, shortThaiDate } from '@/components/workflows/workflow-ui';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 /** The whole app, for a freelancer: their own workflow steps and nothing else. */
 export default function ExternalWorkPage() {
@@ -135,8 +136,8 @@ function StepCard({ step, token, onChanged }: { step: ExternalStep; token: strin
       {!handedIn && (
         <div className="mt-4 border-t pt-4">
           <Button className="w-full sm:w-auto" disabled={busy || step.blocked}
-            onClick={() => {
-              if (!step.outputs.length && !window.confirm('ยังไม่ได้แนบไฟล์งาน ส่งงานเลยไหม?')) return;
+            onClick={async () => {
+              if (!step.outputs.length && !await confirmDialog('ยังไม่ได้แนบไฟล์งาน ส่งงานเลยไหม?')) return;
               run(() => api.completeExternalStep(token, step.taskId));
             }}>
             <CheckCircle2 className="h-4 w-4" aria-hidden />{step.blocked ? 'รอขั้นก่อนหน้า' : 'ส่งงาน'}

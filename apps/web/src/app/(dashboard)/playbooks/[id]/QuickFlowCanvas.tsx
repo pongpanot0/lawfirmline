@@ -8,6 +8,7 @@ import { caseStageLabel } from '@/lib/stage-labels';
 import { FIRM_ROLE_LABELS } from '@lawfirm/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const ROLE_LABELS: Record<FirmRoleStr, { th: string; en: string }> = {
   OWNER: { th: 'เจ้าของสำนักงาน', en: 'Firm owner' },
@@ -70,9 +71,9 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
     setExpandedIndex(target);
   };
 
-  const removeStep = (index: number) => {
+  const removeStep = async (index: number) => {
     const title = steps[index]?.title.trim();
-    if (!window.confirm(th ? `ลบขั้นตอน ${index + 1}${title ? ` "${title}"` : ''} ออกจากฉบับที่กำลังแก้ไข?` : `Remove step ${index + 1}${title ? ` "${title}"` : ''} from this draft?`)) return;
+    if (!await confirmDialog(th ? `ลบขั้นตอน ${index + 1}${title ? ` "${title}"` : ''} ออกจากฉบับที่กำลังแก้ไข?` : `Remove step ${index + 1}${title ? ` "${title}"` : ''} from this draft?`)) return;
     setSteps(rows => rows.filter((_, i) => i !== index));
     setExpandedIndex(null);
   };

@@ -6,6 +6,7 @@ import { FacebookPixel } from '@/components/FacebookPixel';
 import { ActionFeedback } from '@/components/feedback/ActionFeedback';
 import { AiWorkingIndicator } from '@/components/feedback/AiWorkingIndicator';
 import { ThaiValidity } from '@/components/ui/ThaiValidity';
+import { ConfirmHost } from '@/components/ui/ConfirmHost';
 import './globals.css';
 
 const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'samnuan.com';
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ActionFeedback />
           <AiWorkingIndicator />
           <ThaiValidity />
+          <ConfirmHost />
           <FacebookPixel />
         </ThemeProvider>
       </body>

@@ -126,7 +126,14 @@ export function Client360Panel({
       {saved && <div role="status" className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">{saved}</div>}
       {mode === 'header' ? <div className="border-t border-amber-200 pt-4">
         <div className="flex items-start gap-3"><Clock className="mt-1 h-5 w-5 text-warning" aria-hidden /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong>สิ่งที่ต้องทำต่อ</strong>{overview.tasks[0]?.dueDate && bangkokDateInputValue(overview.tasks[0].dueDate) <= bangkokDateInputValue(new Date()) && <Badge variant="warning">เร่งด่วน</Badge>}</div><p className="text-sm">{overview.tasks[0]?.title ?? 'ยังไม่มีงานค้าง'}</p></div></div>
-        <div className="mt-4"><Button onClick={() => openLog(overview.tasks[0]?.caseId)} disabled={!overview.cases.length || !overview.client.contacts.length || !overview.lawyers.length}>บันทึกการติดต่อ</Button><p className="mt-1 text-xs text-muted-foreground">จดว่าลูกความโทรมาเรื่องอะไร ระบบสร้างงานโทรกลับให้</p></div>
+        {(() => {
+          // Say why it can't be used yet instead of a silent grey button.
+          const blocked = !overview.cases.length ? 'ยังบันทึกไม่ได้ — ลูกความรายนี้ยังไม่มีคดี เปิดคดีก่อน'
+            : !overview.client.contacts.length ? 'ยังบันทึกไม่ได้ — เพิ่มผู้ติดต่ออย่างน้อย 1 คนก่อน'
+            : !overview.lawyers.length ? 'ยังบันทึกไม่ได้ — ยังไม่มีทนายในคดีของลูกความรายนี้'
+            : '';
+          return <div className="mt-4"><Button onClick={() => openLog(overview.tasks[0]?.caseId)} disabled={!!blocked} aria-describedby="client-log-hint">บันทึกการติดต่อ</Button><p id="client-log-hint" className={`mt-1 text-xs ${blocked ? 'text-[#8a5a00]' : 'text-muted-foreground'}`}>{blocked || 'จดว่าลูกความโทรมาเรื่องอะไร ระบบสร้างงานโทรกลับให้'}</p></div>;
+        })()}
       </div> : <>
         <Card className="p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><h3 className="font-display text-xl font-bold">{mode === 'cases' ? 'คดีทั้งหมด' : 'คดีที่เปิดอยู่'}</h3><Badge variant="muted">{cases.length} คดี</Badge></div><div className="flex flex-wrap items-center gap-3"><Link href={`/cases/new?clientId=${encodeURIComponent(clientId)}`} title="กดเพื่อเปิดคดีใหม่ให้ลูกความรายนี้" className={buttonVariants({ size: 'sm', variant: 'outline' })}>เปิดคดีใหม่</Link>{mode === 'overview' && <button type="button" onClick={onOpenCases} className="text-sm font-medium text-primary hover:underline">ดูสำนวนทั้งหมด →</button>}</div></div>

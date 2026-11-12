@@ -26,6 +26,7 @@ import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
 import { Badge } from '@/components/ui/badge';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const SELECT = 'h-10 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
 
@@ -123,7 +124,7 @@ export default function DeadlineRulesPage() {
   };
 
   const toggle = async (rule: DeadlineRuleItem, viaOverride: boolean) => {
-    if (!token || busy || !window.confirm(rule.isActive
+    if (!token || busy || !await confirmDialog(rule.isActive
       ? `ปิดกฎ "${rule.label}" สำหรับทั้งสำนักงาน?\nคดีต่อจากนี้จะไม่ได้วันครบกำหนดจากกฎนี้ เปิดกลับได้ภายหลัง`
       : `เปิดกฎ "${rule.label}" สำหรับทั้งสำนักงาน?\nคดีต่อจากนี้จะได้วันครบกำหนดจากกฎนี้`)) return;
     setBusy(true);
@@ -142,8 +143,8 @@ export default function DeadlineRulesPage() {
     } finally { setBusy(false); }
   };
 
-  const remove = (rule: DeadlineRuleItem) => {
-    if (window.confirm(`${t.confirmDelete}\n${rule.label}`)) run(() => api.deleteDeadlineRule(token!, rule.id));
+  const remove = async (rule: DeadlineRuleItem) => {
+    if (await confirmDialog(`${t.confirmDelete}\n${rule.label}`)) run(() => api.deleteDeadlineRule(token!, rule.id));
   };
 
   const describe = (rule: DeadlineRuleItem) =>

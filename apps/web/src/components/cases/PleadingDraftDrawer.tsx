@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react';
 import { api, ApiError, PleadingCitation, PleadingDraftItem } from '@/lib/api';
 import { publishActionFeedback } from '@/lib/action-feedback';
 import { splitDraftParagraphs, splitParagraphSegments } from '@/lib/pleading-draft-format';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const KIND_OPTIONS: { value: string; label: string }[] = [
   { value: 'ANSWER', label: 'คำให้การ' },
@@ -87,7 +88,7 @@ export function PleadingDraftDrawer({
   const handleApprove = async () => {
     if (!draft) return;
     const k = draft.unsupportedParagraphs.length;
-    if (k > 0 && !window.confirm(`มี ${k} ข้อความที่ไม่มีแหล่งอ้างอิง ยืนยันบันทึกเป็นเอกสารหรือไม่?`)) return;
+    if (k > 0 && !await confirmDialog(`มี ${k} ข้อความที่ไม่มีแหล่งอ้างอิง ยืนยันบันทึกเป็นเอกสารหรือไม่?`)) return;
     setApproving(true);
     setError('');
     try {

@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { CaseStage, CASE_STAGE_LABELS_TH, partySide } from '@lawfirm/shared';
 import type { Journey, JourneyStep } from '../intake/intake-journey';
-import { stepMatchesSide, stepTaskTitle } from '../practice-setup/stage-scope';
+import { stepMatchesSide, stepTaskTitles } from '../practice-setup/stage-scope';
 
 type JourneyTask = {
   id: string;
@@ -93,7 +93,7 @@ export function caseJourney(
       // shortcut: legacy tasks lack step IDs, so renamed legacy tasks need stage labels to retain their link.
       if ((!step.stage ? stage === CaseStage.PRE_LITIGATION : journeyStage(step.stage) === stage) && stepMatchesSide(step, side)) {
         titles.add(step.title.trim());
-        titles.add(stepTaskTitle(step, side));
+        for (const title of stepTaskTitles(step, side)) titles.add(title);
       }
     }
     for (const task of tasks) {

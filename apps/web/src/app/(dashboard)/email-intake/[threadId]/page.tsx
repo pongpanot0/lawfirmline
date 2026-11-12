@@ -24,6 +24,7 @@ import { LinkThreadToCaseCard } from '@/components/email/LinkThreadToCaseCard';
 import { EmailMessageCard } from '@/components/email/EmailMessageCard';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageLoading } from '@/components/ui/misc';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const INTAKE_STATUS: Record<string, string> = {
   NO_RESPONSE: 'ไม่ได้รับการตอบกลับ', RECEIVED: 'รับเรื่องแล้ว', ASSESSING: 'กำลังประเมิน', ACCEPTED: 'รับทำ',
@@ -132,7 +133,7 @@ export default function EmailThreadDetailPage() {
   };
 
   const handleAttachIntake = async (intakeId: string) => {
-    if (!token || !window.confirm('รวมอีเมลนี้เข้ากับเรื่องเดิม?')) return;
+    if (!token || !await confirmDialog('รวมอีเมลนี้เข้ากับเรื่องเดิม?')) return;
     setLinking(true);
     setError('');
     try {
@@ -197,7 +198,7 @@ export default function EmailThreadDetailPage() {
   // Values only: document requests and conflicting values still need a person to look at each.
   const handleConfirmAll = async (ids: string[]) => {
     if (!token || !data?.thread.intake || !ids.length) return;
-    if (!window.confirm(`ยืนยันข้อมูลที่เหลือทั้งหมด ${ids.length} รายการตามที่ AI เสนอ?`)) return;
+    if (!await confirmDialog(`ยืนยันข้อมูลที่เหลือทั้งหมด ${ids.length} รายการตามที่ AI เสนอ?`)) return;
     setConfirmingAll(true);
     setError('');
     try {
@@ -212,7 +213,7 @@ export default function EmailThreadDetailPage() {
 
   const handleResolve = async (proposalId: string, action: 'confirm' | 'reject', overrideValue?: string) => {
     if (!token || !data?.thread.intake) return;
-    if (action === 'reject' && !window.confirm('ไม่ใช้ค่าที่ AI เสนอนี้?\nค่านี้จะไม่ถูกบันทึกลงคดี')) return;
+    if (action === 'reject' && !await confirmDialog('ไม่ใช้ค่าที่ AI เสนอนี้?\nค่านี้จะไม่ถูกบันทึกลงคดี')) return;
     setResolvingId(proposalId);
     setError('');
     try {
@@ -425,7 +426,7 @@ export default function EmailThreadDetailPage() {
               {groupProposals(proposals.filter((p) => p.field !== 'document')).sort(([a], [b]) => Number(a === null) - Number(b === null)).map(([label, items], index) => <ProposalGroup key={label ?? ''} title={groupProposals(proposals.filter((p) => p.field !== 'document')).filter(([name]) => name !== null).length > 1 && label ? `เรื่องที่ ${index + 1} · ${label}` : ''} items={items} proposals={proposals} fileNames={fileNames} onResolve={handleResolve} resolvingId={resolvingId} />)}
               {!proposals.some((p) => p.field !== 'document') && <p className="text-sm text-muted-foreground">ไม่พบข้อมูลที่ต้องยืนยัน</p>}
             </div>
-            <div className="mt-4 space-y-2 border-t pt-4"><p className="text-xs text-muted-foreground">AI เสนอข้อมูล · ยังไม่บันทึกจนกว่าจะยืนยัน</p>{thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} title="กดเพื่อให้ AI อ่านอีเมลนี้อีกครั้ง ค่าที่ AI เสนอจะรอให้คุณยืนยันก่อนบันทึก" onClick={() => { if (window.confirm('ให้ AI อ่านอีเมลนี้อีกครั้ง?\nข้อเสนอที่ยังไม่ได้ยืนยันจะถูกแทนด้วยผลใหม่')) void handleAiExtract(); }}>{aiReading ? 'AI กำลังอ่าน…' : 'ให้ AI อ่านใหม่'}</Button>}<p className="text-xs text-muted-foreground">ถามยืนยันก่อนอ่านใหม่</p></div>
+            <div className="mt-4 space-y-2 border-t pt-4"><p className="text-xs text-muted-foreground">AI เสนอข้อมูล · ยังไม่บันทึกจนกว่าจะยืนยัน</p>{thread.intake && <Button id="ai-read" size="sm" variant="outline" disabled={aiReading} title="กดเพื่อให้ AI อ่านอีเมลนี้อีกครั้ง ค่าที่ AI เสนอจะรอให้คุณยืนยันก่อนบันทึก" onClick={async () => { if (await confirmDialog('ให้ AI อ่านอีเมลนี้อีกครั้ง?\nข้อเสนอที่ยังไม่ได้ยืนยันจะถูกแทนด้วยผลใหม่')) void handleAiExtract(); }}>{aiReading ? 'AI กำลังอ่าน…' : 'ให้ AI อ่านใหม่'}</Button>}<p className="text-xs text-muted-foreground">ถามยืนยันก่อนอ่านใหม่</p></div>
           </CardContent></Card>
           <details><summary className="disclosure cursor-pointer rounded-lg border bg-card p-3 font-semibold">จัดเอกสารและผู้รับผิดชอบ</summary><Card id="documents" className={documentLocked ? 'bg-muted/50 text-muted-foreground' : ''}><CardContent className="space-y-3 p-4">
             <h2 className="flex items-center gap-2 font-semibold">{documentLocked && <Lock className="h-4 w-4" />}จัดเอกสาร</h2>

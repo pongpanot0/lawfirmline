@@ -346,8 +346,9 @@ test('court day: stale edits, lost responses, concurrent completion, future appo
     await expect(
       page.getByLabel('บันทึกเตรียมนัด', { exact: true }),
     ).toHaveValue('บันทึกที่ยังไม่ส่ง');
-    page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'โหลดข้อมูลล่าสุด' }).click();
+    // The in-app confirm replaces the browser box: its last button confirms.
+    await page.locator('dialog[open]').getByRole('button').last().click();
     await expect(
       page.getByLabel('บันทึกเตรียมนัด', { exact: true }),
     ).toHaveValue('อีกคนแก้แล้ว');

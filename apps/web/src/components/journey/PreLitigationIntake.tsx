@@ -49,6 +49,7 @@ import { CaseCostLine, initialCaseCosts } from '@/lib/case-costs';
 import { buildQuoteHtml } from '@/lib/quote-doc';
 import { CaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -573,7 +574,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
     setSubmitting(true);
     setError('');
     const accepted = ACCEPT_DECISIONS.includes(decision);
-    if (intake?.case && ['DO_NOT_FILE', 'CONSULTATION_ONLY'].includes(decision) && !window.confirm('การตัดสินใจนี้จะปิดคดี โดยเก็บงานและเอกสารไว้ ยืนยันหรือไม่?')) { setSubmitting(false); return; }
+    if (intake?.case && ['DO_NOT_FILE', 'CONSULTATION_ONLY'].includes(decision) && !await confirmDialog('การตัดสินใจนี้จะปิดคดี โดยเก็บงานและเอกสารไว้ ยืนยันหรือไม่?')) { setSubmitting(false); return; }
     try {
       const result = (await api.decideIntake(token, id, {
         decision,
