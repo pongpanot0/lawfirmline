@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { calendarPersonColors, eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
-import { Plus, Bell, ListOrdered, CalendarDays, Palette, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { OutlookCalendarItemDto, OutlookCalendarItemsResponse } from '@lawfirm/shared';
+import { Plus, Bell, X, ListOrdered, CalendarDays, Palette, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Tabs, TabsList } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
 import { api, CalendarEventItem, CaseListItem, UserItem, PublicHolidayItem } from '@/lib/api';
-import { CalendarView } from '@/components/CalendarView';
+import { OutlookCalendarView } from '@/components/calendar/OutlookCalendarView';
 import { CalendarEventDialog } from '@/components/calendar/CalendarEventDialog';
 import { FirmDayAgenda } from '@/components/calendar/FirmDayAgenda';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -46,6 +47,10 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   const { token, user } = useAuth();
   const view = params.get('view') === 'day' ? 'day' : params.get('view') === 'month' ? 'month' : defaultView;
   const setView = (v: 'day' | 'month') => { const next = new URLSearchParams(params.toString()); next.set('view', v); router.replace(`?${next.toString()}`, { scroll: false }); };
+  const [showOutlook, setShowOutlook] = useState(true);
+  const [outlook, setOutlook] = useState<OutlookCalendarItemsResponse>({ items: [], syncedAt: null });
+  const [selectedOutlook, setSelectedOutlook] = useState<OutlookCalendarItemDto | null>(null);
+  const [outlookError, setOutlookError] = useState(false);
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -118,6 +123,16 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
       .finally(() => setLoading(false));
   }, [token, view, loadEvents, reloadKey, d.common.loadFailed]);
 
+  useEffect(() => { if (!user?.id) return; try { setShowOutlook(localStorage.getItem(`outlook-calendar:${user.id}`) !== 'false'); } catch { setShowOutlook(true); } }, [user?.id]);
+  useEffect(() => {
+    if (!token || !showOutlook) { setOutlook({ items: [], syncedAt: null }); return; }
+    let current = true;
+    const from = view === 'day' ? weekStart : new Date(month.getFullYear(), month.getMonth(), 1);
+    const to = view === 'day' ? new Date(weekStart.getTime() + 7 * 86400000) : new Date(month.getFullYear(), month.getMonth() + 1, 1);
+    api.getOutlookCalendarItems(token, from.toISOString(), to.toISOString()).then(data => { if (current) { setOutlook(data); setOutlookError(false); } }).catch(() => { if (current) { setOutlook({ items: [], syncedAt: null }); setOutlookError(true); } });
+    return () => { current = false; };
+  }, [token, showOutlook, view, weekStart, month, reloadKey]);
+
   // "รายคน": events carry assigneeId; ones with no explicit assignee follow the
   // case's lead lawyer for both filtering and color.
   const people = new Map(users.map(person => [person.id, `${person.firstName} ${person.lastName}`]));
@@ -135,6 +150,8 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   };
   const visibleEvents = personFilter ? events.filter((e) => eventPeopleIds(e).includes(personFilter)) : events;
   const weekEnd = new Date(weekStart); weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+  useEffect(() => { setSelectedOutlook(null); }, [personFilter, view, month, weekStart]);
+  const visibleOutlook = showOutlook && (!personFilter || personFilter === user?.id) ? outlook.items : [];
   const dayEvents = visibleEvents.filter(event => new Date(event.startAt) >= weekStart && new Date(event.startAt) < weekEnd);
   const openEvent = (event: CalendarEventItem) => {
     if (event.leaveId) { setLeaveError(''); setSelectedLeave(event); }
@@ -154,14 +171,18 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
           {([{ id: 'day', label: 'รายวัน', Icon: ListOrdered }, { id: 'month', label: 'รายเดือน', Icon: CalendarDays }] as const).map(({ id, label, Icon }, index) => <button key={id} id={`calendar-tab-${id}`} role="tab" aria-selected={view === id} tabIndex={view === id ? 0 : -1} onClick={() => setView(id)} onKeyDown={e => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) { e.preventDefault(); const next = e.key === 'Home' ? 'day' : e.key === 'End' ? 'month' : index === 0 ? 'month' : 'day'; setView(next); document.getElementById(`calendar-tab-${next}`)?.focus(); } }} className={`flex min-h-14 items-center justify-center gap-2 border-b-2 font-semibold ${view === id ? 'border-primary bg-muted' : 'border-transparent text-muted-foreground'}`}><Icon className="h-4 w-4" aria-hidden />{label}{id === 'day' && <span className="rounded-full bg-primary px-2 text-xs text-primary-foreground">{dayEvents.length}</span>}</button>)}
         </TabsList>
       </Tabs>
-      <div className="my-6 flex flex-wrap items-end gap-4 rounded-xl border bg-card p-5 shadow-sm">
+      <div className="my-6 flex flex-col gap-4 rounded-xl border bg-card p-5 pb-9 shadow-sm sm:flex-row sm:items-end sm:gap-6">
+        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-x-6 gap-y-4">
         <label className="space-y-1 text-sm"><span className="block">แสดงนัดของ</span><Select aria-label="แสดงนัดของ" value={personFilter} onChange={e => setPersonFilter(e.target.value)} className="h-11 rounded-lg border border-input bg-card px-3"><option value="">ทุกคน</option>{[...people.entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</Select></label>
+        <div className="text-sm"><span className="block">นัดจาก Outlook</span><label className="flex h-11 items-center gap-2"><span className="relative inline-flex shrink-0 items-center"><input type="checkbox" role="switch" aria-label="นัดจาก Outlook" aria-checked={showOutlook} checked={showOutlook} onChange={e => { setShowOutlook(e.target.checked); setSelectedOutlook(null); try { if (user?.id) localStorage.setItem(`outlook-calendar:${user.id}`, String(e.target.checked)); } catch {} }} className="peer sr-only" /><span aria-hidden className="h-6 w-11 rounded-full bg-muted-foreground/30 peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring" /><span aria-hidden className="absolute left-1 h-4 w-4 rounded-full bg-card transition-transform peer-checked:translate-x-5" /></span><span className="text-xs text-muted-foreground">เห็นเฉพาะคุณ</span></label></div>
         <details className="text-sm"><summary className="flex min-h-11 cursor-pointer items-center gap-1 text-primary"><Palette className="h-4 w-4" aria-hidden />สีของแต่ละคน</summary><div className="flex flex-wrap gap-2">{[...people.entries()].map(([id, name]) => <button key={id} type="button" aria-pressed={personFilter === id} onClick={() => setPersonFilter(personFilter === id ? '' : id)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-2"><span aria-hidden className="size-3 rounded-full" style={{ backgroundColor: personColors.get(id) }} />{name}</button>)}</div></details>
         {view === 'day' && <div className="text-sm"><span className="block text-muted-foreground">ช่วงเวลา</span><div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="icon" aria-label="สัปดาห์ก่อน" title="กดเพื่อดูสัปดาห์ก่อน" onClick={() => shiftWeek(-7)}><ChevronLeft className="h-4 w-4" aria-hidden /></Button><Button variant="outline" title="กดเพื่อกลับไปวันนี้" onClick={() => { const d = new Date(`${bangkokDateInputValue(new Date())}T00:00:00+07:00`); setWeekStart(d); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}>วันนี้</Button><Button variant="outline" size="icon" aria-label="สัปดาห์ถัดไป" title="กดเพื่อดูสัปดาห์ถัดไป" onClick={() => shiftWeek(7)}><ChevronRight className="h-4 w-4" aria-hidden /></Button><span className="font-semibold">{weekStart.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })} ถึง {new Date(weekEnd.getTime() - 1).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' })}</span></div></div>}
-        <div className="ml-auto text-right"><Button title="กดเพื่อลงนัดศาล นัดลูกความ หรือกำหนดส่ง" onClick={() => setDialog({ event: null, defaultDate: new Date() })}><Plus className="h-4 w-4" aria-hidden />เพิ่มนัด</Button><p className="mt-1 text-xs text-muted-foreground">กดเพื่อลงนัดศาล นัดลูกความ หรือกำหนดส่ง</p></div>
+        </div>
+        <div className="relative shrink-0 self-end"><Button title="กดเพื่อลงนัดศาล นัดลูกความ หรือกำหนดส่ง" onClick={() => setDialog({ event: null, defaultDate: new Date() })}><Plus className="h-4 w-4" aria-hidden />เพิ่มนัด</Button><p className="absolute right-0 top-full mt-1 whitespace-nowrap text-xs text-muted-foreground">กดเพื่อลงนัดศาล นัดลูกความ หรือกำหนดส่ง</p></div>
       </div>
+      {outlookError && showOutlook && <p role="alert" className="mb-3 text-sm text-destructive">โหลดนัดจาก Outlook ไม่สำเร็จ</p>}
       {view === 'day' ? (
-        <Card>
+        <div className="grid gap-6 lg:grid-cols-4"><Card className="lg:col-span-3">
           <CardContent className="p-4">
             {loading ? (
               <div role="status" aria-label={d.calendar.loading} className="space-y-3">
@@ -172,6 +193,9 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
             ) : (
               <FirmDayAgenda
                 events={dayEvents}
+                outlookItems={visibleOutlook}
+                selectedOutlook={selectedOutlook?.id}
+                onOutlookClick={setSelectedOutlook}
                 users={users}
                 personColors={personColors}
                 onEventClick={openEvent}
@@ -181,7 +205,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
               />
             )}
           </CardContent>
-        </Card>
+        </Card><div>{selectedOutlook && <OutlookDetail item={selectedOutlook} onClose={() => setSelectedOutlook(null)} />}</div></div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-4">
           <div className="lg:col-span-3">
@@ -196,7 +220,10 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
             ) : (
               <Card>
                 <CardContent className="p-4">
-                  <CalendarView
+                  <OutlookCalendarView
+                    outlookItems={visibleOutlook}
+                    selectedOutlook={selectedOutlook?.id}
+                    onOutlookClick={setSelectedOutlook}
                     events={visibleEvents}
                     personAppearance={personAppearance}
                     holidays={holidays}
@@ -221,7 +248,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
             </div>
           </div>
 
-          <Card>
+          <div className="space-y-4">{selectedOutlook && <OutlookDetail item={selectedOutlook} onClose={() => setSelectedOutlook(null)} />}<Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm">
                 <Bell className="h-4 w-4 text-muted-foreground" aria-hidden />
@@ -262,10 +289,11 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                 />
               )}
             </CardContent>
-          </Card>
+          </Card></div>
         </div>
       )}
 
+      <div className="mt-3 text-xs text-muted-foreground"><span className="rounded-full border border-dashed bg-muted px-2 py-1">Outlook (ดูอย่างเดียว)</span>{outlook.syncedAt && <p className="mt-3">ดึงนัดจาก Outlook ล่าสุด {new Date(outlook.syncedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}</p>}</div>
       {dialog && (
         <CalendarEventDialog
           cases={cases}
@@ -302,4 +330,9 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
       )}
     </div>
   );
+}
+
+function OutlookDetail({ item, onClose }: { item: OutlookCalendarItemDto; onClose: () => void }) {
+  const time = (value: string) => new Date(value).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+  return <Card><CardContent className="space-y-4 p-4"><div className="flex items-center justify-between"><Badge variant="muted">นัดจาก Outlook</Badge><Button size="icon" variant="ghost" aria-label="ปิดรายละเอียด" onClick={onClose}><X className="h-4 w-4" /></Button></div><h2 className="text-lg font-semibold">{item.subject || 'ไม่มีชื่อ'}</h2><p className="text-sm">{item.isAllDay ? 'ทั้งวัน' : `${formatDateTime(item.startAt)}–${time(item.endAt)}`}{item.location && ` · ${item.location}`}</p><p className="text-sm text-muted-foreground">จากบัญชี {item.mailboxAddress}</p><p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm">นัดนี้มาจาก Outlook แก้ไขหรือลบได้ใน Outlook เท่านั้น</p>{item.webLink && <><Button variant="outline" className="w-full" onClick={() => window.open(item.webLink!, '_blank', 'noopener,noreferrer')}>เปิดใน Outlook</Button><p className="text-center text-xs text-muted-foreground">กดเพื่อเปิดนัดนี้ใน Outlook บนเว็บ</p></>}</CardContent></Card>;
 }

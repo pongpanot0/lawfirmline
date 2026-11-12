@@ -26,15 +26,15 @@ function WeekStrip({ days }: { days: TeamRadarDay[] }) {
       const date = new Date(noonOf(day.date));
       const heavy = day.points >= HEAVY_DAY_POINTS;
       const load = day.taskCount + day.eventCount;
-      const label = `${thDate(noonOf(day.date))}${day.onLeave ? ' ลา' : ''}${heavy ? ' งานแน่น' : ''} · งาน ${day.taskCount} · นัด ${day.eventCount}${day.courtCount ? ` · ศาล ${day.courtCount}` : ''} · ภาระ ${day.points} คะแนน`;
+      const label = `${thDate(noonOf(day.date))}${day.onLeave ? ' ลา' : ''}${heavy ? ' งานแน่น' : ''} · งาน ${day.taskCount} · นัด ${day.eventCount}${day.courtCount ? ` · ศาล ${day.courtCount}` : ''} · ภาระ ${day.points} คะแนน · ไม่ว่างใน Outlook ${(day.outlookBusyMinutes || 0) / 60} ชม.`;
       return <View key={day.date} accessible accessibilityLabel={label}
         style={[styles.day, day.onLeave && { backgroundColor: colors.warnSoft }, heavy && { borderColor: colors.warn }]}>
-        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.dayDow}>{TH_DOW_SHORT[(date.getUTCDay())]}</Text>
-        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.dayNum}>{Number(day.date.slice(8, 10))}</Text>
+        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.dayDow}>{TH_DOW_SHORT[(date.getUTCDay())]} {Number(day.date.slice(8, 10))}</Text>
         <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.dayMark, day.onLeave || heavy ? { color: colors.warn } : null]}>
           {day.onLeave ? 'ลา' : heavy ? 'แน่น' : load ? String(load) : '·'}
         </Text>
         {day.courtCount > 0 ? <View style={styles.courtDot} /> : null}
+        <View style={{ width: '80%', height: 4, backgroundColor: colors.line, borderRadius: 2 }}><View style={{ width: `${Math.min(100, (day.outlookBusyMinutes || 0) / 840 * 100)}%`, height: 4, backgroundColor: colors.muted, borderRadius: 2 }} /></View>
       </View>;
     })}
   </View>;
@@ -74,7 +74,7 @@ export default function TeamWeek() {
     <DatePicker label="เริ่มดูตั้งแต่วันที่" value={start} onChange={value => { setStart(value); setPerson(''); }} />
     <FilterTabs items={[{ value: 'heavy', label: 'ภาระมากก่อน' }, { value: 'light', label: 'ภาระน้อยก่อน' }]}
       value={lightFirst ? 'light' : 'heavy'} onChange={value => setLightFirst(value === 'light')} />
-    <Text style={styles.legend}>ตัวเลขใต้วันที่ = งานและนัดของวันนั้น · จุดสีทอง = มีนัดศาล</Text>
+    <Text style={styles.legend}>ตัวเลขใต้วันที่ = งานและนัดของวันนั้น · จุดสีทอง = มีนัดศาล · แถบเทา = ไม่ว่างใน Outlook (เห็นแค่ช่วงเวลา)</Text>
     {radar.isLoading && <LoadingState label="กำลังตรวจภาระงานทีม…" />}
     {radar.isError && <ErrorState message="ตรวจภาระงานล่าสุดไม่ได้ ลองโหลดใหม่ก่อนมอบหมาย" onRetry={() => radar.refetch()} style={{ marginTop: spacing.md }} />}
     {members.map(member => {
@@ -106,11 +106,12 @@ export default function TeamWeek() {
           {expanded && <>
             {detail.isLoading && <LoadingState inline label="กำลังโหลดรายละเอียด…" />}
             {detail.isError && <InlineError message="โหลดรายละเอียดไม่ได้" onRetry={() => detail.refetch()} />}
-            {detail.data && !detail.data.events.length && !detail.data.tasks.length && <EmptyState compact>ไม่มีงานหรือนัดในช่วงนี้</EmptyState>}
+            {detail.data && !detail.data.events.length && !detail.data.tasks.length && !(detail.data.outlookBusy ?? []).length && <EmptyState compact>ไม่มีงานหรือนัดในช่วงนี้</EmptyState>}
             {!!detail.data?.events.length && <Text accessibilityRole="header" style={styles.subhead}>นัดหมาย</Text>}
             {detail.data?.events.map(event => <Text key={event.id} style={styles.eventLine}>
               {thDate(event.startAt)} {thTime(event.startAt)} · {event.title}{event.courtName ? ` · ${event.courtName}` : ''}
             </Text>)}
+            {(detail.data?.outlookBusy ?? []).map(block => <Text key={block.start} style={[styles.eventLine, { color: colors.muted }]}>{thDate(block.start)} {thTime(block.start)}–{thTime(block.end)} ไม่ว่าง (Outlook)</Text>)}
             {!!detail.data?.tasks.length && <Text accessibilityRole="header" style={styles.subhead}>งาน</Text>}
             {detail.data?.tasks.map(task => {
               const when = task.scheduledFor ? thDate(noonOf(task.scheduledFor)) : task.dueDate ? `กำหนด ${thDate(task.dueDate)}` : 'ยังไม่ลงวัน';

@@ -1,9 +1,12 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { OutlookCalendarItemDto } from '@lawfirm/shared';
+import { useAuth } from '@/api/auth';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, MapPin, Plus, X } from 'lucide-react-native';
-import { useCalendarRange, useWorkload } from '@/api/hooks';
+import { useCalendarRange, useWorkload, useOutlookCalendar } from '@/api/hooks';
 import type { CalendarEventItem } from '@/api/types';
 import { Button, Card, EmptyState, ErrorState, EVENT_KIND_LABEL, InlineError, LoadingState, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay, initials, isoDay, thDate, thTime } from '@/format';
@@ -30,6 +33,10 @@ const personName = (person: { firstName: string; lastName: string }) => `${perso
 
 export default function CalendarScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const [showOutlook, setShowOutlook] = useState(true);
+  const [chosenOutlook, setChosenOutlook] = useState<OutlookCalendarItemDto | null>(null);
+  useEffect(() => { if (!user?.id) return; let active = true; setShowOutlook(true); AsyncStorage.getItem(`outlook-calendar:${user.id}`).then(value => { if (active) setShowOutlook(value !== 'false'); }).catch(() => {}); return () => { active = false; }; }, [user?.id]);
   const { memberId } = useLocalSearchParams<{ memberId?: string }>();
   // Day keys follow the office's Bangkok wall clock, the same as วันนี้, whatever the phone's time zone.
   const todayKey = bangkokDay(new Date().toISOString());
@@ -40,6 +47,9 @@ export default function CalendarScreen() {
   const from = isoDay(new Date(cursor.y, cursor.m, 1));
   const to = isoDay(new Date(cursor.y, cursor.m + 1, 0));
   const events = useCalendarRange(from, to);
+  const outlook = useOutlookCalendar(`${from}T00:00:00+07:00`, `${isoDay(new Date(cursor.y, cursor.m + 1, 1))}T00:00:00+07:00`, user?.id, showOutlook && (!memberId || memberId === user?.id));
+  const outlookItems = showOutlook && (!memberId || memberId === user?.id) ? outlook.data?.items ?? [] : [];
+  const outlookDay = (item: OutlookCalendarItemDto) => item.isAllDay ? item.startAt.slice(0, 10) : bangkokDay(item.startAt);
   const workload = useWorkload(!!memberId);
   const memberName = workload.data?.members.find((member) => member.id === memberId)?.name ?? 'สมาชิกทีม';
 
@@ -66,13 +76,14 @@ export default function CalendarScreen() {
   const goToday = () => { setCursor({ y: todayY, m: todayM - 1 }); setSelected(todayKey); };
   const cells = monthGrid(cursor.y, cursor.m);
   const selectedEvents = byDay.get(selected) ?? [];
+  const selectedOutlook = outlookItems.filter(item => outlookDay(item) === selected).sort((a, b) => Number(b.isAllDay) - Number(a.isAllDay) || a.startAt.localeCompare(b.startAt));
   // One target everywhere (same as วันนี้): court dates open วันขึ้นศาล, everything else opens its team.
   const openEvent = (event: CalendarEventItem) => event.type === 'COURT_DATE'
     ? router.push(`/court-day/${event.id}`)
     : router.push(`/event/${event.id}/team`);
 
   return (
-    <ScrollView
+    <> <ScrollView
       style={styles.screen}
       contentContainerStyle={pageContent}
       refreshControl={
@@ -132,11 +143,12 @@ export default function CalendarScreen() {
                 const isSelected = key === selected;
                 const dayEvents = byDay.get(key);
                 const hasCourt = !!dayEvents?.some(event => event.type === 'COURT_DATE');
+                const outlookCount = outlookItems.filter(item => outlookDay(item) === key).length;
                 return (
                   <Pressable
                     key={key}
                     accessibilityRole="button"
-                    accessibilityLabel={`${date.getDate()} ${TH_MONTHS_FULL[cursor.m]} ${cursor.y + 543}${isToday ? ' วันนี้' : ''}${dayEvents ? ` มีนัด ${dayEvents.length} รายการ${hasCourt ? ' รวมนัดศาล' : ''}` : ''}`}
+                    accessibilityLabel={`${date.getDate()} ${TH_MONTHS_FULL[cursor.m]} ${cursor.y + 543}${isToday ? ' วันนี้' : ''}${dayEvents ? ` มีนัด ${dayEvents.length} รายการ${hasCourt ? ' รวมนัดศาล' : ''}` : ''}${outlookCount ? ` จาก Outlook ${outlookCount}` : ''}`}
                     accessibilityState={{ selected: isSelected }}
                     style={styles.cell}
                     onPress={() => setSelected(key)}
@@ -156,7 +168,7 @@ export default function CalendarScreen() {
                         </Text>
                       </View>
                       {/* Brass marks a court date; other appointments get a muted dot. */}
-                      {dayEvents ? <View style={[styles.dot, { backgroundColor: hasCourt ? colors.accent : colors.muted }]} /> : null}
+                      {dayEvents || outlookCount ? <View style={[styles.dot, { backgroundColor: hasCourt ? colors.accent : colors.muted }]} /> : null}
                     </>}
                   </Pressable>
                 );
@@ -166,10 +178,12 @@ export default function CalendarScreen() {
         </View>
       </Card>
 
+      <View style={{ minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}><View><Text style={{ color: colors.ink, fontWeight: '700' }}>นัดจาก Outlook</Text><Text style={styles.eventMeta}>เห็นเฉพาะคุณ</Text></View><Switch accessibilityLabel="นัดจาก Outlook" value={showOutlook} onValueChange={value => { setShowOutlook(value); setChosenOutlook(null); if (user?.id) AsyncStorage.setItem(`outlook-calendar:${user.id}`, String(value)).catch(() => {}); }} /></View>
+      {outlook.isError && showOutlook && <InlineError message="โหลดนัดจาก Outlook ไม่สำเร็จ" onRetry={() => outlook.refetch()} />}
       <View style={styles.dayHead}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, flexShrink: 1 }}>
           <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>
-            {selected === todayKey ? 'วันนี้ · ' : ''}{thDate(new Date(selected))}{selectedEvents.length ? ` · ${selectedEvents.length} นัด` : ''}
+            {selected === todayKey ? 'นัดวันนี้' : thDate(new Date(selected))} {selectedEvents.length} · จาก Outlook {selectedOutlook.length}
           </SectionLabel>
           {onCurrentMonth && selected !== todayKey && <Pressable accessibilityRole="button" accessibilityLabel="กลับไปวันนี้" hitSlop={8} onPress={goToday} style={styles.filter}>
             <Text style={styles.filterText}>กลับวันนี้</Text>
@@ -189,21 +203,22 @@ export default function CalendarScreen() {
       {events.isError && (events.data
         ? <InlineError style={{ marginBottom: spacing.sm }} message="นัดหมายอาจยังไม่ล่าสุด" onRetry={() => events.refetch()} />
         : <ErrorState message="โหลดนัดหมายไม่สำเร็จ" onRetry={() => events.refetch()} />)}
-      {!(events.isError && !events.data) && (events.isLoading || selectedEvents.length === 0 ? <Card style={{ paddingVertical: spacing.xs }}>
+      {!(events.isError && !events.data) && (events.isLoading || selectedEvents.length === 0 && selectedOutlook.length === 0 ? <Card style={{ paddingVertical: spacing.xs }}>
         {events.isLoading ? (
           <LoadingState inline label="กำลังโหลดนัดหมาย…" />
         ) : (
           <EmptyState compact>{selected === todayKey ? 'ไม่มีนัดหมายวันนี้' : 'ไม่มีนัดหมายในวันที่เลือก'}</EmptyState>
         )}
       </Card> : <View style={{ gap: spacing.md }}>
-        {selectedEvents.map((event) => {
+        {selectedOutlook.filter(item => item.isAllDay).map(item => <OutlookCard key={item.id} item={item} onPress={() => setChosenOutlook(item)} />)}
+        {selectedEvents.map((event, index) => {
           const kind = EVENT_KIND_LABEL[event.type] ?? EVENT_KIND_LABEL.OTHER;
           const when = event.type === 'DEADLINE' ? 'ทั้งวัน' : thTime(event.startAt);
           const lead = event.assignee ? personName(event.assignee) : 'ยังไม่ระบุ';
           const companions = event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => personName(person.user)) ?? [];
           const people = `หลัก: ${lead}${companions.length ? ` · ร่วม: ${companions.join(', ')}` : ''}`;
           // One card per appointment: time and kind on the header row, then what, where and who.
-          return <Card key={event.id} style={styles.eventCard}>
+          return <React.Fragment key={event.id}>{selectedOutlook.filter(item => !item.isAllDay && new Date(item.startAt).getTime() < new Date(event.startAt).getTime() && (index === 0 || new Date(item.startAt).getTime() >= new Date(selectedEvents[index - 1].startAt).getTime())).map(item => <OutlookCard key={item.id} item={item} onPress={() => setChosenOutlook(item)} />)}<Card style={styles.eventCard}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${kind.label} ${when} ${event.title} · ${people}`}
@@ -235,11 +250,18 @@ export default function CalendarScreen() {
             {event.caseId && event.case?.ownRef ? <View style={styles.caseLink}>
               <Button variant="link" chevron title={`คดี ${event.case.ownRef}`} onPress={() => router.push(`/case/${event.caseId}`)} />
             </View> : null}
-          </Card>;
+          </Card></React.Fragment>;
         })}
+        {selectedOutlook.filter(item => !item.isAllDay && (!selectedEvents.length || new Date(item.startAt).getTime() >= new Date(selectedEvents[selectedEvents.length - 1].startAt).getTime())).map(item => <OutlookCard key={item.id} item={item} onPress={() => setChosenOutlook(item)} />)}
       </View>)}
+      {outlook.data?.syncedAt && showOutlook && <Text style={[styles.eventMeta, { marginTop: spacing.md }]}>ดึงนัดจาก Outlook ล่าสุด {thTime(outlook.data.syncedAt)}</Text>}
     </ScrollView>
+    <Modal transparent visible={!!chosenOutlook} animationType="slide" onRequestClose={() => setChosenOutlook(null)}><View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}><Pressable accessibilityLabel="ปิดรายละเอียด" accessibilityRole="button" style={StyleSheet.absoluteFill} onPress={() => setChosenOutlook(null)} />{chosenOutlook && <View style={{ backgroundColor: colors.surface, padding: spacing.lg, paddingBottom: spacing.xl, borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md, gap: spacing.md }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Tag tone="plain">นัดจาก Outlook</Tag><Pressable accessibilityRole="button" accessibilityLabel="ปิดรายละเอียด" onPress={() => setChosenOutlook(null)} style={{ minWidth: TOUCH, minHeight: TOUCH, alignItems: 'center', justifyContent: 'center' }}><X size={22} color={colors.muted} /></Pressable></View><Text style={styles.eventTitle}>{chosenOutlook.subject || 'ไม่มีชื่อ'}</Text><Text style={styles.eventMeta}>{chosenOutlook.isAllDay ? 'ทั้งวัน' : `${thTime(chosenOutlook.startAt)}–${thTime(chosenOutlook.endAt)}`}{chosenOutlook.location ? ` · ${chosenOutlook.location}` : ''}</Text><Text style={styles.eventMeta}>จากบัญชี {chosenOutlook.mailboxAddress}</Text><Text style={{ color: colors.text, backgroundColor: colors.warnSoft, padding: spacing.md }}>นัดนี้มาจาก Outlook แก้ไขหรือลบได้ใน Outlook เท่านั้น</Text>{chosenOutlook.webLink && <><Button variant="secondary" title="เปิดใน Outlook" onPress={() => { void Linking.openURL(chosenOutlook.webLink!); }} /><Text style={[styles.eventMeta, { textAlign: 'center' }]}>กดเพื่อเปิดนัดนี้ใน Outlook บนเว็บ</Text></>}</View>}</View></Modal></>
   );
+}
+
+function OutlookCard({ item, onPress }: { item: OutlookCalendarItemDto; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Outlook ${item.subject || 'ไม่มีชื่อ'}`} onPress={onPress} style={{ minHeight: TOUCH, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.lineStrong, borderRadius: radius.md, backgroundColor: colors.sunken, padding: spacing.md, gap: spacing.xs }}><Text style={styles.eventMeta}>{item.isAllDay ? 'ทั้งวัน' : `${thTime(item.startAt)}–${thTime(item.endAt)}`} · Outlook · {item.mailboxAddress.split('@')[0]}</Text><Text style={styles.eventTitle}>{item.subject || 'ไม่มีชื่อ'}</Text>{item.location && <Text style={styles.eventMeta}>{item.location}</Text>}</Pressable>;
 }
 
 const styles = StyleSheet.create({

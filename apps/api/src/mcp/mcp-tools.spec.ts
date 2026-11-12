@@ -11,8 +11,8 @@ const connection = { id: 'connection', clientName: 'Claude' };
 const own = { firmId: 'firm-1', leadLawyerId: 'user-1' };
 const appFilter = { firmId: 'firm-1', app: true };
 const radar = { start: '2026-11-12', days: ['2026-11-12'], members: [
-  { userId: 'u-a', firstName: 'A', lastName: 'One', role: 'LAWYER', openCount: 6, openPoints: 12, overdueCount: 1, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 2, points: 4, eventCount: 1, courtCount: 1, onLeave: false }] },
-  { userId: 'u-b', firstName: 'B', lastName: 'Two', role: 'LAWYER', openCount: 1, openPoints: 2, overdueCount: 0, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 0, points: 0, eventCount: 0, courtCount: 0, onLeave: true }] },
+  { userId: 'u-a', firstName: 'A', lastName: 'One', role: 'LAWYER', openCount: 6, openPoints: 12, overdueCount: 1, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 2, points: 4, eventCount: 1, courtCount: 1, onLeave: false, outlookBusyMinutes: 90 }] },
+  { userId: 'u-b', firstName: 'B', lastName: 'Two', role: 'LAWYER', openCount: 1, openPoints: 2, overdueCount: 0, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 0, points: 0, eventCount: 0, courtCount: 0, onLeave: true, outlookBusyMinutes: 0 }] },
 ] };
 const decode = (r: any) => JSON.parse(r.content[0].text);
 
@@ -58,6 +58,8 @@ describe('MCP tools', () => {
   it('team_workload returns counts and status only — no user ids, case or task content', async () => {
     make({ ...user, firmRole: FirmRole.OWNER } as AuthUser);
     const out = decode(await tools.get('team_workload')!.run({ from: '2026-11-12' }));
+    expect(out.members[0].days[0].outlookBusyMinutes).toBe(90);
+    expect(JSON.stringify(out)).not.toMatch(/subject|location|webLink/);
     expect(operations.radar).toHaveBeenCalledWith(expect.objectContaining({ firmRole: FirmRole.OWNER }), '2026-11-12');
     expect(out.standardPoints).toBe(10);
     expect(out.members.map((m: any) => [m.firstName, m.status, m.loadPercent])).toEqual([['A', 'over_standard', 120], ['B', 'on_leave_this_week', 20]]);

@@ -6,6 +6,7 @@ import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
 import { OutlookSubscriptionService } from './outlook-subscription.service';
 import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
+import { OutlookCalendarInboundService } from './calendar/outlook-calendar-inbound.service';
 import { UpdateConnectionSettingsDto } from './dto/update-connection-settings.dto';
 
 @Controller('outlook/connections')
@@ -18,6 +19,7 @@ export class OutlookConnectionsController {
     private syncService: OutlookSyncService,
     private subscriptions: OutlookSubscriptionService,
     private calendarSync: OutlookCalendarSyncService,
+    private calendarInbound: OutlookCalendarInboundService,
   ) {}
 
   @Get()
@@ -25,9 +27,17 @@ export class OutlookConnectionsController {
     return this.connections.listMine(user);
   }
 
+  @Post(':id/primary')
+  setPrimary(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.connections.setPrimary(user, id);
+  }
+
   @Patch(':id')
   async updateSettings(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateConnectionSettingsDto) {
     const { before, after } = await this.connections.updateSettings(user, id, dto);
+    if (!before.showCalendar && after.showCalendar) {
+      void this.calendarInbound.pollConnectionNow(id).catch((error) => this.logger.warn(`Calendar poll for ${id} failed: ${error}`));
+    }
     // The setting is saved. Nothing retries a failed follow-up; the user can toggle again.
     // Each step is independent so one failure never skips the other, and records its own error.
     try {

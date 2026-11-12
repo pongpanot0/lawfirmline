@@ -1,5 +1,7 @@
 'use client';
 
+import type { OutlookCalendarItemDto } from '@lawfirm/shared';
+import { outlookDay } from './outlook-day';
 import { eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
 import { CalendarEventItem, UserItem } from '@/lib/api';
 import { InlineEmptyState } from '@/components/ui/misc';
@@ -30,8 +32,9 @@ export function FirmDayAgenda({
   users,
   onEventClick,
   personColors,
-  filterName, onClearFilter, onAdd,
+  filterName, onClearFilter, onAdd, outlookItems = [], selectedOutlook, onOutlookClick,
 }: {
+  outlookItems?: OutlookCalendarItemDto[]; selectedOutlook?: string; onOutlookClick?: (item: OutlookCalendarItemDto) => void;
   filterName?: string; onClearFilter: () => void; onAdd: () => void;
   personColors?: Map<string, string>;
   events: CalendarEventItem[];
@@ -52,6 +55,10 @@ export function FirmDayAgenda({
     days.set(key, [...(days.get(key) ?? []), event]);
   }
 
+  const outlookDays = new Map<string, OutlookCalendarItemDto[]>();
+  for (const item of outlookItems) { const key = outlookDay(item); outlookDays.set(key, [...(outlookDays.get(key) ?? []), item]); }
+  for (const key of outlookDays.keys()) if (!days.has(key)) days.set(key, []);
+
   if (days.size === 0) {
     return (
       <InlineEmptyState
@@ -63,7 +70,8 @@ export function FirmDayAgenda({
 
   return (
     <div className="space-y-5">
-      {[...days.entries()].map(([key, dayEvents]) => {
+      {[...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, dayEvents]) => {
+        const dayOutlook = outlookDays.get(key) ?? [];
         const clashes = new Set<string>();
         for (let i = 0; i < dayEvents.length; i++) {
           for (let j = i + 1; j < dayEvents.length; j++) {
@@ -80,7 +88,7 @@ export function FirmDayAgenda({
               <h3 className="font-semibold text-foreground">
                 {DAY.format(new Date(`${key}T00:00:00+07:00`))}
               </h3>
-              <span className="text-xs tabular-nums text-muted-foreground">{dayEvents.length} รายการ</span>
+              <span className="text-xs tabular-nums text-muted-foreground">{dayEvents.length} รายการ · จาก Outlook {dayOutlook.length}</span>
               {clashes.size > 0 && (
                 <Badge variant="warning" className="gap-1 py-0.5">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
@@ -89,7 +97,9 @@ export function FirmDayAgenda({
               )}
             </div>
             <div className={`overflow-hidden rounded-xl border ${clashes.size ? 'border-red-200 bg-red-50/50' : 'bg-card'}`}>
-              {dayEvents.map((event, index) => (
+              {dayOutlook.filter(item => item.isAllDay).map(item => <OutlookRow key={item.id} item={item} selected={selectedOutlook === item.id} onClick={onOutlookClick} />)}
+              {dayEvents.map((event, index) => <div key={event.id}>
+                {dayOutlook.filter(item => !item.isAllDay && new Date(item.startAt).getTime() < new Date(event.startAt).getTime() && (index === 0 || new Date(item.startAt).getTime() >= new Date(dayEvents[index - 1].startAt).getTime())).map(item => <OutlookRow key={item.id} item={item} selected={selectedOutlook === item.id} onClick={onOutlookClick} />)}
                 <button
                   key={event.id}
                   type="button"
@@ -132,12 +142,17 @@ export function FirmDayAgenda({
                       </Badge>
                     );
                   })()}
-                </button>
-              ))}
+                </button></div>
+              )}
+              {dayOutlook.filter(item => !item.isAllDay && (!dayEvents.length || new Date(item.startAt).getTime() >= new Date(dayEvents[dayEvents.length - 1].startAt).getTime())).map(item => <OutlookRow key={item.id} item={item} selected={selectedOutlook === item.id} onClick={onOutlookClick} />)}
             </div>
           </section>
         );
       })}
     </div>
   );
+}
+
+function OutlookRow({ item, selected, onClick }: { item: OutlookCalendarItemDto; selected: boolean; onClick?: (item: OutlookCalendarItemDto) => void }) {
+  return <button type="button" onClick={() => onClick?.(item)} className={`m-2 flex w-[calc(100%-1rem)] gap-3 rounded-lg border border-dashed bg-muted/40 p-3 text-left text-sm ${selected ? 'ring-2 ring-primary' : ''}`}><span className="w-12 shrink-0 text-muted-foreground">{item.isAllDay ? 'ทั้งวัน' : TIME.format(new Date(item.startAt))}</span><span><span className="block text-xs text-muted-foreground">Outlook · {item.mailboxAddress.split('@')[0]}</span><span className="font-medium">{item.subject || 'ไม่มีชื่อ'}</span>{item.location && <span className="block text-xs text-muted-foreground">{item.location}</span>}</span></button>;
 }

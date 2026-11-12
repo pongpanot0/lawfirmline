@@ -77,6 +77,7 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
   const overdue = data?.tasks.filter((t) => t.overdue).length ?? 0;
   const dayTasks = focusDay ? data?.tasks.filter((t) => taskDayKey(t) === focusDay) ?? [] : [];
   const dayEvents = focusDay ? data?.events.filter((e) => bangkokDay(e.startAt) === focusDay) ?? [] : [];
+  const dayBusy = focusDay ? (data?.outlookBusy ?? []).filter(b => bangkokDay(b.start) === focusDay) : [];
   const dayLeave = focusDay ? data?.leaves.find((l) => l.startDate <= focusDay && l.endDate >= focusDay) : undefined;
 
   const sizeBadge = (t: PersonWorkload['tasks'][number]) => canRunOps
@@ -110,10 +111,11 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
             <h3 className="text-sm font-semibold">{dayLabel(focusDay)}</h3>
             {dayLeave && <p className="text-sm text-amber-800 dark:text-amber-300">{dayLeave.type ? LEAVE_LABELS[dayLeave.type] ?? 'ลา' : 'ลา'}ทั้งวัน</p>}
             {dayEvents.map((e) => <p key={e.id} className="text-sm"><span className="font-medium">{bangkokTime(e.startAt)}</span> {e.title}{e.courtName ? ` · ${e.courtName}` : ''}</p>)}
+            {dayBusy.map(b => <p key={b.start} className="text-sm text-muted-foreground">{bangkokTime(b.start)}–{bangkokTime(b.end)} ไม่ว่าง (Outlook)</p>)}
             {dayTasks.length > 0 && <ul className="divide-y rounded-lg border bg-card">
               {dayTasks.map((t) => <li key={t.id} className="px-3 py-2 text-sm"><div className="flex items-start justify-between gap-2"><span className="min-w-0 break-words font-medium">{t.title}</span>{sizeBadge(t)}</div>{taskMeta(t)}</li>)}
             </ul>}
-            {!dayLeave && dayEvents.length === 0 && dayTasks.length === 0 && <p className="text-sm text-muted-foreground">ไม่มีงานหรือนัดที่ลงวันนี้ไว้{data.tasks.some((t) => !taskDayKey(t)) ? ' (มีงานที่ยังไม่กำหนดวันอยู่ในคิวด้านล่าง)' : ''}</p>}
+            {!dayLeave && dayEvents.length === 0 && dayBusy.length === 0 && dayTasks.length === 0 && <p className="text-sm text-muted-foreground">ไม่มีงานหรือนัดที่ลงวันนี้ไว้{data.tasks.some((t) => !taskDayKey(t)) ? ' (มีงานที่ยังไม่กำหนดวันอยู่ในคิวด้านล่าง)' : ''}</p>}
           </section>}
 
           {!focusDay && data.leaves.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -141,7 +143,8 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
             {data.reviews.map((t) => <li key={t.id} className="px-3 py-2 text-sm">{t.title}{t.dueDate && <span className="block text-xs text-muted-foreground">ส่ง {formatDateTime(t.dueDate)}</span>}</li>)}
           </Section>}
 
-          {!focusDay && <Section title="นัดหมาย 7 วันข้างหน้า" empty={data.events.length === 0}>
+          {!focusDay && <Section title="นัดหมาย 7 วันข้างหน้า" empty={data.events.length === 0 && !(data.outlookBusy ?? []).length}>
+            {(data.outlookBusy ?? []).map(b => <li key={b.start} className="px-3 py-2 text-sm text-muted-foreground">{formatDate(b.start)} · {bangkokTime(b.start)}–{bangkokTime(b.end)} ไม่ว่าง (Outlook)</li>)}
             {data.events.map((e) => <li key={e.id} className="px-3 py-2 text-sm"><span className="font-medium">{e.title}</span><span className="block text-xs text-muted-foreground">{formatDateTime(e.startAt)}{e.courtName ? ` · ${e.courtName}` : ''}</span></li>)}
           </Section>}
 

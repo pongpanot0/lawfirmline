@@ -17,14 +17,15 @@ const copy = (over: Record<string, unknown> = {}) => ({
   syncedAt: new Date('2026-10-13T11:00:00Z'), removedInOutlookAt: null, ...over,
 });
 const connection = (over: Record<string, unknown> = {}) => ({
-  id: 'c-1', userId: 'u1', status: 'ACTIVE', syncCalendar: true, calendarDeltaLink: 'DL', calendarDeltaStartedAt: new Date(), ...over,
+  id: 'c-1', userId: 'u1', status: 'ACTIVE', syncCalendar: true, showCalendar: false, calendarDeltaLink: 'DL', calendarDeltaStartedAt: new Date(), ...over,
 });
 const moved = (start = new Date('2026-11-01T05:00:00Z'), end = new Date('2026-11-01T06:00:00Z')) => ({ id: 'g1', start, end });
 
 describe('OutlookCalendarInboundService', () => {
   let svc: OutlookCalendarInboundService;
   const prisma = {
-    mailboxConnection: { findMany: jest.fn(), update: jest.fn() },
+    mailboxConnection: { findMany: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
+    outlookCalendarItem: { deleteMany: jest.fn(), createMany: jest.fn(), upsert: jest.fn() },
     calendarEventOutlookCopy: { findMany: jest.fn(), update: jest.fn() },
     calendarEvent: { findUnique: jest.fn(), update: jest.fn() },
     calendarEventOutlookChange: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
@@ -41,7 +42,8 @@ describe('OutlookCalendarInboundService', () => {
     Object.values(prisma).forEach((m) => (typeof m === 'function' ? m.mockReset() : Object.values(m).forEach((f) => f.mockReset())));
     jest.clearAllMocks();
     connections.getValidAccessToken.mockResolvedValue('tok');
-    prisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
+    prisma.$transaction.mockImplementation((ops: any) => typeof ops === 'function' ? ops(prisma) : Promise.all(ops));
+    prisma.mailboxConnection.updateMany.mockResolvedValue({ count: 1 });
     prisma.mailboxConnection.findMany.mockResolvedValue([connection()]);
     prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([copy()]);
     prisma.calendarEvent.findUnique.mockResolvedValue(event());
@@ -64,7 +66,7 @@ describe('OutlookCalendarInboundService', () => {
     calendar.calendarViewDelta.mockResolvedValue({ events: [moved()], deltaLink: 'DL1' });
     await svc.pollAll();
     expect(calendar.calendarViewDelta.mock.calls[0][1]).toHaveProperty('start');
-    expect(prisma.mailboxConnection.update).toHaveBeenCalledWith({ where: { id: 'c-1' }, data: expect.objectContaining({ calendarDeltaLink: 'DL1' }) });
+    expect(prisma.mailboxConnection.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: 'c-1', showCalendar: false }), data: expect.objectContaining({ calendarDeltaLink: 'DL1' }) }));
     expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
     expect(prisma.calendarEventOutlookChange.create).not.toHaveBeenCalled();
   });
@@ -77,10 +79,92 @@ describe('OutlookCalendarInboundService', () => {
     expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
   });
 
-  it('skips connections without copies', async () => {
+  it('skips hidden connections without copies', async () => {
     prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
     await svc.pollAll();
     expect(calendar.calendarViewDelta).not.toHaveBeenCalled();
+  });
+
+  it('shown baseline without copies replaces mirrors in a transaction and uses minus 30 days', async () => {
+    prisma.mailboxConnection.findMany.mockResolvedValue([connection({ showCalendar: true, calendarDeltaLink: null })]);
+    prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
+    calendar.calendarViewDelta.mockResolvedValue({ events: [{ ...moved(), id: 'external', subject: 'private', showAs: 'busy', location: 'private location' }], deltaLink: 'baseline' });
+    await svc.pollAll();
+    const window = calendar.calendarViewDelta.mock.calls[0][1];
+    expect(Math.round((Date.now() - window.start.getTime()) / 86400000)).toBe(30);
+    expect(prisma.outlookCalendarItem.deleteMany).toHaveBeenCalledWith({ where: { connectionId: 'c-1' } });
+    expect(prisma.outlookCalendarItem.createMany).toHaveBeenCalledWith({ data: [expect.objectContaining({ userId: 'u1', graphEventId: 'external', subject: 'private', showAs: 'busy' })] });
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
+  });
+
+  it('baseline uses the last delta version per graph id and excludes system copies of any user', async () => {
+    prisma.mailboxConnection.findMany.mockResolvedValue([connection({ showCalendar: true, calendarDeltaLink: null })]);
+    prisma.calendarEventOutlookCopy.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([copy({ graphEventId: 'ours', userId: 'other' })]);
+    calendar.calendarViewDelta.mockResolvedValue({ events: [
+      { ...moved(), id: 'external', subject: 'old' }, { ...moved(), id: 'external', subject: 'latest' },
+      { ...moved(), id: 'cancelled-later' }, { id: 'cancelled-later', removed: true },
+      { ...moved(), id: 'ours' },
+    ], deltaLink: 'baseline' });
+    await svc.pollAll();
+    expect(prisma.outlookCalendarItem.createMany).toHaveBeenCalledWith({ data: [expect.objectContaining({ graphEventId: 'external', subject: 'latest' })] });
+    expect(prisma.mailboxConnection.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ calendarSyncedAt: expect.any(Date), calendarDeltaLink: 'baseline' }) }));
+  });
+
+  it('incremental upserts/deletes mirrors and excludes our copies belonging to ANY user', async () => {
+    prisma.mailboxConnection.findMany.mockResolvedValue([connection({ showCalendar: true })]);
+    prisma.calendarEventOutlookCopy.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([copy({ graphEventId: 'other-user-copy' })]);
+    calendar.calendarViewDelta.mockResolvedValue({ events: [
+      { ...moved(), id: 'external', subject: 'private', showAs: 'busy' },
+      { id: 'deleted', removed: true }, { id: 'cancelled', isCancelled: true },
+      { ...moved(), id: 'other-user-copy' },
+    ], deltaLink: 'next' });
+    await svc.pollAll();
+    expect(prisma.outlookCalendarItem.upsert).toHaveBeenCalledTimes(1);
+    expect(prisma.outlookCalendarItem.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { connectionId_graphEventId: { connectionId: 'c-1', graphEventId: 'external' } } }));
+    expect(prisma.outlookCalendarItem.deleteMany).toHaveBeenCalledWith({ where: { connectionId: 'c-1', graphEventId: 'deleted' } });
+    expect(prisma.outlookCalendarItem.deleteMany).toHaveBeenCalledWith({ where: { connectionId: 'c-1', graphEventId: 'cancelled' } });
+  });
+
+  it('does not restore mirrors when showCalendar was disabled or its cursor reset during Graph polling', async () => {
+    prisma.mailboxConnection.findMany.mockResolvedValue([connection({ showCalendar: true })]);
+    prisma.mailboxConnection.updateMany.mockResolvedValue({ count: 0 });
+    calendar.calendarViewDelta.mockResolvedValue({ events: [{ ...moved(), id: 'external' }], deltaLink: 'next' });
+    await svc.pollAll();
+    expect(prisma.outlookCalendarItem.upsert).not.toHaveBeenCalled();
+    expect(prisma.outlookCalendarItem.createMany).not.toHaveBeenCalled();
+    expect(prisma.mailboxConnection.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ showCalendar: true, status: 'ACTIVE', calendarDeltaLink: 'DL' }) }));
+  });
+
+  it('pollConnectionNow loads only an ACTIVE owned connection and polls even without copies', async () => {
+    prisma.mailboxConnection.findUnique.mockResolvedValue(connection({ showCalendar: true }));
+    prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
+    await svc.pollConnectionNow('c-1');
+    expect(calendar.calendarViewDelta).toHaveBeenCalled();
+    calendar.calendarViewDelta.mockClear();
+    prisma.mailboxConnection.findUnique.mockResolvedValue(connection({ status: 'REVOKED' }));
+    await svc.pollConnectionNow('c-1');
+    expect(calendar.calendarViewDelta).not.toHaveBeenCalled();
+  });
+
+  it('a copies-only poll cannot overwrite the baseline reset when showCalendar is enabled mid-poll', async () => {
+    prisma.mailboxConnection.updateMany.mockResolvedValue({ count: 0 });
+    await svc.pollAll();
+    expect(prisma.mailboxConnection.update).not.toHaveBeenCalled();
+    expect(prisma.mailboxConnection.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ showCalendar: false, calendarDeltaLink: 'DL' }) }));
+  });
+
+  it('coalesces simultaneous on-demand polls for one connection', async () => {
+    prisma.mailboxConnection.findUnique.mockResolvedValue(connection({ showCalendar: true }));
+    await Promise.all([svc.pollConnectionNow('c-1'), svc.pollConnectionNow('c-1')]);
+    expect(calendar.calendarViewDelta).toHaveBeenCalledTimes(1);
+  });
+
+  it('hidden connections retain copies-only behavior and never write mirrors', async () => {
+    calendar.calendarViewDelta.mockResolvedValue({ events: [{ ...moved(), id: 'external' }], deltaLink: 'next' });
+    await svc.pollAll();
+    expect(prisma.outlookCalendarItem.upsert).not.toHaveBeenCalled();
+    expect(prisma.outlookCalendarItem.deleteMany).not.toHaveBeenCalled();
   });
 
   it('ignores our own write echo (default 60 min end, minute precision)', async () => {
@@ -90,7 +174,7 @@ describe('OutlookCalendarInboundService', () => {
     await svc.pollAll();
     expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
     expect(prisma.calendarEventOutlookChange.create).not.toHaveBeenCalled();
-    expect(prisma.mailboxConnection.update).toHaveBeenCalledWith({ where: { id: 'c-1' }, data: { calendarDeltaLink: 'DL2' } });
+    expect(prisma.mailboxConnection.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: 'c-1', showCalendar: false }), data: { calendarDeltaLink: 'DL2', calendarSyncedAt: expect.any(Date) } }));
   });
 
   it('ignores a diff while the system change is not yet synced out', async () => {

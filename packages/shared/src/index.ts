@@ -1120,3 +1120,5 @@ export * from './secretary';
 export * from './strip-email-signature';
 
 export * from './mcp';
+
+export * from './outlook-calendar';

@@ -2,7 +2,7 @@ import { withFirmSlugHeaders } from './firm-slug';
 import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { taskUpdatePath } from './task-detail';
 import type { CaseProceedingItem } from './proceedings';
-import type { DailyBriefData, MatterBrief, SecretaryCard } from '@lawfirm/shared';
+import type { DailyBriefData, MatterBrief, SecretaryCard, OutlookCalendarItemsResponse } from '@lawfirm/shared';
 
 export type { CaseProceedingItem } from './proceedings';
 
@@ -1606,6 +1606,9 @@ export interface MailboxConnectionItem {
   user: { id: string; firstName: string; lastName: string } | null;
   syncInboxToIntake: boolean;
   syncCalendar: boolean;
+  isPrimary: boolean;
+  showCalendar: boolean;
+  calendarSyncedAt: string | null;
   status: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'ERROR';
   lastError: string | null;
   lastSyncedAt: string | null;
@@ -3505,6 +3508,11 @@ export const api = {
   getOutlookConnections: (token: string) =>
     request<MailboxConnectionItem[]>('/outlook/connections', { token }),
 
+  getOutlookCalendarItems: (token: string, from: string, to: string) =>
+    request<OutlookCalendarItemsResponse>(`/calendar/outlook-items?${new URLSearchParams({ from, to })}`, { token }),
+  setOutlookPrimary: (token: string, id: string) =>
+    request<MailboxConnectionItem[]>(`/outlook/connections/${id}/primary`, { method: 'POST', token }),
+
   addinSuggestCases: (token: string, graphMessageId: string) =>
     request<AddinCaseSuggestion[]>('/outlook/addin/suggest', { token, method: 'POST', body: JSON.stringify({ graphMessageId }) }),
   addinFileMessage: (token: string, body: { graphMessageId: string; caseId: string }) =>
@@ -3513,7 +3521,7 @@ export const api = {
   getOutlookConnectUrl: (token: string) =>
     request<{ url: string }>('/outlook/connect', { token, credentials: 'include' }),
 
-  updateOutlookConnection: (token: string, id: string, body: { syncInboxToIntake?: boolean; syncCalendar?: boolean }) =>
+  updateOutlookConnection: (token: string, id: string, body: { syncInboxToIntake?: boolean; syncCalendar?: boolean; showCalendar?: boolean }) =>
     request<MailboxConnectionItem>(`/outlook/connections/${id}`, { method: 'PATCH', token, body: JSON.stringify(body) }),
 
   disconnectOutlook: (token: string, id: string) =>

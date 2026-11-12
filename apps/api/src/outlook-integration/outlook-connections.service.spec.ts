@@ -19,6 +19,11 @@ describe('OutlookConnectionsService', () => {
       updateMany: jest.fn(),
       findUnique: jest.fn(),
     },
+    user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    auditLog: { create: jest.fn() },
+    outlookCalendarItem: { deleteMany: jest.fn() },
+    $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
     caseExternalLink: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(0) },
     documentOfficeLink: { count: jest.fn() },
   };
@@ -31,7 +36,10 @@ describe('OutlookConnectionsService', () => {
   });
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+    mockPrisma.$transaction.mockImplementation((fn: any) => fn(mockPrisma));
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    mockNotifier.notifyAssigned.mockResolvedValue({});
     mockPrisma.caseExternalLink.count.mockResolvedValue(0);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -144,13 +152,51 @@ describe('OutlookConnectionsService', () => {
     const firmOwner = { id: 'u3', firmId: 'f1', firmRole: 'OWNER' } as any;
     const row = { id: 'c1', firmId: 'f1', userId: 'u1', connectedByUserId: 'u1', syncInboxToIntake: false, syncCalendar: true };
 
-    it('findActiveForUser returns the newest ACTIVE connection of that user', async () => {
-      mockPrisma.mailboxConnection.findFirst.mockResolvedValue(row);
-      await expect(service.findActiveForUser('u1')).resolves.toBe(row);
-      expect(mockPrisma.mailboxConnection.findFirst).toHaveBeenCalledWith({
-        where: { userId: 'u1', status: 'ACTIVE' },
-        orderBy: { createdAt: 'desc' },
-      });
+    it('findActiveForUser uses only the primary even when another account is ACTIVE', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ primaryMailboxConnection: { ...row, status: 'EXPIRED' } });
+      await expect(service.findActiveForUser('u1')).resolves.toBeNull();
+      expect(mockPrisma.mailboxConnection.findFirst).not.toHaveBeenCalled();
+      mockPrisma.user.findUnique.mockResolvedValue({ primaryMailboxConnection: { ...row, status: 'ACTIVE' } });
+      await expect(service.findActiveForUser('u1')).resolves.toMatchObject({ id: 'c1' });
+    });
+
+    it('setPrimary is owner-only and ACTIVE-only, and writes an audit log', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValue({ ...row, status: 'ACTIVE' });
+      mockPrisma.mailboxConnection.findMany.mockResolvedValue([]);
+      mockPrisma.user.findUnique.mockResolvedValue({ primaryMailboxConnectionId: 'old' });
+      await expect(service.setPrimary(other, 'c1')).rejects.toThrow(/เฉพาะเจ้าของบัญชี/);
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValue({ ...row, status: 'EXPIRED' });
+      await expect(service.setPrimary(owner, 'c1')).rejects.toThrow('เชื่อมบัญชีนี้ใหม่ก่อนตั้งเป็นบัญชีหลัก');
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValue({ ...row, status: 'ACTIVE' });
+      await service.setPrimary(owner, 'c1');
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(mockPrisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(mockPrisma.user.update.mock.invocationCallOrder[0]);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { primaryMailboxConnectionId: 'c1' } });
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({ data: { firmId: 'f1', userId: 'u1', action: 'MICROSOFT_PRIMARY_CHANGED', metadata: { from: 'old', to: 'c1' } } });
+    });
+
+    it('disconnect primary reassigns the oldest ACTIVE account, removes mirrors and notifies', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValueOnce({ ...row, graphSubscriptionId: null }).mockResolvedValueOnce({ id: 'next', mailboxAddress: 'next@x.com' });
+      mockPrisma.user.findUnique.mockResolvedValue({ primaryMailboxConnectionId: 'c1' });
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      await service.disconnect('f1', 'c1');
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(mockPrisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(mockPrisma.mailboxConnection.update.mock.invocationCallOrder[0]);
+      expect(mockPrisma.mailboxConnection.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: { userId: 'u1', status: 'ACTIVE', id: { not: 'c1' } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }));
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({ where: { id: 'u1', primaryMailboxConnectionId: 'c1' }, data: { primaryMailboxConnectionId: 'next' } });
+      expect(mockPrisma.outlookCalendarItem.deleteMany).toHaveBeenCalledWith({ where: { connectionId: 'c1' } });
+      expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['u1'], category: 'EMAIL', summaryText: 'ตั้ง next@x.com เป็นบัญชีหลักแทนแล้ว เพราะบัญชีเดิมถูกตัดการเชื่อมต่อ' }));
+    });
+
+    it('disconnect primary clears it when no ACTIVE accounts remain, without notifying a nonexistent replacement', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValueOnce({ ...row, graphSubscriptionId: null }).mockResolvedValueOnce(null);
+      mockPrisma.user.findUnique.mockResolvedValue({ primaryMailboxConnectionId: 'c1' });
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      await service.disconnect('f1', 'c1');
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(mockPrisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(mockPrisma.mailboxConnection.update.mock.invocationCallOrder[0]);
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({ where: { id: 'u1', primaryMailboxConnectionId: 'c1' }, data: { primaryMailboxConnectionId: null } });
+      expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
     });
 
     it('listMine returns only the caller’s own rows, without tokens', async () => {
@@ -168,6 +214,28 @@ describe('OutlookConnectionsService', () => {
       expect(before.syncInboxToIntake).toBe(false);
       expect(after.syncInboxToIntake).toBe(true);
       expect(mockPrisma.mailboxConnection.update).toHaveBeenCalledWith({ where: { id: 'c1' }, data: { syncInboxToIntake: true } });
+    });
+
+    it('showCalendar=false deletes mirrors in the settings transaction; true resets the delta cursor', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValue(row);
+      await service.updateSettings(owner, 'c1', { showCalendar: false });
+      expect(mockPrisma.outlookCalendarItem.deleteMany).toHaveBeenCalledWith({ where: { connectionId: 'c1' } });
+      expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function));
+      await service.updateSettings(owner, 'c1', { showCalendar: true });
+      expect(mockPrisma.mailboxConnection.update).toHaveBeenLastCalledWith({ where: { id: 'c1' }, data: { showCalendar: true, calendarDeltaLink: null, calendarDeltaStartedAt: null } });
+    });
+
+    it('OAuth sets primary only when absent or revoked, never replacing an expired primary', async () => {
+      mockPrisma.mailboxConnection.upsert.mockResolvedValue(row);
+      await service.upsertFromOAuth(owner, { accessToken: 'a', refreshToken: 'r', expiresIn: 3600 }, 'a@x.com');
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({ where: { id: 'u1', OR: [{ primaryMailboxConnectionId: null }, { primaryMailboxConnection: { status: 'REVOKED' } }] }, data: { primaryMailboxConnectionId: 'c1' } });
+    });
+
+    it('listMine places the primary first and includes mirror settings/freshness without tokens', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ primaryMailboxConnectionId: 'new' });
+      mockPrisma.mailboxConnection.findMany.mockResolvedValue([{ id: 'old', showCalendar: true, calendarSyncedAt: null }, { id: 'new', showCalendar: false, calendarSyncedAt: null }]);
+      expect((await service.listMine(owner)).map((c) => [c.id, c.isPrimary])).toEqual([['new', true], ['old', false]]);
+      expect(mockPrisma.mailboxConnection.findMany.mock.calls[0][0].select).toMatchObject({ showCalendar: true, calendarSyncedAt: true });
     });
 
     it('updateSettings refuses colleagues, the firm owner included', async () => {

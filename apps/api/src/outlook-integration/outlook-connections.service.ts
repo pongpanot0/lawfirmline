@@ -23,6 +23,8 @@ const SAFE_SELECT = {
   createdAt: true,
   syncInboxToIntake: true,
   syncCalendar: true,
+  showCalendar: true,
+  calendarSyncedAt: true,
   user: { select: { id: true, firstName: true, lastName: true } },
 } as const;
 
@@ -45,33 +47,69 @@ export class OutlookConnectionsService {
   ) {}
 
   /** Only the caller's own Microsoft accounts — colleagues' mailboxes stay private (firm-wide health lives on the M365 status page). */
-  listMine(user: AuthUser) {
-    return this.prisma.mailboxConnection.findMany({
-      where: { firmId: user.firmId, OR: [{ userId: user.id }, { userId: null, connectedByUserId: user.id }] },
-      select: SAFE_SELECT,
-      orderBy: { createdAt: 'desc' },
-    });
+  async listMine(user: AuthUser) {
+    const [rows, owner] = await Promise.all([
+      this.prisma.mailboxConnection.findMany({
+        where: { firmId: user.firmId, OR: [{ userId: user.id }, { userId: null, connectedByUserId: user.id }] },
+        select: SAFE_SELECT,
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      }),
+      this.prisma.user.findUnique({ where: { id: user.id }, select: { primaryMailboxConnectionId: true } }),
+    ]);
+    return rows.map((row) => ({ ...row, isPrimary: row.id === owner?.primaryMailboxConnectionId }))
+      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
   }
 
-  getSafe(firmId: string, id: string) {
-    return this.prisma.mailboxConnection.findFirst({ where: { id, firmId }, select: SAFE_SELECT });
+  async getSafe(firmId: string, id: string) {
+    const row = await this.prisma.mailboxConnection.findFirst({ where: { id, firmId }, select: SAFE_SELECT });
+    if (!row) return null;
+    const owner = row.userId ? await this.prisma.user.findUnique({ where: { id: row.userId }, select: { primaryMailboxConnectionId: true } }) : null;
+    return { ...row, isPrimary: owner?.primaryMailboxConnectionId === row.id };
   }
 
-  /** The user's own Microsoft account — used for calendar, sending and files. */
-  findActiveForUser(userId: string) {
-    return this.prisma.mailboxConnection.findFirst({
-      where: { userId, status: MailboxConnectionStatus.ACTIVE },
-      orderBy: { createdAt: 'desc' },
+  async primaryForUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { primaryMailboxConnection: true } });
+    return user?.primaryMailboxConnection ?? null;
+  }
+
+  /** An expired primary never silently falls back to another mailbox. */
+  async findActiveForUser(userId: string) {
+    const primary = await this.primaryForUser(userId);
+    return primary?.status === MailboxConnectionStatus.ACTIVE ? primary : null;
+  }
+
+  async setPrimary(user: AuthUser, id: string) {
+    await this.assertCanManage(user, id);
+    await this.prisma.$transaction(async (tx) => {
+      // Serialize primary changes with disconnects, including disconnects of two accounts at once.
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`;
+      const connection = await tx.mailboxConnection.findFirst({ where: { id, firmId: user.firmId } });
+      if (!connection || connection.status !== MailboxConnectionStatus.ACTIVE) {
+        throw new BadRequestException('เชื่อมบัญชีนี้ใหม่ก่อนตั้งเป็นบัญชีหลัก');
+      }
+      const owner = await tx.user.findUnique({ where: { id: user.id }, select: { primaryMailboxConnectionId: true } });
+      await tx.user.update({ where: { id: user.id }, data: { primaryMailboxConnectionId: id } });
+      await tx.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'MICROSOFT_PRIMARY_CHANGED', metadata: { from: owner?.primaryMailboxConnectionId ?? null, to: id } } });
     });
+    return this.listMine(user);
   }
 
   async updateSettings(user: AuthUser, id: string, dto: UpdateConnectionSettingsDto) {
     await this.assertCanManage(user, id);
     const before = await this.getRaw(user.firmId, id);
-    const data: { syncInboxToIntake?: boolean; syncCalendar?: boolean } = {};
+    const data: { syncInboxToIntake?: boolean; syncCalendar?: boolean; showCalendar?: boolean; calendarDeltaLink?: null; calendarDeltaStartedAt?: null } = {};
     if (dto.syncInboxToIntake !== undefined) data.syncInboxToIntake = dto.syncInboxToIntake;
     if (dto.syncCalendar !== undefined) data.syncCalendar = dto.syncCalendar;
-    const after = await this.prisma.mailboxConnection.update({ where: { id }, data });
+    if (dto.showCalendar !== undefined) {
+      data.showCalendar = dto.showCalendar;
+      // Turning it on re-baselines so the mirror fills; re-sending true must not reset the copies cursor.
+      if (dto.showCalendar && !before.showCalendar) { data.calendarDeltaLink = null; data.calendarDeltaStartedAt = null; }
+    }
+    const after = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.mailboxConnection.update({ where: { id }, data });
+      if (dto.showCalendar === false) await tx.outlookCalendarItem.deleteMany({ where: { connectionId: id } });
+      return row;
+    });
     return { before, after };
   }
 
@@ -112,7 +150,7 @@ export class OutlookConnectionsService {
         `บัญชี ${mailboxAddress} เป็นของ ${owner} อยู่แล้ว — กรุณาเลือกบัญชี Microsoft ของคุณเอง`,
       );
     }
-    return this.prisma.mailboxConnection.upsert({
+    const connection = await this.prisma.mailboxConnection.upsert({
       where: { firmId_mailboxAddress: { firmId: user.firmId, mailboxAddress } },
       create: {
         firmId: user.firmId,
@@ -135,6 +173,11 @@ export class OutlookConnectionsService {
         lastError: null,
       },
     });
+    await this.prisma.user.updateMany({
+      where: { id: user.id, OR: [{ primaryMailboxConnectionId: null }, { primaryMailboxConnection: { status: MailboxConnectionStatus.REVOKED } }] },
+      data: { primaryMailboxConnectionId: connection.id },
+    });
+    return connection;
   }
 
   /**
@@ -227,16 +270,30 @@ export class OutlookConnectionsService {
     }
     // Wipe the tokens rather than deleting the row, so who connected/
     // disconnected the mailbox and when stays in the audit trail.
-    await this.prisma.mailboxConnection.update({
-      where: { id: connection.id },
-      data: {
-        status: MailboxConnectionStatus.REVOKED,
-        accessTokenEnc: '',
-        refreshTokenEnc: '',
-        graphSubscriptionId: null,
-        subscriptionExpiresAt: null,
-      },
+    const replacement = await this.prisma.$transaction(async (tx) => {
+      if (connection.userId) await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${connection.userId} FOR UPDATE`;
+      await tx.mailboxConnection.update({
+        where: { id: connection.id },
+        data: { status: MailboxConnectionStatus.REVOKED, accessTokenEnc: '', refreshTokenEnc: '', graphSubscriptionId: null, subscriptionExpiresAt: null },
+      });
+      await tx.outlookCalendarItem.deleteMany({ where: { connectionId: id } });
+      if (!connection.userId) return null;
+      const owner = await tx.user.findUnique({ where: { id: connection.userId }, select: { primaryMailboxConnectionId: true } });
+      if (owner?.primaryMailboxConnectionId !== id) return null;
+      const next = await tx.mailboxConnection.findFirst({
+        where: { userId: connection.userId, status: MailboxConnectionStatus.ACTIVE, id: { not: id } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      });
+      const changed = await tx.user.updateMany({ where: { id: connection.userId, primaryMailboxConnectionId: id }, data: { primaryMailboxConnectionId: next?.id ?? null } });
+      return changed.count ? next : null;
     });
+    if (replacement && connection.userId) {
+      await this.notifier.notifyAssigned({
+        firmId, userIds: [connection.userId], actorUserId: '', category: NotificationCategory.EMAIL,
+        summaryText: `ตั้ง ${replacement.mailboxAddress} เป็นบัญชีหลักแทนแล้ว เพราะบัญชีเดิมถูกตัดการเชื่อมต่อ`,
+        entityPath: '/settings', appPath: '/settings',
+      }).catch((error) => this.logger.warn(`Primary reassignment notification failed: ${error}`));
+    }
     // Links stay (the case page explains the folder owner disconnected); reconnecting revives them.
     const caseLinks = await this.prisma.caseExternalLink.count({ where: { connectionId: connection.id } });
     return { revoked: true as const, caseLinks };

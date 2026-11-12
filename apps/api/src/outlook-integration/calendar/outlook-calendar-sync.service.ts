@@ -56,7 +56,7 @@ export class OutlookCalendarSyncService {
   withdrawOrganizerCopySoon(eventId: string, previousOrganizerId: string): void {
     this.locked(eventId, async () => {
       const [copy] = (await this.prisma.calendarEventOutlookCopy.findMany({ where: { eventId, userId: previousOrganizerId } })) as Copy[];
-      if (copy) await this.deleteCopy(copy);
+      if (copy && !await this.deleteCopy(copy)) return;
       await this.doSync(eventId);
     }).catch((error) => this.logger.warn(`Withdrawing Teams copy of ${eventId} failed: ${error}`));
   }
@@ -93,7 +93,7 @@ export class OutlookCalendarSyncService {
 
     for (const copy of copies) {
       if (skipped.has(copy.userId)) continue;
-      if (desired.get(copy.userId)?.id !== copy.connectionId) await this.deleteCopy(copy);
+      if (desired.get(copy.userId)?.id !== copy.connectionId && !await this.deleteCopy(copy)) desired.delete(copy.userId);
     }
 
     const origin = await this.firmLink.originForFirm(event.case.firmId);
@@ -125,18 +125,15 @@ export class OutlookCalendarSyncService {
     }
   }
 
-  /** Deterministic choice: keep the connection the user's existing copy lives on, else the oldest eligible one. */
+  /** Only the primary receives copies; broken connections pause without deleting existing copies. */
   private async pickConnection(userId: string, organizerId: string | null, existing?: Copy) {
-    const rows = await this.prisma.mailboxConnection.findMany({
-      where: { userId, status: 'ACTIVE' },
-      orderBy: { createdAt: 'asc' },
-    });
-    if (existing && !rows.some((c) => c.id === existing.connectionId)) {
+    const primary = await this.connections.primaryForUser(userId);
+    if (primary && (primary.status === 'EXPIRED' || primary.status === 'ERROR')) return 'skip';
+    if (existing) {
       const current = await this.prisma.mailboxConnection.findUnique({ where: { id: existing.connectionId }, select: { status: true } });
-      if (current && current.status !== 'REVOKED') return 'skip';
+      if (current?.status === 'EXPIRED' || current?.status === 'ERROR') return 'skip';
     }
-    const eligible = rows.filter((c) => c.syncCalendar || userId === organizerId);
-    return eligible.find((c) => c.id === existing?.connectionId) ?? eligible[0] ?? null;
+    return primary?.status === 'ACTIVE' && (primary.syncCalendar || userId === organizerId) ? primary : null;
   }
 
   private payloadFor(event: any, userId: string, organizerId: string | null, origin: string): GraphEventInput {
@@ -160,11 +157,15 @@ export class OutlookCalendarSyncService {
       result = await this.calendar.createEvent(token, payload);
     }
     const graphEventId = result.id;
-    await this.prisma.calendarEventOutlookCopy.upsert({
-      where: { eventId_userId: { eventId, userId } },
-      create: { eventId, userId, connectionId, graphEventId, syncedAt: version },
-      update: { connectionId, graphEventId, syncedAt: version, lastError: null },
-    });
+    await this.prisma.$transaction([
+      this.prisma.$queryRaw`SELECT "id" FROM "MailboxConnection" WHERE "id" = ${connectionId} FOR UPDATE`,
+      this.prisma.calendarEventOutlookCopy.upsert({
+        where: { eventId_userId: { eventId, userId } },
+        create: { eventId, userId, connectionId, graphEventId, syncedAt: version },
+        update: { connectionId, graphEventId, syncedAt: version, lastError: null },
+      }),
+      this.prisma.outlookCalendarItem.deleteMany({ where: { graphEventId } }),
+    ]);
     const joinUrl = result.onlineMeeting?.joinUrl;
     if (joinUrl && !joinUrl.startsWith('https://')) {
       this.logger.warn(`Ignoring non-https Teams join URL for event ${eventId}`);
@@ -189,11 +190,12 @@ export class OutlookCalendarSyncService {
           } catch (e) {
             this.logger.warn(`Could not record lastError for copy ${copy.id}: ${e}`);
           }
-          return;
+          return false;
         }
       }
     }
     await this.prisma.calendarEventOutlookCopy.deleteMany({ where: { id: copy.id } });
+    return true;
   }
 
   async removeAllForConnection(connectionId: string): Promise<void> {
@@ -216,7 +218,7 @@ export class OutlookCalendarSyncService {
 
   private async reconcile(): Promise<void> {
     const since = new Date(Date.now() - DAY);
-    const connections = await this.prisma.mailboxConnection.findMany({ where: { status: 'ACTIVE', userId: { not: null } } });
+    const connections = await this.prisma.mailboxConnection.findMany({ where: { status: 'ACTIVE', userId: { not: null }, primaryFor: { isNot: null } } });
     const ids = new Set<string>();
     // Copies whose event may be deleted, reassigned or merely past — sorted out after one lookup.
     const leftovers = new Set<string>();
@@ -235,7 +237,7 @@ export class OutlookCalendarSyncService {
       const byEvent = new Map(copies.map((c) => [c.eventId, c]));
       for (const event of events) {
         const copy = byEvent.get(event.id);
-        if (!copy?.removedInOutlookAt && (!copy || copy.syncedAt < event.updatedAt)) ids.add(event.id);
+        if (!copy?.removedInOutlookAt && (!copy || copy.connectionId !== connection.id || copy.syncedAt < event.updatedAt)) ids.add(event.id);
         byEvent.delete(event.id);
       }
       byEvent.forEach((c) => leftovers.add(c.eventId));
@@ -262,7 +264,7 @@ export class OutlookCalendarSyncService {
       for (const m of meetings) {
         if (!activeUserIds.has(m.meetingOrganizerId)) continue;
         const copy = meetingCopies.find((c) => c.eventId === m.id && c.userId === m.meetingOrganizerId);
-        if (!copy?.removedInOutlookAt && (!copy || copy.syncedAt < m.updatedAt)) ids.add(m.id);
+        if (!copy?.removedInOutlookAt && (!copy || copy.connectionId !== connections.find((c) => c.userId === m.meetingOrganizerId)?.id || copy.syncedAt < m.updatedAt)) ids.add(m.id);
       }
     }
 
