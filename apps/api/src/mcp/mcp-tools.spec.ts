@@ -6,13 +6,19 @@ jest.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({ McpServer: class {
   registerTool(name: string, config: any, run: any) { tools.set(name, { config, run }); }
 } }));
 
-const user = { id: 'user-1', firmId: 'firm-1', firmSlug: 'firm', firmRole: FirmRole.OWNER } as AuthUser;
+const user = { id: 'user-1', firmId: 'firm-1', firmSlug: 'firm', firmRole: FirmRole.LAWYER } as AuthUser;
 const connection = { id: 'connection', clientName: 'Claude' };
 const own = { firmId: 'firm-1', leadLawyerId: 'user-1' };
+const appFilter = { firmId: 'firm-1', app: true };
+const radar = { start: '2026-11-12', days: ['2026-11-12'], members: [
+  { userId: 'u-a', firstName: 'A', lastName: 'One', role: 'LAWYER', openCount: 6, openPoints: 12, overdueCount: 1, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 2, points: 4, eventCount: 1, courtCount: 1, onLeave: false }] },
+  { userId: 'u-b', firstName: 'B', lastName: 'Two', role: 'LAWYER', openCount: 1, openPoints: 2, overdueCount: 0, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 0, points: 0, eventCount: 0, courtCount: 0, onLeave: true }] },
+] };
 const decode = (r: any) => JSON.parse(r.content[0].text);
 
 describe('MCP tools', () => {
-  let prisma: any, secretary: any, tasks: any, comments: any, billing: any;
+  let prisma: any, secretary: any, tasks: any, comments: any, billing: any, operations: any;
+  const make = (who: AuthUser) => { tools.clear(); new McpToolsService(prisma, secretary, { getOwnCaseFilterForUser: () => own, getCaseFilterForUser: () => appFilter } as any, tasks, comments, billing, { originForSlug: () => 'https://firm.samnuan.com' } as any, operations).createServer(who, connection); };
   beforeEach(() => {
     tools.clear();
     prisma = { case: { findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }) }, task: { findFirst: jest.fn() }, auditLog: { create: jest.fn() }, documentDateSuggestion: { create: jest.fn().mockResolvedValue({ id: 'suggestion' }) } };
@@ -21,7 +27,8 @@ describe('MCP tools', () => {
     tasks = { create: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[7]('task-1') }); return { id: 'task-1', source: 'MCP' }; }), update: jest.fn().mockResolvedValue({ id: 'task-1' }) };
     comments = { createComment: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[4].audit('comment') }); return { id: 'comment', viaAi: true }; }) };
     billing = { createTimeEntry: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[3].audit('time') }); return { id: 'time', viaAi: true }; }) };
-    new McpToolsService(prisma, secretary, { getOwnCaseFilterForUser: () => own } as any, tasks, comments, billing, { originForSlug: () => 'https://firm.samnuan.com' } as any).createServer(user, connection);
+    operations = { radar: jest.fn().mockResolvedValue(radar) };
+    make(user);
   });
   it('registers only capability-filtered reads and always runs licenses in own scope', async () => {
     expect(tools.has('receivables')).toBe(false);
@@ -29,12 +36,33 @@ describe('MCP tools', () => {
     await tools.get('lawyer_licenses')!.run({});
     expect(secretary.run).toHaveBeenCalledWith(user, 'lawyer_licenses', {}, 'own');
   });
-  it('refuses another case even for OWNER', async () => {
+  it('refuses a case outside own work for a LAWYER', async () => {
     prisma.case.findFirst.mockResolvedValue(null);
     const result = await tools.get('create_task')!.run({ caseId: 'other', title: 'Task' });
     expect(decode(result).error).toBe('ไม่พบคดีนี้ในงานของคุณ');
     expect(prisma.case.findFirst).toHaveBeenCalledWith({ where: { AND: [own, { id: 'other' }] }, select: { id: true } });
     expect(tasks.create).not.toHaveBeenCalled();
+  });
+  it.each([[FirmRole.OWNER, 'app'], [FirmRole.SENIOR_LAWYER, 'app'], [FirmRole.OFFICE_MANAGER, 'own'], [FirmRole.LAWYER, 'own'], [FirmRole.ASSISTANT, 'own']])('%s reads and writes with %s scope', async (firmRole, scope) => {
+    const who = { ...user, firmRole } as AuthUser;
+    make(who);
+    await tools.get('lawyer_licenses')!.run({});
+    expect(secretary.run).toHaveBeenLastCalledWith(who, 'lawyer_licenses', {}, scope);
+    await tools.get('add_case_note')!.run({ caseId: 'case-1', text: 'x' });
+    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { AND: [scope === 'app' ? appFilter : own, { id: 'case-1' }] }, select: { id: true } });
+  });
+  it.each([[FirmRole.OWNER, true], [FirmRole.OFFICE_MANAGER, true], [FirmRole.SENIOR_LAWYER, false], [FirmRole.LAWYER, false]])('team_workload for %s registered=%s', (firmRole, registered) => {
+    make({ ...user, firmRole } as AuthUser);
+    expect(tools.has('team_workload')).toBe(registered);
+  });
+  it('team_workload returns counts and status only — no user ids, case or task content', async () => {
+    make({ ...user, firmRole: FirmRole.OWNER } as AuthUser);
+    const out = decode(await tools.get('team_workload')!.run({ from: '2026-11-12' }));
+    expect(operations.radar).toHaveBeenCalledWith(expect.objectContaining({ firmRole: FirmRole.OWNER }), '2026-11-12');
+    expect(out.standardPoints).toBe(10);
+    expect(out.members.map((m: any) => [m.firstName, m.status, m.loadPercent])).toEqual([['A', 'over_standard', 120], ['B', 'on_leave_this_week', 20]]);
+    expect(out.members[1].leaveDays).toEqual(['2026-11-12']);
+    expect(JSON.stringify(out)).not.toMatch(/u-a|u-b|caseId|title/);
   });
   it.each([{ assigneeId: 'other', requiresReview: false }, { assigneeId: user.id, requiresReview: true }])('refuses other assignees and review work', async (task) => {
     prisma.task.findFirst.mockResolvedValue({ id: 'task', caseId: 'case-1', ...task });

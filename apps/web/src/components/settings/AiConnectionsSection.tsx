@@ -14,7 +14,7 @@ import {
   Terminal,
   Unplug,
 } from "lucide-react";
-import { hasFirmCapability, type MyMcpConnections } from "@lawfirm/shared";
+import { hasFirmCapability, mcpVisibilityText, type MyMcpConnections } from "@lawfirm/shared";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { confirmDialog } from "@/lib/confirm-dialog";
@@ -102,7 +102,7 @@ export function AiConnectionsSection() {
               <p className="mt-2 text-sm text-muted-foreground">
                 เชื่อมต่อครั้งเดียว แล้วสั่งงานจากแชท AI ได้เลย — ค้นคดี
                 อ่านเอกสาร สร้างงาน ลงโน้ต และลงเวลา AI
-                เห็นเฉพาะคดีที่คุณรับผิดชอบหรือมีงานอยู่
+                เห็น{mcpVisibilityText(user?.firmRole)}
               </p>
             </div>
           </div>
@@ -250,7 +250,7 @@ export function AiConnectionsSection() {
                 {[
                   {
                     title: "อ่าน",
-                    desc: "คดี เอกสาร นัด และงานที่คุณรับผิดชอบหรือมีงานอยู่ — ไม่เห็นงานของคนอื่น",
+                    desc: `${mcpVisibilityText(user?.firmRole)} รวมเอกสาร นัด และงาน`,
                     icon: Eye,
                   },
                   {

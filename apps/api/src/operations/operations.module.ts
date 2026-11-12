@@ -11,5 +11,6 @@ import { DailyOperationsController, TeamWorkloadController } from './daily-opera
   imports: [TasksModule, forwardRef(() => NotificationsModule)],
   controllers: [OperationsController, DailyOperationsController, TeamWorkloadController],
   providers: [OperationsService, DailyOperationsService, FirmRoleGuard],
+  exports: [DailyOperationsService],
 })
 export class OperationsModule {}

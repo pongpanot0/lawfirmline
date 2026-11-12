@@ -1,7 +1,9 @@
 import { BadRequestException, ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AuthUser, redactForAi, TaskStatus, subscriptionAllowsWrites } from '@lawfirm/shared';
+import { AuthUser, HEAVY_QUEUE_POINTS, mcpCaseScope, hasFirmCapability, redactForAi, TaskStatus, subscriptionAllowsWrites, type TeamRadar } from '@lawfirm/shared';
+import { DailyOperationsService } from '../operations/daily-operations.service';
+import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { DateSuggestionSource, DateSuggestionStatus, EventType, TaskSource } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { SecretaryToolsService } from '../secretary/secretary-tools.service';
@@ -53,6 +55,7 @@ export class McpToolsService {
     private readonly comments: CaseCommentsService,
     private readonly billing: BillingService,
     private readonly links: FirmLinkService,
+    private readonly operations: DailyOperationsService,
   ) {}
 
   createServer(user: AuthUser, connection: { id: string; clientName: string }): McpServer {
@@ -70,12 +73,19 @@ export class McpToolsService {
       const name = definition.function.name as keyof typeof readSchemas;
       if (!(name in readSchemas)) continue;
       server.registerTool(name, { description: definition.function.description, inputSchema: readSchemas[name] }, (args: Record<string, unknown>) => handle(async () => {
-        const output = await this.secretary.run(user, name, args, 'own');
+        const output = await this.secretary.run(user, name, args, mcpScope(user));
         if (output.content && typeof output.content === 'object' && 'error' in output.content) {
           throw new NotFoundException('ไม่พบคดีนี้ในงานของคุณ');
         }
         return output;
       }));
+    }
+    // Team load is counts only (no case or task content) — the same numbers as the app's ทีม page, owners/office managers only.
+    if (hasFirmCapability(user.firmRole, 'runOperations')) {
+      server.registerTool('team_workload', {
+        description: `Workload of every firm member for 7 days from a date (default today, Asia/Bangkok): open task points vs the ${HEAVY_QUEUE_POINTS}-point standard, overdue and review counts, and per-day task points, appointments, court dates and leave. Counts only — no case or task details. Use it for "who is free / overloaded".`,
+        inputSchema: { from: date.optional() },
+      }, (args: Record<string, unknown>) => handle(async () => teamWorkload(await this.operations.radar(user, (args.from as string | undefined) ?? bangkokDayKey(new Date())))));
     }
     for (const name of Object.keys(writeSchemas) as Array<keyof typeof writeSchemas>) {
       server.registerTool(name, { description: descriptions[name], inputSchema: writeSchemas[name] }, (args: Record<string, unknown>) => handle(async () => {
@@ -85,7 +95,7 @@ export class McpToolsService {
         let entity: { id: string };
         const audit = (entityId: string) => this.audit(user, connection, name, caseId, entityId);
         if (name === 'complete_task') {
-          const task = await this.prisma.task.findFirst({ where: { id: a.taskId as string, case: this.access.getOwnCaseFilterForUser(user) } });
+          const task = await this.prisma.task.findFirst({ where: { id: a.taskId as string, case: this.caseFilter(user) } });
           if (!task?.caseId) throw new NotFoundException('ไม่พบคดีนี้ในงานของคุณ');
           caseId = task.caseId;
           if (task.assigneeId !== user.id) throw new BadRequestException('ปิดได้เฉพาะงานที่มอบหมายให้คุณ');
@@ -114,13 +124,34 @@ export class McpToolsService {
   }
 
   private async assertOwnCase(user: AuthUser, caseId: string) {
-    const legalCase = await this.prisma.case.findFirst({ where: { AND: [this.access.getOwnCaseFilterForUser(user), { id: caseId }] }, select: { id: true } });
+    const legalCase = await this.prisma.case.findFirst({ where: { AND: [this.caseFilter(user), { id: caseId }] }, select: { id: true } });
     if (!legalCase) throw new NotFoundException('ไม่พบคดีนี้ในงานของคุณ');
+  }
+
+  private caseFilter(user: AuthUser) {
+    return mcpScope(user) === 'app' ? this.access.getCaseFilterForUser(user) : this.access.getOwnCaseFilterForUser(user);
   }
 
   private audit(user: AuthUser, connection: { id: string; clientName: string }, tool: string, caseId: string, entityId: string) {
     return { firmId: user.firmId, userId: user.id, action: `mcp.${tool}`, metadata: { connectionId: connection.id, clientName: connection.clientName, tool, caseId, entityId } };
   }
+}
+
+const mcpScope = (user: AuthUser) => mcpCaseScope(user.firmRole);
+
+/** Same status rule as the web TeamRadar card, spelled out so the model doesn't have to infer it. */
+export function teamWorkload(radar: TeamRadar) {
+  return {
+    from: radar.start, standardPoints: HEAVY_QUEUE_POINTS,
+    members: radar.members.map(({ userId: _id, days, ...m }) => {
+      const leaveDays = days.filter((d) => d.onLeave).map((d) => d.date);
+      const status = m.openPoints > HEAVY_QUEUE_POINTS ? 'over_standard'
+        : m.openPoints >= HEAVY_QUEUE_POINTS * 0.8 ? 'near_standard'
+          : leaveDays.length ? 'on_leave_this_week' : 'free';
+      return { ...m, status, loadPercent: Math.round((m.openPoints / HEAVY_QUEUE_POINTS) * 100), leaveDays,
+        days: days.map(({ onLeave: _l, ...d }) => d) };
+    }),
+  };
 }
 
 function validDay(value: string): boolean {
