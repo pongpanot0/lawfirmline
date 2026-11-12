@@ -19,6 +19,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { NoAccess } from '@/components/ui/NoAccess';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { FilterChips } from '@/components/process/FilterChips';
 import { StepTracker } from '@/components/process/StepTracker';
@@ -29,7 +30,8 @@ type InvoiceStatus = 'ALL' | 'DRAFT' | 'SENT' | 'PAID';
 
 export default function InvoicesPage() {
   const { token, user } = useAuth();
-  const canManageBilling = hasFirmCapability(user?.firmRole, 'manageInvoices') || user?.role === 'ADMIN';
+  // Same check as the API's FirmRoleGuard on GET /invoices — anyone else gets a 403, so they see NoAccess, not a retry.
+  const canManageBilling = hasFirmCapability(user?.firmRole, 'manageInvoices');
   const [rows, setRows] = useState<FirmInvoiceItem[]>([]);
   const [receivables, setReceivables] = useState<ReceivablesRow[]>([]);
   const [paymentId, setPaymentId] = useState<string | null>(null);
@@ -57,13 +59,13 @@ export default function InvoicesPage() {
   };
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !canManageBilling) return;
     let active = true;
     setLoading(true);
     setError('');
-    Promise.all([api.getFirmInvoices(token), canManageBilling ? api.getReceivables(token) : Promise.resolve(null)])
+    Promise.all([api.getFirmInvoices(token), api.getReceivables(token)])
       .then(([items, receivableData]) => {
-        if (active) { setRows(items); setReceivables(receivableData?.rows ?? []); }
+        if (active) { setRows(items); setReceivables(receivableData.rows); }
       })
       .catch(() => {
         if (active) setError('โหลดใบแจ้งหนี้ไม่สำเร็จ ลองโหลดหน้าใหม่');
@@ -91,6 +93,8 @@ export default function InvoicesPage() {
     const searchable = `${row.invoiceNumber} ${row.customerName ?? ''} ${row.clientName ?? ''} ${row.ownRef ?? ''} ${row.subject ?? ''}`.toLocaleLowerCase();
     return matchesStatus && searchable.includes(searchTerm) && (!overdue || isOverdue(row.dueAt) && row.status === 'SENT');
   });
+
+  if (user && !canManageBilling) return <div className="mx-auto w-full max-w-6xl px-4 sm:px-6"><NoAccess /></div>;
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 pb-20 sm:px-6">
