@@ -30,7 +30,7 @@ import {
 export class WorkflowsController {
   constructor(private workflowsService: WorkflowsService) {}
 
-  // ===== Templates (OWNER/SENIOR only) =====
+  // ===== Templates (any member creates; OWNER/SENIOR edit) =====
 
   @Get('templates')
   async getTemplates(@CurrentUser() user: AuthUser) {
@@ -39,7 +39,8 @@ export class WorkflowsController {
 
   @Post('templates')
   @UseGuards(FirmRoleGuard)
-  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER)
+  // Anyone in the firm may save their own handoff flow; edit/delete/default stay OWNER/SENIOR.
+  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER, FirmRole.LAWYER, FirmRole.ASSISTANT)
   async createTemplate(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateWorkflowTemplateDto,
