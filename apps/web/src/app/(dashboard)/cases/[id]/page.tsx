@@ -1747,7 +1747,8 @@ export default function CaseDetailPage() {
       {legalCase.intake && preFiling && <>
               <CaseNoticeDialog
                 intakeId={legalCase.intake.id}
-                key={legalCase.intake.noticeDraft?.draftedAt ?? 'no-draft'}
+                // Remount on every open (and on a new draft) so a ticked “ตรวจแล้ว” never survives ยกเลิก.
+                key={`${legalCase.intake.noticeDraft?.draftedAt ?? 'no-draft'}-${noticeOpen}`}
                 defaultRecipient={legalCase.intake.noticeRecipient}
                 draft={legalCase.intake.noticeDraft}
                 open={noticeOpen}

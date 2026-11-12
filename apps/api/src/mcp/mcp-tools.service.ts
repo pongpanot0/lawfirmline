@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { AuthUser, EXPENSE_CATEGORIES, HEAVY_QUEUE_POINTS, MONEY_MAX, MONEY_MIN, mcpCaseScope, type McpNoticeDraft, hasFirmCapability, redactForAi, TaskStatus, subscriptionAllowsWrites, type TeamRadar } from '@lawfirm/shared';
 import { DailyOperationsService } from '../operations/daily-operations.service';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
-import { DateSuggestionSource, DateSuggestionStatus, EventType, LeaveStatus, LeaveType, TaskSource } from '../generated/prisma';
+import { CaseStage, DateSuggestionSource, DateSuggestionStatus, EventType, LeaveStatus, LeaveType, TaskSource } from '../generated/prisma';
 import { LeaveService } from '../leave/leave.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { SecretaryToolsService } from '../secretary/secretary-tools.service';
@@ -122,9 +122,12 @@ export class McpToolsService {
         } else if (name === 'draft_notice') {
           // Notice data lives on the intake; a pre-filing case issues it through its 1:1 intake.
           let intake: { id: string } | null = null;
+          if (caseId && a.intakeId) throw new BadRequestException('ระบุ caseId หรือ intakeId อย่างใดอย่างหนึ่ง');
           if (caseId) {
-            const legalCase = await this.prisma.case.findFirst({ where: { AND: [this.caseFilter(user), { id: caseId }] }, select: { intake: { select: { id: true } } } });
+            const legalCase = await this.prisma.case.findFirst({ where: { AND: [this.caseFilter(user), { id: caseId }] }, select: { stage: true, intake: { select: { id: true } } } });
             if (!legalCase) throw new NotFoundException('ไม่พบคดีนี้ในงานของคุณ');
+            // Same stages where the case page offers ออก Notice — elsewhere nobody could review the draft.
+            if (!PRE_FILING_STAGES.includes(legalCase.stage)) throw new BadRequestException('คดีนี้ผ่านขั้นก่อนฟ้องแล้ว ออกหนังสือทวงถามจากคดีนี้ไม่ได้');
             if (!legalCase.intake) throw new BadRequestException('คดีนี้ไม่มีเรื่องรับที่ใช้ออกหนังสือทวงถาม');
             intake = legalCase.intake;
           } else if (a.intakeId) {
@@ -178,6 +181,7 @@ export class McpToolsService {
 }
 
 const mcpScope = (user: AuthUser) => mcpCaseScope(user.firmRole);
+const PRE_FILING_STAGES: CaseStage[] = [CaseStage.INTAKE_REVIEW, CaseStage.FACT_GATHERING, CaseStage.PRE_LITIGATION];
 
 /** Same status rule as the web TeamRadar card, spelled out so the model doesn't have to infer it. */
 export function teamWorkload(radar: TeamRadar) {

@@ -313,6 +313,8 @@ describe('case stages', () => {
       orderBy: { createdAt: 'asc' },
     });
     expect(include.proceedings).toBeUndefined();
+    expect(include.intake.select.noticeDraft).toBeUndefined();
+    expect(include.intake.select.noticeIssuedAt).toBe(true);
   });
 
   it('every case response carries full participant rows', async () => {

@@ -32,7 +32,7 @@ export function CaseNoticeDialog({
   onDone: () => void;
 }) {
   const { token } = useAuth();
-  const [recipient, setRecipient] = useState(draft?.recipient ?? defaultRecipient ?? '');
+  const [recipient, setRecipient] = useState(draft ? draft.recipient ?? '' : defaultRecipient ?? '');
   const [deadline, setDeadline] = useState(draft?.deadline ?? '');
   const [content, setContent] = useState(draft?.content ?? '');
   const [reviewed, setReviewed] = useState(false);

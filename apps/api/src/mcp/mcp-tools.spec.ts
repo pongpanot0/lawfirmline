@@ -42,12 +42,15 @@ describe('MCP tools', () => {
     expect(out.message).toContain('กดออกหนังสือในแอป');
   });
   it('draft_notice on a case writes to its intake; refuses out-of-scope, intake-less, and id-less calls', async () => {
-    prisma.case.findFirst.mockResolvedValueOnce({ intake: { id: 'intake-9' } });
+    prisma.case.findFirst.mockResolvedValueOnce({ stage: 'PRE_LITIGATION', intake: { id: 'intake-9' } });
     await tools.get('draft_notice')!.run({ caseId: 'case-1', content: 'x' });
-    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { AND: [own, { id: 'case-1' }] }, select: { intake: { select: { id: true } } } });
+    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { AND: [own, { id: 'case-1' }] }, select: { stage: true, intake: { select: { id: true } } } });
     expect(prisma.intake.update).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: 'intake-9' } }));
     prisma.intake.update.mockClear();
-    prisma.case.findFirst.mockResolvedValueOnce({ intake: null });
+    prisma.case.findFirst.mockResolvedValueOnce({ stage: 'FILING', intake: { id: 'intake-9' } });
+    expect(decode(await tools.get('draft_notice')!.run({ caseId: 'case-1', content: 'x' })).error).toContain('ผ่านขั้นก่อนฟ้องแล้ว');
+    expect(decode(await tools.get('draft_notice')!.run({ caseId: 'case-1', intakeId: 'intake-1', content: 'x' })).error).toContain('อย่างใดอย่างหนึ่ง');
+    prisma.case.findFirst.mockResolvedValueOnce({ stage: 'PRE_LITIGATION', intake: null });
     expect(decode(await tools.get('draft_notice')!.run({ caseId: 'case-1', content: 'x' })).error).toContain('ไม่มีเรื่องรับ');
     prisma.intake.findFirst.mockResolvedValueOnce(null);
     expect(decode(await tools.get('draft_notice')!.run({ intakeId: 'other', content: 'x' })).error).toBe('ไม่พบเรื่องนี้ในงานของคุณ');

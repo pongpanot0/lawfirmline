@@ -240,11 +240,14 @@ export class CasesService {
 
     // The list (board, mobile caches) gets party names only — contact data and ID numbers stay
     // on the detail response (PDPA). Proceedings are a detail-page concern too.
-    const { proceedings: _proceedings, ...listInclude } = this.caseInclude;
+    const { proceedings: _proceedings, intake, ...listInclude } = this.caseInclude;
+    // An unissued AI notice draft is a whole letter — detail page only.
+    const { noticeDraft: _noticeDraft, ...intakeListSelect } = intake.select;
     return this.prisma.case.findMany({
       where,
       include: {
         ...listInclude,
+        intake: { select: intakeListSelect },
         participants: {
           select: { id: true, name: true, role: true, side: true },
           orderBy: { createdAt: 'asc' as const },
