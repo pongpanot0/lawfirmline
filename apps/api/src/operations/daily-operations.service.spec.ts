@@ -46,6 +46,12 @@ describe('Owner daily operations', () => {
   });
   it('buckets a member\'s week by planned day with size points, hearings, leave, and reviews apart', async () => {
     const radarPrisma = {
+      outlookCalendarItem: { findMany: jest.fn().mockResolvedValue([
+        { userId: 'w', startAt: new Date('2026-09-27T22:00:00Z'), endAt: new Date('2026-09-28T02:00:00Z'), showAs: 'busy', isAllDay: false, subject: 'private' },
+        { userId: 'w', startAt: new Date('2026-09-28T01:00:00Z'), endAt: new Date('2026-09-28T03:00:00Z'), showAs: 'oof', isAllDay: false },
+        { userId: 'w', startAt: new Date('2026-09-28T05:00:00Z'), endAt: new Date('2026-09-28T06:00:00Z'), showAs: 'free', isAllDay: false },
+        { userId: 'w', startAt: new Date('2026-09-28T05:00:00Z'), endAt: new Date('2026-09-28T06:00:00Z'), showAs: 'busy', isAllDay: true },
+      ]) },
       firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'w', role: 'LAWYER', user: { firstName: 'W', lastName: 'L' } }]) },
       task: { findMany: jest.fn().mockResolvedValue([
         { assigneeId: 'w', status: 'TODO', size: 'L', scheduledFor: new Date('2026-09-28T00:00:00Z'), dueDate: null },
@@ -61,13 +67,20 @@ describe('Owner daily operations', () => {
     const w = radar.members[0];
     expect(radar.days).toEqual(['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']);
     expect(w).toMatchObject({ openCount: 3, openPoints: 7, reviewCount: 1, unscheduledCount: 1 });
-    expect(w.days[0]).toEqual({ date: '2026-09-28', taskCount: 1, points: 4, eventCount: 1, courtCount: 1, onLeave: false });
+    expect(w.days[0]).toEqual({ date: '2026-09-28', taskCount: 1, points: 4, eventCount: 1, courtCount: 1, onLeave: false, outlookBusyMinutes: 180 });
     expect(w.days[1]).toMatchObject({ taskCount: 1, points: 2 });
     expect(w.days[2].onLeave).toBe(true);
+    expect(JSON.stringify(radar)).not.toMatch(/private|subject/);
+    expect(radarPrisma.outlookCalendarItem.findMany).toHaveBeenCalledWith(expect.objectContaining({ select: { userId: true, startAt: true, endAt: true, showAs: true, isAllDay: true }, where: expect.objectContaining({ connection: { firmId: 'firm', showCalendar: true, status: 'ACTIVE' }, isAllDay: false }) }));
   });
   it('shows a colleague\'s load to any member but hides work in cases they cannot open, and why someone is on leave', async () => {
     const lawyer = { id: 'me', firmId: 'firm', firmRole: FirmRole.LAWYER } as AuthUser;
     const p = {
+      outlookCalendarItem: { findMany: jest.fn().mockResolvedValue([
+        { userId: 'w', startAt: new Date('2026-09-28T02:00:00Z'), endAt: new Date('2026-09-28T04:00:00Z'), showAs: 'busy', isAllDay: false, subject: 'private outlook', location: 'secret' },
+        { userId: 'w', startAt: new Date('2026-09-28T03:00:00Z'), endAt: new Date('2026-09-28T05:00:00Z'), showAs: 'tentative', isAllDay: false },
+        { userId: 'w', startAt: new Date('2026-09-28T06:00:00Z'), endAt: new Date('2026-09-28T07:00:00Z'), showAs: 'free', isAllDay: false },
+      ]) },
       firmMember: { findUnique: jest.fn().mockResolvedValue({ role: 'LAWYER', taskWorkTypes: [], user: { firstName: 'W', lastName: 'L' } }) },
       task: { findMany: jest.fn().mockResolvedValue([
         { id: 't1', title: 'ลับ', status: 'TODO', size: 'L', caseId: 'secret', case: { id: 'secret', ownRef: 'X', title: 'คดีลับ' }, dueDate: null, scheduledFor: null, onHold: null },
@@ -81,12 +94,15 @@ describe('Owner daily operations', () => {
       leaveRequest: { findMany: jest.fn().mockResolvedValue([{ id: 'l', type: 'SICK', startDate: new Date('2026-09-30T00:00:00Z'), endDate: new Date('2026-09-30T00:00:00Z') }]) },
     };
     const caseAccess = { getCaseFilterForUser: jest.fn().mockReturnValue({ firmId: 'firm' }) };
-    const view = await new DailyOperationsService(p as any, {} as any, {} as any, caseAccess as any).person(lawyer, 'w');
+    const view = await new DailyOperationsService(p as any, {} as any, {} as any, caseAccess as any).person(lawyer, 'w', '2026-09-28');
     expect(view.tasks.map((t) => [t.title, t.case?.id ?? null, t.size])).toEqual([['งานที่คุณไม่มีสิทธิ์ดู', null, 'L'], ['ร่วมกัน', 'shared', 'M'], ['งานที่คุณไม่มีสิทธิ์ดู', null, 'S']]);
     expect(view.cases.map((c) => c.id)).toEqual(['shared']);
     expect(view.hiddenCaseCount).toBe(1);
     expect(view.events[0]).toMatchObject({ title: 'ติดนัด', courtName: null });
     expect(view.leaves[0].type).toBeNull();
+    expect(view.outlookBusy).toEqual([{ start: '2026-09-28T02:00:00.000Z', end: '2026-09-28T05:00:00.000Z' }]);
+    expect(JSON.stringify(view)).not.toMatch(/private outlook|subject|secret"/);
+    expect(p.outlookCalendarItem.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ userId: 'w', connection: { firmId: 'firm', userId: 'w', showCalendar: true, status: 'ACTIVE' } }), select: { startAt: true, endAt: true, showAs: true, isAllDay: true } }));
   });
   it('sizes an open firm task and refuses done or foreign ones', async () => {
     prisma.task.findFirst.mockResolvedValueOnce(rows[0]);

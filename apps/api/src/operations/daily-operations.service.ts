@@ -9,6 +9,7 @@ import { TasksService } from '../tasks/tasks.service';
 import { bangkokDateOnly, bangkokDayKey, bangkokDayStart } from '../common/utils/bangkok-time';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { mergeOutlookBusy, OUTLOOK_BUSY_STATUSES } from '../calendar/outlook-busy';
 import { AssignDailyTaskDto, CreateDailyTaskDto } from './dto/daily-operations.dto';
 
 const DAY_MS = 86400000;
@@ -127,12 +128,17 @@ export class DailyOperationsService {
     const days = Array.from({ length: 7 }, (_, i) => bangkokDayKey(new Date(start.getTime() + i * DAY_MS)));
     const dateOnly = (day: string) => new Date(`${day}T00:00:00Z`);
     const now = new Date();
-    const [members, tasks, leaves, events] = await Promise.all([
+    const [members, tasks, leaves, events, outlookItems] = await Promise.all([
       this.prisma.firmMember.findMany({ where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId }, include: { user: { select: { firstName: true, lastName: true } } }, orderBy: { user: { firstName: 'asc' } } }),
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { assigneeId: { not: null }, status: { not: TaskStatus.DONE } }] }, select: { assigneeId: true, status: true, size: true, dueDate: true, scheduledFor: true } }),
       this.prisma.leaveRequest.findMany({ where: { firmId: user.firmId, status: 'APPROVED', startDate: { lte: dateOnly(days[6]) }, endDate: { gte: dateOnly(days[0]) } }, select: { userId: true, startDate: true, endDate: true } }),
       this.prisma.calendarEvent.findMany({ where: { case: { firmId: user.firmId, deletedAt: null }, startAt: { gte: start, lt: end } }, select: { type: true, startAt: true, assigneeId: true, assignees: { select: { userId: true } }, case: { select: { leadLawyerId: true } } } }),
+      this.prisma.outlookCalendarItem.findMany({
+        where: { connection: { firmId: user.firmId, showCalendar: true, status: 'ACTIVE' }, showAs: { in: OUTLOOK_BUSY_STATUSES }, isAllDay: false, startAt: { lt: end }, endAt: { gt: start } },
+        select: { userId: true, startAt: true, endAt: true, showAs: true, isAllDay: true },
+      }),
     ]);
+    const outlookByUser = new Map(members.map((m) => [m.userId, mergeOutlookBusy(outlookItems.filter((i) => i.userId === m.userId), start, end)]));
     return {
       start: date, days,
       members: members.map((m) => {
@@ -151,6 +157,8 @@ export class DailyOperationsService {
             const onDay = open.filter((t) => taskDay(t) === day);
             return {
               date: day,
+              outlookBusyMinutes: (outlookByUser.get(m.userId) ?? []).filter((b) => bangkokDayKey(new Date(b.start)) === day)
+                .reduce((sum, b) => sum + (new Date(b.end).getTime() - new Date(b.start).getTime()) / 60000, 0),
               taskCount: onDay.length,
               points: onDay.reduce((sum, t) => sum + taskPoints(t.size), 0),
               eventCount: myEvents.filter((e) => bangkokDayKey(e.startAt) === day).length,
@@ -173,7 +181,7 @@ export class DailyOperationsService {
     if (!member) throw new NotFoundException('ไม่พบสมาชิกในสำนักงาน');
     const now = new Date();
     const windowStart = from ? new Date(`${from}T00:00:00+07:00`) : bangkokDayStart(now);
-    const [tasks, cases, events, leaves, reviewRows] = await Promise.all([
+    const [tasks, cases, events, leaves, reviewRows, outlookItems] = await Promise.all([
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { assigneeId: userId, status: { not: TaskStatus.DONE } }] }, select: {
         id: true, title: true, status: true, dueDate: true, scheduledFor: true, size: true, caseId: true,
         case: { select: { id: true, ownRef: true, title: true } }, onHold: { select: { reason: true, endedAt: true } },
@@ -188,6 +196,10 @@ export class DailyOperationsService {
       }, orderBy: { startAt: 'asc' } }),
       this.prisma.leaveRequest.findMany({ where: { firmId: user.firmId, userId, status: 'APPROVED', endDate: { gte: bangkokDateOnly(windowStart < now ? windowStart : now) } }, select: { id: true, type: true, startDate: true, endDate: true }, orderBy: { startDate: 'asc' }, take: 5 }),
       this.prisma.task.findMany({ where: reviewQueueWhere({ id: userId, firmId: user.firmId }), select: { id: true, title: true, dueDate: true, caseId: true }, orderBy: reviewQueueOrder }),
+      this.prisma.outlookCalendarItem.findMany({
+        where: { userId, connection: { firmId: user.firmId, userId, showCalendar: true, status: 'ACTIVE' }, showAs: { in: OUTLOOK_BUSY_STATUSES }, isAllDay: false, startAt: { lt: new Date(windowStart.getTime() + 7 * DAY_MS) }, endAt: { gt: windowStart } },
+        select: { startAt: true, endAt: true, showAs: true, isAllDay: true },
+      }),
     ]);
     const owner = hasFirmCapability(user.firmRole, 'viewAllCases');
     const caseIds = [...new Set([...tasks.map((t) => t.caseId), ...reviewRows.map((t) => t.caseId), ...cases.map((c) => c.id), ...events.map((e) => e.caseId)].filter((id): id is string => !!id))];
@@ -199,6 +211,7 @@ export class DailyOperationsService {
     const open = tasks.filter((t) => t.status !== TaskStatus.PENDING_REVIEW);
     const shownCases = cases.filter((c) => owner || visible.has(c.id));
     return {
+      outlookBusy: mergeOutlookBusy(outlookItems, windowStart, new Date(windowStart.getTime() + 7 * DAY_MS)),
       userId, firstName: member.user.firstName, lastName: member.user.lastName, role: member.role, workTypes: member.taskWorkTypes as TaskWorkType[],
       tasks: open.map((t) => ({
         id: t.id, title: canSee(t.caseId) ? t.title : 'งานที่คุณไม่มีสิทธิ์ดู', status: t.status, size: t.size as TaskSize, case: canSee(t.caseId) ? t.case : null,

@@ -38,3 +38,14 @@ describe('GraphCalendarClient', () => {
     expect(http.request.mock.calls[0][1]).toBe('DL1');
   });
 });
+
+
+describe('Graph calendar overlay fields', () => {
+  it('returns all mirror fields without requesting body or attendees', async () => {
+    const http = { request: jest.fn().mockResolvedValue({ value: [{ id: 'g', subject: 'private', location: { displayName: 'room' }, showAs: 'workingElsewhere', iCalUId: 'uid', isAllDay: true, webLink: 'https://outlook.test/event', start: { dateTime: '2026-11-12T00:00:00' }, end: { dateTime: '2026-11-13T00:00:00' } }], '@odata.deltaLink': 'next' }) };
+    const result = await new GraphCalendarClient(http as any).calendarViewDelta('tok', { deltaLink: 'delta' });
+    expect(result.events[0]).toMatchObject({ id: 'g', subject: 'private', location: 'room', showAs: 'workingElsewhere', iCalUId: 'uid', isAllDay: true, webLink: 'https://outlook.test/event', start: new Date('2026-11-12T00:00:00Z') });
+    expect(result.events[0]).not.toHaveProperty('body');
+    expect(result.events[0]).not.toHaveProperty('attendees');
+  });
+});

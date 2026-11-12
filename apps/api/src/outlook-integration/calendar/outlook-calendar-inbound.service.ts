@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { EventType, NotificationCategory } from '../../generated/prisma';
+import { EventType, NotificationCategory, MailboxConnection } from '../../generated/prisma';
 import { PrismaService } from '../../prisma/prisma.module';
 import { OutlookConnectionsService } from '../outlook-connections.service';
 import { GraphCalendarClient, GraphEventChange } from '../graph/graph-calendar.client';
@@ -35,7 +35,7 @@ export class OutlookCalendarInboundService {
     if (this.running) return;
     this.running = true;
     try {
-      const rows = await this.prisma.mailboxConnection.findMany({ where: { status: 'ACTIVE', syncCalendar: true, userId: { not: null } } });
+      const rows = await this.prisma.mailboxConnection.findMany({ where: { status: 'ACTIVE', userId: { not: null } } });
       for (const connection of rows) {
         try {
           await this.pollConnection(connection);
@@ -48,23 +48,34 @@ export class OutlookCalendarInboundService {
     }
   }
 
-  private async pollConnection(connection: { id: string; calendarDeltaLink: string | null; calendarDeltaStartedAt: Date | null }) {
+  private readonly inFlight = new Map<string, Promise<void>>();
+
+  async pollConnectionNow(connectionId: string): Promise<void> {
+    // A settings-triggered poll must see a cursor reset made while an older poll was running.
+    await this.inFlight.get(connectionId);
+    const connection = await this.prisma.mailboxConnection.findUnique({ where: { id: connectionId } });
+    if (connection?.status === 'ACTIVE' && connection.userId) await this.pollConnection(connection);
+  }
+
+  private pollConnection(connection: MailboxConnection): Promise<void> {
+    const running = this.inFlight.get(connection.id);
+    if (running) return running;
+    const job = this.doPollConnection(connection).finally(() => this.inFlight.delete(connection.id));
+    this.inFlight.set(connection.id, job);
+    return job;
+  }
+
+  private async doPollConnection(connection: MailboxConnection) {
     const copies = await this.prisma.calendarEventOutlookCopy.findMany({ where: { connectionId: connection.id } });
-    if (!copies.length) return;
+    if (!copies.length && !connection.showCalendar) return;
     const token = await this.connections.getValidAccessToken(connection.id);
-    const fresh = connection.calendarDeltaLink && connection.calendarDeltaStartedAt && connection.calendarDeltaStartedAt.getTime() > Date.now() - WINDOW_MAX_AGE;
-
-    if (!fresh) {
-      // Baseline: remember where we are, act on nothing in the first full page set.
-      const now = new Date();
-      const { deltaLink } = await this.calendar.calendarViewDelta(token, { start: new Date(now.getTime() - DAY), end: new Date(now.getTime() + 400 * DAY) });
-      await this.prisma.mailboxConnection.update({ where: { id: connection.id }, data: { calendarDeltaLink: deltaLink ?? null, calendarDeltaStartedAt: now } });
-      return;
-    }
-
+    const now = new Date();
+    const fresh = connection.calendarDeltaLink && connection.calendarDeltaStartedAt && connection.calendarDeltaStartedAt.getTime() > now.getTime() - WINDOW_MAX_AGE;
     let delta;
     try {
-      delta = await this.calendar.calendarViewDelta(token, { deltaLink: connection.calendarDeltaLink! });
+      delta = await this.calendar.calendarViewDelta(token, fresh
+        ? { deltaLink: connection.calendarDeltaLink! }
+        : { start: new Date(now.getTime() - 30 * DAY), end: new Date(now.getTime() + 400 * DAY) });
     } catch (error) {
       if (error instanceof GraphApiError && error.status === 410) {
         await this.prisma.mailboxConnection.update({ where: { id: connection.id }, data: { calendarDeltaLink: null, calendarDeltaStartedAt: null } });
@@ -72,17 +83,58 @@ export class OutlookCalendarInboundService {
       }
       throw error;
     }
-    const byGraphId = new Map(copies.map((c) => [c.graphEventId, c]));
-    for (const change of delta.events) {
-      const copy = byGraphId.get(change.id);
-      if (!copy) continue;
-      try {
-        await this.handle(copy, change);
-      } catch (error) {
-        this.logger.warn(`Outlook change for copy ${copy.id} failed: ${error}`);
+    if (fresh) {
+      const byGraphId = new Map(copies.map((c) => [c.graphEventId, c]));
+      for (const change of delta.events) {
+        const copy = byGraphId.get(change.id);
+        if (!copy) continue;
+        try { await this.handle(copy, change); }
+        catch (error) { this.logger.warn(`Outlook change for copy ${copy.id} failed: ${error}`); }
       }
     }
-    if (delta.deltaLink) await this.prisma.mailboxConnection.update({ where: { id: connection.id }, data: { calendarDeltaLink: delta.deltaLink } });
+    const data = {
+      calendarDeltaLink: delta.deltaLink ?? connection.calendarDeltaLink,
+      ...(!fresh ? { calendarDeltaStartedAt: now } : {}),
+      calendarSyncedAt: now,
+    };
+    if (connection.showCalendar && connection.userId) {
+      const changes = [...new Map(delta.events.map((e) => [e.id, e])).values()];
+      await this.prisma.$transaction(async (tx) => {
+        // Lock and recheck settings/cursor: disabling or disconnecting must not race mirrors back into existence.
+        const current = await tx.mailboxConnection.updateMany({
+          where: { id: connection.id, userId: connection.userId, status: 'ACTIVE', showCalendar: true, calendarDeltaLink: connection.calendarDeltaLink, calendarDeltaStartedAt: connection.calendarDeltaStartedAt },
+          data,
+        });
+        if (!current.count) return;
+
+        // Graph ids from ANY of our copies must never become personal overlay rows.
+        const own = await tx.calendarEventOutlookCopy.findMany({ where: { graphEventId: { in: changes.map((e) => e.id) } }, select: { graphEventId: true } });
+        const ownIds = new Set(own.map((c) => c.graphEventId));
+        const rows = changes.filter((e) => !ownIds.has(e.id) && !e.removed && !e.isCancelled && e.start && e.end).map((e) => ({
+          connectionId: connection.id, userId: connection.userId!, graphEventId: e.id,
+          iCalUId: e.iCalUId ?? null, subject: e.subject ?? null, location: e.location ?? null,
+          startAt: e.start!, endAt: e.end!, isAllDay: e.isAllDay ?? false, showAs: e.showAs ?? 'unknown', webLink: e.webLink ?? null,
+        }));
+        if (!fresh) {
+          await tx.outlookCalendarItem.deleteMany({ where: { connectionId: connection.id } });
+          await tx.outlookCalendarItem.createMany({ data: rows });
+        } else {
+          for (const e of changes) {
+            if (e.removed || e.isCancelled || ownIds.has(e.id)) {
+              await tx.outlookCalendarItem.deleteMany({ where: { connectionId: connection.id, graphEventId: e.id } });
+            }
+          }
+          for (const row of rows) {
+            await tx.outlookCalendarItem.upsert({ where: { connectionId_graphEventId: { connectionId: connection.id, graphEventId: row.graphEventId } }, create: row, update: row });
+          }
+        }
+      });
+    } else {
+      await this.prisma.mailboxConnection.updateMany({
+        where: { id: connection.id, userId: connection.userId, status: 'ACTIVE', showCalendar: false, calendarDeltaLink: connection.calendarDeltaLink, calendarDeltaStartedAt: connection.calendarDeltaStartedAt },
+        data,
+      });
+    }
   }
 
   private async handle(

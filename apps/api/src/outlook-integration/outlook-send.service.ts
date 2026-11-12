@@ -236,13 +236,25 @@ export class OutlookSendService {
       throw new BadRequestException('ยังมีช่องข้อมูลที่ไม่ได้กรอก {{...}} ในหัวเรื่องหรือเนื้อหา — กรอกให้ครบก่อนส่ง');
     }
 
-    const connection = await this.connections.findActiveForUser(user.id);
-    if (!connection) {
-      throw new BadRequestException('ยังไม่ได้เชื่อมต่อ Microsoft 365 — เชื่อมต่อในหน้าตั้งค่าก่อนส่งอีเมล');
+    const source = dto.replyToMessageId ? await this.loadReplySource(caseId, dto.replyToMessageId) : null;
+    const threadConnection = source?.thread.mailboxConnectionId
+      ? await this.prisma.mailboxConnection.findUnique({ where: { id: source.thread.mailboxConnectionId } }) : null;
+    let connection;
+    if (threadConnection?.userId === user.id) {
+      if (threadConnection.status !== MailboxConnectionStatus.ACTIVE) {
+        throw new BadRequestException(`บัญชี ${threadConnection.mailboxAddress} หมดอายุ — เชื่อมใหม่ในหน้าตั้งค่า`);
+      }
+      connection = threadConnection;
+    } else {
+      connection = await this.connections.findActiveForUser(user.id);
+      if (!connection) {
+        const primary = await this.connections.primaryForUser(user.id);
+        if (primary) throw new BadRequestException(`บัญชีหลัก ${primary.mailboxAddress} หมดอายุ — เชื่อมใหม่ในหน้าตั้งค่า`);
+        throw new BadRequestException('ยังไม่ได้เชื่อมต่อ Microsoft 365 — เชื่อมต่อในหน้าตั้งค่าก่อนส่งอีเมล');
+      }
     }
 
-    // Load and size-check every file BEFORE any Graph call, so a refused file never leaves a half-built draft in Outlook.
-    const source = dto.replyToMessageId ? await this.loadReplySource(caseId, dto.replyToMessageId) : null;
+    // Load and size-check every file BEFORE any Graph call.
     const { inline: attachments, linked } = await this.loadAttachments(caseId, dto.documentIds ?? [], held);
     const accessToken = await this.connections.getValidAccessToken(connection.id);
     // Uploads and links come BEFORE the draft: a refused link must never leave a half-built draft in Outlook.

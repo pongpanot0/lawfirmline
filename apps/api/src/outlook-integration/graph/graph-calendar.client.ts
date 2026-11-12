@@ -18,10 +18,13 @@ export interface GraphEventInput {
 }
 export interface GraphEventResult { id: string; onlineMeeting?: { joinUrl?: string } | null }
 
-export interface GraphEventChange { id: string; start?: Date; end?: Date; isCancelled?: boolean; removed?: boolean }
+export interface GraphEventChange {
+  id: string; start?: Date; end?: Date; isCancelled?: boolean; removed?: boolean;
+  subject?: string | null; location?: string | null; showAs?: string; iCalUId?: string | null; isAllDay?: boolean; webLink?: string | null;
+}
 export interface GraphCalendarDelta { events: GraphEventChange[]; deltaLink?: string }
 type DeltaPage = {
-  value: { id: string; start?: { dateTime: string }; end?: { dateTime: string }; isCancelled?: boolean; '@removed'?: unknown }[];
+  value: { id: string; start?: { dateTime: string }; end?: { dateTime: string }; isCancelled?: boolean; subject?: string | null; location?: { displayName?: string | null }; showAs?: string; iCalUId?: string | null; isAllDay?: boolean; webLink?: string | null; '@removed'?: unknown }[];
   '@odata.nextLink'?: string;
   '@odata.deltaLink'?: string;
 };
@@ -63,7 +66,7 @@ export class GraphCalendarClient {
         headers: { Prefer: 'outlook.timezone="UTC", odata.maxpagesize=100' },
       });
       for (const e of page.value ?? []) {
-        events.push({ id: e.id, start: asUtc(e.start), end: asUtc(e.end), isCancelled: e.isCancelled, removed: e['@removed'] !== undefined });
+        events.push({ id: e.id, start: asUtc(e.start), end: asUtc(e.end), isCancelled: e.isCancelled, removed: e['@removed'] !== undefined, subject: e.subject, location: e.location?.displayName, showAs: e.showAs, iCalUId: e.iCalUId, isAllDay: e.isAllDay, webLink: e.webLink });
       }
       deltaLink = page['@odata.deltaLink'];
       next = page['@odata.nextLink'];

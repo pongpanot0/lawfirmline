@@ -1,24 +1,19 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
-import { OutlookConnectionsService } from '../outlook-integration/outlook-connections.service';
-import { GraphCalendarClient } from '../outlook-integration/graph/graph-calendar.client';
 import { effectiveEnd } from '../outlook-integration/calendar/outlook-event-payload';
 import { eventForUserWhere } from './event-people';
+import { OUTLOOK_BUSY_STATUSES } from './outlook-busy';
 
 export interface BusyBlock { start: string; end: string; label?: string }
-const BUSY = new Set(['busy', 'oof', 'tentative', 'workingElsewhere']);
 const HIDDEN_LABEL = 'ไม่ว่าง';
 
 @Injectable()
 export class AvailabilityService {
-  private readonly logger = new Logger(AvailabilityService.name);
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
-    private connections: OutlookConnectionsService,
-    private graph: GraphCalendarClient,
   ) {}
 
   async get(user: AuthUser, dto: { userIds: string[]; date: string; excludeEventId?: string }) {
@@ -57,34 +52,26 @@ export class AvailabilityService {
       for (const id of people) system.get(id)?.push(block);
     }
 
-    const mine = await this.connections.findActiveForUser(user.id);
-    const conns = mine
-      ? await this.prisma.mailboxConnection.findMany({ where: { userId: { in: userIds }, firmId: user.firmId, status: 'ACTIVE' }, select: { userId: true, mailboxAddress: true } })
-      : [];
-    const emailOf = new Map(conns.flatMap((c) => (c.userId ? [[c.userId, c.mailboxAddress] as [string, string]] : [])));
+    const [conns, items] = await Promise.all([
+      this.prisma.mailboxConnection.findMany({
+        where: { userId: { in: userIds }, firmId: user.firmId, status: 'ACTIVE', showCalendar: true },
+        select: { userId: true, calendarSyncedAt: true },
+      }),
+      this.prisma.outlookCalendarItem.findMany({
+        where: { userId: { in: userIds }, connection: { firmId: user.firmId, userId: { in: userIds }, showCalendar: true, status: 'ACTIVE' }, showAs: { in: OUTLOOK_BUSY_STATUSES }, startAt: { lt: dayEnd }, endAt: { gt: dayStart } },
+        select: { userId: true, startAt: true, endAt: true, showAs: true },
+      }),
+    ]);
     const outlook = new Map<string, { error?: string; blocks: BusyBlock[] }>();
-    if (mine && emailOf.size) {
-      const emails = [...emailOf.values()];
-      let rows: Awaited<ReturnType<GraphCalendarClient['getSchedule']>> = [];
-      let failed = false;
-      try {
-        const token = await this.connections.getValidAccessToken(mine.id);
-        rows = await this.graph.getSchedule(token, emails, `${dto.date}T07:00:00`, `${dto.date}T21:00:00`);
-      } catch (err) {
-        failed = true;
-        this.logger.warn(`getSchedule failed: ${(err as Error).message}`);
-      }
-      for (const [uid, email] of emailOf) {
-        const row = rows.find((r) => r.scheduleId.toLowerCase() === email.toLowerCase());
-        if (failed || !row || row.error) { outlook.set(uid, { error: 'ดูปฏิทิน Outlook ไม่ได้', blocks: [] }); continue; }
-        const sys = system.get(uid) ?? [];
-        outlook.set(uid, {
-          blocks: row.items
-            .filter((i) => BUSY.has(i.status))
-            .filter((i) => !sys.some((b) => b.start === i.start.toISOString() && b.end === i.end.toISOString())) // our own copy
-            .map((i) => ({ start: i.start.toISOString(), end: i.end.toISOString() })),
-        });
-      }
+    for (const id of userIds) {
+      const shown = conns.filter((c) => c.userId === id);
+      if (!shown.length) continue;
+      outlook.set(id, {
+        blocks: items.filter((i) => i.userId === id && OUTLOOK_BUSY_STATUSES.includes(i.showAs))
+          .map((i) => ({ start: i.startAt.toISOString(), end: i.endAt.toISOString() })),
+        ...(shown.some((c) => !c.calendarSyncedAt || c.calendarSyncedAt.getTime() < Date.now() - 3600000)
+          ? { error: 'ข้อมูล Outlook ยังไม่อัปเดต' } : {}),
+      });
     }
 
     const people = members.map((m) => {
@@ -97,6 +84,6 @@ export class AvailabilityService {
         ...(o?.error ? { error: o.error } : {}),
       };
     });
-    return { date: dto.date, people, ...(mine ? {} : { hint: 'เชื่อมต่อ Microsoft 365 เพื่อดูเวลาว่างจาก Outlook' }) };
+    return { date: dto.date, people };
   }
 }

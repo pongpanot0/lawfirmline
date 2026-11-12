@@ -4,6 +4,8 @@ import { forwardRef, Module } from '@nestjs/common';
 import { CourtDayService } from './court-day.service';
 import { CourtDayController } from './court-day.controller';
 import { CalendarService } from './calendar.service';
+import { OutlookCalendarItemsController } from './outlook-calendar-items.controller';
+import { OutlookCalendarItemsService } from './outlook-calendar-items.service';
 import { CalendarController } from './calendar.controller';
 import { OutlookChangesController } from './outlook-changes.controller';
 import { OutlookChangesService } from './outlook-changes.service';
@@ -16,8 +18,8 @@ import { OutlookIntegrationModule } from '../outlook-integration/outlook-integra
 
 @Module({
   imports: [TravelModule, forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule), forwardRef(() => OutlookIntegrationModule)],
-  controllers: [CalendarController, AvailabilityController, OutlookChangesController, CourtDayController, EventResponsibilityController],
-  providers: [CalendarService, AvailabilityService, OutlookChangesService, CourtDayService, EventResponsibilityService],
+  controllers: [OutlookCalendarItemsController, CalendarController, AvailabilityController, OutlookChangesController, CourtDayController, EventResponsibilityController],
+  providers: [OutlookCalendarItemsService, CalendarService, AvailabilityService, OutlookChangesService, CourtDayService, EventResponsibilityService],
   exports: [CalendarService, EventResponsibilityService],
 })
 export class CalendarModule {}

@@ -4,12 +4,14 @@ import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
 import { OutlookSubscriptionService } from './outlook-subscription.service';
 import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
+import { OutlookCalendarInboundService } from './calendar/outlook-calendar-inbound.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 describe('OutlookConnectionsController settings', () => {
-  const connections = { updateSettings: jest.fn(), recordError: jest.fn().mockResolvedValue(undefined), getSafe: jest.fn().mockResolvedValue({ id: 'c1' }), assertCanManage: jest.fn().mockResolvedValue(undefined), disconnect: jest.fn().mockResolvedValue({ ok: true }), caseLinkSummary: jest.fn().mockResolvedValue({ caseLinks: 1 }) };
+  const connections = { setPrimary: jest.fn().mockResolvedValue([]), updateSettings: jest.fn(), recordError: jest.fn().mockResolvedValue(undefined), getSafe: jest.fn().mockResolvedValue({ id: 'c1' }), assertCanManage: jest.fn().mockResolvedValue(undefined), disconnect: jest.fn().mockResolvedValue({ ok: true }), caseLinkSummary: jest.fn().mockResolvedValue({ caseLinks: 1 }) };
   const calendarSync = { removeAllForConnection: jest.fn().mockResolvedValue(undefined) };
   const subscriptions = { ensureSubscription: jest.fn(), removeSubscription: jest.fn() };
+  const inbound = { pollConnectionNow: jest.fn().mockResolvedValue(undefined) };
   let controller: OutlookConnectionsController;
   const user = { id: 'u1', firmId: 'f1' } as any;
 
@@ -22,12 +24,25 @@ describe('OutlookConnectionsController settings', () => {
         { provide: OutlookSyncService, useValue: {} },
         { provide: OutlookSubscriptionService, useValue: subscriptions },
         { provide: OutlookCalendarSyncService, useValue: calendarSync },
+        { provide: OutlookCalendarInboundService, useValue: inbound },
       ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
       .compile();
     controller = mod.get(OutlookConnectionsController);
+  });
+
+  it('changing primary delegates with the authenticated user', async () => {
+    await controller.setPrimary(user, 'c1');
+    expect(connections.setPrimary).toHaveBeenCalledWith(user, 'c1');
+  });
+
+  it('showCalendar=true kicks a best-effort poll and logs background failures', async () => {
+    connections.updateSettings.mockResolvedValue({ before: { showCalendar: false }, after: { showCalendar: true } });
+    inbound.pollConnectionNow.mockRejectedValueOnce(new Error('graph offline'));
+    await expect(controller.updateSettings(user, 'c1', { showCalendar: true })).resolves.toEqual({ id: 'c1' });
+    expect(inbound.pollConnectionNow).toHaveBeenCalledWith('c1');
   });
 
   it('turning inbox intake on creates the webhook subscription', async () => {

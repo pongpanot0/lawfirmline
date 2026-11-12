@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Mail } from 'lucide-react';
+import { Mail, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { hasFirmCapability } from '@lawfirm/shared';
@@ -12,7 +12,7 @@ import { formatDateTime } from '@/lib/utils';
 import { confirmDialog } from '@/lib/confirm-dialog';
 
 type Notice = { type: 'success' | 'error'; text: string } | null;
-type SyncBody = { syncInboxToIntake?: boolean; syncCalendar?: boolean };
+type SyncBody = { syncInboxToIntake?: boolean; syncCalendar?: boolean; showCalendar?: boolean };
 
 const OUTLOOK_STATUS_LABEL: Record<string, string> = {
   ACTIVE: 'เชื่อมต่ออยู่',
@@ -75,7 +75,11 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
     try {
       await api.disconnectOutlook(token, id);
       setDisconnectCheck(null);
-      await loadConnections();
+      const previous = connections.find(c => c.id === id);
+      const updated = await api.getOutlookConnections(token);
+      setConnections(updated);
+      const primary = updated.find(c => c.isPrimary);
+      if (previous?.isPrimary && primary) setNotice({ type: 'success', text: `ตั้ง ${primary.mailboxAddress} เป็นบัญชีหลักแทนแล้ว เพราะบัญชีเดิมถูกตัดการเชื่อมต่อ` });
     } catch (e) {
       setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ยกเลิกการเชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง' });
     } finally {
@@ -145,70 +149,30 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
     }
   };
 
-  // Plain render function (not a component) so rows keep their DOM across parent re-renders.
-  const renderRow = (c: MailboxConnectionItem) => (
-    <div key={c.id} className="mt-2 rounded-lg border bg-muted/30 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{c.mailboxAddress}</p>
-          <p className="text-xs text-muted-foreground">
-            {OUTLOOK_STATUS_LABEL[c.status] ?? c.status}
-            {c.lastSyncedAt && ` · ดึงอีเมลล่าสุด ${formatDateTime(c.lastSyncedAt)}`}
-          </p>
-          {c.lastError && (
-            <p className={`mt-0.5 text-xs ${c.status === 'ACTIVE' ? 'text-warning' : 'text-destructive'}`}>
-              {c.lastError}
-            </p>
-          )}
-        </div>
-        {c.status !== 'REVOKED' && (
-          <div className="flex shrink-0 flex-wrap gap-2">
-            {c.status === 'ACTIVE' && (
-              <Button size="sm" variant="outline" disabled={busyId === c.id} onClick={() => handleSyncNow(c.id)}>
-                ดึงอีเมลตอนนี้
-              </Button>
-            )}
-            <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busyId === c.id} onClick={() => handleDisconnect(c.id)}>
-              ยกเลิกการเชื่อมต่อ
-            </Button>
-          </div>
-        )}
-      </div>
-      {c.status === 'ACTIVE' && (
-        <div className="mt-2 space-y-1">
-          <label className="flex min-h-11 items-center gap-2 text-xs sm:min-h-8">
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={c.syncCalendar}
-              disabled={busyId === c.id}
-              onChange={(e) => toggle(c, { syncCalendar: e.target.checked })}
-            />
-            ส่งนัดในระบบเข้าปฏิทิน Outlook
-          </label>
-          <label className="flex min-h-11 items-center gap-2 text-xs sm:min-h-8">
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={c.syncInboxToIntake}
-              disabled={busyId === c.id}
-              onChange={async (e) => {
-                const checked = e.target.checked;
-                if (
-                  checked &&
-                  !await confirmDialog('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" และเห็นเฉพาะคุณจนกว่าจะผูกกับคดีหรือรับเป็นคดีก่อนฟ้อง ยืนยันไหม?')
-                )
-                  return;
-                toggle(c, { syncInboxToIntake: checked });
-              }}
-            />
-            ดึง Inbox เข้าคิวรับเรื่องทางอีเมล
-          </label>
-        </div>
-      )}
-    </div>
-  );
-
+  const setPrimary = async (id: string) => {
+    const token = getStoredToken(); if (!token) return;
+    setBusyId(id);
+    try { setConnections(await api.setOutlookPrimary(token, id)); }
+    catch (e) { setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ตั้งบัญชีหลักไม่สำเร็จ' }); }
+    finally { setBusyId(null); }
+  };
+  const action = (label: string, hint: string, onClick: () => void, disabled: boolean, destructive = false) => <div className="text-center"><Button size="sm" variant="outline" className={destructive ? 'text-destructive' : ''} disabled={disabled} onClick={onClick}>{label}</Button><p className="mt-1 text-xs text-muted-foreground">{hint}</p></div>;
+  const switchRow = (c: MailboxConnectionItem, label: string, checked: boolean, onChange: (value: boolean) => void, hint?: string) => <label className="flex min-h-11 items-center justify-between gap-4 border-t py-2 text-sm"><span>{label}{hint && <span className="block text-xs text-muted-foreground">{hint}</span>}</span><span className="relative inline-flex shrink-0 items-center"><input type="checkbox" role="switch" aria-checked={checked} checked={checked} disabled={busyId === c.id || c.status !== 'ACTIVE'} onChange={e => onChange(e.target.checked)} className="peer sr-only" /><span aria-hidden className="h-6 w-11 rounded-full bg-muted-foreground/30 peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:opacity-50" /><span aria-hidden className="absolute left-1 h-4 w-4 rounded-full bg-card transition-transform peer-checked:translate-x-5" /></span></label>;
+  const renderRow = (c: MailboxConnectionItem) => <div key={c.id} className={`mt-3 rounded-lg border bg-card p-4 ${c.isPrimary ? 'border-l-4 border-l-primary' : ''}`}>
+    <div className="flex flex-wrap justify-between gap-3"><div><p className="font-medium">{c.mailboxAddress} {c.isPrimary && <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground"><Star className="h-3 w-3" aria-hidden />บัญชีหลัก</span>}</p>
+      <p className="text-xs text-muted-foreground">{OUTLOOK_STATUS_LABEL[c.status] ?? c.status}{c.lastSyncedAt && ` · ดึงอีเมลล่าสุด ${formatDateTime(c.lastSyncedAt)}`}{c.calendarSyncedAt && ` · ดึงนัดล่าสุด ${new Date(c.calendarSyncedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}`}</p>
+      {c.lastError && <p className="text-xs text-destructive">{c.lastError}</p>}</div>
+      {c.status !== 'REVOKED' && <div className="flex flex-wrap gap-2">
+        {!c.isPrimary && c.status === 'ACTIVE' && action('ตั้งเป็นบัญชีหลัก', 'กดเพื่อใช้บัญชีนี้ส่งอีเมลใหม่และรับนัดจากระบบ', () => void setPrimary(c.id), busyId === c.id)}
+        {c.status === 'ACTIVE' && action('ดึงอีเมลตอนนี้', 'กดเพื่อดึงอีเมลใหม่ทันที', () => void handleSyncNow(c.id), busyId === c.id)}
+        {c.status === 'EXPIRED' && action('เชื่อมใหม่', 'กดเพื่อลงชื่อเข้า Microsoft อีกครั้ง', () => void handleConnect(), connecting)}
+        {action('ยกเลิกการเชื่อมต่อ', 'กดเพื่อตัดบัญชีนี้ออก นัดจากบัญชีนี้จะถูกลบออกจากระบบ', () => void handleDisconnect(c.id), busyId === c.id, true)}
+      </div>}</div>
+    {c.isPrimary && c.status === 'EXPIRED' && <p className="mt-3 rounded bg-warning/10 p-3 text-sm">บัญชีหลัก {c.mailboxAddress} หมดอายุ — ระบบหยุดส่งอีเมลใหม่และส่งนัดเข้า Outlook ไว้ก่อน</p>}
+    {c.status !== 'REVOKED' && <div className="mt-3">{switchRow(c, 'แสดงนัดจากบัญชีนี้ในปฏิทินของระบบ', c.showCalendar, value => void toggle(c, { showCalendar: value }), 'คุณเห็นรายละเอียดนัด เพื่อนร่วมงานเห็นแค่ช่วงที่ไม่ว่าง')}
+      {c.isPrimary && switchRow(c, 'ส่งนัดในระบบเข้าปฏิทินของบัญชีนี้', c.syncCalendar, value => void toggle(c, { syncCalendar: value }))}
+      {c.status === 'ACTIVE' && switchRow(c, 'ดึง Inbox เข้าคิวรับเรื่องทางอีเมล', c.syncInboxToIntake, async value => { if (value && !await confirmDialog('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" และเห็นเฉพาะคุณจนกว่าจะผูกกับคดีหรือรับเป็นคดีก่อนฟ้อง ยืนยันไหม?')) return; void toggle(c, { syncInboxToIntake: value }); })}</div>}
+  </div>;
 
   return (
     <section>
@@ -284,12 +248,14 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
 
       <p className="mt-3 text-xs font-medium text-muted-foreground">บัญชีของฉัน</p>
       {connections.length === 0 && <p className="text-xs text-muted-foreground">ยังไม่ได้เชื่อมบัญชี</p>}
-      {connections.map(renderRow)}
+      <p className="mt-3 rounded-lg bg-muted p-3 text-xs">บัญชีหลักใช้ส่งอีเมลใหม่ รับนัดจากระบบ และเปิดไฟล์ OneDrive · การตอบกลับส่งจากบัญชีที่อีเมลนั้นเข้ามาเสมอ</p>
+      {[...connections].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary)).map(renderRow)}
 
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
         <Button size="sm" variant={connections.some((c) => c.status === 'ACTIVE') ? 'outline' : 'default'} onClick={handleConnect} disabled={connecting}>
           {connecting ? 'กำลังเปิด Microsoft...' : connections.some((c) => c.status === 'ACTIVE') ? 'เชื่อมบัญชีอื่นเพิ่ม' : 'เชื่อม Microsoft 365'}
         </Button>
+        <p className="text-xs text-muted-foreground">กดเพื่อเพิ่มบัญชี Microsoft อีกบัญชี</p>
         {children}
       </div>
     </section>

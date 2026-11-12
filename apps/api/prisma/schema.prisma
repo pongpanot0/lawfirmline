@@ -729,6 +729,8 @@ model User {
   caseComments               CaseComment[]
   notifications              Notification[]
   notificationPreferences    UserNotificationPreference[]
+  primaryMailboxConnectionId String?                      @unique
+  primaryMailboxConnection   MailboxConnection?           @relation("PrimaryMailboxConnection", fields: [primaryMailboxConnectionId], references: [id], onDelete: SetNull)
   mailboxConnections         MailboxConnection[]          @relation("MailboxConnectionOwner")
   emailTemplates             EmailTemplate[]              @relation("EmailTemplateCreator")
   writtenOffTimeEntries      TimeEntry[]                  @relation("TimeEntryWriteOff")
@@ -2845,6 +2847,10 @@ model MailboxConnection {
   sentDeltaLink          String?                 @db.Text
   calendarDeltaLink      String?                 @db.Text
   calendarDeltaStartedAt DateTime?
+  showCalendar           Boolean                 @default(true)
+  calendarSyncedAt       DateTime?
+  primaryFor             User?                   @relation("PrimaryMailboxConnection")
+  calendarItems          OutlookCalendarItem[]
 
   caseExternalLinks CaseExternalLink[]
   firm              Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
@@ -3235,4 +3241,26 @@ model McpAuthCode {
   usedAt        DateTime?
 
   connection McpConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+}
+
+/// Read-only mirror of the owner's own Outlook events (not ours). Subject/location are owner-only.
+model OutlookCalendarItem {
+  id           String   @id @default(uuid())
+  connectionId String
+  userId       String
+  graphEventId String
+  iCalUId      String?
+  subject      String?
+  location     String?
+  startAt      DateTime
+  endAt        DateTime
+  isAllDay     Boolean  @default(false)
+  /// free | tentative | busy | oof | workingElsewhere | unknown
+  showAs       String
+  webLink      String?  @db.Text
+  updatedAt    DateTime @updatedAt
+  connection   MailboxConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, graphEventId])
+  @@index([userId, startAt])
 }

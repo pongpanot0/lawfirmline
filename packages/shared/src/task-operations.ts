@@ -166,6 +166,7 @@ export function ownerDecisionTasks(tasks: DailyWorkTask[], date: string) {
 }
 
 export interface TeamRadarDay {
+  outlookBusyMinutes: number;
   date: string; taskCount: number; points: number; eventCount: number; courtCount: number; onLeave: boolean;
 }
 
@@ -178,6 +179,7 @@ export interface TeamRadarMember {
 export interface TeamRadar { start: string; days: string[]; members: TeamRadarMember[] }
 
 export interface PersonWorkload {
+  outlookBusy: { start: string; end: string }[];
   userId: string; firstName: string; lastName: string; role: string; workTypes: TaskWorkType[];
   tasks: { id: string; title: string; status: string; dueDate: string | null; scheduledFor: string | null; size: TaskSize; overdue: boolean; holdReason: string | null; case: { id: string; ownRef: string; title: string } | null }[];
   /** Work this person handed in, waiting for someone else to review. */

@@ -8,7 +8,7 @@ import { api, ApiError } from './client';
 import { transcribeSecretaryAudio } from './files';
 import { secretaryMessages, type SecretaryMessage } from '../lib/secretary';
 import { calendarRangeQuery } from '../format';
-import type { DailyBriefData, DailyWorkboard, MatterBrief, PersonWorkload, SecretaryCard } from '@lawfirm/shared';
+import type { DailyBriefData, DailyWorkboard, MatterBrief, PersonWorkload, SecretaryCard, OutlookCalendarItemsResponse } from '@lawfirm/shared';
 import type {
   AppNotification,
   CalendarEventItem,
@@ -147,6 +147,11 @@ export function useCalendarRange(from: string, to: string) {
     queryFn: () =>
       api<CalendarEventItem[]>(`/calendar/events?${calendarRangeQuery(from, to)}`),
   });
+}
+
+export function useOutlookCalendar(from: string, to: string, userId: string | undefined, enabled: boolean) {
+  return useQuery({ queryKey: ['outlook-calendar', userId, from, to], enabled: enabled && !!userId,
+    queryFn: () => api<OutlookCalendarItemsResponse>(`/calendar/outlook-items?${new URLSearchParams({ from, to })}`) });
 }
 
 export function useTodos(view: 'all' | 'mine' | 'created' | 'review' = 'all', enabled = true) {

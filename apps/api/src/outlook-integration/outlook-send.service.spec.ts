@@ -12,13 +12,14 @@ import { OutlookSendService, buildRecipientOptions, prependToHtml } from './outl
 describe('OutlookSendService', () => {
   let service: OutlookSendService;
   const mockPrisma = {
+    mailboxConnection: { findUnique: jest.fn() },
     case: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
     document: { findMany: jest.fn() },
     emailMessage: { findFirst: jest.fn() },
     auditLog: { findFirst: jest.fn(), create: jest.fn() },
   };
-  const mockConnections = { findActiveForUser: jest.fn(), getValidAccessToken: jest.fn(), markError: jest.fn() };
+  const mockConnections = { primaryForUser: jest.fn(), findActiveForUser: jest.fn(), getValidAccessToken: jest.fn(), markError: jest.fn() };
   const mockGraph = {
     createDraftMessage: jest.fn(),
     createReplyDraft: jest.fn(),
@@ -52,6 +53,8 @@ describe('OutlookSendService', () => {
   beforeEach(async () => {
     jest.resetAllMocks();
     mockConnections.findActiveForUser.mockResolvedValue(connection);
+    mockConnections.primaryForUser.mockResolvedValue(null);
+    mockPrisma.mailboxConnection.findUnique.mockImplementation(async ({ where }: any) => where.id === 'conn-1' ? { ...connection, userId: user.id, status: 'ACTIVE' } : { id: where.id, userId: 'colleague', status: 'ACTIVE' });
     mockConnections.getValidAccessToken.mockResolvedValue('token-1');
     mockGraph.createDraftMessage.mockResolvedValue(draft);
     mockGraph.addFileAttachment.mockResolvedValue(undefined);
@@ -437,6 +440,28 @@ describe('OutlookSendService', () => {
         { name: 'นายจำเลย', email: 'def@x.com', source: 'PARTICIPANT', group: 'คู่ความ' },
       ]);
     });
+  });
+
+  it('new email uses primary and an expired primary gives the exact 400 copy', async () => {
+    await service.send(user, 'case-1', baseDto);
+    expect(mockConnections.getValidAccessToken).toHaveBeenCalledWith('conn-1');
+    mockConnections.findActiveForUser.mockResolvedValue(null);
+    mockConnections.primaryForUser.mockResolvedValue({ mailboxAddress: 'old@x.com', status: 'EXPIRED' });
+    await expect(service.send(user, 'case-1', baseDto)).rejects.toThrow('บัญชีหลัก old@x.com หมดอายุ — เชื่อมใหม่ในหน้าตั้งค่า');
+  });
+
+  it('reply uses the owning thread mailbox, even if primary is expired', async () => {
+    mockConnections.findActiveForUser.mockResolvedValue(null);
+    mockConnections.primaryForUser.mockResolvedValue({ status: 'EXPIRED' });
+    mockGraph.createReplyDraft.mockResolvedValue(draft);
+    mockGraph.updateDraft.mockResolvedValue(draft);
+    mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'msg', graphMessageId: 'source', thread: { mailboxConnectionId: 'second' } });
+    mockPrisma.mailboxConnection.findUnique.mockResolvedValue({ id: 'second', userId: user.id, status: 'ACTIVE', mailboxAddress: 'second@x.com' });
+    await service.send(user, 'case-1', { ...baseDto, replyToMessageId: 'msg' });
+    expect(mockConnections.getValidAccessToken).toHaveBeenCalledWith('second');
+    expect(mockGraph.createReplyDraft).toHaveBeenCalledWith('token-1', 'source', false);
+    mockPrisma.mailboxConnection.findUnique.mockResolvedValue({ id: 'second', userId: user.id, status: 'ERROR', mailboxAddress: 'second@x.com' });
+    await expect(service.send(user, 'case-1', { ...baseDto, replyToMessageId: 'msg' })).rejects.toThrow('บัญชี second@x.com หมดอายุ — เชื่อมใหม่ในหน้าตั้งค่า');
   });
 
   describe('reply', () => {

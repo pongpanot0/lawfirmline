@@ -15,7 +15,7 @@ const ev = (over: any) => ({ id: 'e1', caseId: 'c1', title: 'ศาล', startAt
 
 describe('AvailabilityService', () => {
   let svc: AvailabilityService;
-  const prisma = { firmMember: { findMany: jest.fn() }, calendarEvent: { findMany: jest.fn() }, mailboxConnection: { findMany: jest.fn() } };
+  const prisma = { firmMember: { findMany: jest.fn() }, calendarEvent: { findMany: jest.fn() }, mailboxConnection: { findMany: jest.fn() }, outlookCalendarItem: { findMany: jest.fn() } };
   const access = { canAccessCase: jest.fn() };
   const conns = { findActiveForUser: jest.fn(), getValidAccessToken: jest.fn() };
   const graph = { getSchedule: jest.fn() };
@@ -26,8 +26,9 @@ describe('AvailabilityService', () => {
     prisma.calendarEvent.findMany.mockResolvedValue([]);
     conns.findActiveForUser.mockResolvedValue({ id: 'conn' });
     conns.getValidAccessToken.mockResolvedValue('tok');
-    prisma.mailboxConnection.findMany.mockResolvedValue([{ userId: A, mailboxAddress: 'a@x.com' }]);
+    prisma.mailboxConnection.findMany.mockResolvedValue([{ userId: A, calendarSyncedAt: new Date() }]);
     graph.getSchedule.mockResolvedValue([]);
+    prisma.outlookCalendarItem.findMany.mockResolvedValue([]);
     const mod = await Test.createTestingModule({
       providers: [
         AvailabilityService,
@@ -46,17 +47,21 @@ describe('AvailabilityService', () => {
     expect(prisma.firmMember.findMany.mock.calls[0][0].where.firmId).toBe('f1');
   });
 
-  it('merges system + Outlook busy, drops Outlook copies of system events, uses Bangkok window', async () => {
+  it('uses shown mirrors without needing a viewer connection, excludes free and exposes only times', async () => {
     prisma.calendarEvent.findMany.mockResolvedValue([ev({})]);
     access.canAccessCase.mockResolvedValue(true);
-    graph.getSchedule.mockResolvedValue([{ scheduleId: 'A@x.com', items: [
-      { status: 'busy', start: new Date('2026-11-02T03:00:00Z'), end: new Date('2026-11-02T04:00:00Z') },
-      { status: 'tentative', start: new Date('2026-11-02T06:00:00Z'), end: new Date('2026-11-02T07:00:00Z') },
-      { status: 'free', start: new Date('2026-11-02T08:00:00Z'), end: new Date('2026-11-02T09:00:00Z') },
-    ] }]);
+    conns.findActiveForUser.mockResolvedValue(null);
+    prisma.outlookCalendarItem.findMany.mockResolvedValue([
+      { userId: A, startAt: new Date('2026-11-02T06:00:00Z'), endAt: new Date('2026-11-02T07:00:00Z'), showAs: 'tentative', subject: 'private', location: 'secret', webLink: 'secret' },
+      { userId: A, startAt: new Date('2026-11-02T08:00:00Z'), endAt: new Date('2026-11-02T09:00:00Z'), showAs: 'free' },
+    ]);
     const r = await svc.get(user, dto);
-    expect(graph.getSchedule).toHaveBeenCalledWith('tok', ['a@x.com'], '2026-11-02T07:00:00', '2026-11-02T21:00:00');
-    expect(prisma.calendarEvent.findMany.mock.calls[0][0].where.startAt).toEqual({ gte: new Date('2026-10-31T17:00:00Z'), lt: new Date('2026-11-02T17:00:00Z') });
+    expect(graph.getSchedule).not.toHaveBeenCalled();
+    expect(conns.findActiveForUser).not.toHaveBeenCalled();
+    expect(prisma.outlookCalendarItem.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ userId: { in: [A, B] }, showAs: { in: ['busy', 'oof', 'tentative', 'workingElsewhere'] }, connection: { firmId: 'f1', userId: { in: [A, B] }, showCalendar: true, status: 'ACTIVE' } }),
+      select: { userId: true, startAt: true, endAt: true, showAs: true },
+    }));
     const a = r.people.find((p) => p.userId === A)!;
     expect(a.source).toBe('OUTLOOK');
     expect(a.busy).toEqual([
@@ -64,7 +69,7 @@ describe('AvailabilityService', () => {
       { start: '2026-11-02T06:00:00.000Z', end: '2026-11-02T07:00:00.000Z' },
     ]);
     expect(r.people.find((p) => p.userId === B)!.source).toBe('SYSTEM_ONLY');
-    expect((r as any).hint).toBeUndefined();
+    expect(JSON.stringify(r)).not.toMatch(/private|secret|subject|webLink|location/);
   });
 
   it('hides the title when the caller cannot access the case', async () => {
@@ -74,17 +79,17 @@ describe('AvailabilityService', () => {
     expect(r.people[0].busy[0].label).toBe('ไม่ว่าง');
   });
 
-  it('without a caller connection everyone is SYSTEM_ONLY with a hint and no Graph call', async () => {
-    conns.findActiveForUser.mockResolvedValue(null);
+  it('a member without shown connections has no Outlook blocks or error', async () => {
+    prisma.mailboxConnection.findMany.mockResolvedValue([]);
     const r = await svc.get(user, dto);
+    expect(r.people.every((p) => p.source === 'SYSTEM_ONLY' && !('error' in p))).toBe(true);
     expect(graph.getSchedule).not.toHaveBeenCalled();
-    expect(r.people.every((p) => p.source === 'SYSTEM_ONLY')).toBe(true);
-    expect((r as any).hint).toContain('Microsoft 365');
   });
 
-  it('reports a per-person error when getSchedule flags that schedule', async () => {
-    graph.getSchedule.mockResolvedValue([{ scheduleId: 'a@x.com', error: 'boom', items: [] }]);
+  it('reports stale data only for the member whose shown connection is over one hour old', async () => {
+    prisma.mailboxConnection.findMany.mockResolvedValue([{ userId: A, calendarSyncedAt: new Date(Date.now() - 3600001) }]);
     const r = await svc.get(user, dto);
-    expect(r.people.find((p) => p.userId === A)).toMatchObject({ error: 'ดูปฏิทิน Outlook ไม่ได้', busy: [] });
+    expect(r.people.find((p) => p.userId === A)).toMatchObject({ error: 'ข้อมูล Outlook ยังไม่อัปเดต', busy: [] });
+    expect(r.people.find((p) => p.userId === B)).not.toHaveProperty('error');
   });
 });
