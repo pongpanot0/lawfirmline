@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { taskUpdatePath } from '@/lib/task-detail';
 import { cn } from '@/lib/utils';
 import { NoAccess } from '@/components/ui/NoAccess';
+import { Select } from '@/components/ui/select';
 
 /** สรุปงานติดประจำวันของเจ้าสำนัก (สร้างทุกเช้า 07:30 เฉพาะสำนักงานที่เปิดใช้) */
 
@@ -56,7 +57,7 @@ export default function DailyBriefPage() {
       description="งานที่ต้องตามของทั้งสำนักงาน สรุปทุกเช้า 07:30"
       actions={
         dates.length > 0 && (
-          <select
+          <Select
             aria-label="เลือกวัน"
             title="เลือกวันเพื่อดูสรุปย้อนหลัง"
             value={date ?? dates[0]}
@@ -68,7 +69,7 @@ export default function DailyBriefPage() {
                 {fmtDay(d)}
               </option>
             ))}
-          </select>
+          </Select>
         )
       }
     />

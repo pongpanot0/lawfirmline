@@ -28,6 +28,7 @@ import { StepTracker } from '@/components/process/StepTracker';
 import { dueLabel } from '@/components/process/helpers';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { SearchHint } from '@/components/guide/SearchHint';
+import { Select } from '@/components/ui/select';
 
 const PAGE_SIZE = 10;
 
@@ -332,7 +333,7 @@ function CasesPageContent() {
           />
           <SearchHint id="cases-search-hint" className="sm:w-auto">ลองพิมพ์ชื่อลูกความ</SearchHint>
           </div>
-          <select
+          <Select
             aria-label={d.cases.allStatuses}
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
@@ -342,8 +343,8 @@ function CasesPageContent() {
             {caseStatusOptions(d.caseStatus).map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             aria-label="กรองตามขั้นตอนงาน"
             value={stageFilter}
             onChange={(e) => { setStageFilter(e.target.value); setPage(0); }}
@@ -353,8 +354,8 @@ function CasesPageContent() {
             {caseStageOptions('th').map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             aria-label="กรองตามทนาย"
             value={lawyerFilter}
             onChange={(e) => { setLawyerFilter(e.target.value); setPage(0); }}
@@ -364,8 +365,8 @@ function CasesPageContent() {
             {lawyers.map((u) => (
               <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
             ))}
-          </select>
-          <select aria-label="กรองตามประเภทคดี" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(0); }} className="min-h-11 rounded-lg border border-input bg-card px-3 text-sm"><option value="">ทุกประเภทคดี</option>{caseTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select>
+          </Select>
+          <Select aria-label="กรองตามประเภทคดี" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(0); }} className="min-h-11 rounded-lg border border-input bg-card px-3 text-sm"><option value="">ทุกประเภทคดี</option>{caseTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</Select>
           <CaseViewToggle current="list" />
           <details className="group relative">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
@@ -391,7 +392,7 @@ function CasesPageContent() {
         <Card className="mb-4 border-primary/30 bg-primary/5">
           <CardContent className="flex flex-wrap items-center gap-3 p-3">
             <p className="text-sm font-medium">เลือกไว้ {selected.size} คดี</p>
-            <select
+            <Select
               value={bulkLawyerId}
               onChange={(e) => setBulkLawyerId(e.target.value)}
               className="min-h-11 max-w-full rounded-lg border border-input bg-card px-3 text-sm"
@@ -400,7 +401,7 @@ function CasesPageContent() {
               {lawyers.map((l) => (
                 <option key={l.id} value={l.id}>{l.firstName} {l.lastName}</option>
               ))}
-            </select>
+            </Select>
             <Button size="sm" disabled={!bulkLawyerId || bulkSaving} onClick={bulkReassign}>
               {bulkSaving ? 'กำลังบันทึก…' : 'เปลี่ยนผู้รับผิดชอบ'}
             </Button>

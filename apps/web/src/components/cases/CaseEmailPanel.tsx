@@ -27,6 +27,7 @@ import { EmailMentionTasks } from './EmailMentionTasks';
 import { MATCH_REASON_LABELS } from '@/lib/case-email';
 import { formatDateTime } from '@/lib/utils';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 type Notice = { type: 'success' | 'error'; text: string; action?: { label: string; onClick: () => void } } | null;
 
@@ -264,7 +265,7 @@ export function CaseEmailPanel({
               <label htmlFor="case-email-folder" className="text-sm font-medium">
                 เลือกโฟลเดอร์ในกล่องอีเมลของคุณ
               </label>
-              <select
+              <Select
                 id="case-email-folder"
                 value={pickedFolderId}
                 onChange={(e) => setPickedFolderId(e.target.value)}
@@ -280,7 +281,7 @@ export function CaseEmailPanel({
                     </option>
                   );
                 })}
-              </select>
+              </Select>
               <p className="text-xs text-muted-foreground">
                 อีเมลในโฟลเดอร์นี้ทั้งหมด (รวมย้อนหลัง) จะเข้าคดี และทุกคนที่มีสิทธิ์ในคดีจะเห็น
               </p>

@@ -5,6 +5,7 @@ import type { CaseListItem, CaseMatchReason } from '@/lib/api';
 import { MATCH_REASON_LABELS, OTHER_CASE } from '@/lib/case-email';
 import { Folder } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 
 export interface FolderMatchSuggestion {
   caseId: string;
@@ -84,9 +85,9 @@ export function FolderMatchTable({
           <div key={row.id} className="min-w-0 space-y-3 rounded-xl border bg-card p-4">
             <div className="flex items-start gap-3"><Folder className="size-5 shrink-0 text-muted-foreground" aria-hidden /><p className="min-w-0 flex-1 break-words font-semibold">{row.name}</p>{!row.link && <input type="checkbox" aria-label={`เลือก ${row.name}`} checked={!!checked[row.id]} onChange={(e) => setChecked((current) => ({ ...current, [row.id]: e.target.checked }))} />}</div>
             {row.link ? <div className="text-sm">ผูกกับ <strong>{row.link.ownRef}</strong> · {row.link.title}<div><Button size="sm" variant="outline" disabled={saving} onClick={() => onUnlink(row.link!.id)}>ยกเลิกการผูก</Button></div></div> : <label className="block text-sm">คดีที่แนะนำ
-              <select aria-label={`คดีสำหรับ ${row.name}`} value={selection[row.id] ?? ''} onChange={(e) => { const value = e.target.value; setSelection((s) => ({ ...s, [row.id]: value })); setChecked((current) => ({ ...current, [row.id]: !!value })); }} className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm">
+              <Select aria-label={`คดีสำหรับ ${row.name}`} value={selection[row.id] ?? ''} onChange={(e) => { const value = e.target.value; setSelection((s) => ({ ...s, [row.id]: value })); setChecked((current) => ({ ...current, [row.id]: !!value })); }} className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm">
                 <option value="">เลือกคดี</option>{row.suggestions.map((suggestion) => <option key={suggestion.caseId} value={suggestion.caseId}>{suggestion.ownRef} · {suggestion.title}</option>)}<option value={OTHER_CASE}>เลือกคดีอื่น…</option>
-              </select>
+              </Select>
               {selection[row.id] === OTHER_CASE && <input list={datalistId} value={otherRefs[row.id] ?? ''} onChange={(e) => setOtherRefs((r) => ({ ...r, [row.id]: e.target.value }))} placeholder="พิมพ์เลขอ้างอิงคดี" aria-label={`เลขอ้างอิงคดีสำหรับ ${row.name}`} className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" />}
             </label>}
             <p className="border-t pt-2 text-xs text-muted-foreground">{confidence(row)}</p>

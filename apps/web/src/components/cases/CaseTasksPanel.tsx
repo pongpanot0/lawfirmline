@@ -29,6 +29,7 @@ import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
 import { bangkokDateInputValue } from '@/lib/bangkok';
+import { Select } from '@/components/ui/select';
 
 export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onTasksChanged?: (tasks: TaskItem[]) => void }) {
   const d = useDashboardT();
@@ -248,7 +249,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                 <label className="block" htmlFor="case-task-title"><span className={v2.flabel}>ต้องทำอะไร *</span><input id="case-task-title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} autoFocus required placeholder="เช่น ขอคัดคำพิพากษา" className={`${v2.field} text-base sm:text-[15px]`} /></label>
                 <div>
                   <label htmlFor="case-task-assignee" className={v2.flabel}>คนทำ</label>
-                  <select
+                  <Select
                     id="case-task-assignee"
                     value={newAssigneeId}
                     onChange={(e) => { setNewAssigneeId(e.target.value); if ((e.target.value || user?.id) === newReviewerId) setNewReviewerId(''); }}
@@ -265,7 +266,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                         <AssigneeOptions users={others} flags={newTaskLeaveFlags} nameOf={assigneeName} />
                       </optgroup>
                     )}
-                  </select>
+                  </Select>
                   {newAssigneeUser && newTaskLeaveFlags.has(newAssigneeId) && (
                     <p className="flex items-start gap-1 mt-1 text-xs text-warning">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -280,7 +281,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <label className="block" htmlFor="case-task-due"><span className={v2.flabel}>ครบกำหนด</span><ThaiDateField id="case-task-due" value={newDueDate} onChange={setNewDueDate} /></label>
-                  <label className="block" htmlFor="case-task-stage"><span className={v2.flabel}>อยู่ในขั้น</span><select id="case-task-stage" value={newStage ?? caseDetail?.stage ?? ''} onChange={(e) => setNewStage(e.target.value)} className={`${v2.field} text-base sm:text-[15px]`}><option value="">ไม่ผูกกับขั้น</option>{caseStageOptions('th').map((option) => <option key={option.value} value={option.value}>{option.label}{option.value === caseDetail?.stage ? ' (ขั้นปัจจุบัน)' : ''}</option>)}</select></label>
+                  <label className="block" htmlFor="case-task-stage"><span className={v2.flabel}>อยู่ในขั้น</span><Select id="case-task-stage" value={newStage ?? caseDetail?.stage ?? ''} onChange={(e) => setNewStage(e.target.value)} className={`${v2.field} text-base sm:text-[15px]`}><option value="">ไม่ผูกกับขั้น</option>{caseStageOptions('th').map((option) => <option key={option.value} value={option.value}>{option.label}{option.value === caseDetail?.stage ? ' (ขั้นปัจจุบัน)' : ''}</option>)}</Select></label>
                 </div>
                 <p className={`${v2.hint} rounded-lg bg-[#f3f1ea] p-3`}>งานในขั้นปัจจุบันต้องเสร็จก่อนจึงย้ายคดีไปขั้นถัดไปได้ — ถ้าเป็นงานที่ไม่บังคับ ให้เลือกขั้น “ไม่ผูกกับขั้น”</p>
                 <details className="rounded-lg border border-[#e2e0d8] p-3">
@@ -302,15 +303,15 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                     </label>)}
                   {newRequiresReview && <div className="mt-3">
                     <label htmlFor="case-task-reviewer" className="text-sm font-medium">ผู้ตรวจ<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
-                    <select id="case-task-reviewer" required value={newReviewerId} onChange={event => setNewReviewerId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-input bg-card px-3 text-sm">
+                    <Select id="case-task-reviewer" required value={newReviewerId} onChange={event => setNewReviewerId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-input bg-card px-3 text-sm">
                       <option value="">เลือกผู้ตรวจ</option>
                       {reviewers.map(member => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}
-                    </select>
+                    </Select>
                     {!reviewers.length && <p className="mt-1 text-xs text-muted-foreground">ผู้ตรวจต้องเป็นเจ้าของสำนักงาน ทนายอาวุโส หรือทนายหลักของคดี (ไม่ใช่คนทำงาน)</p>}
                   </div>}
                   <div className="mt-3">
                     <label htmlFor="case-task-priority" className="text-sm font-medium">{d.todos.priority}</label>
-                    <select
+                    <Select
                       id="case-task-priority"
                       value={newPriority}
                       onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
@@ -319,7 +320,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                       {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
                         <option key={p} value={p}>{priorityLabel(d, p)}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 <div className="mt-3">
                   <label className="text-sm font-medium">{d.taskDetail.observers || 'ผู้ติดตาม'}</label>

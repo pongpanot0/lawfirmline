@@ -8,6 +8,7 @@ import { SelectField, TextField } from '@/components/ui/form-fields';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { StepsEditor } from './StepsEditor';
 import { ROLE_LABELS, blankStep, cleanSteps, stepsProblem } from './workflow-ui';
+import { Select } from '@/components/ui/select';
 
 /**
  * Start a handoff chain on a case: pick a template (or write steps), then a
@@ -116,7 +117,7 @@ export function StartWorkflowDrawer({
               <li key={i} className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
                 <span className="font-medium">{i + 1}. {step.title || '(ยังไม่ตั้งชื่อ)'}</span>
                 <span className="text-xs tabular-nums text-muted-foreground">· {step.durationDays} วันทำการ</span>
-                <select
+                <Select
                   aria-label={`ผู้รับขั้นที่ ${i + 1}`}
                   className="ml-auto h-10 w-full min-w-0 rounded-md border border-input bg-card px-2 sm:w-auto sm:min-w-[12rem]"
                   value={assignees[i] ?? ''}
@@ -126,7 +127,7 @@ export function StartWorkflowDrawer({
                   {(people[step.role] ?? []).map((p) => (
                     <option key={p.userId} value={p.userId}>{p.name} · งานค้าง {p.openTaskCount}</option>
                   ))}
-                </select>
+                </Select>
               </li>
             ))}
           </ol>

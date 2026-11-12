@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/misc';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
 import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
+import { Select } from '@/components/ui/select';
 
 const STATUS = { PENDING: 'รอตรวจ', REVIEWED: 'ตรวจแล้ว', CONFLICT: 'มีข้อขัดแย้ง', MISSING: 'ข้อมูลขาด' };
 const STATUS_VARIANT: Record<keyof typeof STATUS, BadgeProps['variant']> = { PENDING: 'muted', REVIEWED: 'success', CONFLICT: 'destructive', MISSING: 'warning' };
@@ -126,9 +127,9 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
       {error && <div role="alert" className="text-sm text-destructive">{error} <button type="button" disabled={!!busy} className="underline" onClick={() => { setError(''); setRetry((n) => n + 1); }}>โหลดผลล่าสุด</button></div>}
     </div>
     {loading ? <div role="status" aria-label="กำลังโหลดผลที่บันทึกไว้" className="space-y-1"><Skeleton className="h-4 w-28" /><Skeleton className="h-10 w-full" /></div> : history.length > 0 && <label className="block text-sm">ผลที่บันทึกไว้
-      <select className={`${field} mt-1`} disabled={!!busy} value={result?.id ?? ''} onChange={(e) => { setResult(history.find((r) => r.id === e.target.value) ?? null); setEditing(null); setChosenFacts([]); }}>
+      <Select className={`${field} mt-1`} disabled={!!busy} value={result?.id ?? ''} onChange={(e) => { setResult(history.find((r) => r.id === e.target.value) ?? null); setEditing(null); setChosenFacts([]); }}>
         {history.map((row) => <option key={row.id} value={row.id}>{new Date(row.createdAt).toLocaleString('th-TH')} · {row.status === 'FAILED' ? 'ไม่สำเร็จ' : row.extractedFacts?.caseSummary ? 'สรุปคดี' : row.extractedFacts?.summaryOnly ? 'สรุปเอกสาร' : row.extractedFacts?.factsOnly ? 'ข้อเท็จจริง' : 'ข้อเท็จจริงและฎีกา'}</option>)}
-      </select>
+      </Select>
     </label>}
     {result?.extractedFacts?.description && <Button variant="ghost" disabled={!!busy} onClick={() => { setText(result.extractedFacts?.description ?? ''); document.getElementById('research-text')?.focus(); }}>ใช้ข้อความเดิมค้นต่อ</Button>}
     {result && (result.status !== 'COMPLETE' ? <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">ผลนี้วิเคราะห์ไม่สำเร็จ: {result.errorMessage}</p> : <>
@@ -139,9 +140,9 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
       {!result.extractedFacts?.summaryOnly && <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <h2 className="font-semibold">ข้อเท็จจริงที่ตรวจได้</h2>
         <div className="flex flex-wrap gap-2">
-          <select aria-label="กรองข้อเท็จจริง" className="rounded-lg border border-input bg-background p-2 text-sm" value={filter} onChange={(e) => setFilter(e.target.value)}>
+          <Select aria-label="กรองข้อเท็จจริง" className="rounded-lg border border-input bg-background p-2 text-sm" value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="ALL">ทั้งหมด ({facts.length})</option>{Object.entries(STATUS).map(([key,label]) => <option key={key} value={key}>{label} ({facts.filter((f) => f.status === key).length})</option>)}
-          </select>
+          </Select>
           <input aria-label="ค้นหาข้อเท็จจริงหรือแหล่งที่มา" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นข้อเท็จจริง / ชื่อไฟล์" className="min-w-0 flex-1 rounded-lg border border-input bg-background p-2 text-sm" />
         </div>
         <p className="text-xs text-muted-foreground">“ตรวจแล้ว” คืออ่านเทียบแหล่งที่มา ไม่ใช่ข้อยุติของคดี เลือกข้อที่ต้องการใช้ค้นฎีกาต่อได้</p>

@@ -14,6 +14,7 @@ import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { getPageGuide } from '@/components/guide/page-guides';
 import { SearchHint } from '@/components/guide/SearchHint';
+import { Select } from '@/components/ui/select';
 
 const CATEGORIES = ['', 'SUMMARY', 'CONTRACT', 'COURT_ORDER', 'CORRESPONDENCE', 'OTHER'];
 
@@ -71,7 +72,7 @@ export default function KnowledgePage() {
           className="min-h-11 min-w-0 max-w-full flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm"
         />
         <SearchHint id="knowledge-search-hint" className="order-last">{getPageGuide('/knowledge')?.searchHint}</SearchHint>
-        <select
+        <Select
           value={filters.caseId}
           aria-label={d.knowledge.allCases}
           onChange={(e) => setFilters({ ...filters, caseId: e.target.value })}
@@ -81,8 +82,8 @@ export default function KnowledgePage() {
           {cases.map((c) => (
             <option key={c.id} value={c.id}>{c.ownRef} — {c.title}</option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           value={filters.category}
           aria-label={d.knowledge.allCategories}
           onChange={(e) => setFilters({ ...filters, category: e.target.value })}
@@ -91,7 +92,7 @@ export default function KnowledgePage() {
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>{c ? CATEGORY_LABELS[c] : d.knowledge.allCategories}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {loadError ? (

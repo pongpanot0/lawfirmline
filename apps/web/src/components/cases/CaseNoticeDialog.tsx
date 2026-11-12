@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { PRE_LITIGATION_STATUS_LABELS } from '@/lib/pre-litigation';
+import { Select } from '@/components/ui/select';
 
 /**
  * ออกหนังสือทวงถาม (Notice) จากหน้าคดีโดยตรง — ข้อมูลโนติสยังบันทึกอยู่บน
@@ -165,7 +166,7 @@ export function PreLitigationUpdateDialog({
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium">สถานะก่อนฟ้อง</label>
-            <select
+            <Select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -173,7 +174,7 @@ export function PreLitigationUpdateDialog({
               {Object.entries(PRE_LITIGATION_STATUS_LABELS).map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="block text-sm font-medium">ข้อเสนอจ่าย/ค่าสินไหม (บาท)</label>

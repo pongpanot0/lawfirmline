@@ -5,6 +5,7 @@ import { api, type CaseDetail, type CourtItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { buildCasePrintHtml, casePrintDefaults, CASE_PRINT_LABELS, type CasePrintKind } from '@/lib/case-print-forms';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 
 const COMMON = [['blackNumber', 'หมายเลขคดีดำ'], ['redNumber', 'หมายเลขคดีแดง'], ['court', 'ศาล'], ['plaintiff', 'โจทก์'], ['defendant', 'จำเลย'], ['jointDefendant', 'จำเลยร่วม'], ['subject', 'เรื่อง / ข้อหาหรือฐานความผิด'], ['amount', 'ทุนทรัพย์ (บาท)']];
 const COVER = [['firmName', 'ชื่อสำนักงานภาษาไทย'], ['firmEnglish', 'ชื่อสำนักงานภาษาอังกฤษ'], ['ownRef', 'เลขอ้างอิงสำนักงาน'], ['policyNumber', 'เลขกรมธรรม์'], ['lawyerSide', 'ทนายฝ่าย'], ['filedDate', 'วันฟ้อง'], ['answerDate', 'วันให้การ'], ['counterclaimDate', 'วันฟ้องแย้ง'], ['mediationDate', 'ไกล่เกลี่ย / ให้การ / สืบพยาน'], ['settlementDate', 'นัดชี้สองสถาน / สืบโจทก์']];
@@ -46,7 +47,7 @@ export function CasePrintForms({ legalCase }: { legalCase: CaseDetail }) {
     setReady(false);
     setValues(previous => ({ ...previous, [key]: value }));
   };
-  const fields = (items: string[][]) => <div className="grid gap-3 sm:grid-cols-2">{items.map(([key, label]) => <label key={key} className="block text-sm">{label}{key === 'court' ? <select className="mt-1 min-h-10 w-full rounded-md border border-input bg-background px-3 py-2" value={values.court} onChange={e => update(key, e.target.value)}><option value="">เลือกศาล</option>{values.court && !courts.some(c => c.name === values.court) && <option value={values.court}>{values.court}</option>}{courts.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select> : <input className="mt-1 min-h-10 w-full rounded-md border border-input bg-background px-3 py-2" value={values[key] ?? ''} maxLength={500} onChange={e => update(key, e.target.value)} />}</label>)}</div>;
+  const fields = (items: string[][]) => <div className="grid gap-3 sm:grid-cols-2">{items.map(([key, label]) => <label key={key} className="block text-sm">{label}{key === 'court' ? <Select className="mt-1 min-h-10 w-full rounded-md border border-input bg-background px-3 py-2" value={values.court} onChange={e => update(key, e.target.value)}><option value="">เลือกศาล</option>{values.court && !courts.some(c => c.name === values.court) && <option value={values.court}>{values.court}</option>}{courts.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</Select> : <input className="mt-1 min-h-10 w-full rounded-md border border-input bg-background px-3 py-2" value={values[key] ?? ''} maxLength={500} onChange={e => update(key, e.target.value)} />}</label>)}</div>;
 
   return <>
     <Button variant="outline" className="min-h-11" disabled={loading} onClick={async () => {

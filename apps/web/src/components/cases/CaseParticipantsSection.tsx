@@ -7,6 +7,7 @@ import { api, CaseParticipantItem, ClientItem } from '@/lib/api';
 import { COUNSEL_ROLES, participantPayload, ROLE_LABELS, SIDE_LABELS } from '@/lib/participants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 // Role is not a status: the label carries it, so every role reads in one quiet tint.
 const ROLE_BADGE_COLORS: Record<string, string> = {
@@ -185,14 +186,14 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
               </div>
               <div>
                 <label htmlFor="participant-person-type" className="text-sm font-medium">ประเภทบุคคล</label>
-                <select id="participant-person-type" value={form.personType} onChange={e => setForm({ ...form, personType: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
+                <Select id="participant-person-type" value={form.personType} onChange={e => setForm({ ...form, personType: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
                   <option value="">ยังไม่ระบุ</option><option value="บุคคลธรรมดา">บุคคลธรรมดา</option><option value="นิติบุคคล">นิติบุคคล</option>
                   {form.personType && !['บุคคลธรรมดา', 'นิติบุคคล'].includes(form.personType) && <option value={form.personType}>{form.personType}</option>}
-                </select>
+                </Select>
               </div>
               <div>
                 <label htmlFor="case-participant-role" className="text-sm font-medium">ฐานะในคดี</label>
-                <select
+                <Select
                   id="case-participant-role"
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
@@ -201,11 +202,11 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
                   {ROLES.map((r) => (
                     <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label htmlFor="case-participant-side" className="text-sm font-medium">อยู่ฝ่ายใด</label>
-                <select
+                <Select
                   id="case-participant-side"
                   value={form.side}
                   onChange={(e) => setForm({ ...form, side: e.target.value })}
@@ -214,24 +215,24 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
                   {SIDES.map((s) => (
                     <option key={s} value={s}>{SIDE_LABELS[s]}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               {form.side === 'OURS' && (
                 <div>
                   <label htmlFor="participant-client" className="text-sm font-medium">ลูกความในทะเบียน (ถ้าเป็นคนเดียวกัน)</label>
-                  <select id="participant-client" value={form.clientId} onChange={e => setForm({ ...form, clientId: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
+                  <Select id="participant-client" value={form.clientId} onChange={e => setForm({ ...form, clientId: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
                     <option value="">ไม่ผูก</option>
                     {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
-                  </select>
+                  </Select>
                 </div>
               )}
               {COUNSEL_ROLES.includes(form.role) && (
                 <div>
                   <label htmlFor="participant-represents" className="text-sm font-medium">เป็นตัวแทนของ</label>
-                  <select id="participant-represents" value={form.representedByParticipantId} onChange={e => setForm({ ...form, representedByParticipantId: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
+                  <Select id="participant-represents" value={form.representedByParticipantId} onChange={e => setForm({ ...form, representedByParticipantId: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
                     <option value="">ยังไม่ระบุ</option>
                     {participants.filter(p => p.id !== editingId && !COUNSEL_ROLES.includes(p.role)).map(p => <option key={p.id} value={p.id}>{p.name} ({ROLE_LABELS[p.role] ?? p.role})</option>)}
-                  </select>
+                  </Select>
                 </div>
               )}
               <div>

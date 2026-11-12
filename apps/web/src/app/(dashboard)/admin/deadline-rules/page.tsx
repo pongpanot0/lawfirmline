@@ -27,6 +27,7 @@ import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
 import { Badge } from '@/components/ui/badge';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 const SELECT = 'h-10 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
 
@@ -214,44 +215,44 @@ export default function DeadlineRulesPage() {
               {form.lockLabel && <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground sm:col-span-2">{t.overrideNote}</p>}
               {field(t.label, <Input required readOnly={form.lockLabel} value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} />)}
               {field(t.trigger, (
-                <select className={SELECT} disabled={form.lockLabel} value={form.trigger} onChange={(e) => setForm({ ...form, trigger: e.target.value as DeadlineTrigger })}>
+                <Select className={SELECT} disabled={form.lockLabel} value={form.trigger} onChange={(e) => setForm({ ...form, trigger: e.target.value as DeadlineTrigger })}>
                   {Object.values(DeadlineTrigger).map((x) => <option key={x} value={x}>{t.triggers[x]}</option>)}
-                </select>
+                </Select>
               ))}
               {field(`${t.offsetDays} — ${t.offsetHint}`, (
                 <Input type="number" min={-3650} max={3650} required value={form.offsetDays} onChange={(e) => setForm({ ...form, offsetDays: Number(e.target.value) })} />
               ))}
               {field(t.dayBasis, (
-                <select className={SELECT} value={form.dayBasis} onChange={(e) => setForm({ ...form, dayBasis: e.target.value as DeadlineDayBasis })}>
+                <Select className={SELECT} value={form.dayBasis} onChange={(e) => setForm({ ...form, dayBasis: e.target.value as DeadlineDayBasis })}>
                   {Object.values(DeadlineDayBasis).map((x) => <option key={x} value={x}>{t.bases[x]}</option>)}
-                </select>
+                </Select>
               ))}
               {field(t.adjustDays, (
                 <Input type="number" min={-3650} max={3650} value={form.adjustDays} onChange={(e) => setForm({ ...form, adjustDays: Number(e.target.value) })} />
               ))}
               {field(t.partySide, (
-                <select className={SELECT} value={form.partySide} onChange={(e) => setForm({ ...form, partySide: e.target.value as PartyRole | '' })}>
+                <Select className={SELECT} value={form.partySide} onChange={(e) => setForm({ ...form, partySide: e.target.value as PartyRole | '' })}>
                   <option value="">{t.any}</option>
                   {Object.values(PartyRole).map((x) => <option key={x} value={x}>{PARTY_ROLE_LABELS[x]}</option>)}
-                </select>
+                </Select>
               ))}
               {form.trigger === DeadlineTrigger.COURT_DATE && field(t.courtEventKind, (
-                <select className={SELECT} value={form.courtEventKind} onChange={(e) => setForm({ ...form, courtEventKind: e.target.value as CourtEventKind | '' })}>
+                <Select className={SELECT} value={form.courtEventKind} onChange={(e) => setForm({ ...form, courtEventKind: e.target.value as CourtEventKind | '' })}>
                   <option value="">{t.any}</option>
                   {Object.values(CourtEventKind).map((x) => <option key={x} value={x}>{COURT_EVENT_KIND_LABELS[x]}</option>)}
-                </select>
+                </Select>
               ))}
               {form.trigger === DeadlineTrigger.JUDGMENT && field(t.courtLevel, (
-                <select className={SELECT} value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value as CourtLevel | '' })}>
+                <Select className={SELECT} value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value as CourtLevel | '' })}>
                   <option value="">{t.any}</option>
                   {Object.values(CourtLevel).map((x) => <option key={x} value={x}>{COURT_LEVEL_LABELS[x]}</option>)}
-                </select>
+                </Select>
               ))}
               {form.trigger === DeadlineTrigger.COMPLAINT_SERVED && field(t.serviceMethod, (
-                <select className={SELECT} value={form.serviceMethod} onChange={(e) => setForm({ ...form, serviceMethod: e.target.value as ServiceMethod | '' })}>
+                <Select className={SELECT} value={form.serviceMethod} onChange={(e) => setForm({ ...form, serviceMethod: e.target.value as ServiceMethod | '' })}>
                   <option value="">{t.any}</option>
                   {Object.values(ServiceMethod).map((x) => <option key={x} value={x}>{SERVICE_METHOD_LABELS[x]}</option>)}
-                </select>
+                </Select>
               ))}
               {isPlatformAdmin && !form.lockLabel && (
                 <label className="flex items-center gap-2 text-sm sm:col-span-2">

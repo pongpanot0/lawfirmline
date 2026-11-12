@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/misc';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 type Audience = AnnualReportSnapshot['audience'];
 type CaseRow = AnnualReportSnapshot['cases'][number];
@@ -187,7 +188,7 @@ export function ClientAnnualReportsPanel({
           </label>
           <label className="min-w-56 text-sm">
             <span className="mb-1 block font-medium">ความสัมพันธ์กับคดี</span>
-            <select
+            <Select
               value={audience}
               disabled={busy}
               onChange={(e) => { setAudience(e.target.value as Audience); resetSelection(); }}
@@ -195,7 +196,7 @@ export function ClientAnnualReportsPanel({
             >
               <option value="PAYER">ผู้ว่าจ้าง / ผู้จ่ายเงิน</option>
               <option value="REPRESENTED">ลูกความ</option>
-            </select>
+            </Select>
           </label>
           <Button type="button" variant="outline" onClick={() => void loadCases()} disabled={busy || year < 2000 || year > 2100}>
             {busy && !loaded ? 'กำลังค้นหา...' : 'ค้นหาคดี'}

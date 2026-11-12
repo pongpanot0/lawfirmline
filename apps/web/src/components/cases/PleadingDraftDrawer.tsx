@@ -7,6 +7,7 @@ import { api, ApiError, PleadingCitation, PleadingDraftItem } from '@/lib/api';
 import { publishActionFeedback } from '@/lib/action-feedback';
 import { splitDraftParagraphs, splitParagraphSegments } from '@/lib/pleading-draft-format';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 const KIND_OPTIONS: { value: string; label: string }[] = [
   { value: 'ANSWER', label: 'คำให้การ' },
@@ -136,7 +137,7 @@ export function PleadingDraftDrawer({
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block text-sm font-medium">ประเภท</label>
-                <select
+                <Select
                   value={kind}
                   onChange={(e) => setKind(e.target.value)}
                   className="w-full rounded-lg border bg-background px-2 py-1.5 text-sm"
@@ -146,7 +147,7 @@ export function PleadingDraftDrawer({
                       {opt.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">คำสั่งเพิ่มเติม (ถ้ามี)</label>

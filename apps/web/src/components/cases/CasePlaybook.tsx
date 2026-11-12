@@ -6,6 +6,7 @@ import { FIRM_ROLE_LABELS } from '@lawfirm/shared';
 import { latestPlaybookReleases, PlaybookPreview, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { Button } from '@/components/ui/button';
 import { caseStageLabel } from '@/lib/stage-labels';
+import { Select } from '@/components/ui/select';
 
 const ROLE_LABELS: Record<string, { th: string; en: string }> = {
   OWNER: { th: 'เจ้าของสำนักงาน', en: 'Firm owner' },
@@ -65,10 +66,10 @@ export function CasePlaybook({ caseId, caseTypeId, initialReleaseId = '', onAppl
       {(loadError || error) && <div role="alert" className="text-sm text-destructive">{loadError || error}<Button variant="outline" className="ml-2" disabled={busy || previewBusy} onClick={() => setReload(value => value + 1)}>{th ? 'ลองโหลดรายการงานอีกครั้ง' : 'Retry loading tasks'}</Button></div>}
       {applied && <p role="status">{th ? 'เพิ่มงานจากชุดงานแล้ว' : 'SOP tasks added'}</p>}
       <label className="block text-sm">{th ? 'ชุดงานอัตโนมัติ' : 'Automated SOP'}
-        <select disabled={busy} value={releaseId} onChange={e => { manuallySelected.current = true; setReleaseId(e.target.value); setPreview(null); setApplied(false); }} className="h-11 w-full rounded-lg border bg-background px-2">
+        <Select disabled={busy} value={releaseId} onChange={e => { manuallySelected.current = true; setReleaseId(e.target.value); setPreview(null); setApplied(false); }} className="h-11 w-full rounded-lg border bg-background px-2">
           <option value="">{th ? 'เลือกชุดงานอัตโนมัติ' : 'Choose an SOP'}</option>
           {releases.map(r => <option key={r.id} value={r.id}>{r.name} · ฉบับที่ {r.version}{caseTypeId && r.caseTypeId === caseTypeId ? (th ? ' · แนะนำสำหรับคดีนี้' : ' · Recommended') : ''}</option>)}
-        </select>
+        </Select>
       </label>
       {previewBusy && <p role="status" className="text-sm">{th ? 'กำลังตรวจรายการงาน…' : 'Loading task preview…'}</p>}
       {readyPreview && <p className="text-sm font-medium">{readyPreview.release.name} · {readyPreview.steps.length} {th ? 'ขั้นตอน' : 'steps'}</p>}

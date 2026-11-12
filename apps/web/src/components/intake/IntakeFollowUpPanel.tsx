@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { Select } from '@/components/ui/select';
 
 const SELECT_CLASS = 'h-9 rounded-lg border border-input bg-card px-3 text-sm';
 
@@ -134,14 +135,14 @@ export function IntakeFollowUpPanel({
         </label>
         <label className="text-xs">
           <span className="mb-1 block text-muted-foreground">{th ? 'ผู้รับผิดชอบเรื่อง' : 'Owner'}</span>
-          <select value={nextOwnerId} onChange={(e) => setNextOwnerId(e.target.value)} className={SELECT_CLASS}>
+          <Select value={nextOwnerId} onChange={(e) => setNextOwnerId(e.target.value)} className={SELECT_CLASS}>
             <option value="">{th ? 'ไม่ระบุ' : 'Unassigned'}</option>
             {lawyers.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.firstName} {l.lastName}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <Button type="button" onClick={submit} disabled={busy || !note.trim()}>
           {th ? 'บันทึกการติดตาม' : 'Log follow-up'}

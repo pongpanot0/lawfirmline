@@ -20,6 +20,7 @@ import {
   replySubject,
   type ReplySourceMessage,
 } from '@/lib/case-email-compose';
+import { Select } from '@/components/ui/select';
 
 export type CaseEmailComposerMode =
   | { kind: 'new' }
@@ -254,7 +255,7 @@ export function CaseEmailComposer({
             <div className="space-y-2 text-sm">
               <label className="block space-y-1">
                 <span className="font-medium">ใช้เทมเพลต</span>
-                <select
+                <Select
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value=""
                   disabled={templateLoading}
@@ -266,7 +267,7 @@ export function CaseEmailComposer({
                       {t.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               {pendingTemplate && (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-2">

@@ -6,6 +6,7 @@ import { PlaybookRelease } from '@/lib/practice-setup';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/misc';
+import { Select } from '@/components/ui/select';
 
 const SELECT_CLASS = 'w-full h-9 rounded-lg border border-input bg-card px-3 text-sm';
 
@@ -103,7 +104,7 @@ export function ConvertToCaseDialog({
         {!attachingToExisting && (
           <label className="block text-sm">
             <span className="mb-1 block text-muted-foreground">ทนายเจ้าของคดี</span>
-            <select
+            <Select
               value={leadLawyerId}
               onChange={(e) => setLeadLawyerId(e.target.value)}
               className={SELECT_CLASS}
@@ -114,14 +115,14 @@ export function ConvertToCaseDialog({
                   {lawyer.firstName} {lawyer.lastName}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
 
         {!attachingToExisting && playbooks.length > 0 && (
           <label className="block text-sm">
             <span className="mb-1 block text-muted-foreground">ชุดงานอัตโนมัติ (ถ้ามี — สร้างงานให้เองหลังเปิดคดี)</span>
-            <select
+            <Select
               value={playbookId}
               onChange={(e) => setPlaybookId(e.target.value)}
               className={SELECT_CLASS}
@@ -133,7 +134,7 @@ export function ConvertToCaseDialog({
                   {p.caseTypeId === intake.caseTypeId ? ' (แนะนำ)' : ''}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
 

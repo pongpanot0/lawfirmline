@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { MoneyInput } from '@/components/ui/MoneyInput';
+import { Select } from '@/components/ui/select';
 
 const METHOD_LABELS: Record<string, string> = {
   TRANSFER: 'โอนเงิน',
@@ -80,7 +81,7 @@ export function RecordPaymentForm({
       </label>
       <label className="text-sm">
         <span className="mb-1 block text-sm font-medium">วิธีชำระ</span>
-        <select
+        <Select
           value={method}
           onChange={(e) => setMethod(e.target.value as typeof method)}
           className="h-10 rounded-lg border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -90,7 +91,7 @@ export function RecordPaymentForm({
               {label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="text-sm">
         <span className="mb-1 block text-sm font-medium">วันที่รับเงิน</span>

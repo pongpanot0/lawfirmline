@@ -19,6 +19,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { getPageGuide } from '@/components/guide/page-guides';
 import { SearchHint } from '@/components/guide/SearchHint';
+import { Select } from '@/components/ui/select';
 
 export default function DocumentsPage() {
   const d = useDashboardT();
@@ -281,7 +282,7 @@ export default function DocumentsPage() {
             <CardContent className="p-4 space-y-3">
               <h2 className="text-xl font-semibold">อัปโหลดเข้าคดี</h2><p className="text-sm text-muted-foreground">เลือกคดีก่อนนำเข้าเอกสาร</p>
               <label htmlFor="documents-upload-case" className="block text-sm font-medium">1 เลือกคดี</label>
-              <select
+              <Select
                 id="documents-upload-case"
                 value={selectedCase}
                 onChange={(e) => setSelectedCase(e.target.value)}
@@ -294,7 +295,7 @@ export default function DocumentsPage() {
                     {c.status === CaseStatus.CLOSED ? ` (${d.documents.caseClosedTag})` : ''}
                   </option>
                 ))}
-              </select>
+              </Select>
               <p className="text-sm font-medium">2 ลากไฟล์มาวาง</p>
               <DocumentDropZone
                 ref={dropZoneRef}

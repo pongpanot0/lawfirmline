@@ -6,6 +6,7 @@ import { api, ApiError, type CaseUnknownAddressItem } from '@/lib/api';
 import { ROLE_LABELS, SIDE_LABELS } from '@/lib/participants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 type Kind = 'CONTACT' | 'PARTICIPANT';
 
@@ -140,19 +141,19 @@ export function CaseUnknownAddresses({ caseId, threadId }: { caseId: string; thr
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block text-sm font-medium">
                         บทบาท
-                        <select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
+                        <Select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
                           {Object.keys(ROLE_LABELS).map((r) => (
                             <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
                       <label className="block text-sm font-medium">
                         ฝ่าย
-                        <select value={side} onChange={(event) => setSide(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
+                        <Select value={side} onChange={(event) => setSide(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
                           {Object.keys(SIDE_LABELS).map((s) => (
                             <option key={s} value={s}>{SIDE_LABELS[s]}</option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
                     </div>
                   )}

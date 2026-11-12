@@ -6,6 +6,7 @@ import { api, ClientItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 /**
  * เลือกลูกค้าจากที่มีอยู่ หรือพิมพ์ชื่อสร้างใหม่ตรงนี้เลย
@@ -95,7 +96,7 @@ export function CustomerSelect({
         </div>
       ) : (
         <div className="mt-1.5 flex items-center gap-2">
-          <select
+          <Select
             id={id}
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -107,7 +108,7 @@ export function CustomerSelect({
                 {client.name}
               </option>
             ))}
-          </select>
+          </Select>
           <Button
             type="button"
             variant="outline"

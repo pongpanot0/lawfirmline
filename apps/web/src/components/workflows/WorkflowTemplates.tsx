@@ -9,6 +9,7 @@ import { EmptyState, Skeleton } from '@/components/ui/misc';
 import { TemplateDrawer } from './TemplateDrawer';
 import { ROLE_LABELS } from './workflow-ui';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 export function WorkflowTemplates({ token, canEdit, search = '', editor, onEditorChange }: {
   token: string; canEdit: boolean; search?: string;
@@ -63,11 +64,11 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">ระบบเลือกแม่แบบนี้ให้เมื่อเริ่มสายงานในคดี ยังตรวจผู้รับแต่ละขั้นได้ก่อนเริ่ม ใช้ร่วมกันทั้งสำนักงาน</p>
         </div>
         {canEdit ? <label className="min-w-0 text-xs text-muted-foreground">แม่แบบเริ่มต้นของสำนักงาน
-          <select aria-label="แม่แบบเริ่มต้นของสำนักงาน" className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-input bg-card px-3 text-sm text-foreground"
+          <Select aria-label="แม่แบบเริ่มต้นของสำนักงาน" className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-input bg-card px-3 text-sm text-foreground"
             value={draftDefault ?? defaultTemplate?.id ?? ''} disabled={savingDefault} onChange={e => setDraftDefault(e.target.value)}>
             <option value="">ไม่เลือกแม่แบบให้ล่วงหน้า</option>
             {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          </Select>
           {draftDefault !== null && <Button type="button" size="sm" disabled={savingDefault} onClick={() => void setDefault(draftDefault)}>บันทึกค่าเริ่มต้น</Button>}
           {savingDefault && <span role="status" className="mt-1 block">กำลังบันทึกค่าเริ่มต้น…</span>}
         </label> : <p className="self-center break-words text-sm font-medium">{defaultTemplate?.name ?? 'ยังไม่มีแม่แบบเริ่มต้น'}</p>}

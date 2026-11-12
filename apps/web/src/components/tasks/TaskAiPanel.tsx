@@ -9,6 +9,7 @@ import { useLocale } from '@/components/landing/LocaleProvider';
 import { bangkokDateInputValue } from '@/lib/bangkok';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 
 type AiTab = 'summary' | 'source' | 'history';
 
@@ -203,7 +204,7 @@ export function TaskAiPanel({ task, users, tab, onTabChange, onChanged, onNaviga
         <fieldset disabled={saving} className="space-y-4">
         <label className="block text-xs font-medium">{t('ชื่องานติดตาม', 'Follow-up title')}<input required maxLength={200} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" /></label>
         <label className="block text-xs font-medium">{t('รายละเอียด', 'Details')}<textarea required maxLength={2000} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" /></label>
-        <label className="block text-xs font-medium">{t('ผู้รับผิดชอบ', 'Assignee')}<select required value={draft.assigneeId} onChange={(event) => setDraft((current) => ({ ...current, assigneeId: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"><option value="">{t('เลือกผู้รับผิดชอบ', 'Choose assignee')}</option>{assignableUsers.map((member) => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}</select></label>
+        <label className="block text-xs font-medium">{t('ผู้รับผิดชอบ', 'Assignee')}<Select required value={draft.assigneeId} onChange={(event) => setDraft((current) => ({ ...current, assigneeId: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"><option value="">{t('เลือกผู้รับผิดชอบ', 'Choose assignee')}</option>{assignableUsers.map((member) => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}</Select></label>
         <label className="block text-xs font-medium">{t('วันติดตาม', 'Follow-up date')}<input type="date" required min={bangkokDateInputValue(new Date())} value={draft.followUpDate} onChange={(event) => setDraft((current) => ({ ...current, followUpDate: event.target.value }))} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" /></label>
         <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">{t('งานใหม่จะเชื่อมกับงานหลักและข้อความต้นทาง วันติดตามไม่เปลี่ยนกำหนดส่งเดิม', 'The new task links to this task and its source update. Its date does not change the original due date.')}</p>
         {saveError && <p role="alert" className="text-xs text-destructive">{saveError}</p>}

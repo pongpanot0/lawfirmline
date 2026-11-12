@@ -23,6 +23,7 @@ import { api, type CaseListItem, type IntakeItem } from '@/lib/api';
 import { CaseAiChat } from './CaseAiChat';
 import { SecretaryChat } from './SecretaryChat';
 import { AiTrayCards } from './AiTrayCards';
+import { Select } from '@/components/ui/select';
 
 const AI_ACTIONS = [
   {
@@ -282,7 +283,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                   {action?.id === 'summarize' && (
                     <>
                       {!caseId && (
-                        <select
+                        <Select
                           aria-label="เลือกคดี"
                           value={selectedCaseId}
                           onChange={(e) => setSelectedCaseId(e.target.value)}
@@ -294,7 +295,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                               {c.ownRef} — {c.title}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       )}
                       <input
                         ref={fileInputRef}
@@ -331,7 +332,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                   )}
 
                   {action?.id === 'draft' && (
-                    <select
+                    <Select
                       aria-label="เลือกเรื่องรับเข้า"
                       value={selectedIntakeId}
                       onChange={(e) => setSelectedIntakeId(e.target.value)}
@@ -343,7 +344,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
                           {i.title || i.clientName || i.id}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   )}
 
                   {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

@@ -10,6 +10,7 @@ import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { InlineEmptyState } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
+import { Select } from '@/components/ui/select';
 
 type Draft = { label: string; date: string; time: string; eventType: DateSuggestionItem['eventType']; assigneeId: string };
 
@@ -175,7 +176,7 @@ export function DateSuggestionsPanel({
                   </label>
                   <label className="text-xs text-muted-foreground">
                     ประเภทนัด
-                  <select
+                  <Select
                     value={draft.eventType}
                     onChange={(e) =>
                       setDrafts((prev) => ({
@@ -189,14 +190,14 @@ export function DateSuggestionsPanel({
                     <option value="CLIENT_MEETING">{d.calendar.typeClientMeeting}</option>
                     <option value="DEADLINE">{d.calendar.typeDeadline}</option>
                     <option value="OTHER">{d.calendar.typeOther}</option>
-                  </select>
+                  </Select>
                   </label>
                 </div>
 
                 {s.source !== 'RULE' && (
                   <label className="mt-3 block text-sm font-medium">
                     ทนายผู้รับผิดชอบวันนัด <span className="text-destructive">*</span>
-                    <select
+                    <Select
                       required
                       value={draft.assigneeId}
                       onChange={(e) => setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, assigneeId: e.target.value } }))}
@@ -206,7 +207,7 @@ export function DateSuggestionsPanel({
                       {lawyers.map((lawyer) => (
                         <option key={lawyer.id} value={lawyer.id}>{lawyer.firstName} {lawyer.lastName}</option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                 )}
 

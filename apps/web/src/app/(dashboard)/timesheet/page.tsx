@@ -20,6 +20,7 @@ import { fmt } from '@/lib/i18n/dashboard';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatDate } from '@/lib/utils';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -240,7 +241,7 @@ export default function TimesheetPage() {
             <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.to}</span>
             <ThaiDateField ariaLabel={d.timesheet.to} value={to} onChange={setTo} />
             {canViewTeam && (
-              <select
+              <Select
                 aria-label="แสดงเวลาของ"
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
@@ -252,7 +253,7 @@ export default function TimesheetPage() {
                     {m.firstName} {m.lastName}
                   </option>
                 ))}
-              </select>
+              </Select>
             )}
           </div>
         </CardHeader>

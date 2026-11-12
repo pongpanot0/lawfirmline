@@ -8,6 +8,7 @@ import { api, ApiError, type ImportCaseResult, type ImportClosedOutcome, type Pa
 import { draftFromSuggestion, draftProblem, toImportRow, type ImportCaseDraft } from '@/lib/drive-case-import';
 import { Button } from '@/components/ui/button';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
+import { Select } from '@/components/ui/select';
 
 // Same wording as the close-case dialog.
 const OUTCOME_OPTIONS: [ImportClosedOutcome, string][] = [
@@ -108,10 +109,10 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
       {drafts.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="tabular-nums">เลือก {selected.length} folder</span>
-          <select aria-label="ทนายหลักสำหรับโฟลเดอร์ที่เลือก" value={bulkLead} onChange={(e) => setBulkLead(e.target.value)} className={`${field} w-auto`}>
+          <Select aria-label="ทนายหลักสำหรับโฟลเดอร์ที่เลือก" value={bulkLead} onChange={(e) => setBulkLead(e.target.value)} className={`${field} w-auto`}>
             <option value="">— ทนายหลัก —</option>
             {lawyers.map((l) => <option key={l.id} value={l.id}>{lawyerName.get(l.id)}</option>)}
-          </select>
+          </Select>
           <Button size="sm" variant="outline" disabled={!bulkLead || selected.length === 0} onClick={applyLead}>
             ตั้งทนายหลักให้โฟลเดอร์ที่เลือก
           </Button>
@@ -143,15 +144,15 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
                     <input value={d.courtName ?? ''} onChange={(e) => update(d.itemId, { courtName: e.target.value })} className={field} />
                   </label>
                   <label className="text-xs">ชั้นศาล
-                    <select value={d.courtLevel} onChange={(e) => update(d.itemId, { courtLevel: e.target.value as ImportCaseDraft['courtLevel'] })} className={field}>
+                    <Select value={d.courtLevel} onChange={(e) => update(d.itemId, { courtLevel: e.target.value as ImportCaseDraft['courtLevel'] })} className={field}>
                       {Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <label className="text-xs">ทนายหลัก
-                    <select value={d.leadLawyerId} onChange={(e) => update(d.itemId, { leadLawyerId: e.target.value })} className={field}>
+                    <Select value={d.leadLawyerId} onChange={(e) => update(d.itemId, { leadLawyerId: e.target.value })} className={field}>
                       <option value="">— เลือก —</option>
                       {lawyers.map((l) => <option key={l.id} value={l.id}>{lawyerName.get(l.id)}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <div className="text-xs sm:col-span-2">
                     <span>ทีม {d.teamHint && <span className="text-muted-foreground">(ใน folder: {d.teamHint})</span>}</span>
@@ -171,10 +172,10 @@ export function DriveCaseImportTable({ driveId, items, onDone }: { driveId: stri
                   {d.closed && (
                     <>
                       <label className="text-xs">ผลคดี
-                        <select value={d.outcome ?? ''} onChange={(e) => update(d.itemId, { outcome: (e.target.value || undefined) as ImportClosedOutcome | undefined })} className={field}>
+                        <Select value={d.outcome ?? ''} onChange={(e) => update(d.itemId, { outcome: (e.target.value || undefined) as ImportClosedOutcome | undefined })} className={field}>
                           <option value="">— เลือกผลคดี —</option>
                           {OUTCOME_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                        </select>
+                        </Select>
                       </label>
                       <label className="text-xs">สรุปตอนปิด
                         <input value={d.closingSummary ?? ''} onChange={(e) => update(d.itemId, { closingSummary: e.target.value })} className={field} />

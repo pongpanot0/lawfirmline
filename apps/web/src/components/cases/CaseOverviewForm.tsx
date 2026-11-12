@@ -8,6 +8,7 @@ import { CourtSelect } from './CourtSelect';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { Plus, X } from 'lucide-react';
+import { Select } from '@/components/ui/select';
 
 export interface CaseOverviewCustomerValue {
   customerId: string;
@@ -56,19 +57,19 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
       <section className={group} aria-labelledby="case-basic-heading">
         <h3 id="case-basic-heading" className="font-semibold sm:col-span-2">ข้อมูลหลักของคดี</h3>
         <label className="text-sm sm:col-span-2">ชื่อคดี *<input autoFocus required value={value.title} onChange={e => set('title', e.target.value)} className={input} /></label>
-        <label className="text-sm">ประเภทคดี<select value={value.caseTypeId} onChange={e => set('caseTypeId', e.target.value)} className={input}>
+        <label className="text-sm">ประเภทคดี<Select value={value.caseTypeId} onChange={e => set('caseTypeId', e.target.value)} className={input}>
           <option value="" disabled={!!legalCase.caseType}>ยังไม่ระบุ</option>
           {legalCase.caseType && !caseTypes.some(t => t.id === legalCase.caseType?.id) && <option value={legalCase.caseType.id}>{legalCase.caseType.name}</option>}
           {caseTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select></label>
-        <label className="text-sm">ฝ่ายที่สำนักงานเป็นทนายให้<select value={value.partyRole} onChange={e => set('partyRole', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(PartyRole).map(role => <option key={role} value={role}>{PARTY_ROLE_LABELS[role]}</option>)}</select></label>
+        </Select></label>
+        <label className="text-sm">ฝ่ายที่สำนักงานเป็นทนายให้<Select value={value.partyRole} onChange={e => set('partyRole', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(PartyRole).map(role => <option key={role} value={role}>{PARTY_ROLE_LABELS[role]}</option>)}</Select></label>
         <label className="text-sm sm:col-span-2">ข้อหาหรือฐานความผิด<textarea rows={2} maxLength={2000} value={value.chargeSection} onChange={e => set('chargeSection', e.target.value)} placeholder="เช่น ละเมิด เรียกค่าเสียหาย / ผิดสัญญา" className={input} /><span className="mt-1 block text-xs text-muted-foreground">ระบุเรื่องที่ฟ้องหรือฐานความผิด ใช้ในคำฟ้องหน้าแรกและปกสำนวน</span></label>
         <label className="text-sm sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี<textarea rows={4} value={value.description} onChange={e => set('description', e.target.value)} placeholder="สรุปเหตุการณ์และประเด็นสำคัญของคดี" className={input} /></label>
         <div role="group" aria-labelledby="overview-limitation-label" className="text-sm"><span id="overview-limitation-label">วันครบอายุความ</span><ThaiDateInput id="overview-limitation-deadline" className="mt-1" value={value.limitationDeadline} onChange={next => set('limitationDeadline', next)} onIncompleteChange={onLimitationIncompleteChange} /><span className="mt-1 block text-xs text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน · แก้รายชื่อคู่ความได้ที่ส่วน &quot;คู่ความและผู้เกี่ยวข้อง&quot;</span></div>
         <label className="text-sm">วันเกิดเหตุ<input type="date" value={value.incidentDate.slice(0, 10)} onChange={e => set('incidentDate', e.target.value)} className={input} /></label>
         {caseTypeFields.map(field => <label key={field.key} htmlFor={`custom-${field.key}`} className="text-sm">{field.label}{field.required ? ' *' : ''}
           {field.type === 'select'
-            ? <select id={`custom-${field.key}`} value={value.customFields[field.key] ?? ''} onChange={e => onChange({ ...value, customFields: { ...value.customFields, [field.key]: e.target.value } })} className={input}><option value="">เลือก{field.label}</option>{field.options?.map(option => <option key={option} value={option}>{option}</option>)}</select>
+            ? <Select id={`custom-${field.key}`} value={value.customFields[field.key] ?? ''} onChange={e => onChange({ ...value, customFields: { ...value.customFields, [field.key]: e.target.value } })} className={input}><option value="">เลือก{field.label}</option>{field.options?.map(option => <option key={option} value={option}>{option}</option>)}</Select>
             : <input id={`custom-${field.key}`} type={field.type === 'number' || field.type === 'date' ? field.type : 'text'} value={value.customFields[field.key] ?? ''} onChange={e => onChange({ ...value, customFields: { ...value.customFields, [field.key]: e.target.value } })} className={input} />}
         </label>)}
       </section>
@@ -83,11 +84,11 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
           <p>ลูกความเพิ่มเติม</p>
           {value.additionalClientIds.map((clientId, index) => (
             <div key={index} className="flex min-w-0 items-center gap-2">
-              <select aria-label={`ลูกความเพิ่มเติมรายที่ ${index + 1}`} value={clientId}
+              <Select aria-label={`ลูกความเพิ่มเติมรายที่ ${index + 1}`} value={clientId}
                 onChange={e => onChange({ ...value, additionalClientIds: value.additionalClientIds.map((id, i) => i === index ? e.target.value : id) })} className={input}>
                 <option value="">เลือกลูกความ</option>
                 {clients.filter(client => client.id !== value.clientId && (client.id === clientId || !value.additionalClientIds.includes(client.id))).map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
-              </select>
+              </Select>
               <Button type="button" variant="ghost" size="icon" aria-label={`ลบลูกความเพิ่มเติมรายที่ ${index + 1}`}
                 onClick={() => onChange({ ...value, additionalClientIds: value.additionalClientIds.filter((_, i) => i !== index) })}><X className="h-4 w-4" /></Button>
             </div>
@@ -103,7 +104,7 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
               <CustomerSelect id={`overview-customer-${index}`} label={`ผู้ว่าจ้างรายที่ ${index + 1}`} value={customer.customerId} clients={clients} onChange={customerId => onChange({ ...value, customers: value.customers.map((row, i) => i === index ? { ...row, customerId, contactId: '' } : row) })} onCreated={onClientCreated} />
               {value.customers.length > 1 && <label className="block min-w-0 text-xs text-muted-foreground">สัดส่วน (%)<input type="number" min="0" max="100" value={customer.sharePercent} onChange={e => onChange({ ...value, customers: value.customers.map((row, i) => i === index ? { ...row, sharePercent: e.target.value } : row) })} className="mt-1 h-10 w-full min-w-0 rounded-lg border border-input bg-background px-2 text-center text-sm" /></label>}
               {value.customers.length > 1 && <Button type="button" variant="ghost" size="icon" aria-label={`ลบผู้ว่าจ้างรายที่ ${index + 1}`} onClick={() => onChange({ ...value, customers: value.customers.filter((_, i) => i !== index) })}><X className="h-4 w-4" /></Button>}
-              {contacts.length > 0 && <label className="col-span-full block min-w-0 text-xs text-muted-foreground">ผู้ติดต่อ<select aria-label={`ผู้ติดต่อผู้ว่าจ้างรายที่ ${index + 1}`} value={customer.contactId} onChange={e => onChange({ ...value, customers: value.customers.map((row, i) => i === index ? { ...row, contactId: e.target.value } : row) })} className={input}><option value="">ยังไม่ระบุ</option>{contacts.map(contact => <option key={contact.id} value={contact.id}>{contact.name}</option>)}</select></label>}
+              {contacts.length > 0 && <label className="col-span-full block min-w-0 text-xs text-muted-foreground">ผู้ติดต่อ<Select aria-label={`ผู้ติดต่อผู้ว่าจ้างรายที่ ${index + 1}`} value={customer.contactId} onChange={e => onChange({ ...value, customers: value.customers.map((row, i) => i === index ? { ...row, contactId: e.target.value } : row) })} className={input}><option value="">ยังไม่ระบุ</option>{contacts.map(contact => <option key={contact.id} value={contact.id}>{contact.name}</option>)}</Select></label>}
             </div>;
           })}
           <Button type="button" variant="outline" size="sm" onClick={() => onChange({ ...value, customers: [...value.customers, { customerId: '', contactId: '', sharePercent: '', isPrimary: false, note: '' }] })}><Plus className="h-3.5 w-3.5" /> เพิ่มผู้ว่าจ้าง</Button>
@@ -111,12 +112,12 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
       </section>
       <section className={group} aria-labelledby="case-court-heading">
         <div className="sm:col-span-2"><h3 id="case-court-heading" className="font-semibold">ศาลและหมายเลขคดี</h3><p className="mt-1 text-xs text-muted-foreground">ยังไม่ยื่นฟ้องหรือยังไม่มีเลขคดี เว้นว่างไว้ได้</p></div>
-        <label className="text-sm">ระดับศาล<select value={value.courtLevel} onChange={e => {
+        <label className="text-sm">ระดับศาล<Select value={value.courtLevel} onChange={e => {
           const next = e.target.value;
           const switching = (next || 'TRIAL') !== (legalCase.courtLevel || 'TRIAL');
           // Locked fields go back to the stored values so an earlier edit cannot make the save fail.
           onChange({ ...value, courtLevel: next, ...(switching ? { courtName: legalCase.courtName ?? '', blackCaseNumber: legalCase.blackCaseNumber ?? '', redCaseNumber: legalCase.redCaseNumber ?? '' } : {}) });
-        }} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(CourtLevel).map(level => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label>
+        }} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(CourtLevel).map(level => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</Select></label>
         <fieldset disabled={levelSwitching} className="contents">
           <label className="text-sm">ศาล<CourtSelect value={value.courtName} courts={courts} onChange={name => set('courtName', name)} className={input} /></label>
           <label className="text-sm">หมายเลขคดีดำ<input value={value.blackCaseNumber} onChange={e => set('blackCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>

@@ -6,6 +6,7 @@ import { Textarea } from './textarea';
 import { CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { thaiDateLabel } from '@/lib/thai-date';
+import { Select } from './select';
 
 type FieldProps = { label: string; hint?: string; error?: string; containerClassName?: string };
 
@@ -47,8 +48,8 @@ export function SelectField({ label, hint, error, containerClassName, id: suppli
   const generatedId = React.useId();
   const id = suppliedId ?? generatedId;
   return <Field id={id} label={label} hint={hint} error={error} required={props.required} className={containerClassName}>
-    <select {...props} id={id} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={describedBy(id, hint, error, props['aria-describedby'])}
-      className={cn('h-11 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50', className)}>{children}</select>
+    <Select {...props} id={id} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={describedBy(id, hint, error, props['aria-describedby'])}
+      className={cn('h-11 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50', className)}>{children}</Select>
   </Field>;
 }
 

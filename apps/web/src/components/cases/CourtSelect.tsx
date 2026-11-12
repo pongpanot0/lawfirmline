@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { CourtItem } from '@/lib/api';
+import { Select } from '@/components/ui/select';
 
 const OTHER = '__other__';
 
@@ -25,7 +26,7 @@ export function CourtSelect({
 
   return (
     <>
-      <select
+      <Select
         id={id}
         value={typing ? OTHER : value}
         onChange={(e) => {
@@ -38,7 +39,7 @@ export function CourtSelect({
         <option value="">ยังไม่ระบุ</option>
         {courts.map((court) => <option key={court.id} value={court.name}>{court.name}</option>)}
         <option value={OTHER}>ศาลอื่น (พิมพ์เอง)</option>
-      </select>
+      </Select>
       {typing && (
         <input
           aria-label="ชื่อศาล"
