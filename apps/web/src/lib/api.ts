@@ -399,6 +399,8 @@ export interface CalendarEventItem {
   leaveOwnerId?: string;
   leaveStartDate?: string;
   leaveEndDate?: string;
+  /** Leave day still awaiting approval (drawn dashed). */
+  leavePending?: boolean;
   onlineMeeting?: boolean;
   reminderMinutes?: number[];
   onlineMeetingUrl?: string | null;

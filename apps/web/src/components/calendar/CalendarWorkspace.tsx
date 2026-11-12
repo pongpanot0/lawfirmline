@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { calendarPersonColors, eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
+import { leaveDayEvents } from '@/lib/leave-flags';
 import { Plus, Bell, ListOrdered, CalendarDays, Palette, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Tabs, TabsList } from '@/components/ui/tabs';
@@ -30,7 +31,6 @@ const EVENT_COLORS: Record<string, string> = {
   LEAVE: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
 };
 
-const LEAVE_LABELS = { SICK: 'ลาป่วย', PERSONAL: 'ลากิจ', VACATION: 'พักร้อน' } as const;
 
 export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month' }) {
   const router = useRouter();
@@ -83,29 +83,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
       api.getCalendarEvents(token, { from, to }),
       api.getLeaves(token, dateKey(new Date(month.getFullYear(), month.getMonth() - 1, 1)), dateKey(new Date(month.getFullYear(), month.getMonth() + 2, 0))),
     ]);
-    const leaveDays: CalendarEventItem[] = leaves.filter((leave) => leave.status === 'APPROVED').flatMap((leave) => {
-      const days: CalendarEventItem[] = [];
-      const cursor = new Date(`${leave.startDate.slice(0, 10)}T00:00:00Z`);
-      const end = leave.endDate.slice(0, 10);
-      while (cursor.toISOString().slice(0, 10) <= end) {
-        const date = cursor.toISOString().slice(0, 10);
-        days.push({
-          id: `leave:${leave.id}:${date}`,
-          title: `${LEAVE_LABELS[leave.type]} · ${leave.user.firstName} ${leave.user.lastName}`,
-          type: 'LEAVE',
-          startAt: `${date}T09:00:00+07:00`,
-          endAt: `${date}T18:00:00+07:00`,
-          assigneeId: leave.userId,
-          leaveId: leave.id,
-          leaveType: leave.type,
-          leaveOwnerId: leave.userId,
-          leaveStartDate: leave.startDate.slice(0, 10),
-          leaveEndDate: leave.endDate.slice(0, 10),
-        });
-        cursor.setUTCDate(cursor.getUTCDate() + 1);
-      }
-      return days;
-    });
+    const leaveDays = leaveDayEvents(leaves);
     setEvents([...appointments, ...leaveDays].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()));
   }, [token, month]);
 
