@@ -20,6 +20,7 @@ import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { StepTracker } from '@/components/process/StepTracker';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { TeamLeaveCalendar } from '@/components/leaves/TeamLeaveCalendar';
+import { LeaveSummary } from '@/components/leaves/LeaveSummary';
 
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -47,7 +48,7 @@ export default function LeavesPage() {
 
   const [leaves, setLeaves] = useState<(LeaveItem & { createdAt?: string })[]>([]);
   const [tab, setTab] = useState('MY');
-  useEffect(() => { const requested = new URLSearchParams(window.location.search).get('tab'); if (requested && ['MY', 'DONE', ...(canApproveLeave ? ['APPROVE'] : [])].includes(requested)) setTab(requested); else if (canApproveLeave) setTab('APPROVE'); }, [canApproveLeave]);
+  useEffect(() => { const requested = new URLSearchParams(window.location.search).get('tab'); if (requested && ['MY', 'DONE', 'SUMMARY', ...(canApproveLeave ? ['APPROVE'] : [])].includes(requested)) setTab(requested); else if (canApproveLeave) setTab('APPROVE'); }, [canApproveLeave]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -194,7 +195,9 @@ export default function LeavesPage() {
         ...(canApproveLeave ? [{ key: 'APPROVE', label: 'รอฉันอนุมัติ', count: pending.length }] : []),
         { key: 'MY', label: 'ใบลาของฉัน', count: activeLeaves.length },
         { key: 'DONE', label: 'เสร็จแล้ว', count: completedLeaves.length },
+        { key: 'SUMMARY', label: 'สรุปรายคน' },
       ]} />
+      {tab === 'SUMMARY' && <LeaveSummary token={token} userId={user?.id} seeAll={canApproveLeave} reloadKey={reloadKey} />}
       {canApproveLeave && tab === 'APPROVE' && (
         <Card>
           <CardHeader>
@@ -246,7 +249,7 @@ export default function LeavesPage() {
         </Card>
       )}
 
-      {tab !== 'APPROVE' && <Card>
+      {(tab === 'MY' || tab === 'DONE') && <Card>
         <CardHeader>
           <CardTitle>{tab === 'DONE' && canApproveLeave ? 'ใบลาที่พิจารณาแล้ว' : d.leaves.myRequests}</CardTitle>
         </CardHeader>
