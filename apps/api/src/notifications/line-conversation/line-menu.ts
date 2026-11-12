@@ -19,6 +19,28 @@ export const MENU_SELECTION_MAP: Record<string, FlowType> = {
   'การลาของฉัน': FlowType.LEAVE,
 };
 
+/** A leave question ("ใครลาบ้าง", "ลาเหลือกี่วัน") is for the AI, not the leave form. */
+const LEAVE_QUESTION = /ใคร|กี่|เหลือ|ยังไง|อย่างไร|ทำไม|ระเบียบ|สิทธิ|\?/;
+/**
+ * "ลา" typed as a request: "ลา", "ขอลาพรุ่งนี้", "จะลาป่วยครับ", "ขอหยุดงาน".
+ * What may follow "ลา" is listed, not excluded, so ลาออก / ลาย / ลาบ / ลาเต้ never open the form.
+ */
+const LEAVE_REQUEST =
+  /^(?:(?:ขออนุญาต|ขอ|จะ|อยาก|ต้องการ|ผม|หนู|ดิฉัน|ฉัน|เรา|พี่|น้อง)\s*)*(?:ลา(?=$|\s|ป่วย|กิจ|พัก|งาน|หยุด|วัน|พรุ่ง|พรุ้ง|มะรืน|ครึ่ง|ครับ|คับ|ค่ะ|คะ|นะ|จ้า|ด้วย|\d|จันทร์|อังคาร|พุธ|พฤหัส|ศุกร์|เสาร์|อาทิตย์|สัปดาห์)|หยุดงาน|ขอหยุด)/;
+
+/**
+ * The leave command a typed request means — the type picked from the words when it is clear —
+ * or null when the text is not a leave request.
+ */
+export function leaveIntent(text: string): string | null {
+  const t = text.trim();
+  if (!LEAVE_REQUEST.test(t) || LEAVE_QUESTION.test(t)) return null;
+  if (/ป่วย|ไม่สบาย/.test(t)) return 'ลาป่วย';
+  if (/กิจ/.test(t)) return 'ลากิจ';
+  if (/พักร้อน/.test(t)) return 'พักร้อน';
+  return 'ลางาน';
+}
+
 /**
  * The menu as buttons. The home imagemap only pictures three actions, so these
  * quick replies ride along with it — they are the only place the expense,

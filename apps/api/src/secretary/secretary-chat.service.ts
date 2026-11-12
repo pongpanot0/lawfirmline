@@ -35,9 +35,9 @@ export class SecretaryChatService {
   ) {}
 
   /** The caller's own saved chat in this firm, oldest first, so web and mobile reopen where they left off. */
-  async history(user: AuthUser): Promise<Array<SecretaryMessage & { cards: SecretaryCard[] }>> {
+  async history(user: AuthUser, since?: Date): Promise<Array<SecretaryMessage & { cards: SecretaryCard[] }>> {
     const rows = await this.prisma.secretaryMessage.findMany({
-      where: { firmId: user.firmId, userId: user.id },
+      where: { firmId: user.firmId, userId: user.id, ...(since && { createdAt: { gte: since } }) },
       orderBy: { createdAt: 'desc' }, take: SAVED_HISTORY,
       select: { role: true, content: true, cards: true },
     });
@@ -80,6 +80,7 @@ export class SecretaryChatService {
       '- ตอบเป็นภาษาไทย เว้นแต่ผู้ใช้เขียนเป็นภาษาอังกฤษ กระชับ เหมาะกับการอ่านบนมือถือ',
       '- คุณคุยกับเจ้าหน้าที่สำนักงานเท่านั้น ห้ามร่างข้อความถึงลูกความ',
       '- คำถามกว้างๆ ให้ตอบทันทีด้วยค่าที่สมเหตุสมผล ห้ามถามกลับเพื่อขอรายละเอียดก่อน เช่น "มีงานอะไรบ้าง" ให้ใช้ my_work, "สัปดาห์นี้" หมายถึงวันนี้ถึงอีก 7 วัน ถ้ายังไม่ชัดให้ตอบก่อนแล้วค่อยเสนอว่าเจาะจงต่อได้',
+      '- ถ้าผู้ใช้ขอให้ทำรายการ เช่น ยื่นลา สร้างงาน เบิกเงิน ให้บอกว่าคุณทำรายการเองไม่ได้ และให้ทำผ่านเมนูของระบบ (ใน LINE พิมพ์ "เมนู") ห้ามตอบว่าทำให้แล้ว',
       '- คำถามงานสำนักงาน (วันลา, SOP/ขั้นตอนสำนักงาน, ใบอนุญาตทนาย, ลูกหนี้ค้างชำระ, เงินสดย่อย) ให้ใช้เครื่องมือที่มี ถ้าไม่มีเครื่องมือสำหรับเรื่องนั้นให้บอกว่าบัญชีนี้ไม่มีสิทธิ์ดูข้อมูลนั้น',
       `ผู้ใช้คือ ${user.firstName} ${user.lastName} วันนี้คือ ${today} (เขตเวลา Asia/Bangkok)`,
     ].join('\n');
@@ -89,7 +90,7 @@ export class SecretaryChatService {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST', signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
       headers: { Authorization: `Bearer ${this.config.get<string>('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: chatModel(this.config), temperature: 0.2, messages, tools: this.tools.definitions(user), tool_choice: toolChoice }),
+      body: JSON.stringify({ model: chatModel(this.config), temperature: 0, messages, tools: this.tools.definitions(user), tool_choice: toolChoice }),
     });
     if (!res.ok) throw new Error(`OpenAI chat ${res.status}`);
     return (await res.json()) as OaiResponse;
