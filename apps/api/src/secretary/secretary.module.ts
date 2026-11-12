@@ -15,6 +15,6 @@ import { SecretaryController } from './secretary.controller';
   imports: [forwardRef(() => RagModule), forwardRef(() => NotificationsModule), forwardRef(() => BillingModule), AgendaModule],
   controllers: [SecretaryController],
   providers: [MatterBriefService, SecretaryToolsService, SecretaryChatService, DailyBriefService, DailyBriefScheduler],
-  exports: [MatterBriefService, SecretaryToolsService],
+  exports: [MatterBriefService, SecretaryToolsService, SecretaryChatService],
 })
 export class SecretaryModule {}

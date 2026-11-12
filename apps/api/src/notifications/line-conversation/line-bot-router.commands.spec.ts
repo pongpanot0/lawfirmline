@@ -9,7 +9,9 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
     replyHomeMenu: jest.fn(),
     pushHomeMenu: jest.fn(),
     getMessageContent: jest.fn(),
+    showLoading: jest.fn(),
   } as any;
+  const secretary = { history: jest.fn(), chat: jest.fn() } as any;
   const auth = {
     resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'OWNER' }),
   } as any;
@@ -59,6 +61,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
       { handle: jest.fn().mockResolvedValue(null) } as any,
       { caseQuery: jest.fn().mockReturnValue(null), openTasks: jest.fn(), findCase: jest.fn() } as any,
       { begin: jest.fn(), handle: jest.fn() } as any,
+      secretary,
     );
   });
 
@@ -87,15 +90,54 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
     );
   });
 
-  it('unrecognised text explains itself instead of re-sending a picture', async () => {
-    store.get.mockReturnValue(undefined);
-    await router.route('L1', 'อยากได้อะไรสักอย่าง', target, false);
-    expect(line.replyWithQuickReply).toHaveBeenCalledWith(
-      'rt',
-      expect.stringContaining('ยังไม่เข้าใจ'),
-      expect.any(Array),
-    );
-    expect(line.replyHomeMenu).not.toHaveBeenCalled();
+  describe('free text goes to the AI secretary', () => {
+    const card = { type: 'case' as const, id: 'c1', title: 'ผิดสัญญา', ownRef: 'TSBREF20250001' };
+    beforeEach(() => {
+      store.get.mockReturnValue(undefined);
+      secretary.history.mockResolvedValue([{ role: 'user', content: 'ก่อนหน้า' }, { role: 'assistant', content: 'ตอบก่อนหน้า' }]);
+      secretary.chat.mockResolvedValue({ reply: 'พรุ่งนี้มีนัด 1 นัดครับ', cards: [card] });
+      line.replyWithQuickReply.mockResolvedValue(true);
+    });
+
+    it('answers with the saved history, the question and links to what it found', async () => {
+      await router.route('L1', 'พรุ่งนี้มีนัดอะไร', target, false);
+      expect(line.showLoading).toHaveBeenCalledWith('L1');
+      expect(secretary.chat).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'u1' }),
+        [expect.objectContaining({ content: 'ก่อนหน้า' }), expect.objectContaining({ content: 'ตอบก่อนหน้า' }), { role: 'user', content: 'พรุ่งนี้มีนัดอะไร' }],
+      );
+      const text = line.replyWithQuickReply.mock.calls[0][1] as string;
+      expect(text).toContain('พรุ่งนี้มีนัด 1 นัดครับ');
+      expect(text).toContain('TSBREF20250001 · ผิดสัญญา');
+      expect(text).toMatch(/\/cases\/c1$/);
+      expect(line.replyHomeMenu).not.toHaveBeenCalled();
+    });
+
+    it('pushes the answer when the reply token has expired', async () => {
+      line.replyWithQuickReply.mockResolvedValue(false);
+      await router.route('L1', 'พรุ่งนี้มีนัดอะไร', target, false);
+      expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('พรุ่งนี้มีนัด'), expect.any(Array));
+    });
+
+    it('a failed AI call still answers, with the menu hint', async () => {
+      secretary.chat.mockRejectedValue(new Error('upstream'));
+      await router.route('L1', 'พรุ่งนี้มีนัดอะไร', target, false);
+      expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('ตอบไม่ได้'), expect.any(Array));
+    });
+
+    it('in a group the answer goes to the asker privately, never to the group', async () => {
+      const group = { replyToken: 'rt', sourceType: 'group' as const, groupId: 'G1' };
+      await router.route('L1', '@บอท พรุ่งนี้มีนัดอะไร', group, true);
+      expect(line.showLoading).not.toHaveBeenCalled();
+      expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('พรุ่งนี้มีนัด'), expect.any(Array));
+      expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('แชตส่วนตัว'), undefined);
+    });
+
+    it('ambient group chatter never reaches the AI', async () => {
+      const group = { replyToken: 'rt', sourceType: 'group' as const, groupId: 'G1' };
+      await router.route('L1', 'กินข้าวยัง', group, false);
+      expect(secretary.chat).not.toHaveBeenCalled();
+    });
   });
 
   it('a session started in a group does not swallow a private message', async () => {

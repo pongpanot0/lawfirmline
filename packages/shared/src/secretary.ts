@@ -23,6 +23,33 @@ export type SecretaryCard =
   | { type: 'document'; id: string; caseId: string | null; filename: string }
   | { type: 'event'; id: string; caseId: string; title: string; startAt: string };
 
+/** Web-app path a secretary card opens — shared by the web panel and the LINE bot's links. */
+export function secretaryCardPath(card: SecretaryCard): string {
+  switch (card.type) {
+    case 'case':
+      return `/cases/${card.id}`;
+    case 'intake':
+      return `/intake/${card.id}`;
+    case 'document':
+      return card.caseId ? `/cases/${card.caseId}?tab=documents` : '/documents';
+    case 'event':
+      return `/cases/${card.caseId}`;
+  }
+}
+
+export function secretaryCardLabel(card: SecretaryCard): string {
+  switch (card.type) {
+    case 'case':
+      return card.ownRef ? `${card.ownRef} · ${card.title}` : card.title;
+    case 'intake':
+      return `รับเรื่อง · ${card.title}`;
+    case 'document':
+      return card.filename;
+    case 'event':
+      return `${new Date(card.startAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })} · ${card.title}`;
+  }
+}
+
 export type StuckItem = MatterTaskItem & {
   caseId: string | null; intakeId: string | null; matterTitle: string; hearingWithin7Days: boolean;
 };

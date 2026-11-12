@@ -37,6 +37,7 @@ describe('LineBotRouter my-day command', () => {
       { handle: jest.fn().mockResolvedValue(null) } as any,
       { caseQuery: jest.fn().mockReturnValue(null), openTasks: jest.fn(), findCase: jest.fn() } as any,
       { begin: jest.fn(), handle: jest.fn() } as any,
+      {} as any,
     );
   });
 
