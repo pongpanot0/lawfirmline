@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { AuthUser, EXPENSE_CATEGORIES, HEAVY_QUEUE_POINTS, workloadStatus, MONEY_MAX, MONEY_MIN, mcpCaseScope, type McpNoticeDraft, hasFirmCapability, redactForAi, TaskStatus, subscriptionAllowsWrites, type TeamRadar } from '@lawfirm/shared';
@@ -41,6 +41,15 @@ const writeSchemas = {
   request_leave: { type: z.nativeEnum(LeaveType), startDate: date, endDate: date },
   draft_notice: { caseId: text.optional(), intakeId: text.optional(), content: text.max(20000), recipient: title.optional(), deadline: date.optional() },
 };
+/** SecretaryToolsService error codes → what the AI app can act on (a wrong range is not "case not found"). */
+const readErrors: Record<string, string> = {
+  not_found: 'ไม่พบข้อมูลนี้ในงานของคุณ',
+  invalid_date_range: 'ช่วงวันที่ไม่ถูกต้อง: วันสิ้นสุดต้องไม่ก่อนวันเริ่ม และ list_leaves ดูได้ครั้งละไม่เกิน 62 วัน',
+  query_required: 'ระบุคำค้น',
+  caseId_or_intakeId_required: 'ระบุ caseId หรือ intakeId',
+  documentId_and_question_required: 'ระบุ documentId และคำถาม',
+  forbidden: 'บทบาทของคุณใช้ข้อมูลนี้ไม่ได้',
+};
 const descriptions: Record<keyof typeof writeSchemas, string> = {
   create_task: 'Create a task assigned to you. Pass caseId only when the work belongs to one of your cases; leave it out for a personal to-do (a meeting, office work) — never ask the user for a case just to create a task.',
   complete_task: 'Complete a task assigned to you (on your own case or a personal to-do). Tasks requiring review must be submitted in the app.',
@@ -54,6 +63,8 @@ const descriptions: Record<keyof typeof writeSchemas, string> = {
 
 @Injectable()
 export class McpToolsService {
+  private readonly logger = new Logger(McpToolsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly secretary: SecretaryToolsService,
@@ -73,6 +84,8 @@ export class McpToolsService {
     const handle = async (run: () => Promise<unknown>) => {
       try { return result(await run()); }
       catch (e) {
+        // Expected refusals are HttpExceptions; anything else is a bug the AI app can only see as a generic error.
+        if (!(e instanceof HttpException)) this.logger.error(`MCP tool failed (${connection.clientName})`, e instanceof Error ? e.stack : String(e));
         const message = e instanceof HttpException && /[ก-๙]/.test(e.message) ? e.message : 'ทำรายการไม่สำเร็จ กรุณาเปิดงานในแอปแล้วลองใหม่';
         return { ...result({ error: message }), isError: true };
       }
@@ -83,7 +96,8 @@ export class McpToolsService {
       server.registerTool(name, { description: definition.function.description, inputSchema: readSchemas[name] }, (args: Record<string, unknown>) => handle(async () => {
         const output = await this.secretary.run(user, name, args, mcpScope(user));
         if (output.content && typeof output.content === 'object' && 'error' in output.content) {
-          throw new NotFoundException('ไม่พบคดีนี้ในงานของคุณ');
+          const code = String((output.content as { error: unknown }).error);
+          throw new BadRequestException(readErrors[code] ?? 'ไม่พบข้อมูลนี้ในงานของคุณ');
         }
         return output;
       }));
