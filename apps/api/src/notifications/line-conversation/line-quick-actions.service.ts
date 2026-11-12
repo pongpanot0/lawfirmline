@@ -37,9 +37,11 @@ export class LineQuickActionsService {
   private async run(user: AuthUser, action: string, id: string, extra?: string): Promise<string | null> {
     switch (action) {
       case 'leave:approve':
-      case 'leave:reject':
-        await this.leaves.decide(user, id, action === 'leave:approve' ? 'APPROVED' : 'REJECTED');
-        return action === 'leave:approve' ? 'อนุมัติการลาแล้วครับ' : 'ไม่อนุมัติการลาแล้วครับ';
+      case 'leave:reject': {
+        // Name the person and dates so a tap on the wrong card is caught at once.
+        const leave = await this.leaves.decide(user, id, action === 'leave:approve' ? 'APPROVED' : 'REJECTED');
+        return action === 'leave:approve' ? `✅ อนุมัติการลา ${this.leaves.who(leave)} แล้วครับ` : `❌ ไม่อนุมัติการลา ${this.leaves.who(leave)} แล้วครับ`;
+      }
       case 'task:ack': {
         const task = await this.tasks.acknowledge(id, user);
         return `รับทราบงาน "${task.title}" แล้วครับ`;

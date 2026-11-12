@@ -81,6 +81,40 @@ export function buildHomeImagemap(baseUrl: string, quickReply?: QuickReplyItem[]
   }, quickReply);
 }
 
+/**
+ * A card whose buttons belong to it. Quick replies only ever sit under the
+ * newest message, so two requests in a row would leave the first one's
+ * buttons acting on the second — a card keeps each request's buttons its own.
+ */
+export function buildActionCard(altText: string, lines: string[], buttons: Array<Required<QuickReplyItem>>) {
+  return {
+    type: 'flex',
+    altText: altText.slice(0, 400),
+    contents: {
+      type: 'bubble',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: lines.filter(Boolean).slice(0, 12).map((text, i) => ({
+          type: 'text', text: text.slice(0, 300), wrap: true, ...(i === 0 ? { weight: 'bold' } : { size: 'sm' }),
+        })),
+      },
+      footer: {
+        type: 'box',
+        layout: 'horizontal',
+        spacing: 'sm',
+        contents: buttons.map((button, i) => ({
+          type: 'button',
+          style: i === 0 ? 'primary' : 'secondary',
+          height: 'sm',
+          action: { type: 'postback', label: button.label.slice(0, 20), data: button.data, displayText: button.text.slice(0, 300) },
+        })),
+      },
+    },
+  };
+}
+
 export function buildCarouselMessage(altText: string, columns: CarouselColumn[]) {
   return {
     type: 'template',
@@ -238,6 +272,11 @@ export class LineMessagingService {
     text: string,
     quickReply?: QuickReplyItem[],
   ): Promise<boolean> {
+    return this.push(targetId, [buildMessage(text, quickReply)]);
+  }
+
+  /** Push ready-built messages (text, Flex, template) to one chat. */
+  async push(targetId: string, messages: object[]): Promise<boolean> {
     if (!this.isConfigured()) return false;
 
     const token = await this.getAccessToken();
@@ -247,7 +286,7 @@ export class LineMessagingService {
       const res = await fetch('https://api.line.me/v2/bot/message/push', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: targetId, messages: [buildMessage(text, quickReply)] }),
+        body: JSON.stringify({ to: targetId, messages }),
       });
 
       if (!res.ok) {

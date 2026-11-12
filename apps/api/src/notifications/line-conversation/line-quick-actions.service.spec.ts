@@ -3,7 +3,7 @@ import { LineQuickActionsService } from './line-quick-actions.service';
 const ID = '11111111-2222-3333-4444-555555555555';
 
 describe('LineQuickActionsService', () => {
-  const leaves = { decide: jest.fn() } as any;
+  const leaves = { decide: jest.fn(async () => ({})), who: jest.fn(() => 'สมชาย ใจดี · 13 พ.ย. 2569') } as any;
   const tasks = { acknowledge: jest.fn(), assertAccess: jest.fn(), update: jest.fn(), acceptById: jest.fn() } as any;
   const billing = { updateExpenseClaimStatus: jest.fn() } as any;
   const events = { acknowledge: jest.fn() } as any;
@@ -20,7 +20,7 @@ describe('LineQuickActionsService', () => {
   });
 
   it('leave buttons decide as the tapper', async () => {
-    await expect(svc.handle(user, `leave:approve:${ID}`)).resolves.toContain('อนุมัติ');
+    await expect(svc.handle(user, `leave:approve:${ID}`)).resolves.toContain('อนุมัติการลา สมชาย ใจดี · 13 พ.ย. 2569');
     expect(leaves.decide).toHaveBeenCalledWith(user, ID, 'APPROVED');
   });
 

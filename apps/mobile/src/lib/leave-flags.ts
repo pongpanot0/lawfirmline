@@ -2,7 +2,7 @@ import type { LeaveItem } from '../api/types';
 
 export type LeaveFlag = { userId: string; kind: 'ON_LEAVE' | 'PENDING'; label: string };
 
-const TYPE_TH: Record<LeaveItem['type'], string> = {
+const TYPE_TH: Record<NonNullable<LeaveItem['type']>, string> = {
   SICK: 'ลาป่วย',
   PERSONAL: 'ลากิจ',
   VACATION: 'ลาพักร้อน',
@@ -24,7 +24,7 @@ export function leaveFlagsForDate(
     const covers = leave.startDate.slice(0, 10) <= date && date <= leave.endDate.slice(0, 10);
     if (!covers) continue;
     if (leave.status === 'APPROVED') {
-      flags.set(leave.userId, { userId: leave.userId, kind: 'ON_LEAVE', label: `ลา · ${TYPE_TH[leave.type]}` });
+      flags.set(leave.userId, { userId: leave.userId, kind: 'ON_LEAVE', label: leave.type ? `ลา · ${TYPE_TH[leave.type]}` : 'ลา' });
     } else if (leave.status === 'PENDING' && flags.get(leave.userId)?.kind !== 'ON_LEAVE') {
       flags.set(leave.userId, { userId: leave.userId, kind: 'PENDING', label: 'ขอลา (รออนุมัติ)' });
     }

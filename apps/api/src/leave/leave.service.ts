@@ -3,11 +3,12 @@ import { Cron } from '@nestjs/schedule';
 import { AuthUser, FirmRole, hasFirmCapability, rolesWithCapability } from '@lawfirm/shared';
 import { EventType, LeaveStatus, LeaveType, NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
-import { LineMessagingService, QuickReplyItem } from '../notifications/line-messaging.service';
+import { buildActionCard, LineMessagingService } from '../notifications/line-messaging.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { NotificationCenterService } from '../notifications/notification-center.service';
-import { addBangkokDays, bangkokDayKey, bangkokDayStart, bangkokDayEnd, formatBangkokDateThai, formatBangkokDateTime } from '../common/utils/bangkok-time';
+import { addBangkokDays, bangkokDayKey, bangkokDayStart, bangkokDayEnd, formatBangkokDateThai, formatBangkokDateTime, isBangkokWeekend } from '../common/utils/bangkok-time';
 import { eventForUserWhere } from '../calendar/event-people';
+import { canSeeLeaveDetail, leaveVisibleWhere } from './leave-visibility';
 
 const LABEL: Record<LeaveType, string> = {
   SICK: 'ลาป่วย',
@@ -16,6 +17,9 @@ const LABEL: Record<LeaveType, string> = {
 };
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const key = (value: Date) => value.toISOString().slice(0, 10);
+const bangkokHour = (now: Date) => (now.getUTCHours() + 7) % 24;
+/** The "who's out today" round goes at 08:00; anything approved for today after that goes out as an add-on. */
+const MORNING_HOUR = 8;
 
 type Leave = {
   id: string;
@@ -56,16 +60,23 @@ export class LeaveService {
     const end = this.parseDate(to);
     if (end < start || end.getTime() - start.getTime() > 366 * 86400000) throw new BadRequestException('ช่วงวันที่ไม่ถูกต้อง');
     const leaves = await this.prisma.leaveRequest.findMany({
-      where: { firmId: user.firmId, startDate: { lte: end }, endDate: { gte: start } },
+      where: { AND: [leaveVisibleWhere(user), { startDate: { lte: end }, endDate: { gte: start } }] },
       include: { user: { select: { firstName: true, lastName: true } }, decidedBy: { select: { firstName: true, lastName: true } } },
       orderBy: { startDate: 'asc' },
     });
-    return Promise.all(leaves.map(async (leave) => ({
-      ...leave,
-      courtConflicts: leave.status === LeaveStatus.PENDING
-        ? await this.findCourtConflicts(leave.firmId, leave.userId, leave.startDate, leave.endDate)
-        : undefined,
-    })));
+    return Promise.all(leaves.map(async (leave) => {
+      if (!canSeeLeaveDetail(user, leave.userId)) {
+        // Someone else's approved leave: who is out and when, nothing more.
+        const { id, userId, status, startDate, endDate, user: person } = leave;
+        return { id, userId, status, startDate, endDate, user: person, type: null, decidedAt: null, decidedBy: null };
+      }
+      return {
+        ...leave,
+        courtConflicts: leave.status === LeaveStatus.PENDING
+          ? await this.findCourtConflicts(leave.firmId, leave.userId, leave.startDate, leave.endDate)
+          : undefined,
+      };
+    }));
   }
 
   /** Court dates on this person's calendar during the leave — one of the event's assignees, or the case's lead lawyer when none is set. */
@@ -137,12 +148,10 @@ export class LeaveService {
       await this.notifier.notifyFirmOwners({
         firmId: leave.firmId, actorUserId: user.id, category: NotificationCategory.LEAVE, line: false,
         roles: rolesWithCapability('approveLeave'),
-        summaryText: `🗓 คำขอลา · รออนุมัติ\n${this.label(leave)}`, entityPath: '/leaves',
+        summaryText: `🗓 คำขอลา · รออนุมัติ\n${this.detail(leave)}`, entityPath: '/leaves',
       });
-    } else if (leave.type === LeaveType.SICK) {
-      try { await this.sendSick(leave); }
-      catch (error) { this.logger.error(`Sick leave ${leave.id} notice failed: ${(error as Error).message}`); }
-      await this.notifyTeam(leave, `🤒 แจ้งลาป่วย\n${this.label(leave)}`);
+    } else {
+      await this.announceIfToday(leave);
     }
     return leave;
   }
@@ -174,6 +183,7 @@ export class LeaveService {
           `คำขอลา ${this.rangeText(decided)} ได้รับการ${decision === LeaveStatus.APPROVED ? 'อนุมัติ' : 'ปฏิเสธ'}แล้ว`);
       } catch (error) { this.logger.error(`Leave decision notice ${leaveId} failed: ${(error as Error).message}`); }
     }
+    if (decision === LeaveStatus.APPROVED) await this.announceIfToday(decided);
     return decided;
   }
 
@@ -187,17 +197,15 @@ export class LeaveService {
     await this.prisma.leaveRequest.delete({ where: { id } });
     // Members were only ever told about approved leave — nothing to retract otherwise.
     if (leave.status !== LeaveStatus.APPROVED) return { deleted: true };
-    await this.notifyTeam(leave, `❌ ยกเลิกการลา\n${this.label(leave)}`, user.id);
-    try {
-      for (const member of await this.members(leave.firmId)) {
-        if (member.userId === leave.userId || !member.user.lineUserId) continue;
-        try {
-          await this.sendOnce(`cancel:${leave.id}:${member.userId}`, member.user.lineUserId,
-            `❌ ยกเลิกการลา\n${this.label(leave)}`);
-        } catch (error) { this.logger.error(`Leave cancellation notice failed for ${member.userId}: ${(error as Error).message}`); }
-      }
-    } catch (error) { this.logger.error(`Leave ${leave.id} cancellation notice failed: ${(error as Error).message}`); }
+    try { await this.broadcast(leave.firmId, [leave], '❌ ยกเลิกการลา', true, `cancel:${leave.id}`); }
+    catch (error) { this.logger.error(`Leave ${leave.id} cancellation notice failed: ${(error as Error).message}`); }
     return { deleted: true };
+  }
+
+  /** "ชื่อ · ช่วงวัน" — what anyone but the approvers is told about someone's leave. */
+  who(leave: Pick<Leave, 'user' | 'startDate' | 'endDate'>, showRange = true) {
+    const name = `${leave.user.firstName} ${leave.user.lastName}`.trim();
+    return showRange ? `${name} · ${this.rangeText(leave)}` : name;
   }
 
   private parseDate(value: string): Date {
@@ -207,33 +215,10 @@ export class LeaveService {
     return parsed;
   }
 
-  /** Members LINE can reach for leave news — linked, and not muted for it. */
-  private async members(firmId: string) {
-    const linked = await this.prisma.firmMember.findMany({
-      where: { role: { not: FirmRole.EXTERNAL }, firmId, user: { lineUserId: { not: null } } },
-      select: { userId: true, user: { select: { lineUserId: true } } },
-    });
-    const allowed = await this.lineAllowed(linked.map((member) => member.userId));
-    return linked.filter((member) => allowed.has(member.userId));
-  }
-
   private async lineAllowed(userIds: string[]): Promise<Set<string>> {
     if (!userIds.length) return new Set();
     const channels = await this.center.channelsFor(userIds, NotificationCategory.LEAVE);
     return new Set(userIds.filter((id) => channels.get(id)?.line));
-  }
-
-  /** App inbox + push to everyone else in the firm; LINE goes out via sendOnce. */
-  private async notifyTeam(leave: Leave, summaryText: string, actorUserId = leave.userId) {
-    try {
-      const members = await this.prisma.firmMember.findMany({ where: { role: { not: FirmRole.EXTERNAL }, firmId: leave.firmId }, select: { userId: true } });
-      await this.notifier.notifyAssigned({
-        firmId: leave.firmId,
-        userIds: members.map((member) => member.userId).filter((id) => id !== leave.userId),
-        actorUserId, category: NotificationCategory.LEAVE, line: false,
-        summaryText, entityPath: '/leaves',
-      });
-    } catch (error) { this.logger.error(`Leave ${leave.id} app notice failed: ${(error as Error).message}`); }
   }
 
   private rangeText(leave: Pick<Leave, 'startDate' | 'endDate'>) {
@@ -242,12 +227,23 @@ export class LeaveService {
       : `${formatBangkokDateThai(leave.startDate)}–${formatBangkokDateThai(leave.endDate)}`;
   }
 
-  private label(leave: Leave, showRange = true) {
-    const name = `${leave.user.firstName} ${leave.user.lastName}`.trim();
-    return `${name} · ${LABEL[leave.type]}${showRange ? ` · ${this.rangeText(leave)}` : ''}`;
+  /** Name, type and dates — approvers only. */
+  private detail(leave: Leave) {
+    return `${this.who(leave, false)} · ${LABEL[leave.type]} · ${this.rangeText(leave)}`;
   }
 
-  private async sendOnce(id: string, lineUserId: string, message: string, quickReply?: QuickReplyItem[]) {
+  /** Marks `id` done; false when it already was. */
+  private async claim(id: string): Promise<boolean> {
+    try {
+      await this.prisma.leaveNoticeLog.create({ data: { key: id, sentAt: new Date() } });
+      return true;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false;
+      throw error;
+    }
+  }
+
+  private async sendOnce(id: string, lineUserId: string, message: string | object) {
     const claimedAt = new Date();
     try {
       await this.prisma.leaveNoticeLog.create({ data: { key: id, claimedAt } });
@@ -260,10 +256,9 @@ export class LeaveService {
       if (!reclaimed.count) return;
     }
     try {
-      const text = message.slice(0, 4900);
-      const sent = quickReply?.length
-        ? await this.line.pushTo(lineUserId, text, quickReply)
-        : await this.line.sendText(text, [lineUserId]);
+      const sent = typeof message === 'string'
+        ? await this.line.sendText(message.slice(0, 4900), [lineUserId])
+        : await this.line.push(lineUserId, [message]);
       if (sent) await this.prisma.leaveNoticeLog.update({ where: { key: id }, data: { sentAt: new Date() } });
       else await this.prisma.leaveNoticeLog.deleteMany({ where: { key: id, claimedAt, sentAt: null } });
     } catch (error) {
@@ -272,30 +267,83 @@ export class LeaveService {
     }
   }
 
-  private async sendSick(leave: Leave) {
-    for (const member of await this.members(leave.firmId)) {
-      if (member.userId === leave.userId || !member.user.lineUserId) continue;
-      try {
-        await this.sendOnce(`sick:${leave.id}:${member.userId}`, member.user.lineUserId,
-          `🤒 แจ้งลาป่วย\n${this.label(leave)}`);
-      } catch (error) { this.logger.error(`Sick leave notice failed for ${member.userId}: ${(error as Error).message}`); }
+  /**
+   * Tell every member (EXTERNAL excluded) who is out — names and dates, never the type,
+   * and never their own leave — on LINE (once per member per `stamp`) and in the app (once per `stamp`).
+   */
+  private async broadcast(firmId: string, leaves: Leave[], title: string, showRange: boolean, stamp: string) {
+    const members = await this.prisma.firmMember.findMany({
+      where: { firmId, role: { not: FirmRole.EXTERNAL } },
+      select: { userId: true, user: { select: { lineUserId: true } } },
+    });
+    const lineOk = await this.lineAllowed(members.filter((member) => member.user.lineUserId).map((member) => member.userId));
+    const app = await this.claim(`app:${stamp}`);
+    const byText = new Map<string, string[]>();
+    for (const member of members) {
+      const others = leaves.filter((leave) => leave.userId !== member.userId);
+      if (!others.length) continue;
+      const text = `${title}\n${others.map((leave) => `• ${this.who(leave, showRange)}`).join('\n')}`;
+      byText.set(text, [...(byText.get(text) ?? []), member.userId]);
+      if (!member.user.lineUserId || !lineOk.has(member.userId)) continue;
+      try { await this.sendOnce(`${stamp}:${member.userId}`, member.user.lineUserId, text); }
+      catch (error) { this.logger.error(`Leave notice ${stamp} failed for ${member.userId}: ${(error as Error).message}`); }
     }
+    if (!app) return;
+    for (const [summaryText, userIds] of byText) {
+      await this.notifier.notifyAssigned({ firmId, userIds, actorUserId: '', category: NotificationCategory.LEAVE, line: false, summaryText, entityPath: '/leaves' });
+    }
+  }
+
+  private async isWorkingDay(today: Date) {
+    if (isBangkokWeekend(today)) return false;
+    return !(await this.prisma.publicHoliday.findUnique({ where: { date: today }, select: { id: true } }));
+  }
+
+  /**
+   * "Who's out today" for one firm: every approved leave covering today not yet announced today.
+   * Each leave is claimed once a day, so the 08:00 round and an approval racing it never announce
+   * it twice; the first batch is the morning notice and anything after is an add-on.
+   * ponytail: a crash between claim and send drops that batch; add a sentAt reclaim if it ever bites.
+   */
+  private async announceToday(firmId: string, now: Date) {
+    const todayKey = bangkokDayKey(now);
+    const today = day(todayKey);
+    if (!(await this.isWorkingDay(today))) return;
+    const leaves = await this.prisma.leaveRequest.findMany({
+      where: { firmId, status: LeaveStatus.APPROVED, startDate: { lte: today }, endDate: { gte: today } },
+      include: { user: { select: { firstName: true, lastName: true } } },
+      orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
+    });
+    const fresh: Leave[] = [];
+    for (const leave of leaves) if (await this.claim(`out:${todayKey}:${leave.id}`)) fresh.push(leave);
+    if (!fresh.length) return;
+    const first = await this.claim(`out:${todayKey}:${firmId}`);
+    const title = first ? `📅 วันนี้ไม่อยู่ (${formatBangkokDateThai(today)})` : '📅 วันนี้ไม่อยู่เพิ่ม';
+    await this.broadcast(firmId, fresh, title, false, `out:${todayKey}:${fresh[0].id}`);
+  }
+
+  /** Approved leave that covers today, after the 08:00 round, goes out now instead of waiting for tomorrow. */
+  private async announceIfToday(leave: Pick<Leave, 'firmId' | 'startDate' | 'endDate'>, now = new Date()) {
+    const today = day(bangkokDayKey(now));
+    if (leave.startDate > today || leave.endDate < today || bangkokHour(now) < MORNING_HOUR) return;
+    try { await this.announceToday(leave.firmId, now); }
+    catch (error) { this.logger.error(`Leave add-on notice for ${leave.firmId} failed: ${(error as Error).message}`); }
   }
 
   private async sendApprovalRequest(leave: Leave) {
     const conflicts = await this.findCourtConflicts(leave.firmId, leave.userId, leave.startDate, leave.endDate);
-    const name = `${leave.user.firstName} ${leave.user.lastName}`.trim();
+    const name = this.who(leave, false);
+    const range = this.rangeText(leave);
     const lines = [
       'คำขอลา · รออนุมัติ',
       `${name} · ${LABEL[leave.type]}`,
-      this.rangeText(leave),
+      range,
       ...conflicts.map((c) => `⚠ ชนนัดศาล: ${c.caseRef ?? ''} ${formatBangkokDateTime(c.startAt)} ${c.courtName ?? ''}`.replace(/\s+/g, ' ').trim()),
     ];
-    const text = lines.join('\n');
-    const quickReply: QuickReplyItem[] = [
-      { label: 'อนุมัติ', text: 'อนุมัติลา', data: `leave:approve:${leave.id}` },
-      { label: 'ไม่อนุมัติ', text: 'ไม่อนุมัติลา', data: `leave:reject:${leave.id}` },
-    ];
+    const card = buildActionCard(`คำขอลา · ${name} · ${range}`, lines, [
+      { label: 'อนุมัติ', text: `อนุมัติลา ${name} ${range}`, data: `leave:approve:${leave.id}` },
+      { label: 'ไม่อนุมัติ', text: `ไม่อนุมัติลา ${name} ${range}`, data: `leave:reject:${leave.id}` },
+    ]);
     const owners = await this.prisma.firmMember.findMany({
       where: { firmId: leave.firmId, role: { in: rolesWithCapability('approveLeave') }, user: { lineUserId: { not: null } } },
       select: { userId: true, user: { select: { lineUserId: true } } },
@@ -304,48 +352,35 @@ export class LeaveService {
     for (const owner of owners) {
       if (owner.userId === leave.userId || !owner.user.lineUserId || !allowed.has(owner.userId)) continue;
       try {
-        await this.sendOnce(`approve-req:${leave.id}:${owner.userId}`, owner.user.lineUserId, text, quickReply);
+        await this.sendOnce(`approve-req:${leave.id}:${owner.userId}`, owner.user.lineUserId, card);
       } catch (error) { this.logger.error(`Leave approval request failed for ${owner.userId}: ${(error as Error).message}`); }
-    }
-  }
-
-  private async sendDigest(firmId: string, leaves: Leave[], stamp: string, title: string) {
-    for (const member of await this.members(firmId)) {
-      if (!member.user.lineUserId) continue;
-      const others = leaves.filter((leave) => leave.userId !== member.userId);
-      if (!others.length) continue;
-      try {
-        await this.sendOnce(`${stamp}:${firmId}:${member.userId}`, member.user.lineUserId,
-          `${title}\n${others.map((leave) => `• ${this.label(leave)}`).join('\n')}`);
-      } catch (error) { this.logger.error(`Leave digest failed for ${member.userId}: ${(error as Error).message}`); }
     }
   }
 
   @Cron('*/10 * * * *', { timeZone: 'Asia/Bangkok' })
   async sendNotices(now = new Date()) {
+    if (bangkokHour(now) < MORNING_HOUR) return;
     const todayKey = bangkokDayKey(now);
     const today = day(todayKey);
-    const sick = await this.prisma.leaveRequest.findMany({
-      where: { type: LeaveType.SICK, status: LeaveStatus.APPROVED, endDate: { gte: today }, createdAt: { gte: addBangkokDays(now, -400) } },
-      include: { user: { select: { firstName: true, lastName: true } } },
-    });
-    for (const leave of sick) await this.sendSick(leave);
-
-    const bangkokHour = (now.getUTCHours() + 7) % 24;
-    if (bangkokHour < 8) return;
     const threeDays = day(bangkokDayKey(addBangkokDays(now, 3)));
     const weekEnd = day(bangkokDayKey(addBangkokDays(now, 6)));
     const monday = today.getUTCDay() === 1;
-    const planned = await this.prisma.leaveRequest.findMany({
-      where: { type: { in: [LeaveType.PERSONAL, LeaveType.VACATION] }, status: LeaveStatus.APPROVED, startDate: { lte: monday ? weekEnd : threeDays }, endDate: { gte: today } },
+    const leaves = await this.prisma.leaveRequest.findMany({
+      where: { status: LeaveStatus.APPROVED, startDate: { lte: monday ? weekEnd : threeDays }, endDate: { gte: today } },
       include: { user: { select: { firstName: true, lastName: true } } },
+      orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
     });
-    const byFirm = new Map<string, typeof planned>();
-    for (const leave of planned) byFirm.set(leave.firmId, [...(byFirm.get(leave.firmId) ?? []), leave]);
-    for (const [firmId, leaves] of byFirm) {
-      if (monday) await this.sendDigest(firmId, leaves.filter((l) => l.startDate <= weekEnd), `week:${todayKey}`, `📅 คนลาสัปดาห์นี้ (${formatBangkokDateThai(today)})`);
-      await this.sendDigest(firmId, leaves.filter((l) => key(l.startDate) === key(threeDays)), `three:${todayKey}`, '📅 แจ้งลาล่วงหน้า 3 วัน');
-      await this.sendDigest(firmId, leaves.filter((l) => l.startDate <= today && l.endDate >= today), `today:${todayKey}`, `📅 คนลาวันนี้ (${formatBangkokDateThai(today)})`);
+    const byFirm = new Map<string, typeof leaves>();
+    for (const leave of leaves) byFirm.set(leave.firmId, [...(byFirm.get(leave.firmId) ?? []), leave]);
+    // A Monday holiday skips the week round too; the three-day and day-of notices still cover it.
+    const weekly = monday && (await this.isWorkingDay(today));
+    for (const [firmId, firmLeaves] of byFirm) {
+      try {
+        if (firmLeaves.some((l) => l.startDate <= today)) await this.announceToday(firmId, now);
+        if (weekly) await this.broadcast(firmId, firmLeaves, `📅 คนลาสัปดาห์นี้ (${formatBangkokDateThai(today)})`, true, `week:${todayKey}:${firmId}`);
+        const soon = firmLeaves.filter((l) => key(l.startDate) === key(threeDays));
+        if (soon.length) await this.broadcast(firmId, soon, '📅 แจ้งลาล่วงหน้า 3 วัน', true, `three:${todayKey}:${firmId}`);
+      } catch (error) { this.logger.error(`Leave notices for ${firmId} failed: ${(error as Error).message}`); }
     }
   }
 }
