@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
-import { AuthUser, EXPENSE_CATEGORIES, MONEY_MAX, MONEY_MIN, mcpCaseScope, type McpNoticeDraft, TaskStatus, subscriptionAllowsWrites } from '@lawfirm/shared';
+import { AuthUser, EXPENSE_CATEGORIES, MONEY_MAX, MONEY_MIN, mcpCaseScope, type McpNoticeDraft, TaskStatus, subscriptionAllowsWrites, type WorkflowStepDefinition } from '@lawfirm/shared';
 import { DateSuggestionSource, DateSuggestionStatus, EventType, LeaveStatus, LeaveType, TaskSource } from '../generated/prisma';
 import { LeaveService } from '../leave/leave.service';
 import { PrismaService } from '../prisma/prisma.module';
@@ -9,6 +9,7 @@ import { TasksService } from '../tasks/tasks.service';
 import { CaseCommentsService } from '../cases/case-comments.service';
 import { BillingService } from '../billing/billing.service';
 import { FirmLinkService } from '../notifications/firm-link.service';
+import { WorkflowsService } from '../workflows/workflows.service';
 import type { OpenAiToolDef } from './secretary-tools.service';
 
 export const text = z.string().trim().min(1);
@@ -29,6 +30,13 @@ export const AI_WRITE_SCHEMAS = {
   propose_court_date: { caseId: text, title, startAt: text.refine((v) => courtDate(v) !== null, 'ระบุวันเวลาจริงในรูปแบบ ISO'), courtName: title.optional(), note: note.optional() },
   request_leave: { type: z.nativeEnum(LeaveType), startDate: date, endDate: date },
   draft_notice: { caseId: text.optional(), intakeId: text.optional(), content: text.max(20000), recipient: title.optional(), deadline: date.optional() },
+  // Same limits as the app's SopDto.
+  create_sop: { title, content: text.max(50000), category: text.max(100).optional() },
+  // WorkflowsService.validateSteps is the authority; this shape only guides the model.
+  create_workflow: { name: title, description: note.optional(), steps: z.array(z.object({
+    title, instructions: note.optional(), role: z.enum(['OWNER', 'SENIOR_LAWYER', 'LAWYER', 'ASSISTANT', 'EXTERNAL']),
+    durationDays: z.number().int().min(1).max(60), requiresReview: z.boolean().optional(),
+  })).min(1).max(20) },
 };
 export type AiWriteTool = keyof typeof AI_WRITE_SCHEMAS;
 export const AI_WRITE_TOOLS = Object.keys(AI_WRITE_SCHEMAS) as AiWriteTool[];
@@ -42,6 +50,8 @@ export const AI_WRITE_DESCRIPTIONS: Record<AiWriteTool, string> = {
   draft_expense: 'Write down an out-of-pocket cost (THB) as a DRAFT reimbursement for the caller, optionally on one of their cases. Never submits it: the person attaches the receipt and sends it for approval in the app.',
   request_leave: 'Submit a leave request for the caller only, dates inclusive (YYYY-MM-DD, Asia/Bangkok, from today, max 90 days). SICK = sick leave (recorded at once; the team sees the name only, in the day-of notice), PERSONAL = personal business leave, VACATION = annual leave; PERSONAL/VACATION wait for approval. Confirm type and dates with the person before calling.',
   draft_notice: 'Save a demand notice (หนังสือทวงถาม/บอกกล่าว) you wrote as a DRAFT on one of the caller\'s matters — pass caseId for a pre-filing case, or intakeId for an intake not yet a case (ids from find_matters): the full letter in formal Thai, the recipient, and the reply deadline. Use only facts from case_overview and the documents; never invent facts. Replaces any earlier AI draft. Never issues it: the lawyer reviews, edits and issues it in the app.',
+  create_sop: 'Add a new SOP (office procedure) for the whole firm: a short title, the steps in clear Thai (numbered list), and an optional category. Check search_sops first so you don\'t duplicate one. Creates only; editing or deleting is done in the app.',
+  create_workflow: 'Save a reusable workflow template (ชุดขั้นตอนงาน) for the firm: a name, and 1-20 ordered steps, each with a title, optional instructions, the role that does it (OWNER, SENIOR_LAWYER, LAWYER, ASSISTANT, EXTERNAL), working days (1-60) and whether it needs review. People start it on a case in the app; this never starts it or assigns anyone. Confirm the steps with the person before calling.',
 };
 
 /** Where the AI ran: the audit action prefix and what identifies the channel in the audit row. */
@@ -80,6 +90,7 @@ export class AiWriteToolsService {
     private readonly billing: BillingService,
     private readonly links: FirmLinkService,
     private readonly leaves: LeaveService,
+    private readonly workflows: WorkflowsService,
   ) {}
 
   /**
@@ -138,6 +149,20 @@ export class AiWriteToolsService {
       const { id, type, status, startDate, endDate } = await this.leaves.create(user, { type: a.type as LeaveType, startDate: a.startDate as string, endDate: a.endDate as string }, audit);
       return { id, type, status, startDate, endDate, leavesUrl: `${origin}/leaves`,
         message: status === LeaveStatus.PENDING ? 'ส่งคำขอลาแล้ว รอผู้มีสิทธิ์อนุมัติ' : 'บันทึกการลาแล้ว' };
+    } else if (name === 'create_sop') {
+      // Open to every member (owner's call 2026-11-12); the app's SOP screen keeps its own role limits.
+      const sop = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.sop.create({ data: { firmId: user.firmId, title: a.title as string, content: a.content as string, category: (a.category as string | undefined) ?? null, updatedById: user.id }, select: { id: true, title: true, category: true } });
+        await tx.auditLog.create({ data: this.audit(user, via, name, undefined, created.id) });
+        return created;
+      });
+      return { ...sop, sopsUrl: `${origin}/sops`, message: 'สร้าง SOP แล้ว แก้ไขหรือลบได้ในแอป' };
+    } else if (name === 'create_workflow') {
+      // A template only — never starts a run or assigns anyone.
+      const template = await this.workflows.createTemplate(user, { name: a.name as string, description: a.description as string | undefined, steps: a.steps as WorkflowStepDefinition[] });
+      await this.prisma.auditLog.create({ data: this.audit(user, via, name, undefined, template.id) });
+      return { id: template.id, name: template.name, steps: (template.steps as unknown as WorkflowStepDefinition[]).length,
+        message: 'บันทึกชุดขั้นตอนงานแล้ว เริ่มใช้กับคดีได้ในแอป' };
     } else if (name === 'draft_notice') {
       const intake = await this.noticeIntake(user, caseId, a.intakeId as string | undefined);
       const draft: McpNoticeDraft = { content: a.content as string, recipient: (a.recipient as string | undefined) ?? null, deadline: (a.deadline as string | undefined) ?? null,
@@ -236,6 +261,10 @@ export function describeAiWrite({ tool, args: a, labels }: AiWriteProposal): str
     draft_expense: () => ['💸 ร่างเบิกค่าใช้จ่าย', `จำนวน: ${(a.amount as number).toLocaleString('th-TH')} บาท`, `รายการ: ${a.description}`, !!a.category && `หมวด: ${a.category}`, caseLine, 'บันทึกเป็นร่าง: แนบใบเสร็จและกดส่งเบิกในแอป'],
     request_leave: () => ['🌴 ยื่นลา', `ประเภท: ${({ SICK: 'ลาป่วย', PERSONAL: 'ลากิจ', VACATION: 'พักร้อน' } as Record<string, string>)[a.type as string] ?? a.type}`, `วันที่: ${thaiDay(a.startDate as string)} – ${thaiDay(a.endDate as string)}`],
     draft_notice: () => ['📄 ร่างหนังสือทวงถาม', a.caseId ? caseLine : `เรื่องรับ: ${labels.intake ?? 'ไม่มีชื่อเรื่อง'}`, `ถึง: ${a.recipient ?? 'ไม่ระบุ'}`, `กำหนดตอบ: ${a.deadline ? thaiDay(a.deadline as string) : 'ไม่ระบุ'}`, `เนื้อหา: ${clipText(a.content as string, 300)}`, 'บันทึกเป็นร่าง: ทนายตรวจแก้และกดออกหนังสือในแอป'],
+    create_sop: () => ['📘 สร้าง SOP ของสำนักงาน', `ชื่อ: ${a.title}`, !!a.category && `หมวด: ${a.category}`, `ขั้นตอน: ${clipText(a.content as string, 500)}`],
+    create_workflow: () => ['🧭 สร้างชุดขั้นตอนงาน', `ชื่อ: ${a.name}`,
+      ...(a.steps as Array<{ title: string; durationDays: number; requiresReview?: boolean }>).map((s, i) => `${i + 1}. ${s.title} (${s.durationDays} วันทำการ${s.requiresReview ? ', ต้องตรวจ' : ''})`),
+      'ยังไม่เริ่มใช้กับคดีใด: เริ่มได้ในแอป'],
   };
   return ['ตรวจสอบก่อนบันทึกครับ', '', ...rows[tool]().filter((r): r is string => !!r), '', 'กด "ยืนยัน" เพื่อบันทึก หรือ "ยกเลิก"'].join('\n');
 }

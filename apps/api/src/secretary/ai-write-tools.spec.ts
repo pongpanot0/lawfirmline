@@ -12,7 +12,7 @@ describe('AiWriteToolsService.check — validates and scopes without saving', ()
     };
     tasks = { create: jest.fn(), update: jest.fn() };
     const access = { getOwnCaseFilterForUser: () => own, getCaseFilterForUser: () => ({ app: true }), getOwnIntakeFilterForUser: () => ({}) };
-    svc = new AiWriteToolsService(prisma, access as any, tasks, {} as any, {} as any, { originForSlug: () => 'https://firm.samnuan.com' } as any, {} as any);
+    svc = new AiWriteToolsService(prisma, access as any, tasks, {} as any, {} as any, { originForSlug: () => 'https://firm.samnuan.com' } as any, {} as any, {} as any);
   });
 
   it('returns the parsed args and the case label, saving nothing', async () => {
@@ -63,6 +63,15 @@ describe('aiWriteDefinitions / describeAiWrite', () => {
     expect(text).toMatch(/กำหนดส่ง: 14 พ\.ย\. 2569/);
     expect(text).toMatch(/กด "ยืนยัน" เพื่อบันทึก หรือ "ยกเลิก"$/);
     expect(describeAiWrite({ tool: 'propose_court_date', args: { caseId: 'c1', title: 'สืบพยาน', startAt: '2026-12-01T09:30' }, labels: {} })).toMatch(/09:30/);
+  });
+});
+
+describe('describeAiWrite — SOP and workflow', () => {
+  it('lists the workflow steps the person is confirming', () => {
+    const text = describeAiWrite({ tool: 'create_workflow', args: { name: 'ฟ้องผิดสัญญา', steps: [{ title: 'ร่างคำฟ้อง', role: 'LAWYER', durationDays: 3, requiresReview: true }, { title: 'ยื่นฟ้อง', role: 'LAWYER', durationDays: 1 }] }, labels: {} });
+    expect(text).toContain('1. ร่างคำฟ้อง (3 วันทำการ, ต้องตรวจ)');
+    expect(text).toContain('2. ยื่นฟ้อง (1 วันทำการ)');
+    expect(describeAiWrite({ tool: 'create_sop', args: { title: 'รับเรื่องใหม่', content: '1. ตรวจเอกสาร' }, labels: {} })).toContain('ชื่อ: รับเรื่องใหม่');
   });
 });
 

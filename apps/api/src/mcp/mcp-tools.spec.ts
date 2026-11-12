@@ -20,8 +20,8 @@ const radar = { start: '2026-11-12', days: ['2026-11-12'], members: [
 const decode = (r: any) => JSON.parse(r.content[0].text);
 
 describe('MCP tools', () => {
-  let prisma: any, secretary: any, tasks: any, comments: any, billing: any, operations: any, leaves: any;
-  const make = (who: AuthUser) => { tools.clear(); const links = { originForSlug: () => 'https://firm.samnuan.com' } as any; new McpToolsService(secretary, links, operations, new AiWriteToolsService(prisma, { getOwnCaseFilterForUser: () => own, getCaseFilterForUser: () => appFilter, getOwnIntakeFilterForUser: () => ownIntake, getIntakeFilterForUser: async () => appFilter } as any, tasks, comments, billing, links, leaves)).createServer(who, connection); };
+  let prisma: any, secretary: any, tasks: any, comments: any, billing: any, operations: any, leaves: any, workflows: any;
+  const make = (who: AuthUser) => { tools.clear(); const links = { originForSlug: () => 'https://firm.samnuan.com' } as any; new McpToolsService(secretary, links, operations, new AiWriteToolsService(prisma, { getOwnCaseFilterForUser: () => own, getCaseFilterForUser: () => appFilter, getOwnIntakeFilterForUser: () => ownIntake, getIntakeFilterForUser: async () => appFilter } as any, tasks, comments, billing, links, leaves, workflows)).createServer(who, connection); };
   beforeEach(() => {
     tools.clear();
     prisma = { case: { findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }) }, intake: { findFirst: jest.fn().mockResolvedValue({ id: 'intake-1' }), update: jest.fn() }, task: { findFirst: jest.fn() }, auditLog: { create: jest.fn() }, documentDateSuggestion: { create: jest.fn().mockResolvedValue({ id: 'suggestion' }) } };
@@ -31,6 +31,7 @@ describe('MCP tools', () => {
     comments = { createComment: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[4].audit('comment') }); return { id: 'comment', viaAi: true }; }) };
     billing = { createAiExpenseDraft: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[2]('expense-1') }); return { id: 'expense-1', status: 'DRAFT', viaAi: true }; }), createTimeEntry: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[3].audit('time') }); return { id: 'time', viaAi: true }; }) };
     operations = { radar: jest.fn().mockResolvedValue(radar) };
+    workflows = { createTemplate: jest.fn(async (_u: any, dto: any) => ({ id: 'wf-1', name: dto.name, steps: dto.steps })) };
     leaves = { create: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[2]('leave-1') }); return { id: 'leave-1', type: args[1].type, status: args[1].type === 'SICK' ? 'APPROVED' : 'PENDING', startDate: args[1].startDate, endDate: args[1].endDate, user: { firstName: 'A', lastName: 'B' } }; }) };
     make(user);
   });
@@ -61,6 +62,22 @@ describe('MCP tools', () => {
     expect(tools.has('petty_cash_balance')).toBe(false);
     await tools.get('lawyer_licenses')!.run({});
     expect(secretary.run).toHaveBeenCalledWith(user, 'lawyer_licenses', {}, 'own');
+  });
+  it('create_sop: any member (here a LAWYER) saves a firm SOP, audited', async () => {
+    prisma.sop = { create: jest.fn().mockResolvedValue({ id: 'sop-1', title: 'รับเรื่องใหม่', category: null }) };
+    const out = decode(await tools.get('create_sop')!.run({ title: 'รับเรื่องใหม่', content: '1. ตรวจเอกสาร' }));
+    expect(prisma.sop.create).toHaveBeenCalledWith(expect.objectContaining({ data: { firmId: 'firm-1', title: 'รับเรื่องใหม่', content: '1. ตรวจเอกสาร', category: null, updatedById: 'user-1' } }));
+    expect(prisma.auditLog.create).toHaveBeenLastCalledWith({ data: expect.objectContaining({ action: 'mcp.create_sop', metadata: expect.objectContaining({ entityId: 'sop-1' }) }) });
+    expect(out).toMatchObject({ id: 'sop-1', sopsUrl: 'https://firm.samnuan.com/sops' });
+  });
+  it('create_workflow: any member saves a template through WorkflowsService (its validation), audited, never started', async () => {
+    const steps = [{ title: 'ร่างคำฟ้อง', role: 'LAWYER', durationDays: 3, requiresReview: true }];
+    const out = decode(await tools.get('create_workflow')!.run({ name: 'ฟ้องผิดสัญญา', steps }));
+    expect(workflows.createTemplate).toHaveBeenCalledWith(user, { name: 'ฟ้องผิดสัญญา', description: undefined, steps });
+    expect(prisma.auditLog.create).toHaveBeenLastCalledWith({ data: expect.objectContaining({ action: 'mcp.create_workflow', metadata: expect.objectContaining({ entityId: 'wf-1' }) }) });
+    expect(out).toMatchObject({ id: 'wf-1', steps: 1 });
+    workflows.createTemplate.mockRejectedValueOnce(new (require('@nestjs/common').BadRequestException)('ขั้นที่ 1: ระยะเวลา 1-60 วันทำการ'));
+    expect(decode(await tools.get('create_workflow')!.run({ name: 'x', steps })).error).toBe('ขั้นที่ 1: ระยะเวลา 1-60 วันทำการ');
   });
   it('returns the same data as structuredContent and as text (ChatGPT reads structuredContent)', async () => {
     secretary.run.mockResolvedValueOnce({ content: { licences: [{ name: 'A' }] }, cards: [] });

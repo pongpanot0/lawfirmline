@@ -81,6 +81,8 @@ export function savedText(proposal: AiWriteProposal, saved: Record<string, unkno
       case 'draft_expense': return ['✅ บันทึกร่างเบิกแล้วครับ แนบใบเสร็จและกดส่งเบิกในแอป', '/expenses'];
       case 'draft_notice': return ['✅ บันทึกร่างหนังสือทวงถามแล้วครับ ทนายตรวจแก้และกดออกหนังสือในแอป', casePath ?? `/intake/${encodeURIComponent(String(saved.intakeId))}`];
       case 'request_leave': return [`✅ ${saved.message}`, '/leaves'];
+      case 'create_sop': return [`✅ สร้าง SOP "${a.title}" แล้วครับ แก้ไขหรือลบได้ในแอป`, '/sops'];
+      case 'create_workflow': return [`✅ บันทึกชุดขั้นตอนงาน "${a.name}" แล้วครับ เริ่มใช้กับคดีได้ในแอป`, '/workflows'];
     }
   })();
   return path ? `${line}\n🔗 ${origin}${path}` : line;
