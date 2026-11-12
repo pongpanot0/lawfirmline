@@ -2340,6 +2340,7 @@ export const api = {
     }),
 
   getLawyers: (token: string) => request<UserItem[]>('/users/lawyers', { token }),
+  getMembers: (token: string) => request<{ id: string; firstName: string; lastName: string }[]>('/users/members', { token }),
 
   getAvailability: (token: string, data: { userIds: string[]; date: string; excludeEventId?: string }) =>
     request<AvailabilityResult>('/calendar/availability', { token, method: 'POST', body: JSON.stringify(data) }),
