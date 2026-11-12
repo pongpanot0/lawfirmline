@@ -54,7 +54,7 @@ describe('OutlookSendService', () => {
     jest.resetAllMocks();
     mockConnections.findActiveForUser.mockResolvedValue(connection);
     mockConnections.primaryForUser.mockResolvedValue(null);
-    mockPrisma.mailboxConnection.findUnique.mockImplementation(async ({ where }: any) => where.id === 'conn-1' ? { ...connection, userId: user.id, status: 'ACTIVE' } : { id: where.id, userId: 'colleague', status: 'ACTIVE' });
+    mockPrisma.mailboxConnection.findUnique.mockImplementation(async ({ where }: any) => where.id === 'conn-1' ? { ...connection, userId: user.id, firmId: user.firmId, status: 'ACTIVE' } : { id: where.id, userId: 'colleague', status: 'ACTIVE' });
     mockConnections.getValidAccessToken.mockResolvedValue('token-1');
     mockGraph.createDraftMessage.mockResolvedValue(draft);
     mockGraph.addFileAttachment.mockResolvedValue(undefined);
@@ -456,12 +456,19 @@ describe('OutlookSendService', () => {
     mockGraph.createReplyDraft.mockResolvedValue(draft);
     mockGraph.updateDraft.mockResolvedValue(draft);
     mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'msg', graphMessageId: 'source', thread: { mailboxConnectionId: 'second' } });
-    mockPrisma.mailboxConnection.findUnique.mockResolvedValue({ id: 'second', userId: user.id, status: 'ACTIVE', mailboxAddress: 'second@x.com' });
+    mockPrisma.mailboxConnection.findUnique.mockResolvedValue({ id: 'second', userId: user.id, firmId: user.firmId, status: 'ACTIVE', mailboxAddress: 'second@x.com' });
     await service.send(user, 'case-1', { ...baseDto, replyToMessageId: 'msg' });
     expect(mockConnections.getValidAccessToken).toHaveBeenCalledWith('second');
     expect(mockGraph.createReplyDraft).toHaveBeenCalledWith('token-1', 'source', false);
-    mockPrisma.mailboxConnection.findUnique.mockResolvedValue({ id: 'second', userId: user.id, status: 'ERROR', mailboxAddress: 'second@x.com' });
-    await expect(service.send(user, 'case-1', { ...baseDto, replyToMessageId: 'msg' })).rejects.toThrow('บัญชี second@x.com หมดอายุ — เชื่อมใหม่ในหน้าตั้งค่า');
+    // A dead thread mailbox falls back to the primary instead of blocking the reply.
+    mockPrisma.mailboxConnection.findUnique.mockResolvedValue({ id: 'second', userId: user.id, firmId: user.firmId, status: 'ERROR', mailboxAddress: 'second@x.com' });
+    mockConnections.findActiveForUser.mockResolvedValue({ id: 'conn-1', status: 'ACTIVE', mailboxAddress: 'primary@x.com' });
+    mockConnections.getValidAccessToken.mockClear();
+    await service.send(user, 'case-1', { ...baseDto, replyToMessageId: 'msg' });
+    expect(mockConnections.getValidAccessToken).toHaveBeenCalledWith('conn-1');
+    // ...and only when the primary is dead too does it refuse.
+    mockConnections.findActiveForUser.mockResolvedValue(null);
+    await expect(service.send(user, 'case-1', { ...baseDto, replyToMessageId: 'msg' })).rejects.toThrow('หมดอายุ — เชื่อมใหม่ในหน้าตั้งค่า');
   });
 
   describe('reply', () => {

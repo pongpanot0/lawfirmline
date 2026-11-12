@@ -84,7 +84,11 @@ export class OutlookConnectionsService {
       // Serialize primary changes with disconnects, including disconnects of two accounts at once.
       await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`;
       const connection = await tx.mailboxConnection.findFirst({ where: { id, firmId: user.firmId } });
-      if (!connection || connection.status !== MailboxConnectionStatus.ACTIVE) {
+      // Re-check ownership under the lock: a takeover between assertCanManage and here must not be adopted.
+      if (!connection || (connection.userId ?? connection.connectedByUserId) !== user.id) {
+        throw new ForbiddenException('จัดการบัญชี Microsoft นี้ได้เฉพาะเจ้าของบัญชี');
+      }
+      if (connection.status !== MailboxConnectionStatus.ACTIVE) {
         throw new BadRequestException('เชื่อมบัญชีนี้ใหม่ก่อนตั้งเป็นบัญชีหลัก');
       }
       const owner = await tx.user.findUnique({ where: { id: user.id }, select: { primaryMailboxConnectionId: true } });
@@ -171,6 +175,9 @@ export class OutlookConnectionsService {
         tokenExpiresAt: new Date(Date.now() + tokens.expiresIn * 1000),
         status: MailboxConnectionStatus.ACTIVE,
         lastError: null,
+        // A reconnect re-baselines the calendar so the mirror (deleted on disconnect) refills in full.
+        calendarDeltaLink: null,
+        calendarDeltaStartedAt: null,
       },
     });
     await this.prisma.user.updateMany({
@@ -274,7 +281,7 @@ export class OutlookConnectionsService {
       if (connection.userId) await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${connection.userId} FOR UPDATE`;
       await tx.mailboxConnection.update({
         where: { id: connection.id },
-        data: { status: MailboxConnectionStatus.REVOKED, accessTokenEnc: '', refreshTokenEnc: '', graphSubscriptionId: null, subscriptionExpiresAt: null },
+        data: { status: MailboxConnectionStatus.REVOKED, accessTokenEnc: '', refreshTokenEnc: '', graphSubscriptionId: null, subscriptionExpiresAt: null, calendarDeltaLink: null, calendarDeltaStartedAt: null },
       });
       await tx.outlookCalendarItem.deleteMany({ where: { connectionId: id } });
       if (!connection.userId) return null;

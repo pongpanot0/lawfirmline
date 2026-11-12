@@ -49,7 +49,10 @@ export default function CalendarScreen() {
   const events = useCalendarRange(from, to);
   const outlook = useOutlookCalendar(`${from}T00:00:00+07:00`, `${isoDay(new Date(cursor.y, cursor.m + 1, 1))}T00:00:00+07:00`, user?.id, showOutlook && (!memberId || memberId === user?.id));
   const outlookItems = showOutlook && (!memberId || memberId === user?.id) ? outlook.data?.items ?? [] : [];
-  const outlookDay = (item: OutlookCalendarItemDto) => item.isAllDay ? item.startAt.slice(0, 10) : bangkokDay(item.startAt);
+  // All-day Outlook events are UTC midnights with an exclusive end: show them on every UTC date they cover.
+  const onDay = (item: OutlookCalendarItemDto, key: string) => item.isAllDay
+    ? item.startAt.slice(0, 10) <= key && (key < item.endAt.slice(0, 10) || key === item.startAt.slice(0, 10))
+    : bangkokDay(item.startAt) === key;
   const workload = useWorkload(!!memberId);
   const memberName = workload.data?.members.find((member) => member.id === memberId)?.name ?? 'สมาชิกทีม';
 
@@ -76,7 +79,7 @@ export default function CalendarScreen() {
   const goToday = () => { setCursor({ y: todayY, m: todayM - 1 }); setSelected(todayKey); };
   const cells = monthGrid(cursor.y, cursor.m);
   const selectedEvents = byDay.get(selected) ?? [];
-  const selectedOutlook = outlookItems.filter(item => outlookDay(item) === selected).sort((a, b) => Number(b.isAllDay) - Number(a.isAllDay) || a.startAt.localeCompare(b.startAt));
+  const selectedOutlook = outlookItems.filter(item => onDay(item, selected)).sort((a, b) => Number(b.isAllDay) - Number(a.isAllDay) || a.startAt.localeCompare(b.startAt));
   // One target everywhere (same as วันนี้): court dates open วันขึ้นศาล, everything else opens its team.
   const openEvent = (event: CalendarEventItem) => event.type === 'COURT_DATE'
     ? router.push(`/court-day/${event.id}`)
@@ -143,7 +146,7 @@ export default function CalendarScreen() {
                 const isSelected = key === selected;
                 const dayEvents = byDay.get(key);
                 const hasCourt = !!dayEvents?.some(event => event.type === 'COURT_DATE');
-                const outlookCount = outlookItems.filter(item => outlookDay(item) === key).length;
+                const outlookCount = outlookItems.filter(item => onDay(item, key)).length;
                 return (
                   <Pressable
                     key={key}
