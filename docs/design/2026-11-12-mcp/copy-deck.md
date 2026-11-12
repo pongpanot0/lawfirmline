@@ -4,13 +4,14 @@ Terms reused from app: การเชื่อมต่อ (tab), ยกเล�
 Feature name: "AI ของคุณ (Claude, Codex)". Never say "MCP" except inside the command text.
 
 ## S1 — ตั้งค่า › การเชื่อมต่อ › section "AI ของคุณ"
-Title: ใช้ Claude หรือ Codex ทำงานกับคดีใน Samnuan
+Title: ใช้ Claude, ChatGPT หรือ Codex ทำงานกับคดีใน Samnuan
 Desc: เชื่อมต่อครั้งเดียว แล้วสั่งงานจากแชท AI ได้เลย — ค้นคดี อ่านเอกสาร สร้างงาน ลงโน้ต และลงเวลา AI เห็นเฉพาะคดีที่คุณรับผิดชอบหรือมีงานอยู่
 Step 1 คัดลอกที่อยู่สำหรับเชื่อมต่อ | field https://api.samnuan.com/mcp | btn คัดลอกที่อยู่ | hint ใช้วางในแอป AI ตามขั้นที่ 2
-Step 2 ตั้งค่าในแอป AI ที่ใช้ | tabs Claude (เว็บและแอป) · Claude Code · Codex
+Step 2 ตั้งค่าในแอป AI ที่ใช้ | tabs Claude (เว็บและแอป) · Claude Code · Codex · ChatGPT
   Claude: 1) ใน Claude ไปที่ Settings › Connectors  2) กด Add custom connector แล้ววางที่อยู่  3) กด Connect
   Claude Code: `claude mcp add --transport http samnuan https://api.samnuan.com/mcp` btn คัดลอกคำสั่ง; then พิมพ์ /mcp แล้วเลือก samnuan เพื่อเข้าสู่ระบบ
   Codex: `codex mcp add samnuan --url https://api.samnuan.com/mcp` แล้ว `codex mcp login samnuan`
+  ChatGPT: 1) ใน ChatGPT ไปที่ Settings › Apps & Connectors › Advanced แล้วเปิด Developer mode 2) กด Create แล้ววางที่อยู่ เลือกการยืนยันตัวตนแบบ OAuth 3) กด Create แล้วเลือก Samnuan ในแชทใหม่ | note: ใช้ได้เฉพาะแพ็กเกจ ChatGPT ที่มี Developer mode — บัญชี Business ต้องให้ผู้ดูแล workspace เปิดให้ก่อน
 Step 3 เข้าสู่ระบบและกดอนุญาต | หน้า Samnuan จะเปิดขึ้นให้ยืนยันว่าอนุญาตให้ AI เข้าถึงข้อมูลของคุณ
 What AI can do:
   อ่าน — คดี เอกสาร นัด และงานที่คุณรับผิดชอบหรือมีงานอยู่ — ไม่เห็นงานของคนอื่น

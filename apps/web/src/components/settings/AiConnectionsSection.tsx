@@ -97,7 +97,7 @@ export function AiConnectionsSection() {
             </span>
             <div>
               <h2 className="font-display text-xl font-semibold">
-                ใช้ Claude หรือ Codex ทำงานกับคดีใน Samnuan
+                ใช้ Claude, ChatGPT หรือ Codex ทำงานกับคดีใน Samnuan
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 เชื่อมต่อครั้งเดียว แล้วสั่งงานจากแชท AI ได้เลย — ค้นคดี
@@ -155,11 +155,11 @@ export function AiConnectionsSection() {
                 </span>
                 <h3 className="font-semibold">ตั้งค่าในแอป AI ที่ใช้</h3>
                 <div
-                  className="mt-2 grid grid-cols-3 rounded-md border bg-background p-1"
+                  className="mt-2 grid grid-cols-2 rounded-md border bg-background p-1 sm:grid-cols-4"
                   role="group"
                   aria-label="เลือกแอป AI"
                 >
-                  {["Claude (เว็บและแอป)", "Claude Code", "Codex"].map(
+                  {["Claude (เว็บและแอป)", "Claude Code", "Codex", "ChatGPT"].map(
                     (label, i) => (
                       <button
                         key={label}
@@ -179,6 +179,15 @@ export function AiConnectionsSection() {
                       <p>1) ใน Claude ไปที่ Settings › Connectors</p>
                       <p>2) กด Add custom connector แล้ววางที่อยู่</p>
                       <p>3) กด Connect</p>
+                    </>
+                  ) : tab === 3 ? (
+                    <>
+                      <p>1) ใน ChatGPT ไปที่ Settings › Apps &amp; Connectors › Advanced แล้วเปิด Developer mode</p>
+                      <p>2) กด Create แล้ววางที่อยู่ เลือกการยืนยันตัวตนแบบ OAuth</p>
+                      <p>3) กด Create แล้วเลือก Samnuan ในแชทใหม่</p>
+                      <p className="text-muted-foreground">
+                        ใช้ได้เฉพาะแพ็กเกจ ChatGPT ที่มี Developer mode — บัญชี Business ต้องให้ผู้ดูแล workspace เปิดให้ก่อน
+                      </p>
                     </>
                   ) : (
                     (tab === 1
@@ -308,7 +317,7 @@ export function AiConnectionsSection() {
               ) : (
                 <ul className="divide-y">
                   {data.connections.map((c) => {
-                    const Icon = /claude/i.test(c.clientName)
+                    const Icon = /claude|chatgpt|openai/i.test(c.clientName)
                       ? MessageSquare
                       : /codex/i.test(c.clientName)
                         ? Terminal
