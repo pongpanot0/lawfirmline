@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, FileText } from 'lucide-react';
 import { hasFirmCapability } from '@lawfirm/shared';
@@ -114,6 +114,19 @@ export default function ExpensesPage() {
     if (!selectedDraftIds.length) return;
     router.push(`/expenses/claim?ids=${selectedDraftIds.join(',')}`);
   };
+
+  // Approvers start on "รอฉันอนุมัติ"; when nothing waits there, open the first tab that has items instead of an empty list.
+  const autoTab = useRef(false);
+  useEffect(() => {
+    if (loading || autoTab.current) return;
+    autoTab.current = true;
+    if (new URLSearchParams(window.location.search).get('tab') || tab !== 'APPROVE') return;
+    if (expenses.some(e => e.status === 'PENDING' && !!e.claimId)) return;
+    const mine = expenses.filter(e => e.user.id === user?.id);
+    const order: [string, (status: string) => boolean][] = [['TODO', st => st === 'DRAFT' || st === 'REJECTED'], ['PENDING', st => st === 'PENDING'], ['APPROVED', st => st === 'APPROVED'], ['PAID', st => st === 'PAID']];
+    const first = order.find(([, match]) => mine.some(e => match(e.status)));
+    if (first) setTab(first[0]);
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <PageLoading title={d.common.loading} lines={4} />;
 

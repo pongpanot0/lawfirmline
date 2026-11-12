@@ -16,6 +16,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { fmt } from '@/lib/i18n/dashboard';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { formatDate } from '@/lib/utils';
 
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -214,7 +215,7 @@ export default function TimesheetPage() {
                   </div>;
                 })}
               </div>
-              <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-2 border-t bg-card p-4 shadow-lg sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:bg-transparent sm:px-0 sm:shadow-none">
+              <div className="sticky bottom-0 z-[45] -mx-4 flex flex-col gap-2 border-t bg-card p-4 shadow-lg sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:bg-transparent sm:px-0 sm:shadow-none">
                 <strong>เลือก {checkedCount} รายการ · {Object.values(rows).filter((row) => row.checked).reduce((sum, row) => sum + (Number(row.hours) || 0), 0).toFixed(1)} ชั่วโมง</strong>
                 <div><Button className="w-full sm:w-auto" disabled={checkedCount === 0 || hasInvalidHours || confirming} onClick={confirmEntries}>{confirming ? d.timesheet.confirming : fmt(d.timesheet.confirmButton, { count: checkedCount })}</Button><p className="mt-1 text-center text-xs text-muted-foreground">บันทึกเวลาที่เลือกไว้เข้าคดี แก้ไขได้ภายหลัง</p></div>
                 {hasMissingHours ? <p className="text-sm text-destructive">{d.timesheet.hoursRequired}</p> : hasOutOfRangeHours ? <p className="text-sm text-destructive">{d.timesheet.hoursOutOfRange}</p> : null}
@@ -306,7 +307,7 @@ export default function TimesheetPage() {
                 {entries.length === 0 ? (
                   <InlineEmptyState title="ยังไม่มีเวลาที่บันทึก กดเพิ่มเวลาเพื่อเริ่ม" />
                 ) : (
-                  <><div className="divide-y rounded-lg border sm:hidden">{entries.map((entry) => <div key={entry.id} className="space-y-2 p-4"><div className="flex justify-between gap-2"><span className="min-w-0 break-words text-sm text-muted-foreground">{entry.date} · <strong className="text-foreground">{entry.caseRef ?? 'ภายในสำนักงาน'}</strong></span><strong className="shrink-0">{entry.hours} ชม.</strong></div><p className="break-words">{entry.description ?? '—'}</p><Badge variant={entry.invoiced ? 'success' : 'muted'}>{entry.invoiced ? d.timesheet.invoicedYes : entry.billable ? d.timesheet.billableYes : d.timesheet.billableNo}</Badge>{canEdit(entry) && <div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => { setEditing(entry); setShowAdd(false); }}>แก้ไข</Button><Button type="button" size="sm" variant="outline" onClick={() => void deleteEntry(entry)}>ลบ</Button></div>}</div>)}</div><div className="hidden sm:block"><Table>
+                  <><div className="divide-y rounded-lg border sm:hidden">{entries.map((entry) => <div key={entry.id} className="space-y-2 p-4"><div className="flex justify-between gap-2"><span className="min-w-0 break-words text-sm text-muted-foreground">{formatDate(entry.date)} · <strong className="text-foreground">{entry.caseRef ?? 'ภายในสำนักงาน'}</strong></span><strong className="shrink-0">{entry.hours} ชม.</strong></div><p className="break-words">{entry.description ?? '—'}</p><Badge variant={entry.invoiced ? 'success' : 'muted'}>{entry.invoiced ? d.timesheet.invoicedYes : entry.billable ? d.timesheet.billableYes : d.timesheet.billableNo}</Badge>{canEdit(entry) && <div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => { setEditing(entry); setShowAdd(false); }}>แก้ไข</Button><Button type="button" size="sm" variant="outline" onClick={() => void deleteEntry(entry)}>ลบ</Button></div>}</div>)}</div><div className="hidden sm:block"><Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>{d.timesheet.date}</TableHead>
@@ -322,7 +323,7 @@ export default function TimesheetPage() {
                     <TableBody>
                       {entries.map((entry) => (
                         <TableRow key={entry.id}>
-                          <TableCell className="text-sm text-muted-foreground">{entry.date}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{formatDate(entry.date)}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{entry.caseRef ?? '-'}</TableCell>
                           <TableCell>{entry.description ?? '-'}</TableCell>
                           {canViewTeam && <TableCell>{entry.userName}</TableCell>}

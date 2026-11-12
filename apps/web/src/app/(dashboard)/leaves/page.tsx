@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, LeaveItem } from '@/lib/api';
@@ -125,6 +125,17 @@ export default function LeavesPage() {
     }
   };
 
+  // Approvers start on "รอฉันอนุมัติ"; with nothing waiting, open the tab that has the person's own leave.
+  const autoTab = useRef(false);
+  useEffect(() => {
+    if (loading || autoTab.current || !user) return;
+    autoTab.current = true;
+    if (new URLSearchParams(window.location.search).get('tab') || tab !== 'APPROVE') return;
+    if (leaveApprovalQueue(leaves, user).length) return;
+    const mine = leaves.filter((leave) => leave.userId === user.id);
+    if (mine.some((leave) => leave.status === 'PENDING')) setTab('MY'); else if (mine.length) setTab('DONE');
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (loading) return <PageLoading title={d.leaves.title} description={d.leaves.description} />;
 
   const today = dateKey(new Date());
@@ -138,7 +149,7 @@ export default function LeavesPage() {
       <PageHeader title={d.leaves.title} description={d.leaves.description} />
 
 
-      <details><summary className="cursor-pointer py-3 font-medium">ยื่นคำขอลา</summary><form onSubmit={handleSubmit} className="space-y-4 [&>aside]:static [&>aside]:rounded-lg [&>aside]:border [&>aside]:shadow-none">
+      <details open><summary className="disclosure cursor-pointer py-3 font-medium">ยื่นคำขอลา</summary><form onSubmit={handleSubmit} className="space-y-4 [&>aside]:static [&>aside]:rounded-lg [&>aside]:border [&>aside]:shadow-none">
         <Card>
           <CardHeader><CardTitle>1. {d.leaves.formTitle}</CardTitle></CardHeader>
           <CardContent>

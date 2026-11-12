@@ -67,7 +67,7 @@ export function CasePlaybook({ caseId, caseTypeId, initialReleaseId = '', onAppl
       <label className="block text-sm">{th ? 'ชุดงานอัตโนมัติ' : 'Automated SOP'}
         <select disabled={busy} value={releaseId} onChange={e => { manuallySelected.current = true; setReleaseId(e.target.value); setPreview(null); setApplied(false); }} className="h-11 w-full rounded-lg border bg-background px-2">
           <option value="">{th ? 'เลือกชุดงานอัตโนมัติ' : 'Choose an SOP'}</option>
-          {releases.map(r => <option key={r.id} value={r.id}>{r.name} · v{r.version}{caseTypeId && r.caseTypeId === caseTypeId ? (th ? ' · แนะนำสำหรับคดีนี้' : ' · Recommended') : ''}</option>)}
+          {releases.map(r => <option key={r.id} value={r.id}>{r.name} · ฉบับที่ {r.version}{caseTypeId && r.caseTypeId === caseTypeId ? (th ? ' · แนะนำสำหรับคดีนี้' : ' · Recommended') : ''}</option>)}
         </select>
       </label>
       {previewBusy && <p role="status" className="text-sm">{th ? 'กำลังตรวจรายการงาน…' : 'Loading task preview…'}</p>}

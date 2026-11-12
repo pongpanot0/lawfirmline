@@ -290,9 +290,10 @@ export class PracticeSetupService {
       // Process each stage group
       for (const [stage, steps] of stageGroups) {
         if (stage) {
-          // Find or create parent for this stage
+          // Reuse only a stage group (titled with the stage name). A real task that merely carries the stage
+          // label — e.g. the case's starter task — must not swallow the set's steps as its subtasks.
           let parent = await db.task.findFirst({
-            where: { caseId, parentId: null, labels: { has: `stage:${stage}` }, status: { not: 'DONE' } },
+            where: { caseId, parentId: null, title: CASE_STAGE_LABELS_TH[stage], labels: { has: `stage:${stage}` }, status: { not: 'DONE' } },
           });
 
           if (!parent) {
@@ -465,11 +466,12 @@ export class PracticeSetupService {
       return { routine: json(taskRoutineSnapshot(release, task.routineSource.stepIndex, step.routine)), description: step.instructions, requiresReview: true, reviewerId, assignedAt: new Date() };
     }));
 
-    // Find or create open parent task for this stage
+    // Reuse only the stage group itself, never a real task that carries the stage label.
     let parent = await this.prisma.task.findFirst({
       where: {
         caseId,
         parentId: null,
+        title: CASE_STAGE_LABELS_TH[stage],
         labels: { has: `stage:${stage}` },
         status: { not: 'DONE' },
       },

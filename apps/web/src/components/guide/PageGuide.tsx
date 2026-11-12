@@ -32,7 +32,7 @@ export function PageGuide({ pathname }: { pathname: string }) {
     try { localStorage.setItem(`page-guide:${guide.route}:preference`, next ? 'expanded' : 'collapsed'); } catch { /* Storage may be unavailable. */ }
   };
   // Form pages show their own step bar — one line about the page is enough; two 1-2-3 bars confuse.
-  if (guide.formSteps) return <p className="mb-4 flex min-w-0 items-center gap-2 rounded-lg border border-l-4 border-l-primary bg-card px-3 py-2 text-sm print:hidden"><Lightbulb className="h-4 w-4 shrink-0 text-primary" aria-hidden /><span className="min-w-0"><span className="font-semibold">หน้านี้ใช้ทำอะไร:</span> {guide.purpose} · ทำตามขั้นตอนด้านล่าง แล้วกดปุ่มในการ์ด &quot;สิ่งที่ต้องทำก่อนส่ง&quot;</span></p>;
+  if (guide.formSteps) return <p className="mb-4 flex min-w-0 items-center gap-2 rounded-lg border border-l-4 border-l-primary bg-card px-3 py-2 text-sm print:hidden"><Lightbulb className="h-4 w-4 shrink-0 text-primary" aria-hidden /><span className="min-w-0"><span className="font-semibold">หน้านี้ใช้ทำอะไร:</span> {guide.purpose} · ทำตามขั้นตอนด้านล่าง แล้วกดปุ่มในการ์ด &quot;เช็กให้ครบก่อนกด&quot;</span></p>;
   const button = 'inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium text-primary hover:bg-accent active:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   return <section aria-label="วิธีใช้หน้านี้" className="mb-5 min-w-0 rounded-lg border border-border border-l-4 border-l-primary bg-card p-3 print:hidden">
     {expanded ? <div className="flex flex-col gap-4 lg:flex-row lg:items-center">

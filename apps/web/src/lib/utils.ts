@@ -6,7 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number) {
-  return `฿${amount.toLocaleString('th-TH', { maximumFractionDigits: 2 })}`;
+  // Whole baht stay short (฿50,000); any satang always shows two digits (฿350.50, never ฿350.5).
+  const fraction = Math.round(amount * 100) % 100 !== 0 ? 2 : 0;
+  return `฿${amount.toLocaleString('th-TH', { minimumFractionDigits: fraction, maximumFractionDigits: 2 })}`;
 }
 
 /**

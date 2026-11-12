@@ -15,4 +15,5 @@ test('money fields display grouped baht while preserving the numeric value', () 
   assert.equal(normalizeMoneyInput('50abc'), null);
   assert.equal(formatCurrency(50000), '฿50,000');
   assert.equal(formatCurrency(50000.555), '฿50,000.56');
+  assert.equal(formatCurrency(350.5), '฿350.50');
 });

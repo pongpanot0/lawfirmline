@@ -1593,7 +1593,7 @@ export default function CaseDetailPage() {
                     >
                       <option value="">— เลือกชุดงานอัตโนมัติ —</option>
                       {playbooks.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name} · v{p.version}</option>
+                        <option key={p.id} value={p.id}>{p.name} · ฉบับที่ {p.version}</option>
                       ))}
                     </select>
                     <Button

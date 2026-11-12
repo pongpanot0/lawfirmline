@@ -292,6 +292,8 @@ describe('stage-driven task proposals', () => {
 
     expect(result.created).toBe(2);
     expect(result.parentId).toBe('parent-1');
+    // Only a stage group is reused — not a real task that happens to carry the stage label.
+    expect(prisma.task.findFirst.mock.calls[0][0].where).toMatchObject({ title: 'ยื่นฟ้อง', labels: { has: 'stage:FILING' } });
     // No parent created since one exists
     expect(prisma.task.create).toHaveBeenCalledTimes(2);
     // Both calls should have parentId

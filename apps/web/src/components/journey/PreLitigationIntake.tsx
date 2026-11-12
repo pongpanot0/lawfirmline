@@ -1519,7 +1519,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
         <JourneyStepper steps={journey.steps} />
         {journey.next && <NextStepBanner next={journey.next} onGo={() => document.getElementById('intake-journey-focus')?.scrollIntoView({ behavior: 'smooth' })} />}
         {(['current', 'locked', 'done'] as const).flatMap((state) => journey.steps.filter((step) => step.state === state).map((step) => <JourneySection key={step.key} step={step} readOnly={['CONVERTED', 'REJECTED', 'CONSULTED'].includes(intake.status) && ['DECISION', 'CASE'].includes(step.key)}>{sections[step.key]}</JourneySection>))}
-        {journey.steps.some((step) => step.state === 'current') && <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border bg-background p-3 pr-44 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg"><span className="text-sm">ขั้นที่ {journey.steps.findIndex((step) => step.state === 'current') + 1} จาก {journey.steps.length}</span><Button onClick={() => document.getElementById('intake-journey-focus')?.scrollIntoView({ behavior: 'smooth' })}>ไปยังขั้นตอนปัจจุบัน</Button></div>}
+        {journey.steps.some((step) => step.state === 'current') && <div className="sticky bottom-0 z-[45] flex flex-wrap items-center gap-3 border bg-background p-3 pr-44 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg"><span className="text-sm">ขั้นที่ {journey.steps.findIndex((step) => step.state === 'current') + 1} จาก {journey.steps.length}</span><Button onClick={() => document.getElementById('intake-journey-focus')?.scrollIntoView({ behavior: 'smooth' })}>ไปยังขั้นตอนปัจจุบัน</Button></div>}
       </section>}
 
       {/* Summary strip — ตัวเลขที่ทนายเปิดหน้านี้มาดูก่อนอย่างอื่น */}
@@ -1708,7 +1708,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                 >
                   <option value="">— เลือกชุดงาน —</option>
                   {playbooks.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} · v{p.version}</option>
+                    <option key={p.id} value={p.id}>{p.name} · ฉบับที่ {p.version}</option>
                   ))}
                 </select>
                 <Button variant="ghost" size="sm" disabled={savingPlaybook} onClick={() => setEditingPlaybook(false)}>ยกเลิก</Button>
@@ -1998,7 +1998,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                         <option value="">— ไม่ใช้ชุดงาน —</option>
                         {playbooks.map((p) => (
                           <option key={p.id} value={p.id}>
-                            {p.name} · v{p.version}{p.caseTypeId === editCaseTypeId ? ' (แนะนำ)' : ''}
+                            {p.name} · ฉบับที่ {p.version}{p.caseTypeId === editCaseTypeId ? ' (แนะนำ)' : ''}
                           </option>
                         ))}
                       </select>

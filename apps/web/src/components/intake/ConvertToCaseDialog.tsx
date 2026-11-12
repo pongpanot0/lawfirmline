@@ -129,7 +129,7 @@ export function ConvertToCaseDialog({
               <option value="">— ไม่ใช้ชุดงาน —</option>
               {playbooks.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} · v{p.version}
+                  {p.name} · ฉบับที่ {p.version}
                   {p.caseTypeId === intake.caseTypeId ? ' (แนะนำ)' : ''}
                 </option>
               ))}

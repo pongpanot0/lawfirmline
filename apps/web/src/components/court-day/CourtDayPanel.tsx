@@ -1052,7 +1052,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
             <p className="mt-1 text-xs text-muted-foreground">{locale === 'th' ? 'บันทึกแฟ้มก่อน แล้วเก็บไฟล์ที่เลือกและแบบบันทึกไว้ในเครื่อง 24 ชั่วโมง รวมไฟล์ไม่เกิน 50 MB' : 'Save first, then store selected files and notes on this device for 24 hours, up to 50 MB.'}</p>
             <div className="mt-2 flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={dirty || busy || offlineBusy || conflict} className="min-h-11" onClick={async () => { if (!token || !user || !data || !state) return; setOfflineBusy(true); try { setOfflineUrl(await prepareCourtOffline(token, user, data, state, locale)); } catch(e) { setError(e instanceof Error ? e.message : t.error); } finally { setOfflineBusy(false); } }}>{offlineBusy ? (locale === 'th' ? 'กำลังเก็บไฟล์…' : 'Saving files…') : (locale === 'th' ? 'เก็บแฟ้มไว้ใช้แบบออฟไลน์' : 'Save an offline pack')}</Button>{offlineUrl && <a className={linkClass} href={offlineUrl}>{locale === 'th' ? 'เปิดแฟ้มออฟไลน์' : 'Open offline pack'}<ChevronRight className="h-4 w-4" aria-hidden /></a>}</div>
           </details>
-          <footer className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 shadow-sm sm:p-4">
+          <footer className="sticky bottom-0 z-[45] flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 shadow-sm sm:p-4">
             <p
               role="status"
               aria-live="polite"
