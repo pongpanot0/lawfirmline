@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { AuthUser } from '@lawfirm/shared';
+import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { RequireCapability } from '../saas/decorators/saas.decorators';
+import { FirmRoles } from '../saas/decorators/saas.decorators';
 import { SopsService } from './sops.service';
 
 class SopDto {
@@ -35,19 +35,20 @@ export class SopsController {
   }
 
   @Post()
-  @RequireCapability('manageFirmContent')
+  // Anyone in the firm may write down how they work.
+  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER, FirmRole.LAWYER, FirmRole.ASSISTANT)
   create(@CurrentUser() user: AuthUser, @Body() dto: SopDto) {
     return this.sopsService.create(user, dto);
   }
 
   @Patch(':id')
-  @RequireCapability('manageFirmContent')
+  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER, FirmRole.LAWYER, FirmRole.ASSISTANT) // authors edit their own; SopsService checks
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateSopDto) {
     return this.sopsService.update(user, id, dto);
   }
 
   @Delete(':id')
-  @RequireCapability('manageFirmContent')
+  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER, FirmRole.LAWYER, FirmRole.ASSISTANT) // authors edit their own; SopsService checks
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.sopsService.remove(user, id);
   }

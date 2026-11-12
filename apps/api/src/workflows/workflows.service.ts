@@ -15,6 +15,11 @@ import { CreateWorkflowTemplateDto, UpdateWorkflowTemplateDto, CreateWorkflowRun
 import { TaskStatus, NotificationCategory } from '../generated/prisma';
 
 /** Roles a template step may be assigned to. The office manager runs operations, not casework. */
+/** OWNER/SENIOR manage every template and the firm default; anyone else only templates they made. */
+const isTemplateAdmin = (user: AuthUser) => user.firmRole === FirmRole.OWNER || user.firmRole === FirmRole.SENIOR_LAWYER;
+function assertCanManageTemplate(user: AuthUser, tmpl: { createdById: string }) {
+  if (!isTemplateAdmin(user) && tmpl.createdById !== user.id) throw new ForbiddenException('แก้ไขหรือลบได้เฉพาะสายงานที่คุณสร้างเอง');
+}
 const STEP_ROLES: FirmRole[] = [FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.LAWYER, FirmRole.ASSISTANT, FirmRole.EXTERNAL];
 
 @Injectable()
@@ -109,9 +114,11 @@ export class WorkflowsService {
       await tx.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
       const tmpl = await tx.workflowTemplate.findFirst({
         where: { id: templateId, firmId: user.firmId, isActive: true },
-        select: { id: true },
+        select: { id: true, createdById: true, isDefault: true },
       });
       if (!tmpl) throw new NotFoundException('Template not found');
+      assertCanManageTemplate(user, tmpl);
+      if (dto.isDefault !== undefined && !isTemplateAdmin(user)) throw new ForbiddenException('ตั้งแม่แบบเริ่มต้นได้เฉพาะเจ้าของสำนักงานหรือทนายอาวุโส');
       if (dto.isDefault === true) {
         await tx.workflowTemplate.updateMany({
           where: { firmId: user.firmId, isDefault: true },
@@ -135,9 +142,12 @@ export class WorkflowsService {
       await tx.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
       const tmpl = await tx.workflowTemplate.findFirst({
         where: { id: templateId, firmId: user.firmId, isActive: true },
-        select: { id: true },
+        select: { id: true, createdById: true, isDefault: true },
       });
       if (!tmpl) throw new NotFoundException('Template not found');
+      assertCanManageTemplate(user, tmpl);
+      // Removing the firm default changes everyone's start-flow choice: leave that to the admins.
+      if (tmpl.isDefault && !isTemplateAdmin(user)) throw new ForbiddenException('แม่แบบนี้เป็นค่าเริ่มต้นของสำนักงาน ให้เจ้าของหรือทนายอาวุโสลบ');
       await tx.workflowTemplate.update({
         where: { id: templateId },
         data: { isActive: false, isDefault: false },

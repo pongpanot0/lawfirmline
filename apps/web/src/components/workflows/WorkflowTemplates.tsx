@@ -11,8 +11,9 @@ import { ROLE_LABELS } from './workflow-ui';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { Select } from '@/components/ui/select';
 
-export function WorkflowTemplates({ token, canEdit, search = '', editor, onEditorChange }: {
-  token: string; canEdit: boolean; search?: string;
+export function WorkflowTemplates({ token, canEdit, canCreate = canEdit, userId, search = '', editor, onEditorChange }: {
+  token: string; canEdit: boolean; /** Make new templates; editing others' still needs canEdit. */ canCreate?: boolean;
+  /** The viewer: they may edit and delete templates they made. */ userId?: string; search?: string;
   editor?: WorkflowTemplate | 'new' | null;
   onEditorChange?: (template: WorkflowTemplate | 'new' | null) => void;
 }) {
@@ -20,6 +21,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
   const [localEditor, setLocalEditor] = useState<WorkflowTemplate | 'new' | null>(null);
   const editing = editor === undefined ? localEditor : editor;
   const setEditor = onEditorChange ?? setLocalEditor;
+  const isMine = (t: WorkflowTemplate) => !!userId && t.createdById === userId;
   const closeEditor = useCallback(() => setEditor(null), [setEditor]);
   const [error, setError] = useState('');
   const [savingDefault, setSavingDefault] = useState(false);
@@ -55,7 +57,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
     <section aria-label="สายงานส่งต่อ" className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-semibold">สายงานส่งต่อ</h2>
-        {canEdit && !onEditorChange && <Button onClick={() => setEditor('new')}><Plus className="h-4 w-4" aria-hidden />สร้างสายงานส่งต่อ</Button>}
+        {(canEdit || canCreate) && !onEditorChange && <Button onClick={() => setEditor('new')}><Plus className="h-4 w-4" aria-hidden />สร้างสายงานส่งต่อ</Button>}
       </div>
       <p className="text-sm text-muted-foreground">ส่งงานทีละขั้น เมื่อขั้นก่อนเสร็จจึงส่งต่อให้ผู้รับขั้นถัดไป</p>
       {templates && <div className="grid min-w-0 gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
@@ -88,9 +90,10 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
               {t.isDefault && <Badge className="mt-1" variant="default">ค่าเริ่มต้นของสำนักงาน</Badge>}
               {t.description && <p className="text-sm text-muted-foreground">{t.description}</p>}
             </div>
-            {canEdit && <>
+            {(canEdit || isMine(t)) && <>
               <Button size="icon" variant="ghost" aria-label={`แก้ ${t.name}`} onClick={() => setEditor(t)}><Pencil className="h-4 w-4" aria-hidden /></Button>
-              <Button size="icon" variant="ghost" aria-label={`ลบ ${t.name}`} className="text-destructive hover:text-destructive" onClick={() => remove(t)}><Trash2 className="h-4 w-4" aria-hidden /></Button>
+              {/* The firm default is removed by owner/senior only. */}
+              {(canEdit || !t.isDefault) && <Button size="icon" variant="ghost" aria-label={`ลบ ${t.name}`} className="text-destructive hover:text-destructive" onClick={() => remove(t)}><Trash2 className="h-4 w-4" aria-hidden /></Button>}
             </>}
           </div>
           <details className="group mt-3 border-t pt-2">
@@ -108,7 +111,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
           </details>
         </article>
       ))}
-      {canEdit && <TemplateDrawer open={editing !== null} token={token} template={editing === 'new' ? null : editing} onClose={closeEditor} onSaved={load} />}
+      {(canEdit || canCreate) && <TemplateDrawer open={editing !== null && (canEdit || editing === 'new' || isMine(editing))} token={token} template={editing === 'new' ? null : editing} onClose={closeEditor} onSaved={load} />}
     </section>
   );
 }
