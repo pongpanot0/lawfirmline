@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser } from '@lawfirm/shared';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { AuthUser, hasFirmCapability } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 
 export interface SopInput {
@@ -42,12 +42,21 @@ export class SopsService {
 
   create(user: AuthUser, dto: SopInput) {
     return this.prisma.sop.create({
-      data: { firmId: user.firmId, ...dto, updatedById: user.id },
+      data: { firmId: user.firmId, ...dto, updatedById: user.id, createdById: user.id },
     });
   }
 
+  /** Content managers edit any handbook; everyone else only the ones they wrote. */
+  private async findEditable(user: AuthUser, id: string) {
+    const sop = await this.findOne(user, id);
+    if (!hasFirmCapability(user.firmRole, 'manageFirmContent') && sop.createdById !== user.id) {
+      throw new ForbiddenException('แก้ไขหรือลบได้เฉพาะคู่มือที่คุณเขียนเอง');
+    }
+    return sop;
+  }
+
   async update(user: AuthUser, id: string, dto: Partial<SopInput>) {
-    await this.findOne(user, id);
+    await this.findEditable(user, id);
     return this.prisma.sop.update({
       where: { id },
       data: { ...dto, updatedById: user.id },
@@ -55,7 +64,7 @@ export class SopsService {
   }
 
   async remove(user: AuthUser, id: string) {
-    await this.findOne(user, id);
+    await this.findEditable(user, id);
     await this.prisma.sop.delete({ where: { id } });
     return { deleted: true };
   }

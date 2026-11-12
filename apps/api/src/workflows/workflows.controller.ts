@@ -30,7 +30,7 @@ import {
 export class WorkflowsController {
   constructor(private workflowsService: WorkflowsService) {}
 
-  // ===== Templates (any member creates; OWNER/SENIOR edit) =====
+  // ===== Templates (any member creates and manages their own; OWNER/SENIOR manage all + default) =====
 
   @Get('templates')
   async getTemplates(@CurrentUser() user: AuthUser) {
@@ -50,7 +50,7 @@ export class WorkflowsController {
 
   @Patch('templates/:id')
   @UseGuards(FirmRoleGuard)
-  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER)
+  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER, FirmRole.LAWYER, FirmRole.ASSISTANT) // authors manage their own; WorkflowsService checks
   async updateTemplate(
     @CurrentUser() user: AuthUser,
     @Param('id') templateId: string,
@@ -61,7 +61,7 @@ export class WorkflowsController {
 
   @Delete('templates/:id')
   @UseGuards(FirmRoleGuard)
-  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER)
+  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER, FirmRole.LAWYER, FirmRole.ASSISTANT) // authors manage their own; WorkflowsService checks
   async deleteTemplate(
     @CurrentUser() user: AuthUser,
     @Param('id') templateId: string,

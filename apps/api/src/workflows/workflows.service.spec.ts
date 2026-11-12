@@ -64,7 +64,7 @@ describe('WorkflowsService', () => {
       const { svc, tx } = build();
       await svc.updateTemplate(owner, 'template-1', { isDefault: true });
       expect(tx.workflowTemplate.findFirst).toHaveBeenCalledWith({
-        where: { id: 'template-1', firmId: 'f1', isActive: true }, select: { id: true },
+        where: { id: 'template-1', firmId: 'f1', isActive: true }, select: { id: true, createdById: true, isDefault: true },
       });
       expect(tx.workflowTemplate.updateMany).toHaveBeenCalledWith({
         where: { firmId: 'f1', isDefault: true }, data: { isDefault: false },
@@ -83,6 +83,23 @@ describe('WorkflowsService', () => {
       await expect(svc.updateTemplate(owner, 'foreign-template', { isDefault: true })).rejects.toThrow(NotFoundException);
       expect(tx.workflowTemplate.updateMany).not.toHaveBeenCalled();
       expect(tx.workflowTemplate.update).not.toHaveBeenCalled();
+    });
+
+    it('a member manages only templates they made, never the firm default', async () => {
+      const lawyer = { ...owner, id: 'lawyer-a', firmRole: 'LAWYER' } as any;
+      const { svc, tx } = build();
+      tx.workflowTemplate.findFirst.mockResolvedValue({ id: 'template-1', createdById: 'someone-else', isDefault: false });
+      await expect(svc.updateTemplate(lawyer, 'template-1', { name: 'x' })).rejects.toThrow(ForbiddenException);
+      await expect(svc.deleteTemplate(lawyer, 'template-1')).rejects.toThrow(ForbiddenException);
+      tx.workflowTemplate.findFirst.mockResolvedValue({ id: 'template-1', createdById: 'lawyer-a', isDefault: false });
+      await svc.updateTemplate(lawyer, 'template-1', { name: 'สายงานของฉัน' });
+      expect(tx.workflowTemplate.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ name: 'สายงานของฉัน' }) }));
+      await expect(svc.updateTemplate(lawyer, 'template-1', { isDefault: true })).rejects.toThrow(ForbiddenException);
+      tx.workflowTemplate.findFirst.mockResolvedValue({ id: 'template-1', createdById: 'lawyer-a', isDefault: true });
+      await expect(svc.deleteTemplate(lawyer, 'template-1')).rejects.toThrow(ForbiddenException);
+      tx.workflowTemplate.findFirst.mockResolvedValue({ id: 'template-1', createdById: 'lawyer-a', isDefault: false });
+      await svc.deleteTemplate(lawyer, 'template-1');
+      expect(tx.workflowTemplate.update).toHaveBeenLastCalledWith({ where: { id: 'template-1' }, data: { isActive: false, isDefault: false } });
     });
 
     it('stores cleaned steps only', async () => {

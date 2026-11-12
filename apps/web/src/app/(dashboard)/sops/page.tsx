@@ -184,7 +184,7 @@ function SopsContent() {
         </Card>
       )}
 
-      {token && (view === 'all' || view === 'handoff') && <WorkflowTemplates token={token} canEdit={canEditFlows} canCreate={canCreate} search={q} editor={flowEditor} onEditorChange={setFlowEditor} />}
+      {token && (view === 'all' || view === 'handoff') && <WorkflowTemplates token={token} canEdit={canEditFlows} canCreate={canCreate} userId={user?.id} search={q} editor={flowEditor} onEditorChange={setFlowEditor} />}
 
       {!loading && !loadError && (view === 'all' || view === 'auto') && autoItems.length > 0 && (
         <div className="mb-3 space-y-3">
@@ -252,7 +252,7 @@ function SopsContent() {
                     <span className="min-w-0 break-words font-semibold">{sop.title}</span>
                     {sop.category && <Badge variant="muted" className="max-w-full break-all">{sop.category}</Badge>}
                   </button>
-                  {canManageContent && (
+                  {(canManageContent || (!!user?.id && sop.createdById === user.id)) && (
                     <div className="flex shrink-0 gap-1">
                       <Button size="sm" variant="ghost" aria-label={`แก้ไข ${sop.title}`} onClick={() => { setEditing(sop); setError(null); setSaved(''); }}>
                         <Pencil className="h-4 w-4" aria-hidden />

@@ -2956,6 +2956,8 @@ model Sop {
   content     String   @db.Text
   category    String?
   updatedById String
+  /// Author; may edit/delete their own handbook. NULL for rows made before 2026-11-12.
+  createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
