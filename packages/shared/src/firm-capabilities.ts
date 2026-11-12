@@ -19,7 +19,9 @@ export type FirmCapability =
   | 'manageMembers'
   | 'manageSubscription'
   | 'deleteCase'
-  | 'reassignCaseLead';
+  | 'reassignCaseLead'
+  /** Turn "AI ของทนาย" (MCP) on/off for the firm and cut anyone's connection. */
+  | 'manageAiConnections';
 
 const OFFICE = [FirmRole.OWNER, FirmRole.OFFICE_MANAGER] as const;
 const OWNER = [FirmRole.OWNER] as const;
@@ -39,6 +41,7 @@ export const FIRM_CAPABILITIES: Record<FirmCapability, readonly FirmRole[]> = {
   manageSubscription: OWNER,
   deleteCase: OWNER,
   reassignCaseLead: OWNER,
+  manageAiConnections: OWNER,
 };
 
 export function hasFirmCapability(role: FirmRole | string | null | undefined, cap: FirmCapability): boolean {
