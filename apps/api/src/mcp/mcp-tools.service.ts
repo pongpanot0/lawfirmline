@@ -80,7 +80,12 @@ export class McpToolsService {
   createServer(user: AuthUser, connection: { id: string; clientName: string }): McpServer {
     const server = new McpServer({ name: 'samnuan', version: '1.0.0' });
     const origin = this.links.originForSlug(user.firmSlug);
-    const result = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(redactWithLinks(value, origin)) }] });
+    // ChatGPT reads structuredContent (it showed `{}` without it); Claude reads the text block. Send both, per the MCP spec.
+    const result = (value: unknown) => {
+      const data = redactWithLinks(value, origin);
+      const structuredContent = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : { result: data };
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }], structuredContent };
+    };
     const handle = async (run: () => Promise<unknown>) => {
       try { return result(await run()); }
       catch (e) {

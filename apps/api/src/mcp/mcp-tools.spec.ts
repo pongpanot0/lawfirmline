@@ -61,6 +61,12 @@ describe('MCP tools', () => {
     await tools.get('lawyer_licenses')!.run({});
     expect(secretary.run).toHaveBeenCalledWith(user, 'lawyer_licenses', {}, 'own');
   });
+  it('returns the same data as structuredContent and as text (ChatGPT reads structuredContent)', async () => {
+    secretary.run.mockResolvedValueOnce({ content: { licences: [{ name: 'A' }] }, cards: [] });
+    const out = await tools.get('lawyer_licenses')!.run({});
+    expect(out.structuredContent).toEqual(decode(out));
+    expect(out.structuredContent.content.licences).toHaveLength(1);
+  });
   it('read errors say what went wrong instead of always "case not found"', async () => {
     secretary.run.mockResolvedValueOnce({ content: { error: 'invalid_date_range' }, cards: [] });
     const range = await tools.get('lawyer_licenses')!.run({});
