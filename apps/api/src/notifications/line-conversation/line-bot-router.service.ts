@@ -377,7 +377,7 @@ export class LineBotRouterService {
   }
 
   private async replyUnlinked(lineUserId: string, target: ConversationTarget): Promise<void> {
-    const text = 'บัญชีไลน์นี้ยังไม่ได้ผูกกับผู้ใช้งานในระบบครับ กรุณาไปที่หน้าตั้งค่า > เชื่อมต่อ LINE บนเว็บแอปเพื่อขอรหัสผูกบัญชี แล้วพิมพ์รหัส (เช่น LF-XXXXXX) กลับมาที่นี่ครับ';
+    const text = 'บัญชีไลน์นี้ยังไม่ได้ผูกกับผู้ใช้งานในระบบครับ กรุณาไปที่ ตั้งค่า › การเชื่อมต่อ › บัญชี LINE ของคุณ บนเว็บ แล้วกด "เชื่อมต่อ LINE" เพื่อขอรหัส แล้วพิมพ์รหัส (เช่น LF-XXXXXX) กลับมาที่นี่ครับ';
     if (target.replyToken) {
       await this.line.replyWithQuickReply(target.replyToken, text);
     } else {

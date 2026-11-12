@@ -90,7 +90,7 @@ export class LineController {
         if (event.replyToken) {
           await this.line.replyText(
             event.replyToken,
-            '👋 สวัสดี! เพื่อเชื่อมต่อบัญชี LexFlow กรุณาไปที่ Settings → LINE แล้วส่งรหัสเชื่อมต่อ (เช่น LF-XXXXXX) มาที่แชทนี้',
+            '👋 สวัสดี! เพื่อเชื่อมต่อบัญชี LexFlow กรุณาไปที่ ตั้งค่า › การเชื่อมต่อ › บัญชี LINE ของคุณ บนเว็บ กด "เชื่อมต่อ LINE" แล้วส่งรหัส (เช่น LF-XXXXXX) มาที่แชทนี้',
           );
         }
       }

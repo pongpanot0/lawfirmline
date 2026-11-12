@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { Bell, Building2, UserRound, Link2, Copy, ExternalLink, Shield, Tags, Timer, CalendarOff, Scale, History, Mail, ChevronRight, FolderSync, Rocket, Zap } from 'lucide-react';
+import { Bell, Building2, UserRound, UserCheck, Link2, Copy, Clock, ExternalLink, MessageCircle, RefreshCw, Send, Smartphone, Shield, Tags, Timer, CalendarOff, Scale, History, Mail, ChevronRight, FolderSync, Rocket, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, getStoredToken } from '@/lib/auth';
@@ -193,31 +193,129 @@ function SettingsContent() {
   };
 
   const lineLabel = lineStatus?.configured
-    ? fmt(d.settings.lineConnected, { channelId: lineStatus.channelId ?? '', mode: lineStatus.deliveryMode ?? '' })
+    ? fmt(d.settings.lineConnected, { channelId: lineStatus.channelId ?? '' })
     : d.settings.lineNotConfigured;
 
   const personalLabel = linePersonal?.connected
     ? `เชื่อมต่อแล้ว${linePersonal.connectedAt ? ` · ${formatDate(linePersonal.connectedAt)}` : ''}`
     : 'ยังไม่เชื่อมต่อ';
 
+  // The office's bot (set up by the office admin) — not the signed-in user's own LINE account.
   const lineStatusRow = (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Bell className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          <div className="min-w-0">
-            <p className="text-sm font-medium">{d.settings.lineMessagingApi}</p>
-            <p className="text-xs text-muted-foreground">ระบบแจ้งเตือนของสำนักงาน</p>
-          </div>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
+          <Bell className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{d.settings.lineMessagingApi}</p>
+          <p className="text-xs text-muted-foreground">บอท LINE ของสำนักงาน (ตั้งค่าโดยผู้ดูแลสำนักงาน)</p>
         </div>
-        <Badge variant={lineStatus?.configured ? 'success' : 'muted'}>{lineLabel}</Badge>
       </div>
-      {lineStatus?.configured && hasFirmCapability(user?.firmRole, 'manageSubscription') && (
-        <div className="flex flex-wrap items-center gap-3">
-          <Button size="sm" variant="outline" onClick={handleLineTest} disabled={lineTesting}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={lineStatus?.configured ? 'success' : 'muted'}>{lineLabel}</Badge>
+        {lineStatus?.configured && hasFirmCapability(user?.firmRole, 'manageSubscription') && (
+          <Button size="sm" variant="outline" onClick={handleLineTest} disabled={lineTesting} title="กดเพื่อส่งข้อความทดสอบจากบอทของสำนักงาน">
+            <Send className="h-4 w-4" aria-hidden />
             {lineTesting ? d.settings.sending : d.settings.sendTestMessage}
           </Button>
-          {lineTestResult && <p role="status" className="text-xs text-muted-foreground">{lineTestResult}</p>}
+        )}
+      </div>
+      {lineTestResult && <p role="status" className="w-full text-xs text-muted-foreground">{lineTestResult}</p>}
+    </div>
+  );
+
+  // The signed-in user's own LINE account: the primary row, where the LF link code lives.
+  const linePersonalRow = (
+    <div className="space-y-4 rounded-lg border bg-muted/40 p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-card">
+            <UserCheck className="h-4 w-4" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-base font-semibold">บัญชี LINE ของคุณ</p>
+            <p className="text-xs text-muted-foreground">ผูกบัญชีเพื่อรับแจ้งเตือนนัด และถามผู้ช่วย AI ในแชต LINE</p>
+          </div>
+        </div>
+        <Badge variant={linePersonal?.connected ? 'success' : 'muted'}>{personalLabel}</Badge>
+      </div>
+
+      {!linePersonal?.connected && !lineStatus?.configured && (
+        <p className="text-xs text-warning">บอท LINE ของสำนักงานยังไม่ได้ตั้งค่า ติดต่อผู้ดูแลสำนักงานก่อนเชื่อมต่อ</p>
+      )}
+
+      {!linePersonal?.connected && linkCode && (
+        <div className="space-y-3 rounded-lg border bg-card p-4">
+          <p className="flex items-center gap-1.5 border-b pb-2 text-xs font-semibold">
+            <Smartphone className="h-3.5 w-3.5" aria-hidden />
+            ขั้นตอนการเชื่อมต่อ
+          </p>
+          <ol className="space-y-3 text-sm">
+            <li className="flex items-center gap-2">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums">1</span>
+              <span>
+                เพิ่มเพื่อน Official Account{oaUrl ? '' : ' ของ Samnuan'}
+                {oaUrl && (
+                  <a href={oaUrl} target="_blank" rel="noopener noreferrer" className="ml-1 inline-flex items-center gap-0.5 font-medium text-primary underline">
+                    ที่นี่
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                  </a>
+                )}
+              </span>
+            </li>
+            <li className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums">2</span>
+                <span>ส่งรหัสด้านล่างในแชต LINE</span>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-2 sm:ml-8">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="flex items-center gap-1 rounded-md border bg-card py-1 pl-3 pr-1">
+                    <code className="font-mono text-base font-semibold tracking-widest">{linkCode}</code>
+                    <Button size="sm" variant="ghost" onClick={handleCopyCode} title="กดเพื่อคัดลอกรหัสไปวางในแชต LINE">
+                      <Copy className="h-4 w-4" aria-hidden />
+                      {copied ? 'คัดลอกแล้ว' : 'คัดลอก'}
+                    </Button>
+                  </span>
+                  {linkExpiresAt && (
+                    <span className="flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" aria-hidden />
+                      รหัสหมดอายุ {new Date(linkExpiresAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+                <Button size="sm" variant="outline" onClick={handleCreateLinkCode} disabled={linkLoading} title="กดเพื่อขอรหัสใหม่ เมื่อรหัสเดิมหมดอายุ">
+                  <RefreshCw className="h-4 w-4" aria-hidden />
+                  สร้างรหัสใหม่
+                </Button>
+              </div>
+            </li>
+          </ol>
+        </div>
+      )}
+
+      {!linePersonal?.connected && !linkCode && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={handleCreateLinkCode} disabled={linkLoading || !lineStatus?.configured} title="กดเพื่อรับรหัสผูกบัญชี LINE">
+            {linkLoading ? 'กำลังสร้างรหัส...' : 'เชื่อมต่อ LINE'}
+          </Button>
+          <p className="text-xs text-muted-foreground">กดเพื่อรับรหัส แล้วส่งรหัสในแชต LINE ของสำนักงาน</p>
+        </div>
+      )}
+
+      {linePersonal?.connected && (
+        <div className="flex justify-end border-t pt-3">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={handleDisconnect}
+            disabled={disconnectLoading}
+            title="กดเพื่อเลิกผูกบัญชี LINE นี้ จะไม่ได้รับแจ้งเตือนทาง LINE อีก"
+          >
+            {disconnectLoading ? 'กำลังยกเลิก...' : 'ยกเลิกการเชื่อมต่อ LINE'}
+          </Button>
         </div>
       )}
     </div>
@@ -312,80 +410,6 @@ function SettingsContent() {
             </Card>
           )}
 
-          <Card>
-            <CardContent className="space-y-3 p-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">LINE ส่วนตัว</p>
-                  <p className="text-xs text-muted-foreground">แจ้งเตือนนัดล่วงหน้า 3 วัน 1 วัน และ 1 ชั่วโมง</p>
-                </div>
-                <Badge variant={linePersonal?.connected ? 'success' : 'muted'}>{personalLabel}</Badge>
-              </div>
-
-              {!linePersonal?.connected && (
-                <div className="space-y-3">
-                  {!lineStatus?.configured && (
-                    <p className="text-xs text-warning">
-                      ระบบ LINE ของสำนักงานยังไม่ได้ตั้งค่า ติดต่อผู้ดูแลสำนักงาน ก่อนเชื่อมต่อ
-                    </p>
-                  )}
-
-                  {linkCode ? (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        1. เพิ่มเพื่อน Official Account{oaUrl ? '' : ' ของ Samnuan'}
-                        {oaUrl && (
-                          <a
-                            href={oaUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-1 inline-flex items-center gap-0.5 text-primary underline"
-                          >
-                            ที่นี่
-                            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                          </a>
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">2. ส่งรหัสด้านล่างในแชท LINE</p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <code className="rounded bg-muted px-3 py-1.5 font-mono text-sm">{linkCode}</code>
-                        <Button size="sm" variant="ghost" onClick={handleCopyCode}>
-                          <Copy className="h-4 w-4" aria-hidden />
-                          {copied ? 'คัดลอกแล้ว' : 'คัดลอก'}
-                        </Button>
-                      </div>
-                      {linkExpiresAt && (
-                        <p className="text-xs tabular-nums text-muted-foreground">
-                          รหัสหมดอายุ {new Date(linkExpiresAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      )}
-                      <Button size="sm" variant="outline" onClick={handleCreateLinkCode} disabled={linkLoading}>
-                        สร้างรหัสใหม่
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button size="sm" onClick={handleCreateLinkCode} disabled={linkLoading || !lineStatus?.configured}>
-                      {linkLoading ? 'กำลังสร้างรหัส...' : 'เชื่อมต่อ LINE'}
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {linePersonal?.connected && (
-                <div className="flex justify-end border-t pt-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={handleDisconnect}
-                    disabled={disconnectLoading}
-                  >
-                    {disconnectLoading ? 'กำลังยกเลิก...' : 'ยกเลิกการเชื่อมต่อ LINE'}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
       )}
 
@@ -399,10 +423,25 @@ function SettingsContent() {
       )}
 
       {view === 'integrations' && (
-        <div className="space-y-6"><AiConnectionsSection /><Card>
+        <div className="space-y-6"><AiConnectionsSection />
+        <Card>
           <CardContent className="space-y-4 p-6">
-            {lineStatusRow}
+            <div className="flex items-start gap-3 border-b pb-4">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-success/10 text-success">
+                <MessageCircle className="h-4 w-4" aria-hidden />
+              </span>
+              <div>
+                <p className="text-lg font-semibold">LINE</p>
+                <p className="text-xs text-muted-foreground">การเชื่อมต่อแชตส่วนตัวและระบบแจ้งเตือนของสำนักงาน</p>
+              </div>
+            </div>
+            {linePersonalRow}
             <Separator />
+            {lineStatusRow}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-4 p-6">
             <MicrosoftAccountsSection>
               <Link href="/settings/outlook-folders" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-primary hover:underline">
                 <FolderSync className="h-4 w-4" aria-hidden />
