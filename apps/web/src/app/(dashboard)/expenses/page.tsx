@@ -77,7 +77,7 @@ export default function ExpensesPage() {
     Promise.all(loads)
       .then(([e, f, m]) => {
         setExpenses(e as ExpenseItem[]);
-        setSelectedDraftIds(prev => prev.filter(id => (e as ExpenseItem[]).some(item => item.id === id && item.status === 'DRAFT')));
+        setSelectedDraftIds(prev => prev.filter(id => (e as ExpenseItem[]).some(item => item.id === id)));
         setFinance(f as FinanceSummary | null);
         if (Array.isArray(m)) setMembers(m as TeamMember[]);
       })
@@ -139,7 +139,13 @@ export default function ExpensesPage() {
   const own = expenses.filter(e => e.user.id === user?.id);
   const groups = { TODO: own.filter(e => e.status === 'DRAFT' || e.status === 'REJECTED'), PENDING: own.filter(e => e.status === 'PENDING'), APPROVED: own.filter(e => e.status === 'APPROVED'), PAID: own.filter(e => e.status === 'PAID'), APPROVE: expenses.filter(e => e.status === 'PENDING' && !!e.claimId) };
   const visible = (groups[tab as keyof typeof groups] ?? groups.TODO).filter((e, index, items) => (!statusFilter || e.status === statusFilter) && (tab !== 'APPROVE' || items.findIndex(item => item.claimId === e.claimId) === index));
-  const selectedTotal = expenses.filter(e => e.status === 'DRAFT' && selectedDraftIds.includes(e.id)).reduce((sum, e) => sum + e.amount, 0);
+  // Any own item can be picked: drafts go on to submit, submitted ones only export (ZIP with CSV for Excel) on the claim page.
+  const selectedItems = expenses.filter(e => selectedDraftIds.includes(e.id));
+  const selectedTotal = selectedItems.reduce((sum, e) => sum + e.amount, 0);
+  const allDraftsSelected = selectedItems.every(e => e.status === 'DRAFT');
+  const selectable = tab === 'APPROVE' ? [] : visible;
+  const allVisibleSelected = selectable.length > 0 && selectable.every(e => selectedDraftIds.includes(e.id));
+  const toggleAllVisible = () => setSelectedDraftIds(prev => allVisibleSelected ? prev.filter(id => !selectable.some(e => e.id === id)) : [...new Set([...prev, ...selectable.map(e => e.id)])]);
   const decideClaim = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     const authToken = token ?? getStoredToken();
     if (!authToken || !await confirmDialog(status === 'APPROVED' ? 'อนุมัติใบเบิกนี้?' : 'ไม่อนุมัติใบเบิกนี้?')) return;
@@ -226,8 +232,9 @@ export default function ExpensesPage() {
         { key: 'PAID', label: 'จ่ายแล้ว', count: groups.PAID.length },
       ]} />
       <div className="mt-4 space-y-3 pb-24">
+        {selectable.length > 0 && <label className="flex min-h-11 w-fit cursor-pointer items-center gap-3 px-4 text-sm"><Checkbox checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="เลือกทุกรายการในแท็บนี้" />เลือกทั้งหมด ({selectable.length}) เพื่อส่งออก Excel หรือส่งเบิก</label>}
         {visible.length === 0 ? <p className="rounded-lg border bg-card p-6 text-center text-muted-foreground">ไม่มีรายการที่ต้องทำ</p> : visible.map(e => <article key={e.id} className="space-y-3 rounded-lg border bg-card p-4">
-          <div className="flex flex-wrap justify-between gap-2"><div className="flex gap-3">{e.status === 'DRAFT' && tab === 'TODO' && <Checkbox checked={selectedDraftIds.includes(e.id)} onChange={() => toggleDraft(e.id)} aria-label={`เลือก ${e.description}`} />}<div><p className="font-medium">{tab === 'APPROVE' ? `ใบเบิก · ${e.user.firstName} ${e.user.lastName}` : e.description}{tab !== 'APPROVE' && e.viaAi && <> <AiBadge /></>}</p><p className="text-sm text-muted-foreground">{e.case?.ownRef ?? d.expenses.general} · {formatDate(e.date)}{tab === 'APPROVE' ? ` · ${e.user.firstName} ${e.user.lastName}` : ''}</p></div></div><p className="font-semibold tabular-nums">{formatCurrency(tab === 'APPROVE' ? groups.APPROVE.filter(item => item.claimId === e.claimId).reduce((sum, item) => sum + item.amount, 0) : e.amount)}</p></div>
+          <div className="flex flex-wrap justify-between gap-2"><div className="flex gap-3">{tab !== 'APPROVE' && <Checkbox checked={selectedDraftIds.includes(e.id)} onChange={() => toggleDraft(e.id)} aria-label={`เลือก ${e.description}`} />}<div><p className="font-medium">{tab === 'APPROVE' ? `ใบเบิก · ${e.user.firstName} ${e.user.lastName}` : e.description}{tab !== 'APPROVE' && e.viaAi && <> <AiBadge /></>}</p><p className="text-sm text-muted-foreground">{e.case?.ownRef ?? d.expenses.general} · {formatDate(e.date)}{tab === 'APPROVE' ? ` · ${e.user.firstName} ${e.user.lastName}` : ''}</p></div></div><p className="font-semibold tabular-nums">{formatCurrency(tab === 'APPROVE' ? groups.APPROVE.filter(item => item.claimId === e.claimId).reduce((sum, item) => sum + item.amount, 0) : e.amount)}</p></div>
           <StepTracker variant="mini" steps={['ร่าง', 'ส่งเบิก', 'อนุมัติ', 'จ่ายแล้ว'].map((label, i) => { const current = e.status === 'DRAFT' ? 0 : e.status === 'PENDING' || e.status === 'REJECTED' ? 1 : e.status === 'APPROVED' ? 2 : 3; return { key: label, label, state: i < current ? 'done' : i === current ? 'current' : 'todo' }; })} />
           {e.status === 'REJECTED' && <p className="text-sm text-destructive">ไม่อนุมัติ · ติดต่อผู้อนุมัติเพื่อตรวจสอบ</p>}
           {e.receiptFilename && <button type="button" onClick={() => downloadReceipt(e.id, e.receiptFilename!)} className="text-sm text-primary underline">{d.expenses.viewReceipt}</button>}
@@ -235,7 +242,7 @@ export default function ExpensesPage() {
           {tab === 'APPROVE' && e.claimId && <div className="flex gap-2"><Button disabled={!!busyClaim} onClick={() => decideClaim(e.claimId!, 'APPROVED')}>อนุมัติทั้งใบเบิก</Button><Button variant="outline" disabled={!!busyClaim} onClick={() => decideClaim(e.claimId!, 'REJECTED')}>ไม่อนุมัติ</Button></div>}
         </article>)}
       </div>
-      {selectedDraftIds.length > 0 && <div className="sticky bottom-0 z-[45] flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-lg"><span>เลือกแล้ว {selectedDraftIds.length} รายการ · {formatCurrency(selectedTotal)}</span><Button onClick={openClaimSheet}>ส่งเบิก →</Button></div>}
+      {selectedDraftIds.length > 0 && <div className="sticky bottom-0 z-[45] flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-lg"><span>เลือกแล้ว {selectedDraftIds.length} รายการ · {formatCurrency(selectedTotal)}</span><div className="flex gap-2"><Button variant="outline" onClick={() => setSelectedDraftIds([])}>ล้าง</Button><Button onClick={openClaimSheet}>{allDraftsSelected ? 'ส่งเบิก →' : 'ส่งออก Excel / พิมพ์ →'}</Button></div></div>}
 
     </div>
   );
