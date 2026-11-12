@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react-native';
-import { canAssignFirmRole, FirmRole, hasFirmCapability, HEAVY_DAY_POINTS, type PersonWorkload, type TeamRadar, type TeamRadarDay } from '@lawfirm/shared';
+import { canAssignFirmRole, FirmRole, hasFirmCapability, dayLoad, type PersonWorkload, type TeamRadar, type TeamRadarDay } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { Text } from '@/components/AppText';
@@ -24,7 +24,7 @@ function WeekStrip({ days }: { days: TeamRadarDay[] }) {
   return <View style={styles.strip}>
     {days.map(day => {
       const date = new Date(noonOf(day.date));
-      const heavy = day.points >= HEAVY_DAY_POINTS;
+      const heavy = dayLoad(day.points) === 'over';
       const load = day.taskCount + day.eventCount;
       const label = `${thDate(noonOf(day.date))}${day.onLeave ? ' ลา' : ''}${heavy ? ' งานแน่น' : ''} · งาน ${day.taskCount} · นัด ${day.eventCount}${day.courtCount ? ` · ศาล ${day.courtCount}` : ''} · ภาระ ${day.points} คะแนน`;
       return <View key={day.date} accessible accessibilityLabel={label}

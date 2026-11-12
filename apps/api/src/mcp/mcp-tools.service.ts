@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AuthUser, EXPENSE_CATEGORIES, HEAVY_QUEUE_POINTS, MONEY_MAX, MONEY_MIN, mcpCaseScope, type McpNoticeDraft, hasFirmCapability, redactForAi, TaskStatus, subscriptionAllowsWrites, type TeamRadar } from '@lawfirm/shared';
+import { AuthUser, EXPENSE_CATEGORIES, HEAVY_QUEUE_POINTS, workloadStatus, MONEY_MAX, MONEY_MIN, mcpCaseScope, type McpNoticeDraft, hasFirmCapability, redactForAi, TaskStatus, subscriptionAllowsWrites, type TeamRadar } from '@lawfirm/shared';
 import { DailyOperationsService } from '../operations/daily-operations.service';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { DateSuggestionSource, DateSuggestionStatus, EventType, LeaveStatus, LeaveType, TaskSource } from '../generated/prisma';
@@ -188,9 +188,7 @@ export function teamWorkload(radar: TeamRadar) {
     from: radar.start, standardPoints: HEAVY_QUEUE_POINTS,
     members: radar.members.map(({ userId: _id, days, ...m }) => {
       const leaveDays = days.filter((d) => d.onLeave).map((d) => d.date);
-      const status = m.openPoints > HEAVY_QUEUE_POINTS ? 'over_standard'
-        : m.openPoints >= HEAVY_QUEUE_POINTS * 0.8 ? 'near_standard'
-          : leaveDays.length ? 'on_leave_this_week' : 'free';
+      const status = workloadStatus({ ...m, days });
       return { ...m, status, loadPercent: Math.round((m.openPoints / HEAVY_QUEUE_POINTS) * 100), leaveDays,
         days: days.map(({ onLeave: _l, ...d }) => d) };
     }),
