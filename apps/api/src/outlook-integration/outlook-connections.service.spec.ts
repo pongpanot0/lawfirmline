@@ -175,6 +175,23 @@ describe('OutlookConnectionsService', () => {
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({ data: { firmId: 'f1', userId: 'u1', action: 'MICROSOFT_PRIMARY_CHANGED', metadata: { from: 'old', to: 'c1' } } });
     });
 
+    it('setPrimary re-checks ownership under the lock (a takeover in between is refused)', async () => {
+      mockPrisma.mailboxConnection.findFirst
+        .mockResolvedValueOnce({ ...row, status: 'ACTIVE' })
+        .mockResolvedValueOnce({ ...row, userId: 'someone-else', status: 'ACTIVE' });
+      await expect(service.setPrimary(owner, 'c1')).rejects.toThrow(/เฉพาะเจ้าของบัญชี/);
+      expect(mockPrisma.user.update).not.toHaveBeenCalledWith(expect.objectContaining({ data: { primaryMailboxConnectionId: 'c1' } }));
+    });
+
+    it('disconnect resets the calendar delta cursor so a reconnect re-fills the mirror', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValueOnce({ ...row, graphSubscriptionId: null });
+      mockPrisma.user.findUnique.mockResolvedValue({ primaryMailboxConnectionId: 'other' });
+      await service.disconnect('f1', 'c1');
+      expect(mockPrisma.mailboxConnection.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ status: 'REVOKED', calendarDeltaLink: null, calendarDeltaStartedAt: null }),
+      }));
+    });
+
     it('disconnect primary reassigns the oldest ACTIVE account, removes mirrors and notifies', async () => {
       mockPrisma.mailboxConnection.findFirst.mockResolvedValueOnce({ ...row, graphSubscriptionId: null }).mockResolvedValueOnce({ id: 'next', mailboxAddress: 'next@x.com' });
       mockPrisma.user.findUnique.mockResolvedValue({ primaryMailboxConnectionId: 'c1' });

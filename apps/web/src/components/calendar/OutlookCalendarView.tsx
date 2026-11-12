@@ -1,7 +1,7 @@
 'use client';
 
 import type { OutlookCalendarItemDto } from '@lawfirm/shared';
-import { outlookDay } from './outlook-day';
+import { outlookDays } from './outlook-day';
 import type { CSSProperties } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -119,7 +119,7 @@ export function OutlookCalendarView({
         ))}
         {days.map((day, i) => {
           const dayEvents = day ? getEventsForDay(day) : [];
-          const dayOutlook = day ? outlookItems.filter(item => { const key = outlookDay(item); return key === `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`; }) : [];
+          const dayOutlook = day ? outlookItems.filter(item => outlookDays(item).includes(`${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`)) : [];
           const holidayName = day ? holidayByDay.get(day) : undefined;
           const isToday =
             day === new Date().getDate() &&

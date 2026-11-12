@@ -1,7 +1,7 @@
 'use client';
 
 import type { OutlookCalendarItemDto } from '@lawfirm/shared';
-import { outlookDay } from './outlook-day';
+import { outlookDays as outlookItemDays } from './outlook-day';
 import { eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
 import { CalendarEventItem, UserItem } from '@/lib/api';
 import { InlineEmptyState } from '@/components/ui/misc';
@@ -56,7 +56,7 @@ export function FirmDayAgenda({
   }
 
   const outlookDays = new Map<string, OutlookCalendarItemDto[]>();
-  for (const item of outlookItems) { const key = outlookDay(item); outlookDays.set(key, [...(outlookDays.get(key) ?? []), item]); }
+  for (const item of outlookItems) for (const key of outlookItemDays(item)) outlookDays.set(key, [...(outlookDays.get(key) ?? []), item]);
   for (const key of outlookDays.keys()) if (!days.has(key)) days.set(key, []);
 
   if (days.size === 0) {

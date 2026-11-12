@@ -327,9 +327,21 @@ describe('OutlookCalendarSyncService', () => {
       await expect((svc as any).pickConnection('u1', null, { connectionId: 'other' })).resolves.toBe('skip');
     });
 
-    it('skips a user whose copy sits on an EXPIRED connection (no update, create or delete)', async () => {
+    it('moves a copy off an EXPIRED old mailbox to the new ACTIVE primary without calling Graph on the dead one', async () => {
       prisma.calendarEvent.findUnique.mockResolvedValue(event());
       activeFor(() => [conn('u1', { id: 'other' })]);
+      prisma.mailboxConnection.findUnique.mockResolvedValue({ status: 'EXPIRED' });
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([{ id: 'cp', eventId: 'e1', userId: 'u1', connectionId: 'conn-x', graphEventId: 'g1', syncedAt: new Date('2026-01-01') }]);
+      await svc.syncEvent('e1');
+      expect(calendar.deleteEvent).not.toHaveBeenCalled();
+      expect(prisma.calendarEventOutlookCopy.deleteMany).toHaveBeenCalledWith({ where: { id: 'cp' } });
+      expect(calendar.createEvent).toHaveBeenCalled();
+      expect(connections.getValidAccessToken).toHaveBeenCalledWith('other');
+    });
+
+    it('with no working primary, a copy on an EXPIRED mailbox is left alone (no update, create or delete)', async () => {
+      prisma.calendarEvent.findUnique.mockResolvedValue(event());
+      activeFor(() => []);
       prisma.mailboxConnection.findUnique.mockResolvedValue({ status: 'EXPIRED' });
       prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([{ id: 'cp', eventId: 'e1', userId: 'u1', connectionId: 'conn-x', graphEventId: 'g1', syncedAt: new Date('2026-01-01') }]);
       await svc.syncEvent('e1');

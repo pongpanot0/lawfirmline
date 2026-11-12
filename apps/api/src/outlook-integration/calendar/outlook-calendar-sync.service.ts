@@ -93,7 +93,9 @@ export class OutlookCalendarSyncService {
 
     for (const copy of copies) {
       if (skipped.has(copy.userId)) continue;
-      if (desired.get(copy.userId)?.id !== copy.connectionId && !await this.deleteCopy(copy)) desired.delete(copy.userId);
+      const target = desired.get(copy.userId);
+      // Moving to a new primary: a copy stuck on a dead mailbox is dropped without Graph so the move is not blocked.
+      if (target?.id !== copy.connectionId && !await this.deleteCopy(copy, !!target)) desired.delete(copy.userId);
     }
 
     const origin = await this.firmLink.originForFirm(event.case.firmId);
@@ -125,15 +127,19 @@ export class OutlookCalendarSyncService {
     }
   }
 
-  /** Only the primary receives copies; broken connections pause without deleting existing copies. */
+  /**
+   * Only the primary receives copies. A broken primary pauses everything (no fallback, no deletes).
+   * A working primary takes over even when the old copy sits on a dead mailbox (the user switched primary).
+   */
   private async pickConnection(userId: string, organizerId: string | null, existing?: Copy) {
     const primary = await this.connections.primaryForUser(userId);
     if (primary && (primary.status === 'EXPIRED' || primary.status === 'ERROR')) return 'skip';
+    if (primary?.status === 'ACTIVE' && (primary.syncCalendar || userId === organizerId)) return primary;
     if (existing) {
       const current = await this.prisma.mailboxConnection.findUnique({ where: { id: existing.connectionId }, select: { status: true } });
       if (current?.status === 'EXPIRED' || current?.status === 'ERROR') return 'skip';
     }
-    return primary?.status === 'ACTIVE' && (primary.syncCalendar || userId === organizerId) ? primary : null;
+    return null;
   }
 
   private payloadFor(event: any, userId: string, organizerId: string | null, origin: string): GraphEventInput {
@@ -175,10 +181,13 @@ export class OutlookCalendarSyncService {
   }
 
   /** Removes the Outlook event and the row. On a retryable failure the row is kept (with lastError) so a later run retries. */
-  private async deleteCopy(copy: Copy) {
+  private async deleteCopy(copy: Copy, abandonIfDead = false) {
     // A revoked/removed connection can never produce a token again — nothing left to retry.
+    // When the copy is moving to a working primary, an EXPIRED/ERROR mailbox is treated the same way
+    // (its Outlook event stays behind in that dead mailbox; the user's live calendar gets the new copy).
     const connection = await this.prisma.mailboxConnection.findUnique({ where: { id: copy.connectionId }, select: { status: true } });
-    if (connection && connection.status !== 'REVOKED') {
+    const dead = connection?.status === 'EXPIRED' || connection?.status === 'ERROR';
+    if (connection && connection.status !== 'REVOKED' && !(abandonIfDead && dead)) {
       try {
         const token = await this.connections.getValidAccessToken(copy.connectionId);
         await this.calendar.deleteEvent(token, copy.graphEventId);

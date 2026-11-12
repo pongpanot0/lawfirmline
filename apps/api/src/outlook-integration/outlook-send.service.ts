@@ -240,10 +240,8 @@ export class OutlookSendService {
     const threadConnection = source?.thread.mailboxConnectionId
       ? await this.prisma.mailboxConnection.findUnique({ where: { id: source.thread.mailboxConnectionId } }) : null;
     let connection;
-    if (threadConnection?.userId === user.id) {
-      if (threadConnection.status !== MailboxConnectionStatus.ACTIVE) {
-        throw new BadRequestException(`บัญชี ${threadConnection.mailboxAddress} หมดอายุ — เชื่อมใหม่ในหน้าตั้งค่า`);
-      }
+    // Reply from the mailbox the thread came in on only while it is the sender's and working; otherwise the primary.
+    if (threadConnection?.userId === user.id && threadConnection.firmId === user.firmId && threadConnection.status === MailboxConnectionStatus.ACTIVE) {
       connection = threadConnection;
     } else {
       connection = await this.connections.findActiveForUser(user.id);
