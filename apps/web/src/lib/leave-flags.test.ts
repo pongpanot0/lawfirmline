@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leaveApprovalQueue, leaveDayEvents, leaveFlagsForDate, leaveWarning } from './leave-flags.ts';
+import { leaveApprovalQueue, leaveDayEvents, leaveDecisionText, leaveFlagsForDate, leaveSummaryByPerson, leaveWarning } from './leave-flags.ts';
 
 const base = { userId: 'u1', type: 'SICK' as const, startDate: '2026-10-01', endDate: '2026-10-05' };
 
@@ -74,4 +74,28 @@ test('leaveDayEvents shows pending only when asked, and never rejected', () => {
   const shown = leaveDayEvents([pending, rejected], { includePending: true });
   assert.equal(shown.length, 1);
   assert.equal(shown[0].leavePending, true);
+});
+
+test('leaveDecisionText names the approver or rejecter, and marks self-approved leave', () => {
+  const decidedBy = { firstName: 'สมชาย', lastName: 'ใจดี' };
+  assert.equal(leaveDecisionText({ status: 'APPROVED', decidedAt: '2026-10-01T03:00:00Z', decidedBy }), 'อนุมัติโดย สมชาย ใจดี');
+  assert.equal(leaveDecisionText({ status: 'REJECTED', decidedAt: '2026-10-01T03:00:00Z', decidedBy }), 'ปฏิเสธโดย สมชาย ใจดี');
+  assert.equal(leaveDecisionText({ status: 'APPROVED', decidedAt: null, decidedBy: null }), 'อนุมัติอัตโนมัติ');
+  assert.equal(leaveDecisionText({ status: 'APPROVED', decidedAt: '2026-10-01T03:00:00Z', decidedBy: null }), null);
+  assert.equal(leaveDecisionText({ status: 'PENDING', decidedAt: null, decidedBy: null }), null);
+});
+
+test('leaveSummaryByPerson counts approved days by type, clips to the year, and counts pending requests', () => {
+  const user = { firstName: 'Ann', lastName: 'A' };
+  const rows = leaveSummaryByPerson([
+    { userId: 'a', user, status: 'APPROVED', type: 'SICK', startDate: '2026-03-02', endDate: '2026-03-04' },
+    { userId: 'a', user, status: 'APPROVED', type: 'VACATION', startDate: '2025-12-30', endDate: '2026-01-02' },
+    { userId: 'a', user, status: 'PENDING', type: 'PERSONAL', startDate: '2026-05-01', endDate: '2026-05-01' },
+    { userId: 'a', user, status: 'REJECTED', type: 'PERSONAL', startDate: '2026-06-01', endDate: '2026-06-05' },
+    { userId: 'a', user, status: 'APPROVED', type: 'PERSONAL', startDate: '2027-01-04', endDate: '2027-01-04' },
+  ], 2026, [{ id: 'b', firstName: 'Ben', lastName: 'B' }]);
+  assert.deepEqual(rows, [
+    { userId: 'a', name: 'Ann A', SICK: 3, PERSONAL: 0, VACATION: 2, total: 5, pending: 1 },
+    { userId: 'b', name: 'Ben B', SICK: 0, PERSONAL: 0, VACATION: 0, total: 0, pending: 0 },
+  ]);
 });
