@@ -192,9 +192,13 @@ function SettingsContent() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const lineLabel = lineStatus?.configured
-    ? fmt(d.settings.lineConnected, { channelId: lineStatus.channelId ?? '', mode: lineStatus.deliveryMode ?? '' })
-    : d.settings.lineNotConfigured;
+  // Status is the platform's shared LINE channel (server env), not a per-firm connection —
+  // firms only see whether it's ready; channel/mode details are for platform admins.
+  const lineLabel = !lineStatus?.configured
+    ? d.settings.lineNotConfigured
+    : user?.isPlatformAdmin
+      ? fmt(d.settings.lineConnected, { channelId: lineStatus.channelId ?? '', mode: lineStatus.deliveryMode ?? '' })
+      : d.settings.lineReady;
 
   const personalLabel = linePersonal?.connected
     ? `เชื่อมต่อแล้ว${linePersonal.connectedAt ? ` · ${formatDate(linePersonal.connectedAt)}` : ''}`
@@ -207,12 +211,12 @@ function SettingsContent() {
           <Bell className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0">
             <p className="text-sm font-medium">{d.settings.lineMessagingApi}</p>
-            <p className="text-xs text-muted-foreground">ระบบแจ้งเตือนของสำนักงาน</p>
+            <p className="text-xs text-muted-foreground">ระบบแจ้งเตือนทาง LINE · แต่ละคนเชื่อม LINE ส่วนตัวได้ในแท็บการแจ้งเตือน</p>
           </div>
         </div>
         <Badge variant={lineStatus?.configured ? 'success' : 'muted'}>{lineLabel}</Badge>
       </div>
-      {lineStatus?.configured && hasFirmCapability(user?.firmRole, 'manageSubscription') && (
+      {lineStatus?.configured && user?.isPlatformAdmin && (
         <div className="flex flex-wrap items-center gap-3">
           <Button size="sm" variant="outline" onClick={handleLineTest} disabled={lineTesting}>
             {lineTesting ? d.settings.sending : d.settings.sendTestMessage}
