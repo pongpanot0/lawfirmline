@@ -1,5 +1,6 @@
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { McpToolsService } from './mcp-tools.service';
+import { AiWriteToolsService } from '../secretary/ai-write-tools.service';
 
 const tools = new Map<string, { config: { inputSchema: Record<string, unknown> }; run: (args: unknown) => Promise<any> }>();
 jest.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({ McpServer: class {
@@ -20,7 +21,7 @@ const decode = (r: any) => JSON.parse(r.content[0].text);
 
 describe('MCP tools', () => {
   let prisma: any, secretary: any, tasks: any, comments: any, billing: any, operations: any, leaves: any;
-  const make = (who: AuthUser) => { tools.clear(); new McpToolsService(prisma, secretary, { getOwnCaseFilterForUser: () => own, getCaseFilterForUser: () => appFilter, getOwnIntakeFilterForUser: () => ownIntake, getIntakeFilterForUser: async () => appFilter } as any, tasks, comments, billing, { originForSlug: () => 'https://firm.samnuan.com' } as any, operations, leaves).createServer(who, connection); };
+  const make = (who: AuthUser) => { tools.clear(); const links = { originForSlug: () => 'https://firm.samnuan.com' } as any; new McpToolsService(secretary, links, operations, new AiWriteToolsService(prisma, { getOwnCaseFilterForUser: () => own, getCaseFilterForUser: () => appFilter, getOwnIntakeFilterForUser: () => ownIntake, getIntakeFilterForUser: async () => appFilter } as any, tasks, comments, billing, links, leaves)).createServer(who, connection); };
   beforeEach(() => {
     tools.clear();
     prisma = { case: { findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }) }, intake: { findFirst: jest.fn().mockResolvedValue({ id: 'intake-1' }), update: jest.fn() }, task: { findFirst: jest.fn() }, auditLog: { create: jest.fn() }, documentDateSuggestion: { create: jest.fn().mockResolvedValue({ id: 'suggestion' }) } };

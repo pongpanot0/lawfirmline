@@ -21,6 +21,7 @@ import { LineBotRouterService } from './line-conversation/line-bot-router.servic
 import { LineNotificationService } from './line-conversation/line-notification.service';
 import { LineQuickActionsService } from './line-conversation/line-quick-actions.service';
 import { LineQueryService } from './line-conversation/line-query.service';
+import { LineAiWriteService } from './line-conversation/line-ai-write.service';
 import { LineCaseFlowService } from './line-conversation/flows/line-case-flow.service';
 import { LineTaskFlowService } from './line-conversation/flows/line-task-flow.service';
 import { LineTaskReviewFlowService } from './line-conversation/flows/line-task-review-flow.service';
@@ -75,6 +76,7 @@ import { SecretaryModule } from '../secretary/secretary.module';
     LineNotificationService,
     LineQuickActionsService,
     LineQueryService,
+    LineAiWriteService,
     LineCaseFlowService,
     LineTaskFlowService,
     LineTodoFlowService,

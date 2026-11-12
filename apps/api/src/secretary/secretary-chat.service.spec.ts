@@ -21,7 +21,8 @@ describe('SecretaryChatService', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 3 }),
       },
     };
-    return { svc: new SecretaryChatService(config as any, tools as any, rag as any, prisma as any), tools, rag, prisma };
+    const writes = { check: jest.fn(), run: jest.fn() };
+    return { svc: new SecretaryChatService(config as any, tools as any, rag as any, prisma as any, writes as any), tools, rag, prisma, writes };
   }
   const json = (body: unknown, ok = true, status = 200) => ({ ok, status, json: async () => body, text: async () => '' }) as any;
   const final = (content: string) => json({ choices: [{ message: { content } }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
@@ -197,5 +198,54 @@ describe('SecretaryChatService', () => {
     const sys: string = body(0).messages[0].content;
     expect(sys.startsWith('คุณคือเลขาส่วนตัว AI ในสำนักงานกฎหมาย')).toBe(true);
     expect(sys.split('\n').at(-1)).toContain('สมชาย ใจดี');
+  });
+
+  describe('LINE write proposals', () => {
+    const writeCall = (args: string) => json({
+      choices: [{ message: { content: null, tool_calls: [{ id: 'w1', type: 'function', function: { name: 'create_task', arguments: args } }] } }],
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    });
+
+    it('without writeTools the model never sees a write tool and the prompt stays read-only', async () => {
+      const { svc } = build();
+      fetchSpy.mockResolvedValue(final('ok'));
+      await svc.chat(user, msgs);
+      expect(body(0).tools.map((t: any) => t.function.name)).not.toContain('create_task');
+      expect(body(0).messages[0].content).toContain('อ่านอย่างเดียว');
+    });
+
+    it('stops at a valid write and returns it as a proposal — nothing is saved', async () => {
+      const { svc, writes, prisma } = build();
+      const proposal = { tool: 'create_task', args: { title: 'เตรียมพยาน' }, labels: {} };
+      writes.check.mockResolvedValue(proposal);
+      fetchSpy.mockResolvedValueOnce(writeCall('{"title":"เตรียมพยาน"}'));
+      const out = await svc.chat(user, msgs, { writeTools: ['create_task'] });
+      expect(body(0).tools.map((t: any) => t.function.name)).toContain('create_task');
+      expect(body(0).messages[0].content).toContain('ระบบจะให้ผู้ใช้กดยืนยันก่อนบันทึก');
+      expect(writes.check).toHaveBeenCalledWith(user, 'create_task', { title: 'เตรียมพยาน' });
+      expect(writes.run).not.toHaveBeenCalled();
+      expect(out.proposal).toBe(proposal);
+      expect(out.reply).toContain('ตรวจสอบก่อนบันทึก');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(prisma.secretaryMessage.createMany).toHaveBeenCalled();
+    });
+
+    it('a refused write goes back to the model, which explains it', async () => {
+      const { svc, writes } = build();
+      const { NotFoundException } = await import('@nestjs/common');
+      writes.check.mockRejectedValue(new NotFoundException('ไม่พบคดีนี้ในงานของคุณ'));
+      fetchSpy.mockResolvedValueOnce(writeCall('{"caseId":"x","title":"t"}')).mockResolvedValueOnce(final('คดีนี้ไม่ใช่งานของคุณครับ'));
+      const out = await svc.chat(user, msgs, { writeTools: ['create_task'] });
+      expect(out.proposal).toBeUndefined();
+      expect(body(1).messages.at(-1)).toEqual({ role: 'tool', tool_call_id: 'w1', content: JSON.stringify({ error: 'ไม่พบคดีนี้ในงานของคุณ' }) });
+      expect(out.reply).toBe('คดีนี้ไม่ใช่งานของคุณครับ');
+    });
+
+    it('a write tool not offered to this caller is refused, never checked', async () => {
+      const { svc, writes } = build();
+      fetchSpy.mockResolvedValueOnce(writeCall('{"title":"t"}')).mockResolvedValueOnce(final('ok'));
+      await svc.chat(user, msgs);
+      expect(writes.check).not.toHaveBeenCalled();
+    });
   });
 });

@@ -31,7 +31,7 @@ describe('LineBotRouter — notification buttons and chat questions', () => {
     router = new LineBotRouterService(
       line, auth, store, caseFlow, flow(), flow(), flow(), flow(), agenda, config,
       new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
-      flow(), quickActions, query, reviewFlow, {} as any,
+      flow(), quickActions, query, reviewFlow, {} as any, {} as any,
     );
   });
 
