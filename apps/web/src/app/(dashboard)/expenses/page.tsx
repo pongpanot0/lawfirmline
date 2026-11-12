@@ -18,6 +18,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { StepTracker } from '@/components/process/StepTracker';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { AiBadge } from '@/components/AiBadge';
 
 const STATUS_FILTERS = ['', 'DRAFT', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
@@ -226,11 +227,11 @@ export default function ExpensesPage() {
       ]} />
       <div className="mt-4 space-y-3 pb-24">
         {visible.length === 0 ? <p className="rounded-lg border bg-card p-6 text-center text-muted-foreground">ไม่มีรายการที่ต้องทำ</p> : visible.map(e => <article key={e.id} className="space-y-3 rounded-lg border bg-card p-4">
-          <div className="flex flex-wrap justify-between gap-2"><div className="flex gap-3">{e.status === 'DRAFT' && tab === 'TODO' && <Checkbox checked={selectedDraftIds.includes(e.id)} onChange={() => toggleDraft(e.id)} aria-label={`เลือก ${e.description}`} />}<div><p className="font-medium">{tab === 'APPROVE' ? `ใบเบิก · ${e.user.firstName} ${e.user.lastName}` : e.description}</p><p className="text-sm text-muted-foreground">{e.case?.ownRef ?? d.expenses.general} · {formatDate(e.date)}{tab === 'APPROVE' ? ` · ${e.user.firstName} ${e.user.lastName}` : ''}</p></div></div><p className="font-semibold tabular-nums">{formatCurrency(tab === 'APPROVE' ? groups.APPROVE.filter(item => item.claimId === e.claimId).reduce((sum, item) => sum + item.amount, 0) : e.amount)}</p></div>
+          <div className="flex flex-wrap justify-between gap-2"><div className="flex gap-3">{e.status === 'DRAFT' && tab === 'TODO' && <Checkbox checked={selectedDraftIds.includes(e.id)} onChange={() => toggleDraft(e.id)} aria-label={`เลือก ${e.description}`} />}<div><p className="font-medium">{tab === 'APPROVE' ? `ใบเบิก · ${e.user.firstName} ${e.user.lastName}` : e.description}{tab !== 'APPROVE' && e.viaAi && <> <AiBadge /></>}</p><p className="text-sm text-muted-foreground">{e.case?.ownRef ?? d.expenses.general} · {formatDate(e.date)}{tab === 'APPROVE' ? ` · ${e.user.firstName} ${e.user.lastName}` : ''}</p></div></div><p className="font-semibold tabular-nums">{formatCurrency(tab === 'APPROVE' ? groups.APPROVE.filter(item => item.claimId === e.claimId).reduce((sum, item) => sum + item.amount, 0) : e.amount)}</p></div>
           <StepTracker variant="mini" steps={['ร่าง', 'ส่งเบิก', 'อนุมัติ', 'จ่ายแล้ว'].map((label, i) => { const current = e.status === 'DRAFT' ? 0 : e.status === 'PENDING' || e.status === 'REJECTED' ? 1 : e.status === 'APPROVED' ? 2 : 3; return { key: label, label, state: i < current ? 'done' : i === current ? 'current' : 'todo' }; })} />
           {e.status === 'REJECTED' && <p className="text-sm text-destructive">ไม่อนุมัติ · ติดต่อผู้อนุมัติเพื่อตรวจสอบ</p>}
           {e.receiptFilename && <button type="button" onClick={() => downloadReceipt(e.id, e.receiptFilename!)} className="text-sm text-primary underline">{d.expenses.viewReceipt}</button>}
-          {tab === 'APPROVE' && <details><summary className="cursor-pointer text-sm">รายการในใบเบิก</summary><ul className="mt-2 space-y-1 text-sm">{groups.APPROVE.filter(item => item.claimId === e.claimId).map(item => <li key={item.id}>{item.description} · {formatCurrency(item.amount)}</li>)}</ul><a href="/admin/reimbursements" className="mt-2 inline-block text-sm text-primary underline">ตรวจใบเสร็จและรายละเอียด</a></details>}
+          {tab === 'APPROVE' && <details><summary className="cursor-pointer text-sm">รายการในใบเบิก</summary><ul className="mt-2 space-y-1 text-sm">{groups.APPROVE.filter(item => item.claimId === e.claimId).map(item => <li key={item.id}>{item.description} · {formatCurrency(item.amount)}{item.viaAi && <> <AiBadge /></>}</li>)}</ul><a href="/admin/reimbursements" className="mt-2 inline-block text-sm text-primary underline">ตรวจใบเสร็จและรายละเอียด</a></details>}
           {tab === 'APPROVE' && e.claimId && <div className="flex gap-2"><Button disabled={!!busyClaim} onClick={() => decideClaim(e.claimId!, 'APPROVED')}>อนุมัติทั้งใบเบิก</Button><Button variant="outline" disabled={!!busyClaim} onClick={() => decideClaim(e.claimId!, 'REJECTED')}>ไม่อนุมัติ</Button></div>}
         </article>)}
       </div>

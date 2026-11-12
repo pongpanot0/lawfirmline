@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AuthUser, HEAVY_QUEUE_POINTS, mcpCaseScope, hasFirmCapability, redactForAi, TaskStatus, subscriptionAllowsWrites, type TeamRadar } from '@lawfirm/shared';
+import { AuthUser, EXPENSE_CATEGORIES, HEAVY_QUEUE_POINTS, MONEY_MAX, MONEY_MIN, mcpCaseScope, hasFirmCapability, redactForAi, TaskStatus, subscriptionAllowsWrites, type TeamRadar } from '@lawfirm/shared';
 import { DailyOperationsService } from '../operations/daily-operations.service';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { DateSuggestionSource, DateSuggestionStatus, EventType, TaskSource } from '../generated/prisma';
@@ -35,6 +35,7 @@ const writeSchemas = {
   complete_task: { taskId: text },
   add_case_note: { caseId: text, text: note },
   log_time: { caseId: text, hours: z.number().min(0.1).max(24).multipleOf(0.01), description: text.max(500), date: date.optional(), billable: z.boolean().optional() },
+  draft_expense: { amount: z.number().min(MONEY_MIN).max(MONEY_MAX).multipleOf(0.01), description: text.max(500), category: z.enum(EXPENSE_CATEGORIES).optional(), date: date.optional(), caseId: text.optional() },
   propose_court_date: { caseId: text, title, startAt: text.refine((v) => courtDate(v) !== null, 'ระบุวันเวลาจริงในรูปแบบ ISO'), courtName: title.optional(), note: note.optional() },
 };
 const descriptions: Record<keyof typeof writeSchemas, string> = {
@@ -43,6 +44,7 @@ const descriptions: Record<keyof typeof writeSchemas, string> = {
   add_case_note: 'Add a case comment marked as AI-created, without mentions.',
   log_time: 'Log your time on your own case, using your default hourly rate.',
   propose_court_date: 'Propose a court date for a person to accept in the case page. Never creates a calendar event.',
+  draft_expense: 'Write down an out-of-pocket cost (THB) as a DRAFT reimbursement for the caller, optionally on one of their cases. Never submits it: the person attaches the receipt and sends it for approval in the app.',
 };
 
 @Injectable()
@@ -101,6 +103,11 @@ export class McpToolsService {
           if (task.assigneeId !== user.id) throw new BadRequestException('ปิดได้เฉพาะงานที่มอบหมายให้คุณ');
           if (task.requiresReview) throw new BadRequestException('งานนี้ต้องส่งตรวจ กรุณากดส่งตรวจในแอป');
           entity = await this.tasks.update(task.id, { status: TaskStatus.DONE }, user, caseId, true, audit);
+        } else if (name === 'draft_expense') {
+          // No case = an office cost (e.g. travel); with a case it must be one this person may see.
+          if (caseId) await this.assertOwnCase(user, caseId);
+          entity = await this.billing.createAiExpenseDraft(user, { caseId: caseId ?? null, amount: a.amount as number, description: a.description as string,
+            category: a.category as string | undefined, date: a.date as string | undefined }, audit);
         } else {
           await this.assertOwnCase(user, caseId);
           if (name === 'create_task') entity = await this.tasks.create(user, caseId, { title: a.title as string, description: a.description as string | undefined, dueDate: a.dueDate as string | undefined, assigneeId: user.id }, TaskSource.MCP, undefined, 0, undefined, audit);
@@ -117,7 +124,8 @@ export class McpToolsService {
             return suggestion;
           });
         }
-        return { ...entity, caseId, ...(name === 'complete_task' || name === 'create_task' ? { kind: 'TASK' } : {}), ...(name === 'propose_court_date' ? { message: 'เสนอวันนัดแล้ว รอผู้ใช้ยอมรับในหน้าคดี' } : {}) };
+        return { ...entity, caseId, ...(name === 'complete_task' || name === 'create_task' ? { kind: 'TASK' } : {}), ...(name === 'propose_court_date' ? { message: 'เสนอวันนัดแล้ว รอผู้ใช้ยอมรับในหน้าคดี' } : {}),
+          ...(name === 'draft_expense' ? { message: 'บันทึกเป็นร่างเบิกแล้ว แนบใบเสร็จและกดส่งเบิกในแอป', expensesUrl: `${origin}/expenses` } : {}) };
       }));
     }
     return server;
@@ -132,7 +140,7 @@ export class McpToolsService {
     return mcpScope(user) === 'app' ? this.access.getCaseFilterForUser(user) : this.access.getOwnCaseFilterForUser(user);
   }
 
-  private audit(user: AuthUser, connection: { id: string; clientName: string }, tool: string, caseId: string, entityId: string) {
+  private audit(user: AuthUser, connection: { id: string; clientName: string }, tool: string, caseId: string | undefined, entityId: string) {
     return { firmId: user.firmId, userId: user.id, action: `mcp.${tool}`, metadata: { connectionId: connection.id, clientName: connection.clientName, tool, caseId, entityId } };
   }
 }

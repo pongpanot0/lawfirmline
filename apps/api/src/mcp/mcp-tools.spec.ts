@@ -26,7 +26,7 @@ describe('MCP tools', () => {
     secretary = { definitions: jest.fn().mockReturnValue([{ function: { name: 'lawyer_licenses', description: 'Own licenses' } }]), run: jest.fn().mockResolvedValue({ content: {}, cards: [] }) };
     tasks = { create: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[7]('task-1') }); return { id: 'task-1', source: 'MCP' }; }), update: jest.fn().mockResolvedValue({ id: 'task-1' }) };
     comments = { createComment: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[4].audit('comment') }); return { id: 'comment', viaAi: true }; }) };
-    billing = { createTimeEntry: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[3].audit('time') }); return { id: 'time', viaAi: true }; }) };
+    billing = { createAiExpenseDraft: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[2]('expense-1') }); return { id: 'expense-1', status: 'DRAFT', viaAi: true }; }), createTimeEntry: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[3].audit('time') }); return { id: 'time', viaAi: true }; }) };
     operations = { radar: jest.fn().mockResolvedValue(radar) };
     make(user);
   });
@@ -82,6 +82,28 @@ describe('MCP tools', () => {
     await tools.get('log_time')!.run({ caseId: 'case-1', hours: 1, description: 'work' });
     expect(billing.createTimeEntry).toHaveBeenCalledWith(user, 'case-1', expect.objectContaining({ hours: 1 }), { viaAi: true, audit: expect.any(Function) });
     expect(prisma.auditLog.create.mock.calls[1][0].data.metadata).toEqual({ connectionId: connection.id, clientName: connection.clientName, tool: 'add_case_note', caseId: 'case-1', entityId: 'comment' });
+  });
+  it('draft_expense without a case is an office cost; never checks or touches a case', async () => {
+    prisma.case.findFirst.mockClear();
+    const out = decode(await tools.get('draft_expense')!.run({ amount: 350, description: 'แท็กซี่ไปศาลแพ่ง', category: 'ค่าเดินทาง' }));
+    expect(prisma.case.findFirst).not.toHaveBeenCalled();
+    expect(billing.createAiExpenseDraft).toHaveBeenCalledWith(user, { caseId: null, amount: 350, description: 'แท็กซี่ไปศาลแพ่ง', category: 'ค่าเดินทาง', date: undefined }, expect.any(Function));
+    expect(out.status).toBe('DRAFT');
+    expect(out.message).toContain('ส่งเบิกในแอป');
+    expect(prisma.auditLog.create).toHaveBeenLastCalledWith({ data: expect.objectContaining({ action: 'mcp.draft_expense' }) });
+  });
+  it('draft_expense on a case outside the scope is refused', async () => {
+    prisma.case.findFirst.mockResolvedValue(null);
+    const result = await tools.get('draft_expense')!.run({ caseId: 'other', amount: 100, description: 'x' });
+    expect(decode(result).error).toBe('ไม่พบคดีนี้ในงานของคุณ');
+    expect(billing.createAiExpenseDraft).not.toHaveBeenCalled();
+  });
+  it('draft_expense rejects amounts outside money bounds and unknown categories', async () => {
+    const { z } = await import('zod');
+    const schema = z.object(tools.get('draft_expense')!.config.inputSchema as any);
+    expect(schema.safeParse({ amount: 0, description: 'x' }).success).toBe(false);
+    expect(schema.safeParse({ amount: 10, description: 'x', category: 'ค่ากาแฟ' }).success).toBe(false);
+    expect(schema.safeParse({ amount: 10.5, description: 'x', category: 'ค่าเดินทาง' }).success).toBe(true);
   });
   it('preserves task identifiers and adds the real task query route', async () => {
     const result = decode(await tools.get('create_task')!.run({ caseId: 'case-1', title: 'Task' }));

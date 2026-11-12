@@ -422,6 +422,29 @@ export class BillingService {
     return expense;
   }
 
+  /**
+   * A cost the author's AI wrote down. Always a DRAFT (no money committed): the author adds the
+   * receipt and sends it for approval in the app. The caller has already checked the case is theirs.
+   */
+  async createAiExpenseDraft(
+    user: AuthUser,
+    input: { caseId: string | null; amount: number; description: string; category?: string; date?: string },
+    audit: (entityId: string) => Prisma.AuditLogUncheckedCreateInput,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const expense = await tx.expense.create({
+        data: {
+          caseId: input.caseId, userId: user.id, amount: input.amount, description: input.description,
+          category: input.category, date: input.date ? new Date(input.date) : new Date(),
+          status: ExpenseStatus.DRAFT, viaAi: true,
+        },
+        include: this.expenseInclude,
+      });
+      await tx.auditLog.create({ data: audit(expense.id) });
+      return expense;
+    });
+  }
+
   /** A cost may only name a hearing on the case it is being charged to. */
   private async assertSourceEventOnCase(
     sourceEventId: string | undefined,
