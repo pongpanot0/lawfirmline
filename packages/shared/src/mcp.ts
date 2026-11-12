@@ -67,6 +67,8 @@ export const MCP_AUDIT_ACTIONS = [
   'mcp.log_time',
   'mcp.propose_court_date',
   'mcp.draft_expense',
+  'mcp.request_leave',
+  'mcp.draft_notice',
 ] as const;
 export type McpAuditAction = (typeof MCP_AUDIT_ACTIONS)[number];
 
@@ -84,4 +86,16 @@ export function mcpVisibilityText(role: string | null | undefined): string {
   if (role === 'OWNER') return 'ทุกคดีในสำนักงาน';
   if (role === 'SENIOR_LAWYER') return 'คดีของคุณและคดีของทนายในทีม';
   return 'เฉพาะคดีที่คุณรับผิดชอบหรือมีงานอยู่';
+}
+
+/** Intake.noticeDraft — a demand notice an AI app drafted through MCP. Never issued until a lawyer issues it in the app. */
+export interface McpNoticeDraft {
+  content: string;
+  recipient: string | null;
+  /** YYYY-MM-DD */
+  deadline: string | null;
+  draftedAt: string;
+  draftedById: string;
+  /** App that wrote it, e.g. "Claude" (untrusted, display only). */
+  clientName: string;
 }

@@ -2,7 +2,7 @@ import { withFirmSlugHeaders } from './firm-slug';
 import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { taskUpdatePath } from './task-detail';
 import type { CaseProceedingItem } from './proceedings';
-import type { DailyBriefData, MatterBrief, SecretaryCard } from '@lawfirm/shared';
+import type { DailyBriefData, MatterBrief, McpNoticeDraft, SecretaryCard } from '@lawfirm/shared';
 
 export type { CaseProceedingItem } from './proceedings';
 
@@ -845,6 +845,7 @@ export interface CaseDetail extends CaseItem {
     noticeIssuedAt?: string | null;
     noticeDeadline?: string | null;
     noticeRecipient?: string | null;
+    noticeDraft?: McpNoticeDraft | null;
     noticeResult?: string | null;
     preLitigationStatus?: string | null;
     settlementOfferAmount?: number | null;
@@ -1293,6 +1294,7 @@ export interface IntakeItem {
   noticeDeadline?: string | null;
   noticeResult?: string | null;
   noticeContent?: string | null;
+  noticeDraft?: McpNoticeDraft | null;
   attachments?: IntakeAttachmentItem[];
   fieldProposals?: IntakeFieldProposalItem[];
   emailThreads?: { id: string; subject: string; fromName: string | null; fromAddress: string | null; lastMessageAt: string }[];

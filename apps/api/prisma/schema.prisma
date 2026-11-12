@@ -1205,6 +1205,8 @@ model Intake {
   noticeDeadline        DateTime?
   noticeResult          String?
   noticeContent         String?             @db.Text
+  /// Unissued draft an AI app wrote through MCP (shared McpNoticeDraft). Prefills the notice form; issuing clears it.
+  noticeDraft           Json?
   relatedCaseId         String?
   isOngoingElsewhere    Boolean             @default(false)
   externalCaseNumber    String?

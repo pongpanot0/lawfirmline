@@ -997,6 +997,7 @@ export class IntakeService {
         noticeDeadline: dto.noticeDeadline ? new Date(dto.noticeDeadline) : undefined,
         noticeResult: dto.noticeResult,
         noticeContent: dto.noticeContent,
+        noticeDraft: Prisma.DbNull,
         stage: IntakeStage.PRE_LITIGATION_NOTICE as never,
         stageChangedAt: new Date(),
         preLitigationStatus:
