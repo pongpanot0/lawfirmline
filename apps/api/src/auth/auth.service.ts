@@ -107,9 +107,10 @@ export class AuthService {
       throw new BadRequestException('Register from the main site, not a firm subdomain');
     }
     const authUser = await this.saasAuth.register(dto);
+    const refresh = await this.signRefreshToken(authUser, meta);
     return {
-      accessToken: this.signAccessToken(authUser),
-      refreshToken: await this.signRefreshToken(authUser, meta),
+      accessToken: this.signAccessToken(authUser, refresh.jti),
+      refreshToken: refresh.token,
       user: authUser,
     };
   }
@@ -138,7 +139,7 @@ export class AuthService {
       }
       const authUser = await this.tenant.buildAuthUser(payload.sub, payload.firmId);
       if (!authUser) throw new UnauthorizedException();
-      return { accessToken: this.signAccessToken(authUser) };
+      return { accessToken: this.signAccessToken(authUser, payload.jti) };
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
@@ -159,7 +160,7 @@ export class AuthService {
       }
       const authUser = await this.tenant.buildAuthUser(payload.sub, payload.firmId);
       if (!authUser) throw new UnauthorizedException();
-      return { accessToken: this.signAccessToken(authUser), refreshToken, user: authUser };
+      return { accessToken: this.signAccessToken(authUser, payload.jti), refreshToken, user: authUser };
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
@@ -247,17 +248,19 @@ export class AuthService {
         metadata: { ip: meta?.ip ?? null, userAgent: meta?.userAgent ?? null },
       },
     });
+    const refresh = await this.signRefreshToken(authUser, meta);
     return {
-      accessToken: this.signAccessToken(authUser),
-      refreshToken: await this.signRefreshToken(authUser, meta),
+      accessToken: this.signAccessToken(authUser, refresh.jti),
+      refreshToken: refresh.token,
       user: authUser,
     };
   }
 
-  private signAccessToken(user: AuthUser): string {
+  private signAccessToken(user: AuthUser, jti: string): string {
     return this.jwt.sign(
       {
         sub: user.id,
+        jti,
         email: user.email,
         firmId: user.firmId,
         firmRole: user.firmRole,
@@ -269,15 +272,16 @@ export class AuthService {
     );
   }
 
-  private async signRefreshToken(user: AuthUser, meta?: RequestMeta): Promise<string> {
+  private async signRefreshToken(user: AuthUser, meta?: RequestMeta): Promise<{ token: string; jti: string }> {
     const expiresIn = (this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '7d') as `${number}${'s' | 'm' | 'h' | 'd'}`;
     const jti = await this.sessions.issue(user.id, expiresInToDate(expiresIn), meta);
-    return this.jwt.sign(
+    const token = this.jwt.sign(
       { sub: user.id, firmId: user.firmId, jti },
       {
         secret: this.config.get<string>('JWT_REFRESH_SECRET'),
         expiresIn,
       },
     );
+    return { token, jti };
   }
 }

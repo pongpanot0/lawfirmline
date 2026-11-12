@@ -1,5 +1,7 @@
 'use client';
 
+import { AiBadge } from '@/components/AiBadge';
+
 import { useState } from 'react';
 import { ArrowRight, ListChecks, MessageSquare, Paperclip } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +18,7 @@ const act = 'inline-flex min-h-11 items-center gap-1 rounded-md border px-2.5 te
 const field = 'min-h-11 w-full rounded-md border border-input bg-card px-2 text-sm sm:min-h-8 sm:text-xs';
 
 interface Task {
+  source?: string;
   id: string;
   caseId?: string | null;
   case?: { ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null; leadLawyerId?: string; leadLawyer?: { id: string; firstName: string; lastName?: string | null } | null } | null;
@@ -223,6 +226,7 @@ export function KanbanBoard({
             ) : (
               <p className="text-sm font-medium text-foreground">{task.title}</p>
             )}
+            {task.source === 'MCP' && <AiBadge />}
             {showCaseContext && task.case && (
               <p className="mt-1 text-xs text-muted-foreground">{caseReferenceLabel(task.case)} · {task.case.title}</p>
             )}

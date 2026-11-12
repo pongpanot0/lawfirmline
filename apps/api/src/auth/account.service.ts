@@ -43,6 +43,7 @@ export class AccountService {
       const changed = await tx.user.updateMany({ where: { id: userId, passwordHash: previousHash }, data: { passwordHash } });
       if (changed.count !== 1) throw new UnauthorizedException('Password changed. Sign in again.');
       await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.mcpConnection.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
     });
     return { success: true };
   }

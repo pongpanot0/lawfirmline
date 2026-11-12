@@ -26,7 +26,8 @@ export function ConfirmHost() {
     setQueue((items) => items.slice(1));
   };
 
-  const parts = current ? splitConfirmMessage(current.message) : null;
+  const defaults = current ? splitConfirmMessage(current.message) : null;
+  const parts = defaults && current ? { ...defaults, action: current.action ?? defaults.action, danger: current.danger ?? defaults.danger } : null;
   return (
     <dialog
       ref={dialog}
@@ -45,7 +46,7 @@ export function ConfirmHost() {
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             {/* Destructive actions start on "ยกเลิก" so Enter never deletes by accident. */}
-            <Button type="button" variant="outline" className="min-h-11" autoFocus={parts.danger} onClick={() => answer(false)}>ยกเลิก</Button>
+            <Button type="button" variant="outline" className="min-h-11" autoFocus={parts.danger} onClick={() => answer(false)}>{current?.cancel ?? 'ยกเลิก'}</Button>
             <Button type="submit" variant={parts.danger ? 'destructive' : 'default'} className="min-h-11" autoFocus={!parts.danger}>{parts.action}</Button>
           </div>
         </form>

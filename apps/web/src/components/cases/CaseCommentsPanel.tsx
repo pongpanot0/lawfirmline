@@ -1,5 +1,7 @@
 'use client';
 
+import { AiBadge } from '@/components/AiBadge';
+
 import { getMentionContext } from '@/lib/mentions';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Trash2, AtSign } from 'lucide-react';
@@ -258,7 +260,7 @@ export function CaseCommentsPanel({
           return <div key={c.id} className="flex gap-3">
             <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#243c50] text-xs text-white">{initials}</span>
             <div className="min-w-0 rounded-xl bg-[#f3f1ea] px-4 py-3">
-              <div className="flex items-start justify-between gap-2"><span><b>{c.authorFirstName} {c.authorLastName}</b> <span className="text-[.8rem] text-muted-foreground">· {DAY.format(new Date(c.createdAt))} {TIME.format(new Date(c.createdAt))}</span></span>{isAuthor && <button type="button" onClick={() => handleDelete(c.id)} className="-my-2 -mr-2 inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="ลบบันทึก"><Trash2 aria-hidden="true" className="h-3.5 w-3.5" /></button>}</div>
+              <div className="flex items-start justify-between gap-2"><span><b>{c.authorFirstName} {c.authorLastName}</b> {c.viaAi && <AiBadge />} <span className="text-[.8rem] text-muted-foreground">· {DAY.format(new Date(c.createdAt))} {TIME.format(new Date(c.createdAt))}</span></span>{isAuthor && <button type="button" onClick={() => handleDelete(c.id)} className="-my-2 -mr-2 inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="ลบบันทึก"><Trash2 aria-hidden="true" className="h-3.5 w-3.5" /></button>}</div>
               <p className="mt-1 whitespace-pre-wrap">{renderBodyWithMentions(c.body, c.mentionedUserIds)}</p>
             </div>
           </div>;

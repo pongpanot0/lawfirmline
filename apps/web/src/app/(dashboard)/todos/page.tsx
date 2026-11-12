@@ -1,5 +1,7 @@
 'use client';
 
+import { AiBadge } from '@/components/AiBadge';
+
 import { Fragment, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, ChevronRight, Plus, X } from 'lucide-react';
@@ -607,7 +609,7 @@ function TodosPageContent() {
             const due = task.dueDate ? dueLabel(task.dueDate) : null;
             return <li key={task.id} className="flex flex-wrap items-center gap-3 px-4 py-4">
               <input type="checkbox" className="h-6 w-6 rounded-full" aria-label={`ทำ ${task.title} เสร็จ`} checked={task.status === TaskStatus.DONE} onChange={(event) => void handleStatusChange(task.id, event.target.checked ? TaskStatus.DONE : TaskStatus.TODO)} />
-              <div className="min-w-0 flex-1 basis-56"><p className="break-words font-semibold">{/* The name opens the task right here. */}<button type="button" className="text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => taskParam.open(task.id)}>{task.title}</button></p><p className="text-sm text-muted-foreground">{task.case ? `${task.case.ownRef} · ${task.case.title}` : 'งานทั่วไป'}{caseProgress && ` · ขั้น${caseProgress.stepLabel} ${caseProgress.done}/${caseProgress.total}`}</p></div>
+              <div className="min-w-0 flex-1 basis-56"><p className="break-words font-semibold">{/* The name opens the task right here. */}<button type="button" className="text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => taskParam.open(task.id)}>{task.title}</button> {task.source === 'MCP' && <AiBadge />}</p><p className="text-sm text-muted-foreground">{task.case ? `${task.case.ownRef} · ${task.case.title}` : 'งานทั่วไป'}{caseProgress && ` · ขั้น${caseProgress.stepLabel} ${caseProgress.done}/${caseProgress.total}`}</p></div>
               {task.dueDate && <span className={due?.urgent ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>ครบ {formatDate(task.dueDate)}{due && ` · ${due.text}`}</span>}
               <Button variant="outline" onClick={() => task.caseId ? router.push(`/cases/${task.caseId}?task=${encodeURIComponent(task.id)}`) : taskParam.open(task.id)}>ทำเลย →</Button>
               {completionNotice?.taskId === task.id && <p role="status" className="w-full text-sm text-primary">คดี {completionNotice.ownRef} {completionNotice.journey.canAdvance ? `ทำครบ ${completionNotice.progress.done}/${completionNotice.progress.total} แล้ว — พร้อมไปขั้น${completionNotice.journey.steps.slice(completionNotice.journey.steps.findIndex(step => step.state === 'current') + 1).find(step => step.state === 'locked')?.label ?? 'ถัดไป'}` : `เหลืออีก ${Math.max(0, completionNotice.progress.total - completionNotice.progress.done)} งานในขั้นนี้`} {completionNotice.journey.canAdvance && <a className="underline" href={`/cases/${completionNotice.caseId}`}>ไปขั้นถัดไป →</a>}</p>}

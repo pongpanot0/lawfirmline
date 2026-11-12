@@ -1,5 +1,5 @@
 import { FirmRole } from '@lawfirm/shared';
-import { NotificationCategory } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -13,6 +13,7 @@ export interface CaseCommentDTO {
   authorFirstName: string;
   authorLastName: string;
   body: string;
+  viaAi: boolean;
   mentionedUserIds: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -49,6 +50,7 @@ export class CaseCommentsService {
           },
         },
         body: true,
+        viaAi: true,
         mentionedUserIds: true,
         createdAt: true,
         updatedAt: true,
@@ -62,6 +64,7 @@ export class CaseCommentsService {
       authorFirstName: c.author.firstName,
       authorLastName: c.author.lastName,
       body: c.body,
+      viaAi: c.viaAi,
       mentionedUserIds: c.mentionedUserIds,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
@@ -73,6 +76,7 @@ export class CaseCommentsService {
     caseId: string,
     body: string,
     mentionedUserIds?: string[],
+    options: { viaAi?: boolean; audit?: (entityId: string) => Prisma.AuditLogUncheckedCreateInput } = {},
   ): Promise<CaseCommentDTO> {
     // Verify case exists and user has access
     const hasAccess = await this.caseAccess.canAccessCase(user, caseId);
@@ -97,11 +101,12 @@ export class CaseCommentsService {
       validMentioned = firmMembers.map((m) => m.userId);
     }
 
-    const comment = await this.prisma.caseComment.create({
+    const create = (db: Prisma.TransactionClient) => db.caseComment.create({
       data: {
         caseId,
         authorId: user.id,
         body: body.trim(),
+        viaAi: options.viaAi ?? false,
         mentionedUserIds: validMentioned,
       },
       select: {
@@ -115,11 +120,18 @@ export class CaseCommentsService {
           },
         },
         body: true,
+        viaAi: true,
         mentionedUserIds: true,
         createdAt: true,
         updatedAt: true,
       },
     });
+
+    const comment = await (options.audit ? this.prisma.$transaction(async (tx) => {
+      const created = await create(tx);
+      await tx.auditLog.create({ data: options.audit!(created.id) });
+      return created;
+    }) : create(this.prisma));
 
     // Send notifications (fire and forget)
     this.sendNotifications(user, caseId, validMentioned).catch((err) => {
@@ -133,6 +145,7 @@ export class CaseCommentsService {
       authorFirstName: comment.author.firstName,
       authorLastName: comment.author.lastName,
       body: comment.body,
+      viaAi: comment.viaAi,
       mentionedUserIds: comment.mentionedUserIds,
       createdAt: comment.createdAt,
       updatedAt: comment.updatedAt,

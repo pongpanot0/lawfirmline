@@ -88,6 +88,20 @@ describe('CaseCommentsService', () => {
   });
 
   describe('createComment', () => {
+    it('stores and returns the AI marker without adding mentions', async () => {
+      const user = { id: 'user-1', firmId: 'firm-1' } as any;
+      mockCaseAccess.canAccessCase.mockResolvedValue(true);
+      mockPrisma.caseComment.create.mockImplementation(async ({ data }: any) => ({
+        id: 'comment', ...data, author: { firstName: 'Jane', lastName: 'Smith' },
+      }));
+      const result = await service.createComment(user, 'case-1', 'Note', [], { viaAi: true });
+      expect(result.viaAi).toBe(true);
+      expect(mockPrisma.caseComment.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ viaAi: true, mentionedUserIds: [] }),
+        select: expect.objectContaining({ viaAi: true }),
+      }));
+    });
+
     it('throws NotFoundException when user has no access', async () => {
       const user = { id: 'user-1', firmId: 'firm-1' } as any;
       mockCaseAccess.canAccessCase.mockResolvedValue(false);

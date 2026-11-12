@@ -5,6 +5,9 @@ import { config } from 'dotenv';
 import { join, resolve } from 'path';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { McpOAuthProvider } from './mcp/mcp-oauth.provider';
+import { McpToolsService } from './mcp/mcp-tools.service';
+import { mcpHttpRouter } from './mcp/mcp-http';
 import { assertProductionSecrets } from './common/production-secrets';
 import { ErrorCaptureLogger } from './error-log/error-capture';
 import { ErrorLogService } from './error-log/error-log.service';
@@ -52,6 +55,8 @@ async function bootstrap() {
     .map((origin) => origin.trim())
     .filter(Boolean);
   const rootDomain = process.env.ROOT_DOMAIN ?? DEFAULT_ROOT_DOMAIN;
+
+  app.use(mcpHttpRouter(app.get(McpOAuthProvider), app.get(McpToolsService)));
 
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {

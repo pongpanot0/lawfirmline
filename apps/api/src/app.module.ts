@@ -51,6 +51,7 @@ import { CaseDriveModule } from './outlook-integration/drive/case-drive.module';
 import { CaseImportModule } from './case-import/case-import.module';
 import { CargoClaimsModule } from './cargo-claims/cargo-claims.module';
 import { WorkflowsModule } from './workflows/workflows.module';
+import { McpModule } from './mcp/mcp.module';
 
 @Module({
   imports: [
@@ -107,6 +108,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     ConflictCheckModule,
     CargoClaimsModule,
     WorkflowsModule,
+    McpModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

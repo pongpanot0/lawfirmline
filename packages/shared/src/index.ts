@@ -1118,3 +1118,5 @@ export * from './office-operations';
 export * from './secretary';
 
 export * from './strip-email-signature';
+
+export * from './mcp';

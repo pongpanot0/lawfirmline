@@ -133,6 +133,7 @@ export class SaasAuthService {
       await tx.user.update({ where: { id: record.userId }, data: { passwordHash } });
       // A reset is how someone takes their account back: every existing login ends here.
       await tx.session.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.mcpConnection.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } });
     });
   }
 }

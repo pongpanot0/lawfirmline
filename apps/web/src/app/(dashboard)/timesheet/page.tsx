@@ -1,5 +1,7 @@
 'use client';
 
+import { AiBadge } from '@/components/AiBadge';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
@@ -308,7 +310,7 @@ export default function TimesheetPage() {
                 {entries.length === 0 ? (
                   <InlineEmptyState title="ยังไม่มีเวลาที่บันทึก กดเพิ่มเวลาเพื่อเริ่ม" />
                 ) : (
-                  <><div className="divide-y rounded-lg border sm:hidden">{entries.map((entry) => <div key={entry.id} className="space-y-2 p-4"><div className="flex justify-between gap-2"><span className="min-w-0 break-words text-sm text-muted-foreground">{formatDate(entry.date)} · <strong className="text-foreground">{entry.caseRef ?? 'ภายในสำนักงาน'}</strong></span><strong className="shrink-0">{entry.hours} ชม.</strong></div><p className="break-words">{entry.description ?? '—'}</p><Badge variant={entry.invoiced ? 'success' : 'muted'}>{entry.invoiced ? d.timesheet.invoicedYes : entry.billable ? d.timesheet.billableYes : d.timesheet.billableNo}</Badge>{canEdit(entry) && <div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => { setEditing(entry); setShowAdd(false); }}>แก้ไข</Button><Button type="button" size="sm" variant="outline" onClick={() => void deleteEntry(entry)}>ลบ</Button></div>}</div>)}</div><div className="hidden sm:block"><Table>
+                  <><div className="divide-y rounded-lg border sm:hidden">{entries.map((entry) => <div key={entry.id} className="space-y-2 p-4"><div className="flex justify-between gap-2"><span className="min-w-0 break-words text-sm text-muted-foreground">{formatDate(entry.date)} · <strong className="text-foreground">{entry.caseRef ?? 'ภายในสำนักงาน'}</strong></span><strong className="shrink-0">{entry.hours} ชม.</strong></div><p className="break-words">{entry.description ?? '—'} {entry.viaAi && <AiBadge />}</p><Badge variant={entry.invoiced ? 'success' : 'muted'}>{entry.invoiced ? d.timesheet.invoicedYes : entry.billable ? d.timesheet.billableYes : d.timesheet.billableNo}</Badge>{canEdit(entry) && <div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => { setEditing(entry); setShowAdd(false); }}>แก้ไข</Button><Button type="button" size="sm" variant="outline" onClick={() => void deleteEntry(entry)}>ลบ</Button></div>}</div>)}</div><div className="hidden sm:block"><Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>{d.timesheet.date}</TableHead>
@@ -326,7 +328,7 @@ export default function TimesheetPage() {
                         <TableRow key={entry.id}>
                           <TableCell className="text-sm text-muted-foreground">{formatDate(entry.date)}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{entry.caseRef ?? '-'}</TableCell>
-                          <TableCell>{entry.description ?? '-'}</TableCell>
+                          <TableCell>{entry.description ?? '-'} {entry.viaAi && <AiBadge />}</TableCell>
                           {canViewTeam && <TableCell>{entry.userName}</TableCell>}
                           <TableCell className="text-right">{entry.hours}</TableCell>
                           <TableCell>

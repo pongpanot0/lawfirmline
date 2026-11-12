@@ -15,7 +15,7 @@ describe('AuthService', () => {
   let service: AuthService;
   const mockPrisma = { user: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn() }, auditLog: { create: jest.fn() } };
   const mockTenant = { buildAuthUser: jest.fn() };
-  const mockSaasAuth = {};
+  const mockSaasAuth = { register: jest.fn() };
   const mockJwt = { sign: jest.fn().mockReturnValue('signed-token'), verify: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockMfa = {
@@ -57,6 +57,27 @@ describe('AuthService', () => {
       ],
     }).compile();
     service = module.get(AuthService);
+  });
+
+  it('binds new login and registration access tokens to their refresh session', async () => {
+    mockSaasAuth.register.mockResolvedValue(authUser);
+    for (const login of [() => service.loginFromAuthUser(authUser as never), () => service.register({} as never)]) {
+      mockJwt.sign.mockClear();
+      await login();
+      expect(mockJwt.sign.mock.calls).toHaveLength(2);
+      expect(mockJwt.sign.mock.calls.map(call => call[0])).toEqual([
+        expect.objectContaining({ jti: 'jti-1', sub: 'user-1' }),
+        expect.objectContaining({ jti: 'jti-1', sub: 'user-1', email: authUser.email }),
+      ]);
+    }
+  });
+
+  it('preserves the refresh session identity when restoring the cookie session', async () => {
+    mockJwt.verify.mockReturnValue({ sub: 'user-1', firmId: 'firm-1', jti: 'jti-cookie' });
+    mockSessions.touch.mockResolvedValue(true);
+    mockTenant.buildAuthUser.mockResolvedValue(authUser);
+    await expect(service.sessionFromCookie('cookie')).resolves.toEqual({ accessToken: 'signed-token', refreshToken: 'cookie', user: authUser });
+    expect(mockJwt.sign).toHaveBeenCalledWith(expect.objectContaining({ jti: 'jti-cookie' }), expect.any(Object));
   });
 
   describe('login', () => {
@@ -151,6 +172,7 @@ describe('AuthService', () => {
 
       expect(mockSessions.touch).toHaveBeenCalledWith('jti-1');
       expect(result).toEqual({ accessToken: 'signed-token' });
+      expect(mockJwt.sign).toHaveBeenCalledWith(expect.objectContaining({ jti: 'jti-1' }), expect.any(Object));
     });
   });
 

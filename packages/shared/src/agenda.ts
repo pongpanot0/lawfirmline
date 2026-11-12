@@ -114,6 +114,8 @@ export enum DateSuggestionSource {
   RULE = 'RULE',
   /** Read from a case email when the lawyer pressed the AI button on that message. */
   EMAIL = 'EMAIL',
+  /** Proposed by the lawyer's own AI app through MCP; waits for a person to accept it. */
+  MCP = 'MCP',
 }
 
 /** The event that starts a procedural clock running. */

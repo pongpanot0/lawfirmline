@@ -179,10 +179,11 @@ export class RagService {
   async searchDocumentsByContent(
     user: AuthUser,
     q: string,
+    scope: 'app' | 'own' = 'app',
   ): Promise<Array<RagSource & { caseId: string; caseTitle: string; caseOwnRef: string }>> {
     if (!this.embedding.enabled || !q.trim()) return [];
     const accessibleCases = await this.prisma.case.findMany({
-      where: this.caseAccess.getCaseFilterForUser(user),
+      where: scope === 'own' ? this.caseAccess.getOwnCaseFilterForUser(user) : this.caseAccess.getCaseFilterForUser(user),
       select: { id: true, title: true, ownRef: true },
     });
     if (!accessibleCases.length) return [];

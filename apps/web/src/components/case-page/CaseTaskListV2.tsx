@@ -1,5 +1,7 @@
 'use client';
 
+import { AiBadge } from '@/components/AiBadge';
+
 import { useState, type ReactNode } from 'react';
 import { Check, ChevronDown, Plus } from 'lucide-react';
 import { TasksRowMenu } from './TasksRowMenu';
@@ -43,7 +45,7 @@ export function CaseTaskListV2({ tasks, currentStage, userId, onToggle, onOpen, 
     const person = task.assignee;
     return <li key={task.id} className={`flex flex-wrap items-center gap-4 px-5 py-4 ${overdue ? 'bg-[#fdf6f6]' : ''} ${done ? 'text-muted-foreground' : ''}`}>
       <input type="checkbox" className="h-6 w-6 shrink-0" checked={done} onChange={() => onToggle(task)} aria-label={done ? `กลับเป็นยังไม่เสร็จ: ${task.title}` : `ทำเสร็จแล้ว: ${task.title}`} />
-      <div className="min-w-0 flex-1"><button type="button" className="text-left font-bold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onOpen(task.id)}>{done ? <s className="font-normal">{task.title}</s> : task.title}</button>{!done && task.description && <div className={`${v2.label} line-clamp-1`}>{task.description.split('\n')[0]}</div>}</div>
+      <div className="min-w-0 flex-1"><button type="button" className="text-left font-bold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onOpen(task.id)}>{done ? <s className="font-normal">{task.title}</s> : task.title}</button> {task.source === 'MCP' && <AiBadge />}{!done && task.description && <div className={`${v2.label} line-clamp-1`}>{task.description.split('\n')[0]}</div>}</div>
       {done ? <span className="text-sm">เสร็จแล้ว{person ? ` · ${person.firstName}` : ''}</span> : <>
         {person && <span className={v2.chip}>{initials(person.firstName, person.lastName)} {person.firstName}{person.id === userId ? ' (ฉัน)' : ''}</span>}
         {task.dueDate && days != null && (overdue

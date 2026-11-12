@@ -14,6 +14,7 @@ describe('Account self-service', () => {
   const prisma = {
     user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     session: { updateMany: jest.fn() },
+    mcpConnection: { updateMany: jest.fn() },
     auditLog: { findFirst: jest.fn(), create: jest.fn() },
     $transaction: jest.fn(),
   };
@@ -53,6 +54,7 @@ describe('Account self-service', () => {
     expect(update.where).toEqual({ id: 'self', passwordHash: hash });
     expect(await bcrypt.compare('new-secret', update.data.passwordHash)).toBe(true);
     expect(prisma.session.updateMany).toHaveBeenCalledWith({ where: { userId: 'self', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
+    expect(prisma.mcpConnection.updateMany).toHaveBeenCalledWith({ where: { userId: 'self', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
   });
 
   it('rejects a concurrent reset instead of replacing the newer password', async () => {
