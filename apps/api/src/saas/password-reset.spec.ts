@@ -10,6 +10,7 @@ describe('password reset', () => {
       },
       user: { update: jest.fn() },
       session: { updateMany: jest.fn() },
+      mcpConnection: { updateMany: jest.fn() },
     };
     const prisma = { $transaction: jest.fn(async (cb: any) => cb(tx)) } as any;
     return { svc: new (SaasAuthService as any)(prisma, {}, {}, {}, {}) as SaasAuthService, tx };
@@ -19,6 +20,7 @@ describe('password reset', () => {
     const { svc, tx } = build(1);
     await svc.resetPassword('tok', 'new-password');
     expect(tx.user.update).toHaveBeenCalled();
+    expect(tx.mcpConnection.updateMany).toHaveBeenCalledWith({ where: { userId: 'u1', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
     expect(tx.session.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'u1', revokedAt: null } }));
   });
 

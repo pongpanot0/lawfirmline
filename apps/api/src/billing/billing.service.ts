@@ -312,13 +312,15 @@ export class BillingService {
     return member?.defaultHourlyRate ?? 0;
   }
 
-  async createTimeEntry(user: AuthUser, caseId: string, dto: CreateTimeEntryDto) {
-    return this.prisma.timeEntry.create({
+  async createTimeEntry(user: AuthUser, caseId: string, dto: CreateTimeEntryDto, options: { viaAi?: boolean; audit?: (entityId: string) => Prisma.AuditLogUncheckedCreateInput } = {}) {
+    const rate = dto.rate ?? (await this.resolveDefaultRate(user.firmId, user.id));
+    const create = (db: Prisma.TransactionClient) => db.timeEntry.create({
       data: {
         caseId,
         userId: user.id,
         hours: dto.hours,
-        rate: dto.rate ?? (await this.resolveDefaultRate(user.firmId, user.id)),
+        viaAi: options.viaAi ?? false,
+        rate,
         description: dto.description,
         date: dto.date ? new Date(dto.date) : new Date(),
         billable: dto.billable ?? true,
@@ -327,6 +329,11 @@ export class BillingService {
         user: { select: { id: true, firstName: true, lastName: true } },
       },
     });
+    return options.audit ? this.prisma.$transaction(async (tx) => {
+      const created = await create(tx);
+      await tx.auditLog.create({ data: options.audit!(created.id) });
+      return created;
+    }) : create(this.prisma);
   }
 
   /** เจ้าของรายการหรือผู้มี manageInvoices แก้/ลบได้ เฉพาะที่ยังไม่เข้าใบแจ้งหนี้และไม่ถูกตัดทิ้ง */
@@ -1068,6 +1075,7 @@ export class BillingService {
         id: entry.id,
         date: entry.date,
         description: entry.description,
+        viaAi: entry.viaAi,
         hours: entry.hours,
         rate: entry.rate,
         amount: entry.hours * entry.rate,

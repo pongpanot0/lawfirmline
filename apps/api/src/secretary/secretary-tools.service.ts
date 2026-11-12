@@ -73,7 +73,7 @@ export class SecretaryToolsService {
         { from: { type: 'string' }, to: { type: 'string' } }, ['from', 'to']),
       tool('search_sops', 'Search the firm\'s SOPs / office procedures by keyword. Returns up to 5 with their content.',
         { query: { type: 'string' } }, ['query']),
-      tool('lawyer_licenses', 'Lawyer licences expiring within N days (default 90), including recently expired. Office managers see all members; others see their own.',
+      tool('lawyer_licenses', 'Lawyer licences expiring within N days (default 90), including recently expired. Results follow caller licence visibility.',
         { withinDays: { type: 'number' } }, []),
       tool('receivables', 'Unpaid sent invoices with aging buckets (0-30, 31-60, 61-90, 90+ days overdue), largest overdue first. Max 20 rows.',
         { minDaysOverdue: { type: 'number' } }, []),
@@ -82,22 +82,22 @@ export class SecretaryToolsService {
     ].filter((d) => canUse(user, d.function.name));
   }
 
-  async run(user: AuthUser, name: string, args: unknown): Promise<ToolResult> {
+  async run(user: AuthUser, name: string, args: unknown, scope: 'app' | 'own' = 'app'): Promise<ToolResult> {
     const a = (args && typeof args === 'object' ? args : {}) as Record<string, unknown>;
     if (!canUse(user, name)) return bad('forbidden');
     let result: ToolResult;
     switch (name) {
-      case 'find_matters': result = await this.findMatters(user, a); break;
-      case 'case_overview': result = await this.caseOverview(user, a); break;
-      case 'search_documents': result = await this.searchDocuments(user, a); break;
-      case 'read_document': result = await this.readDocument(user, a); break;
-      case 'list_events': result = await this.listEvents(user, a); break;
+      case 'find_matters': result = await this.findMatters(user, a, scope); break;
+      case 'case_overview': result = await this.caseOverview(user, a, scope); break;
+      case 'search_documents': result = await this.searchDocuments(user, a, scope); break;
+      case 'read_document': result = await this.readDocument(user, a, scope); break;
+      case 'list_events': result = await this.listEvents(user, a, scope); break;
       case 'list_leaves': result = await this.listLeaves(user, a); break;
       case 'search_sops': result = await this.searchSops(user, a); break;
-      case 'lawyer_licenses': result = await this.lawyerLicenses(user, a); break;
-      case 'receivables': result = await this.receivables(user, a); break;
+      case 'lawyer_licenses': result = await this.lawyerLicenses(user, a, scope); break;
+      case 'receivables': result = await this.receivables(user, a, scope); break;
       case 'petty_cash_balance': result = await this.pettyCashBalance(user); break;
-      case 'my_work': result = await this.myWork(user); break;
+      case 'my_work': result = await this.myWork(user, scope); break;
       default: return bad('unknown_tool');
     }
     return { ...result, content: redactContent(result.content) };
@@ -142,13 +142,13 @@ export class SecretaryToolsService {
   }
 
   /** Office managers see every member's licence (they renew them); everyone else only their own, like GET users/me/license. */
-  private async lawyerLicenses(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+  private async lawyerLicenses(user: AuthUser, a: Record<string, unknown>, scope: 'app' | 'own'): Promise<ToolResult> {
     const withinDays = typeof a.withinDays === 'number' && a.withinDays > 0 ? Math.min(a.withinDays, 730) : 90;
     const now = new Date();
     const users = await this.prisma.user.findMany({
       where: {
         firmMembers: { some: { firmId: user.firmId } },
-        ...(hasFirmCapability(user.firmRole, 'runOperations') ? {} : { id: user.id }),
+        ...(scope === 'app' && hasFirmCapability(user.firmRole, 'runOperations') ? {} : { id: user.id }),
         // Up to 60 days past expiry: the late-renewal window of the Lawyers Act s.40.
         lawyerLicenseExpiresAt: { not: null, lte: new Date(now.getTime() + withinDays * DAY_MS), gte: new Date(now.getTime() - 60 * DAY_MS) },
       },
@@ -164,14 +164,14 @@ export class SecretaryToolsService {
     };
   }
 
-  private async receivables(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+  private async receivables(user: AuthUser, a: Record<string, unknown>, scope: 'app' | 'own'): Promise<ToolResult> {
     const minDays = typeof a.minDaysOverdue === 'number' && Number.isFinite(a.minDaysOverdue) ? a.minDaysOverdue : 0;
-    const { buckets, rows } = await this.collections.getReceivables(user);
+    const { buckets, rows } = await this.collections.getReceivables(user, undefined, scope === 'own' ? this.access.getOwnCaseFilterForUser(user) : undefined);
     const picked = rows.filter((r) => r.daysOverdue >= minDays).sort((x, y) => y.daysOverdue - x.daysOverdue);
     const sum = (list: typeof rows) => Math.round(list.reduce((s, r) => s + r.outstanding, 0) * 100) / 100;
     return {
       content: {
-        // buckets/totalOutstanding are firm-wide; matching* answer the filtered question.
+        // Buckets and totals share the same case scope as the invoice rows.
         buckets,
         totalOutstanding: sum(rows),
         matching: picked.length,
@@ -187,10 +187,10 @@ export class SecretaryToolsService {
   }
 
   /** Reuses the "my day" projection so the secretary and the screen never disagree about what someone owes. */
-  private async myWork(user: AuthUser): Promise<ToolResult> {
-    const day = await this.agenda.getMyDay(user);
+  private async myWork(user: AuthUser, scope: 'app' | 'own'): Promise<ToolResult> {
+    const day = scope === 'own' ? await this.agenda.getMyDay(user, scope) : await this.agenda.getMyDay(user);
     const row = (i: AgendaItem) => ({
-      kind: i.kind, title: i.title, date: i.at.slice(0, 10), allDay: i.allDay, urgency: i.urgency,
+      id: i.entityId, caseId: i.caseId, kind: i.kind, title: i.title, date: i.at.slice(0, 10), allDay: i.allDay, urgency: i.urgency,
       caseRef: i.caseRef, caseTitle: i.caseTitle, assignee: i.assigneeName,
     });
     const section = (items: AgendaItem[]) => ({ total: items.length, items: items.slice(0, MY_WORK_ROWS).map(row) });
@@ -208,7 +208,7 @@ export class SecretaryToolsService {
         tomorrow: section(day.tomorrow),
         upcoming: section(upcoming),
         waitingForMyReview: { total: day.reviewQueue.length, items: day.reviewQueue.slice(0, MY_WORK_ROWS).map((r) => ({
-          title: r.title, caseRef: r.caseRef, worker: r.workerName, dueDate: r.dueDate?.slice(0, 10) ?? null,
+          id: r.id, kind: 'TASK', caseId: r.caseId, title: r.title, caseRef: r.caseRef, worker: r.workerName, dueDate: r.dueDate?.slice(0, 10) ?? null,
         })) },
         warnings: day.warnings.map((w) => w.message),
       },
@@ -222,10 +222,10 @@ export class SecretaryToolsService {
     return { content: fund ? { balance: fund.balance, updatedAt: fund.updatedAt.toISOString() } : { notSetUp: true }, cards: [] };
   }
 
-  private async findMatters(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+  private async findMatters(user: AuthUser, a: Record<string, unknown>, scope: 'app' | 'own'): Promise<ToolResult> {
     const q = str(a.query);
     if (!q) return bad('query_required');
-    const [caseFilter, intakeFilter] = [await this.access.getCaseFilterForUser(user), await this.access.getIntakeFilterForUser(user)];
+    const [caseFilter, intakeFilter] = [await (scope === 'own' ? this.access.getOwnCaseFilterForUser(user) : this.access.getCaseFilterForUser(user)), await (scope === 'own' ? this.access.getOwnIntakeFilterForUser(user) : this.access.getIntakeFilterForUser(user))];
     const [cases, intakes] = await Promise.all([
       this.prisma.case.findMany({
         where: { AND: [caseFilter, { OR: [
@@ -250,11 +250,11 @@ export class SecretaryToolsService {
     return { content: { matters: rows }, cards };
   }
 
-  private async caseOverview(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+  private async caseOverview(user: AuthUser, a: Record<string, unknown>, scope: 'app' | 'own'): Promise<ToolResult> {
     const caseId = str(a.caseId);
     const intakeId = str(a.intakeId);
     if (!caseId && !intakeId) return bad('caseId_or_intakeId_required');
-    const b = caseId ? await this.brief.getCaseBrief(user, caseId) : await this.brief.getIntakeBrief(user, intakeId as string);
+    const b = caseId ? await this.brief.getCaseBrief(user, caseId, scope) : await this.brief.getIntakeBrief(user, intakeId as string, scope);
     if (!b) return NOT_FOUND;
     const card: SecretaryCard = b.kind === 'case'
       ? { type: 'case', id: b.id, title: b.title, ownRef: b.ownRef }
@@ -262,13 +262,13 @@ export class SecretaryToolsService {
     return { content: b, cards: [card] };
   }
 
-  private async searchDocuments(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+  private async searchDocuments(user: AuthUser, a: Record<string, unknown>, scope: 'app' | 'own'): Promise<ToolResult> {
     const q = str(a.query);
     if (!q) return bad('query_required');
     const caseId = str(a.caseId);
-    const caseFilter = await this.access.getCaseFilterForUser(user);
+    const caseFilter = await (scope === 'own' ? this.access.getOwnCaseFilterForUser(user) : this.access.getCaseFilterForUser(user));
     const [byContent, byName] = await Promise.all([
-      this.rag.searchDocumentsByContent(user, q),
+      this.rag.searchDocumentsByContent(user, q, scope),
       this.prisma.document.findMany({
         where: { AND: [{ case: caseFilter }, { filename: contains(q) }, caseId ? { caseId } : {}] },
         select: { id: true, caseId: true, filename: true }, take: 10,
@@ -287,16 +287,16 @@ export class SecretaryToolsService {
     };
   }
 
-  private async readDocument(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+  private async readDocument(user: AuthUser, a: Record<string, unknown>, scope: 'app' | 'own'): Promise<ToolResult> {
     const documentId = str(a.documentId);
     const question = str(a.question);
     if (!documentId || !question) return bad('documentId_and_question_required');
-    const [caseFilter, intakeFilter] = [await this.access.getCaseFilterForUser(user), await this.access.getIntakeFilterForUser(user)];
+    const [caseFilter, intakeFilter] = [await (scope === 'own' ? this.access.getOwnCaseFilterForUser(user) : this.access.getCaseFilterForUser(user)), await (scope === 'own' ? this.access.getOwnIntakeFilterForUser(user) : this.access.getIntakeFilterForUser(user))];
     const doc = await this.prisma.document.findFirst({
-      where: { id: documentId, OR: [{ case: caseFilter }, { intake: intakeFilter }] },
+      where: { id: documentId, ...(scope === 'own' ? { case: caseFilter } : { OR: [{ case: caseFilter }, { intake: intakeFilter }] }) },
       select: { id: true, caseId: true, filename: true },
     });
-    if (!doc) return NOT_FOUND;
+    if (!doc || (scope === 'own' && !doc.caseId)) return NOT_FOUND;
     const cards: SecretaryCard[] = [{ type: 'document', id: doc.id, caseId: doc.caseId, filename: doc.filename }];
     // Chunks are case-scoped; intake documents are never indexed.
     const indexed = doc.caseId ? await this.prisma.documentChunk.count({ where: { documentId: doc.id } }) : 0;
@@ -311,11 +311,11 @@ export class SecretaryToolsService {
     };
   }
 
-  private async listEvents(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+  private async listEvents(user: AuthUser, a: Record<string, unknown>, scope: 'app' | 'own'): Promise<ToolResult> {
     const from = new Date(String(a.from));
     const to = new Date(String(a.to));
     if (isNaN(from.getTime()) || isNaN(to.getTime())) return bad('invalid_date_range');
-    const caseFilter = await this.access.getCaseFilterForUser(user);
+    const caseFilter = await (scope === 'own' ? this.access.getOwnCaseFilterForUser(user) : this.access.getCaseFilterForUser(user));
     const caseId = str(a.caseId);
     if (caseId && !(await this.prisma.case.findFirst({ where: { AND: [caseFilter, { id: caseId }] }, select: { id: true } }))) return NOT_FOUND;
     const events = await this.prisma.calendarEvent.findMany({

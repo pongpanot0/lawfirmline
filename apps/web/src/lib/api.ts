@@ -684,6 +684,7 @@ export interface CaseMessageEntry {
 }
 
 export interface CaseCommentEntry {
+  viaAi?: boolean;
   id: string;
   caseId: string;
   authorId: string;
@@ -903,6 +904,7 @@ export interface StageTaskDraft {
 }
 
 export interface TaskItem {
+  source?: string;
   id: string;
   updatedAt?: string;
   workType?: import('@lawfirm/shared').TaskWorkType | null;
@@ -1876,6 +1878,15 @@ export type CaseJourney = Omit<Journey, 'next'> & { next: (NonNullable<Journey['
 export type SkippedTask = { id: string; status: string; skippedReason: string; skippedAt: string; skippedById: string };
 
 export const api = {
+  getMyMcpConnections: (token: string) => request<import('@lawfirm/shared').MyMcpConnections>('/mcp/connections/mine', { token }),
+  revokeMyMcpConnection: (token: string, id: string) => request<void>(`/mcp/connections/mine/${encodeURIComponent(id)}`, { token, method: 'DELETE' }),
+  getMcpSettings: (token: string) => request<import('@lawfirm/shared').McpFirmSettings>('/mcp/settings', { token }),
+  setMcpSettings: (token: string, enabled: boolean) => request<import('@lawfirm/shared').McpFirmSettings>('/mcp/settings', { token, method: 'PUT', body: JSON.stringify({ enabled }) }),
+  getFirmMcpConnections: (token: string) => request<import('@lawfirm/shared').FirmMcpConnection[]>('/mcp/connections', { token }),
+  revokeFirmMcpConnection: (token: string, id: string) => request<void>(`/mcp/connections/${encodeURIComponent(id)}`, { token, method: 'DELETE' }),
+  getMcpConsent: (token: string, params: import('@lawfirm/shared').McpConsentParams) => request<import('@lawfirm/shared').McpConsentInfo>(`/mcp-oauth/consent?${new URLSearchParams({ ...params }).toString()}`, { token }),
+  approveMcpConsent: (token: string, params: import('@lawfirm/shared').McpConsentParams) => request<import('@lawfirm/shared').McpConsentResult>('/mcp-oauth/consent/approve', { token, method: 'POST', body: JSON.stringify(params) }),
+  denyMcpConsent: (token: string, params: import('@lawfirm/shared').McpConsentParams) => request<import('@lawfirm/shared').McpConsentResult>('/mcp-oauth/consent/deny', { token, method: 'POST', body: JSON.stringify(params) }),
   getIntakeJourney: (token: string, id: string) => request<Journey>(`/intake/${id}/journey`, { token }),
   getCaseJourney: (token: string, id: string) => request<CaseJourney>(`/cases/${id}/journey`, { token }),
   advanceCaseJourney: (token: string, id: string, toStage?: 'APPEAL' | 'SUPREME' | 'CLOSING') => request<CaseJourney>(`/cases/${id}/journey/advance`, { token, method: 'POST', body: JSON.stringify(toStage ? { toStage } : {}) }),
@@ -4295,7 +4306,7 @@ export interface DateSuggestionItem {
   eventType: 'COURT_DATE' | 'CLIENT_MEETING' | 'DEADLINE' | 'OTHER';
   /** Only DOCUMENT suggestions quote a source; a rule-derived date has none. */
   sourceExcerpt: string | null;
-  source: 'DOCUMENT' | 'RULE' | 'EMAIL';
+  source: 'DOCUMENT' | 'RULE' | 'EMAIL' | 'MCP';
   emailMessageId?: string | null;
   deadlineRule?: { label: string; trigger: DeadlineTriggerValue } | null;
   status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
@@ -4463,6 +4474,7 @@ export interface PleadingDraftItem {
 }
 
 export interface TimeEntryItem {
+  viaAi?: boolean;
   id: string;
   hours: number;
   rate: number;
@@ -4504,6 +4516,7 @@ export interface ConfirmTimeEntryInput {
 }
 
 export interface FirmTimesheetEntry {
+  viaAi?: boolean;
   id: string;
   date: string;
   hours: number;

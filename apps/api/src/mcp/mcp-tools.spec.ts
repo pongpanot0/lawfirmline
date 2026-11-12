@@ -1,0 +1,77 @@
+import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { McpToolsService } from './mcp-tools.service';
+
+const tools = new Map<string, { config: { inputSchema: Record<string, unknown> }; run: (args: unknown) => Promise<any> }>();
+jest.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({ McpServer: class {
+  registerTool(name: string, config: any, run: any) { tools.set(name, { config, run }); }
+} }));
+
+const user = { id: 'user-1', firmId: 'firm-1', firmSlug: 'firm', firmRole: FirmRole.OWNER } as AuthUser;
+const connection = { id: 'connection', clientName: 'Claude' };
+const own = { firmId: 'firm-1', leadLawyerId: 'user-1' };
+const decode = (r: any) => JSON.parse(r.content[0].text);
+
+describe('MCP tools', () => {
+  let prisma: any, secretary: any, tasks: any, comments: any, billing: any;
+  beforeEach(() => {
+    tools.clear();
+    prisma = { case: { findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }) }, task: { findFirst: jest.fn() }, auditLog: { create: jest.fn() }, documentDateSuggestion: { create: jest.fn().mockResolvedValue({ id: 'suggestion' }) } };
+    prisma.$transaction = (fn: any) => fn(prisma);
+    secretary = { definitions: jest.fn().mockReturnValue([{ function: { name: 'lawyer_licenses', description: 'Own licenses' } }]), run: jest.fn().mockResolvedValue({ content: {}, cards: [] }) };
+    tasks = { create: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[7]('task-1') }); return { id: 'task-1', source: 'MCP' }; }), update: jest.fn().mockResolvedValue({ id: 'task-1' }) };
+    comments = { createComment: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[4].audit('comment') }); return { id: 'comment', viaAi: true }; }) };
+    billing = { createTimeEntry: jest.fn(async (...args: any[]) => { await prisma.auditLog.create({ data: args[3].audit('time') }); return { id: 'time', viaAi: true }; }) };
+    new McpToolsService(prisma, secretary, { getOwnCaseFilterForUser: () => own } as any, tasks, comments, billing, { originForSlug: () => 'https://firm.samnuan.com' } as any).createServer(user, connection);
+  });
+  it('registers only capability-filtered reads and always runs licenses in own scope', async () => {
+    expect(tools.has('receivables')).toBe(false);
+    expect(tools.has('petty_cash_balance')).toBe(false);
+    await tools.get('lawyer_licenses')!.run({});
+    expect(secretary.run).toHaveBeenCalledWith(user, 'lawyer_licenses', {}, 'own');
+  });
+  it('refuses another case even for OWNER', async () => {
+    prisma.case.findFirst.mockResolvedValue(null);
+    const result = await tools.get('create_task')!.run({ caseId: 'other', title: 'Task' });
+    expect(decode(result).error).toBe('ไม่พบคดีนี้ในงานของคุณ');
+    expect(prisma.case.findFirst).toHaveBeenCalledWith({ where: { AND: [own, { id: 'other' }] }, select: { id: true } });
+    expect(tasks.create).not.toHaveBeenCalled();
+  });
+  it.each([{ assigneeId: 'other', requiresReview: false }, { assigneeId: user.id, requiresReview: true }])('refuses other assignees and review work', async (task) => {
+    prisma.task.findFirst.mockResolvedValue({ id: 'task', caseId: 'case-1', ...task });
+    expect((await tools.get('complete_task')!.run({ taskId: 'task' })).isError).toBe(true);
+    expect(tasks.update).not.toHaveBeenCalled();
+  });
+  it('passes the atomic own-completion guard to the reused task service', async () => {
+    prisma.task.findFirst.mockResolvedValue({ id: 'task', caseId: 'case-1', assigneeId: user.id, requiresReview: false });
+    await tools.get('complete_task')!.run({ taskId: 'task' });
+    expect(tasks.update).toHaveBeenCalledWith('task', { status: 'DONE' }, user, 'case-1', true, expect.any(Function));
+  });
+  it('marks writes and audits identifiers without note text', async () => {
+    await tools.get('create_task')!.run({ caseId: 'case-1', title: 'Task' });
+    expect(tasks.create).toHaveBeenCalledWith(user, 'case-1', expect.objectContaining({ assigneeId: user.id }), 'MCP', undefined, 0, undefined, expect.any(Function));
+    await tools.get('add_case_note')!.run({ caseId: 'case-1', text: 'private note' });
+    expect(comments.createComment).toHaveBeenCalledWith(user, 'case-1', 'private note', [], { viaAi: true, audit: expect.any(Function) });
+    await tools.get('log_time')!.run({ caseId: 'case-1', hours: 1, description: 'work' });
+    expect(billing.createTimeEntry).toHaveBeenCalledWith(user, 'case-1', expect.objectContaining({ hours: 1 }), { viaAi: true, audit: expect.any(Function) });
+    expect(prisma.auditLog.create.mock.calls[1][0].data.metadata).toEqual({ connectionId: connection.id, clientName: connection.clientName, tool: 'add_case_note', caseId: 'case-1', entityId: 'comment' });
+  });
+  it('preserves task identifiers and adds the real task query route', async () => {
+    const result = decode(await tools.get('create_task')!.run({ caseId: 'case-1', title: 'Task' }));
+    expect(result.url).toBe('https://firm.samnuan.com/cases/case-1?task=task-1');
+  });
+  it('adds task links to a case brief while preserving redacted text and identifiers', async () => {
+    secretary.run.mockResolvedValue({ content: { kind: 'case', id: 'case-1', openTasks: [{ id: 'task-2', title: 'Call 0812345678' }] }, cards: [] });
+    const result = decode(await tools.get('lawyer_licenses')!.run({}));
+    expect(result.content.url).toBe('https://firm.samnuan.com/cases/case-1');
+    expect(result.content.openTasks[0].url).toBe('https://firm.samnuan.com/cases/case-1?task=task-2');
+    expect(result.content.openTasks[0].title).not.toContain('0812345678');
+  });
+  it('rejects impossible dates and interprets offset-free court dates in Bangkok', async () => {
+    const { z } = await import('zod');
+    const schema = z.object(tools.get('propose_court_date')!.config.inputSchema as any);
+    expect(schema.safeParse({ caseId: 'case-1', title: 'Hearing', startAt: '2026-02-30T10:00' }).success).toBe(false);
+    expect(schema.safeParse({ caseId: 'case-1', title: 'Hearing', startAt: '2026-02-28T25:00' }).success).toBe(false);
+    await tools.get('propose_court_date')!.run({ caseId: 'case-1', title: 'Hearing', startAt: '2026-02-28T10:00', courtName: 'ศาล', note: 'note' });
+    expect(prisma.documentDateSuggestion.create).toHaveBeenCalledWith({ data: expect.objectContaining({ source: 'MCP', status: 'PENDING', eventType: 'COURT_DATE', suggestedDate: new Date('2026-02-28T03:00:00Z'), sourceExcerpt: 'ศาล: ศาล\nnote' }) });
+  });
+});

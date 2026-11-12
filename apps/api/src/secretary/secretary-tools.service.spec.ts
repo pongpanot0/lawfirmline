@@ -197,8 +197,9 @@ describe('SecretaryToolsService', () => {
     expect(agenda.getMyDay).toHaveBeenCalledWith(user);
     expect(c.overdue.total).toBe(20);
     expect(c.overdue.items).toHaveLength(15);
+    expect(c.today_items.items[0]).toMatchObject({ id: '100', kind: 'TASK', caseId: 'c2' });
     expect(c.upcoming.items[0].title).toBe('งาน 200');
-    expect(c.waitingForMyReview.items[0]).toEqual({ title: 'ตรวจคำฟ้อง', caseRef: null, worker: 'ทนาย ข', dueDate: '2026-11-11' });
+    expect(c.waitingForMyReview.items[0]).toEqual({ id: 't9', kind: 'TASK', caseId: null, title: 'ตรวจคำฟ้อง', caseRef: null, worker: 'ทนาย ข', dueDate: '2026-11-11' });
     expect(c.warnings).toEqual(['นัดชนกัน']);
     expect(r.cards.map((x) => x.id)).toEqual(['c1', 'c2']);
   });

@@ -1,4 +1,7 @@
 export const AUDIT_ACTIONS: Record<string, string> = {
+  'mcp.connect': 'เชื่อมต่อ AI', 'mcp.disconnect': 'ยกเลิกการเชื่อมต่อ AI', 'mcp.settings': 'เปลี่ยนการตั้งค่าการเชื่อมต่อ AI',
+  'mcp.create_task': 'สร้างงานผ่าน AI', 'mcp.complete_task': 'ปิดงานผ่าน AI', 'mcp.add_case_note': 'ลงโน้ตในคดีผ่าน AI',
+  'mcp.log_time': 'ลงเวลาผ่าน AI', 'mcp.propose_court_date': 'เสนอวันนัดศาลผ่าน AI',
   USER_LOGIN: 'เข้าสู่ระบบ', USER_INVITED: 'เชิญสมาชิกเข้าทีม', INVITATION_ACCEPTED: 'ตอบรับคำเชิญ', INVITATION_CANCELLED: 'ยกเลิกคำเชิญ',
   MEMBER_REMOVED: 'นำสมาชิกออกจากทีม', MEMBER_ROLE_CHANGED: 'เปลี่ยนบทบาทสมาชิก', MEMBER_WORK_SETTINGS_UPDATED: 'เปลี่ยนการตั้งค่างานของสมาชิก',
   CASE_DELETED: 'ลบคดี', CASE_OWNER_CHANGED: 'เปลี่ยนผู้รับผิดชอบคดี', CASE_MESSAGE_SENT: 'ส่งข้อความในคดี', CASES_IMPORTED_EXCEL: 'นำเข้าคดี',

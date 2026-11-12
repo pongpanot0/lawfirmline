@@ -1,5 +1,5 @@
 /** In-app replacement for window.confirm: same one-line call, but awaited, styled and in Thai. */
-export type ConfirmRequest = { message: string; resolve: (ok: boolean) => void };
+export type ConfirmRequest = { message: string; resolve: (ok: boolean) => void; action?: string; cancel?: string; danger?: boolean };
 
 let listener: ((request: ConfirmRequest) => void) | null = null;
 
@@ -12,10 +12,10 @@ export function setConfirmListener(fn: (request: ConfirmRequest) => void): () =>
 }
 
 /** Resolves true when the person confirms. Falls back to the browser box only if no host is mounted. */
-export function confirmDialog(message: string): Promise<boolean> {
+export function confirmDialog(message: string, options?: { action?: string; cancel?: string; danger?: boolean }): Promise<boolean> {
   if (!listener) return Promise.resolve(typeof window !== 'undefined' && window.confirm(message));
   const current = listener;
-  return new Promise((resolve) => current({ message, resolve }));
+  return new Promise((resolve) => current({ message, resolve, ...options }));
 }
 
 const DANGER = /^(ลบ|ยกเลิก|ไม่อนุมัติ|ถอน|ปิดคดี|ทิ้ง|ล้าง|เลิก)/;

@@ -1,5 +1,7 @@
 'use client';
 
+import { AiBadge } from '@/components/AiBadge';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, Check, Download, MessageSquare, NotebookPen, Paperclip, Pause, Trash2, X } from 'lucide-react';
@@ -358,7 +360,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               aria-label={d.taskDetail.titleField}
               className="mt-1 w-full rounded-md border border-transparent bg-transparent px-1 text-lg font-semibold hover:border-input focus:border-input focus:outline-none"
             />}
-            {task && <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><Badge variant={task.status === TaskStatus.DONE ? 'success' : task.status === TaskStatus.PENDING_REVIEW ? 'default' : task.status === TaskStatus.NEEDS_REVISION ? 'destructive' : 'muted'}>{statusLabel[task.status]}</Badge><span>{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>{task.assignee && <span>{task.assignee.firstName} {task.assignee.lastName}</span>}{isHeld(task) && <Badge variant="warning">{d.todos.heldBadge}</Badge>}</div>}
+            {task && <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">{task.source === 'MCP' && <AiBadge />}<Badge variant={task.status === TaskStatus.DONE ? 'success' : task.status === TaskStatus.PENDING_REVIEW ? 'default' : task.status === TaskStatus.NEEDS_REVISION ? 'destructive' : 'muted'}>{statusLabel[task.status]}</Badge><span>{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>{task.assignee && <span>{task.assignee.firstName} {task.assignee.lastName}</span>}{isHeld(task) && <Badge variant="warning">{d.todos.heldBadge}</Badge>}</div>}
           </div>
           {task && (manager || task.createdById === user?.id) && (
             <button type="button" onClick={() => void removeTask()} disabled={busy} aria-label={text('ลบงาน', 'Delete task')} title={text('ลบงาน', 'Delete task')} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

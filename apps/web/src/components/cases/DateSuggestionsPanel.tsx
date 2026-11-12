@@ -210,6 +210,7 @@ export function DateSuggestionsPanel({
                   </label>
                 )}
 
+                {s.source === 'MCP' && <p className="text-sm text-muted-foreground">{d.dateSuggestions.fromAi}</p>}
                 {s.source === 'RULE'
                   ? s.deadlineRule && (
                       <p className="mt-2 text-xs text-muted-foreground">

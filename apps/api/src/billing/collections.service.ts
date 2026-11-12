@@ -226,10 +226,10 @@ export class CollectionsService {
     return this.prisma.invoicePayment.findMany({ where: { invoiceId }, orderBy: { receivedAt: 'desc' } });
   }
 
-  async getReceivables(user: AuthUser, today: Date = new Date()) {
+  async getReceivables(user: AuthUser, today: Date = new Date(), caseFilter?: Prisma.CaseWhereInput) {
     this.owner(user);
     const invoices = await this.prisma.invoice.findMany({
-      where: { firmId: user.firmId, status: InvoiceStatus.SENT },
+      where: { firmId: user.firmId, status: InvoiceStatus.SENT, ...(caseFilter ? { case: caseFilter } : {}) },
       include: INVOICE_INCLUDE,
       orderBy: { dueAt: 'asc' },
     });

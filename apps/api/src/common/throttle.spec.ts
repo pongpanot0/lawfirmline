@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthThrottle } from './throttle';
+import { injectHttp } from '../../test/http-inject';
 
 @Controller('t')
 class Probe {
@@ -16,8 +17,7 @@ class Probe {
 
 describe('auth throttling', () => {
   let app: INestApplication;
-  let base: string;
-  const post = (path: string) => fetch(`${base}${path}`, { method: 'POST' }).then((res) => res.status);
+  const post = (path: string) => injectHttp(app.getHttpAdapter().getInstance(), path, { method: 'POST' }).then((res) => res.status);
   beforeAll(async () => {
     const mod = await Test.createTestingModule({
       imports: [ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 600 }])],
@@ -25,8 +25,7 @@ describe('auth throttling', () => {
       providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
     }).compile();
     app = mod.createNestApplication();
-    await app.listen(0, '127.0.0.1');
-    base = await app.getUrl();
+    await app.init();
   });
   afterAll(() => app.close());
 

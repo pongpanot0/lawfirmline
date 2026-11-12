@@ -610,6 +610,7 @@ export class TasksService {
     intakeId?: string,
     queuePosition = 0,
     followUp?: { parentId: string; sourceTaskId: string; sourceCommentId: string; sourceQuote: string; ownerEscalation?: boolean },
+    audit?: (entityId: string) => Prisma.AuditLogUncheckedCreateInput,
   ) {
     // A dependency must be a task this person can see — never another firm's.
     if (dto.blockedById) await this.assertAccess(dto.blockedById, user);
@@ -644,7 +645,7 @@ export class TasksService {
     await this.validateReview(user, dto.requiresReview ?? false, dto.reviewerId, { caseId, assigneeId: dto.assigneeId });
     await this.validateObservers(dto.observerIds, !!caseId, user.firmId);
 
-    const task = await this.prisma.task.create({
+    const createTask = (db: Prisma.TransactionClient) => db.task.create({
       data: {
         caseId,
         createRequestId: dto.createRequestId,
@@ -678,7 +679,12 @@ export class TasksService {
         completedAt: dto.status === TaskStatus.DONE ? new Date() : undefined,
       },
       include: this.taskInclude,
-    }).catch(async error => {
+    });
+    const task = await (audit ? this.prisma.$transaction(async (tx) => {
+      const created = await createTask(tx);
+      await tx.auditLog.create({ data: audit(created.id) });
+      return created;
+    }) : createTask(this.prisma)).catch(async error => {
       if (dto.createRequestId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const existing = await previousRequest();
         if (existing) return { ...await this.findOne(existing.id), requestAlreadyCreated: true };
@@ -735,7 +741,7 @@ export class TasksService {
     return this.findOne(task.id);
   }
 
-  async update(id: string, dto: UpdateTaskDto, user: AuthUser, caseId?: string) {
+  async update(id: string, dto: UpdateTaskDto, user: AuthUser, caseId?: string, mcpOwnCompletion = false, audit?: (entityId: string) => Prisma.AuditLogUncheckedCreateInput) {
     if (dto.blockedById) await this.assertAccess(dto.blockedById, user);
     // The case guard only proves the caller may touch THIS case; without
     // binding the task to it, any task id in the database would be editable.
@@ -748,6 +754,7 @@ export class TasksService {
     }
     const task = await this.findOne(id);
 
+    if (mcpOwnCompletion && (task.assigneeId !== user.id || task.requiresReview)) throw new BadRequestException('งานเปลี่ยนไปแล้ว กรุณาเปิดงานในแอป');
     if (task.firmId && task.firmId !== user.firmId) throw new NotFoundException('Task not found');
     if (dto.recurrenceDays !== undefined && user.firmRole !== FirmRole.OWNER && task.assigneeId !== user.id) {
       throw new ForbiddenException('ตั้งรอบงานซ้ำได้เฉพาะเจ้าของสำนักงานหรือผู้รับงาน');
@@ -810,7 +817,7 @@ export class TasksService {
     const { observerIds, ...fields } = dto;
     const addedObserverIds = observerIds ? await this.syncObservers(id, observerIds, user) : [];
 
-    const updated = await this.updateWithHistory({ where: { id }, data: {
+    const updated = await this.updateWithHistory({ where: { id, ...(mcpOwnCompletion ? { assigneeId: user.id, requiresReview: false, case: this.caseAccess.getOwnCaseFilterForUser(user) } : {}) }, data: {
         ...fields,
         scheduledFor: dto.scheduledFor === null ? null : dto.scheduledFor ? new Date(`${dto.scheduledFor.slice(0, 10)}T00:00:00Z`) : undefined,
         assignedAt: dto.assigneeId && dto.assigneeId !== task.assigneeId ? new Date() : undefined,
@@ -823,7 +830,7 @@ export class TasksService {
             : dto.status !== undefined ? null : undefined,
         labels: this.labelsFromDto(dto.labels),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-    }, include: this.taskInclude }, user);
+    }, include: this.taskInclude }, user, audit);
 
     if (dto.assigneeId && dto.assigneeId !== task.assigneeId && dto.assigneeId !== user.id) {
       await this.assignmentNotifier.notifyAssigned({
@@ -876,10 +883,11 @@ export class TasksService {
     });
   }
 
-  private async updateWithHistory<T extends Prisma.TaskUpdateArgs>(args: Prisma.SelectSubset<T, Prisma.TaskUpdateArgs>, user: AuthUser) {
+  private async updateWithHistory<T extends Prisma.TaskUpdateArgs>(args: Prisma.SelectSubset<T, Prisma.TaskUpdateArgs>, user: AuthUser, audit?: (entityId: string) => Prisma.AuditLogUncheckedCreateInput) {
     return this.prisma.$transaction(async (tx) => {
       const before = await tx.task.findUniqueOrThrow({ where: args.where });
       const updated = await tx.task.update<T>(args);
+      if (audit) await tx.auditLog.create({ data: audit(before.id) });
       const changes: Array<{ field: string; before: string | null; after: string | null }> = [];
       if (before.status !== updated.status) changes.push({ field: 'status', before: before.status, after: updated.status });
       if (before.dueDate?.getTime() !== updated.dueDate?.getTime()) changes.push({ field: 'dueDate', before: before.dueDate?.toISOString() ?? null, after: updated.dueDate?.toISOString() ?? null });

@@ -177,6 +177,7 @@ export const dashboardCopy = {
       ruleTitle: 'วันครบกำหนดจากกฎ รอยืนยัน',
       fromRule: 'จากกฎ',
       fromEmail: 'จากอีเมล',
+      fromAi: 'เสนอโดย AI',
       empty: 'ไม่มีรายการรอยืนยัน',
       applyTrigger: 'บันทึกวันได้รับคำสั่งศาล',
       applyTriggerHint:
@@ -1326,6 +1327,7 @@ export const dashboardCopy = {
       ruleTitle: 'Deadlines from rules',
       fromRule: 'From rule',
       fromEmail: 'From email',
+      fromAi: 'Suggested by AI',
       empty: 'Nothing awaiting confirmation',
       applyTrigger: 'Record a court order received',
       applyTriggerHint:

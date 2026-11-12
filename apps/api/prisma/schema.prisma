@@ -249,6 +249,7 @@ enum TaskStatus {
 enum TaskSource {
   WEB
   LINE
+  MCP
 }
 
 enum AssignmentType {
@@ -278,6 +279,7 @@ enum DateSuggestionSource {
   DOCUMENT
   RULE
   EMAIL
+  MCP
 }
 
 enum DeadlineTrigger {
@@ -417,6 +419,8 @@ enum ClosingEmailRecipientKind {
 }
 
 model Firm {
+  mcpEnabled            Boolean            @default(false)
+  mcpConnections        McpConnection[]
   id                    String             @id @default(uuid())
   name                  String
   slug                  String             @unique
@@ -629,6 +633,7 @@ model Session {
 }
 
 model User {
+  mcpConnections         McpConnection[]
   id                     String             @id @default(uuid())
   email                  String             @unique
   passwordHash           String
@@ -1080,6 +1085,7 @@ model Case {
 }
 
 model CaseComment {
+  viaAi            Boolean  @default(false)
   id               String   @id @default(uuid())
   caseId           String
   authorId         String
@@ -1942,6 +1948,7 @@ model ReminderLog {
 }
 
 model TimeEntry {
+  viaAi          Boolean   @default(false)
   id             String    @id @default(uuid())
   caseId         String
   userId         String
@@ -3163,4 +3170,53 @@ model SecretaryMessage {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([firmId, userId, createdAt])
+}
+
+
+model McpClient {
+  id           String   @id @default(uuid())
+  clientId     String   @unique
+  clientName   String
+  redirectUris String[]
+  metadata     Json
+  createdAt    DateTime @default(now())
+
+  connections McpConnection[]
+}
+
+model McpConnection {
+  id                 String    @id @default(uuid())
+  firmId             String
+  userId             String
+  clientId           String
+  clientName         String
+  accessTokenHash    String?   @unique
+  accessExpiresAt    DateTime?
+  refreshTokenHash   String?   @unique
+  refreshExpiresAt   DateTime?
+  lastUsedAt         DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime  @default(now())
+
+  firm      Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client    McpClient @relation(fields: [clientId], references: [clientId])
+  authCodes McpAuthCode[]
+
+  @@index([firmId])
+  @@index([userId])
+}
+
+model McpAuthCode {
+  id            String    @id @default(uuid())
+  codeHash      String    @unique
+  connectionId  String
+  clientId      String
+  redirectUri   String
+  codeChallenge String
+  resource      String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+
+  connection McpConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 }

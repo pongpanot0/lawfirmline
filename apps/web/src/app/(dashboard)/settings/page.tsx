@@ -10,6 +10,8 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { MfaToggle } from '@/components/settings/MfaToggle';
 import { SessionsPanel } from '@/components/settings/SessionsPanel';
 import { CaseNumberPrefixCard } from '@/components/settings/CaseNumberPrefixCard';
+import { AiConnectionsSection } from '@/components/settings/AiConnectionsSection';
+import { AiFirmSettings } from '@/components/settings/AiFirmSettings';
 import { MicrosoftAccountsSection } from '@/components/settings/MicrosoftAccountsSection';
 import { hasFirmCapability, type FirmCapability } from '@lawfirm/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -397,7 +399,7 @@ function SettingsContent() {
       )}
 
       {view === 'integrations' && (
-        <Card>
+        <div className="space-y-6"><AiConnectionsSection /><Card>
           <CardContent className="space-y-4 p-6">
             {lineStatusRow}
             <Separator />
@@ -408,7 +410,7 @@ function SettingsContent() {
               </Link>
             </MicrosoftAccountsSection>
           </CardContent>
-        </Card>
+        </Card></div>
       )}
 
       {view === 'office' && (
@@ -449,6 +451,7 @@ function SettingsContent() {
               </CardContent>
             </Card>
           )}
+          {hasFirmCapability(user?.firmRole, 'manageAiConnections') && <AiFirmSettings />}
           {canSetPrefix && <CaseNumberPrefixCard />}
         </div>
       )}

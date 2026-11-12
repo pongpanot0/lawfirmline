@@ -27,6 +27,22 @@ describe('BillingService — manual time entry, edit, delete', () => {
   });
 
   describe('createTimeEntry', () => {
+    it('runs AI create and audit in one transaction and rejects an audit failure', async () => {
+      mockPrisma.$transaction = jest.fn((run) => run(mockPrisma));
+      mockPrisma.auditLog.create.mockRejectedValueOnce(new Error('audit failed'));
+      await expect(billing.createTimeEntry(lawyer, 'case-1', { hours: 1, rate: 0 }, {
+        viaAi: true, audit: (id) => ({ firmId: lawyer.firmId, userId: lawyer.id, action: 'mcp.log_time', metadata: { entityId: id } }),
+      })).rejects.toThrow('audit failed');
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ metadata: { entityId: 'new' } }) });
+    });
+
+    it('marks AI time entries while retaining the default rate', async () => {
+      mockPrisma.firmMember.findUnique.mockResolvedValue({ defaultHourlyRate: 3500 });
+      const entry = await billing.createTimeEntry(lawyer, 'case-1', { hours: 1 }, { viaAi: true });
+      expect(entry).toMatchObject({ viaAi: true, rate: 3500 });
+    });
+
     it('uses the member default rate when rate is omitted', async () => {
       mockPrisma.firmMember.findUnique.mockResolvedValue({ defaultHourlyRate: 3500 });
       await billing.createTimeEntry(lawyer, 'case-1', { hours: 1 } as any);

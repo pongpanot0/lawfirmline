@@ -32,11 +32,7 @@ export class CaseAccessService {
       return tenantFilter;
     }
 
-    const staffedOrAssigned: Prisma.CaseWhereInput[] = [
-      { leadLawyerId: user.id },
-      { assignments: { some: { userId: user.id } } },
-      { tasks: { some: { assigneeId: user.id } } },
-    ];
+    const staffedOrAssigned = this.staffedOrAssigned(user);
 
     if (user.firmRole === FirmRole.SENIOR_LAWYER) {
       return {
@@ -64,20 +60,36 @@ export class CaseAccessService {
     return { ...tenantFilter, OR: staffedOrAssigned };
   }
 
+  private staffedOrAssigned(user: AuthUser): Prisma.CaseWhereInput[] {
+    return [
+      { leadLawyerId: user.id },
+      { assignments: { some: { userId: user.id } } },
+      { tasks: { some: { assigneeId: user.id } } },
+    ];
+  }
+
+  getOwnCaseFilterForUser(user: AuthUser): Prisma.CaseWhereInput {
+    return { firmId: user.firmId, ...CaseAccessService.NOT_DELETED,
+      ...(user.firmRole === FirmRole.EXTERNAL ? { id: '__external_has_no_case_access__' } : { OR: this.staffedOrAssigned(user) }) };
+  }
+
+  getOwnIntakeFilterForUser(user: AuthUser): Prisma.IntakeWhereInput {
+    const ownCase = this.getOwnCaseFilterForUser(user);
+    return { firmId: user.firmId,
+      ...(user.firmRole === FirmRole.EXTERNAL ? { id: '__external_has_no_intake_access__' } : { OR: [
+        { case: ownCase },
+        { case: { is: null }, OR: [
+          { receivedById: user.id }, { assignedUserIds: { has: user.id } }, { relatedCase: ownCase },
+        ] },
+      ] }) };
+  }
+
   getCaseFilterForFinancials(user: AuthUser): Prisma.CaseWhereInput {
     if (hasFirmCapability(user.firmRole, 'viewAllCases')) {
       return { firmId: user.firmId, ...CaseAccessService.NOT_DELETED };
     }
 
-    return {
-      firmId: user.firmId,
-      ...CaseAccessService.NOT_DELETED,
-      OR: [
-        { leadLawyerId: user.id },
-        { assignments: { some: { userId: user.id } } },
-        { tasks: { some: { assigneeId: user.id } } },
-      ],
-    };
+    return { firmId: user.firmId, ...CaseAccessService.NOT_DELETED, OR: this.staffedOrAssigned(user) };
   }
 
   getTaskFilterForUser(user: AuthUser): Prisma.TaskWhereInput {

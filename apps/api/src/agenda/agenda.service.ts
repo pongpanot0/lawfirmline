@@ -77,10 +77,10 @@ export class AgendaService {
    * lawyer to check four screens, so both are projected onto `AgendaItem` here
    * and nowhere else — the digest and the conflict checker consume this output.
    */
-  async getAgenda(user: AuthUser, from: Date, to: Date): Promise<AgendaItem[]> {
+  async getAgenda(user: AuthUser, from: Date, to: Date, scope: 'app' | 'own' = 'app'): Promise<AgendaItem[]> {
     const [events, tasks] = await Promise.all([
-      this.fetchEvents(user, from, to),
-      this.fetchTasks(user, from, to),
+      this.fetchEvents(user, from, to, undefined, scope),
+      this.fetchTasks(user, from, to, undefined, scope),
     ]);
     const now = new Date();
     return this.sortItems([
@@ -89,15 +89,15 @@ export class AgendaService {
     ]);
   }
 
-  async getMyDay(user: AuthUser): Promise<MyDayResponse> {
+  async getMyDay(user: AuthUser, scope: 'app' | 'own' = 'app'): Promise<MyDayResponse> {
     const now = new Date();
     const todayStart = bangkokDayStart(now);
     const horizonEnd = addBangkokDays(todayStart, UPCOMING_DAYS + 2);
 
     const [overdueItems, aheadItems, reviewRows] = await Promise.all([
-      this.getOverdue(user, todayStart),
-      this.getAgenda(user, todayStart, horizonEnd),
-      this.prisma.task.findMany({ where: reviewQueueWhere(user), select: reviewQueueSelect, orderBy: reviewQueueOrder, take: 20 }),
+      this.getOverdue(user, todayStart, scope),
+      this.getAgenda(user, todayStart, horizonEnd, scope),
+      this.prisma.task.findMany({ where: scope === 'own' ? { AND: [reviewQueueWhere(user), { case: this.caseAccess.getOwnCaseFilterForUser(user) }] } : reviewQueueWhere(user), select: reviewQueueSelect, orderBy: reviewQueueOrder, take: 20 }),
     ]);
 
     const todayKey = bangkokDayKey(now);
@@ -136,11 +136,11 @@ export class AgendaService {
     };
   }
 
-  private async getOverdue(user: AuthUser, todayStart: Date): Promise<AgendaItem[]> {
+  private async getOverdue(user: AuthUser, todayStart: Date, scope: 'app' | 'own'): Promise<AgendaItem[]> {
     const from = addBangkokDays(todayStart, -OVERDUE_LOOKBACK_DAYS);
     const [events, tasks] = await Promise.all([
-      this.fetchEvents(user, from, todayStart, OVERDUE_TAKE),
-      this.fetchTasks(user, from, todayStart, OVERDUE_TAKE),
+      this.fetchEvents(user, from, todayStart, OVERDUE_TAKE, scope),
+      this.fetchTasks(user, from, todayStart, OVERDUE_TAKE, scope),
     ]);
     const now = new Date();
     return this.sortItems([
@@ -149,10 +149,10 @@ export class AgendaService {
     ]);
   }
 
-  private async fetchEvents(user: AuthUser, from: Date, to: Date, take?: number) {
+  private async fetchEvents(user: AuthUser, from: Date, to: Date, take?: number, scope: 'app' | 'own' = 'app') {
     const rows = await this.prisma.calendarEvent.findMany({
       where: {
-        case: { AND: [this.caseAccess.getCaseFilterForUser(user), { status: { not: 'CLOSED' } }] },
+        case: { AND: [(scope === 'own' ? this.caseAccess.getOwnCaseFilterForUser(user) : this.caseAccess.getCaseFilterForUser(user)), { status: { not: 'CLOSED' } }] },
         NOT: { courtDay: { completedAt: { not: null } } },
         startAt: { gte: from, lt: to },
       },
@@ -174,7 +174,7 @@ export class AgendaService {
     return rows.filter(e => !(e.responsibility?.completedAt && e.responsibility.ownerId === (e.assigneeId ?? e.case.leadLawyerId) && e.responsibility.eventUpdatedAt.getTime() === e.updatedAt.getTime())) as EventRow[];
   }
 
-  private fetchTasks(user: AuthUser, from: Date, to: Date, take?: number) {
+  private fetchTasks(user: AuthUser, from: Date, to: Date, take?: number, scope: 'app' | 'own' = 'app') {
     return this.prisma.task.findMany({
       where: {
         status: { notIn: [TaskStatus.DONE] },
@@ -185,8 +185,8 @@ export class AgendaService {
           this.caseAccess.getTaskFilterForUser(user),
           {
             OR: [
-              { caseId: null, assignee: { firmMembers: { some: { firmId: user.firmId } } } },
-              { case: { AND: [this.caseAccess.getCaseFilterForUser(user), { status: { not: 'CLOSED' } }] } },
+              ...(scope === 'own' ? [] : [{ caseId: null, assignee: { firmMembers: { some: { firmId: user.firmId } } } }]),
+              { case: { AND: [(scope === 'own' ? this.caseAccess.getOwnCaseFilterForUser(user) : this.caseAccess.getCaseFilterForUser(user)), { status: { not: 'CLOSED' } }] } },
             ],
           },
         ],

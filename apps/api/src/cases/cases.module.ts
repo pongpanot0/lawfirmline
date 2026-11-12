@@ -42,6 +42,6 @@ import { CaseProceedingsController } from './case-proceedings.controller';
     CaseProceedingsService,
     FirmRoleGuard,
   ],
-  exports: [CasesService, CaseMessageService],
+  exports: [CasesService, CaseMessageService, CaseCommentsService],
 })
 export class CasesModule {}

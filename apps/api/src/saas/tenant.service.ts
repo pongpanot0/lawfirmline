@@ -288,6 +288,7 @@ export class TenantService {
       await tx.firmMember.delete({
         where: { firmId_userId: { firmId: owner.firmId, userId: targetUserId } },
       });
+      await tx.mcpConnection.updateMany({ where: { firmId: owner.firmId, userId: targetUserId, revokedAt: null }, data: { revokedAt: new Date() } });
       await tx.auditLog.create({
         data: {
           firmId: owner.firmId,
@@ -329,6 +330,7 @@ export class TenantService {
         where: { firmId_userId: { firmId: owner.firmId, userId: targetUserId } },
         data: { role },
       });
+      if (role === FirmRole.EXTERNAL) await tx.mcpConnection.updateMany({ where: { firmId: owner.firmId, userId: targetUserId, revokedAt: null }, data: { revokedAt: new Date() } });
       await tx.auditLog.create({
         data: {
           firmId: owner.firmId,

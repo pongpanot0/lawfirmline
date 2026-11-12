@@ -12,8 +12,8 @@ const fullName = (u?: { firstName: string; lastName: string } | null) => (u ? `$
 export class MatterBriefService {
   constructor(private readonly prisma: PrismaService, private readonly access: CaseAccessService) {}
 
-  async getCaseBrief(user: AuthUser, caseId: string): Promise<MatterBrief | null> {
-    const filter = await this.access.getCaseFilterForUser(user);
+  async getCaseBrief(user: AuthUser, caseId: string, scope: 'app' | 'own' = 'app'): Promise<MatterBrief | null> {
+    const filter = await (scope === 'own' ? this.access.getOwnCaseFilterForUser(user) : this.access.getCaseFilterForUser(user));
     const c = await this.prisma.case.findFirst({
       where: { AND: [filter, { id: caseId }] },
       include: {
@@ -65,8 +65,8 @@ export class MatterBriefService {
     };
   }
 
-  async getIntakeBrief(user: AuthUser, intakeId: string): Promise<MatterBrief | null> {
-    const filter = await this.access.getIntakeFilterForUser(user);
+  async getIntakeBrief(user: AuthUser, intakeId: string, scope: 'app' | 'own' = 'app'): Promise<MatterBrief | null> {
+    const filter = await (scope === 'own' ? this.access.getOwnIntakeFilterForUser(user) : this.access.getIntakeFilterForUser(user));
     const i = await this.prisma.intake.findFirst({
       where: { AND: [filter, { id: intakeId }] },
       include: { assessor: { select: { firstName: true, lastName: true } } },
