@@ -722,6 +722,8 @@ export interface CaseTypeItem {
 
 export interface ExpenseItem {
   id: string;
+  /** Drafted by the author's AI through MCP. */
+  viaAi?: boolean;
   amount: number;
   description: string;
   category?: string | null;

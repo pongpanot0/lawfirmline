@@ -478,3 +478,16 @@ describe('BillingService — drafted expenses', () => {
     });
   });
 });
+
+describe('BillingService.createAiExpenseDraft', () => {
+  it('always writes a DRAFT marked viaAi and audits in the same transaction', async () => {
+    const tx = { expense: { create: jest.fn().mockResolvedValue({ id: 'e1' }) }, auditLog: { create: jest.fn() } };
+    const prisma = { $transaction: jest.fn((fn: any) => fn(tx)) };
+    const service = Object.create(BillingService.prototype) as BillingService;
+    Object.assign(service, { prisma, expenseInclude: {} });
+    const user = { id: 'u1', firmId: 'f1', firmRole: FirmRole.LAWYER } as AuthUser;
+    await service.createAiExpenseDraft(user, { caseId: null, amount: 120, description: 'taxi' }, (id) => ({ firmId: 'f1', action: 'mcp.draft_expense', metadata: { entityId: id } }));
+    expect(tx.expense.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: ExpenseStatus.DRAFT, viaAi: true, userId: 'u1', caseId: null, amount: 120 }) }));
+    expect(tx.auditLog.create).toHaveBeenCalledWith({ data: { firmId: 'f1', action: 'mcp.draft_expense', metadata: { entityId: 'e1' } } });
+  });
+});

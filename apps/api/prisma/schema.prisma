@@ -1998,6 +1998,8 @@ model Expense {
   /// handed the claimant — the expense is recorded straight as PAID and never
   /// enters an ExpenseClaim, since there is nothing left to reimburse.
   paidFromAdvanceId  String?
+  /// Drafted by the author's own AI through MCP (shows "ผ่าน AI"). Always starts as DRAFT.
+  viaAi              Boolean       @default(false)
   /// Optional receipt photo uploaded with the claim.
   receiptFilename    String?
   /// false = สำนักงานออกเอง ไม่ผลักไปเก็บกับลูกค้า

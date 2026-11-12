@@ -66,6 +66,7 @@ export const MCP_AUDIT_ACTIONS = [
   'mcp.add_case_note',
   'mcp.log_time',
   'mcp.propose_court_date',
+  'mcp.draft_expense',
 ] as const;
 export type McpAuditAction = (typeof MCP_AUDIT_ACTIONS)[number];
 
