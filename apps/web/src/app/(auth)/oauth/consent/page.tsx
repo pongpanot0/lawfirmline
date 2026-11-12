@@ -11,7 +11,7 @@ import {
   Info,
   PenLine,
 } from "lucide-react";
-import type { McpConsentInfo, McpConsentParams } from "@lawfirm/shared";
+import { mcpVisibilityText, type McpConsentInfo, type McpConsentParams } from "@lawfirm/shared";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ export default function ConsentPage() {
 }
 
 function ConsentContent() {
-  const { token, loading, logout } = useAuth();
+  const { token, loading, logout, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams().toString();
@@ -148,7 +148,7 @@ function ConsentContent() {
                     {[
                       [
                         Eye,
-                        "อ่านคดี เอกสาร นัด และงานที่คุณรับผิดชอบหรือมีงานอยู่",
+                        `อ่าน${mcpVisibilityText(user?.firmRole)} รวมเอกสาร นัด และงาน`,
                       ],
                       [PenLine, "สร้างและปิดงาน ลงโน้ตในคดี และลงเวลา"],
                       [

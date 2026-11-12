@@ -68,3 +68,19 @@ export const MCP_AUDIT_ACTIONS = [
   'mcp.propose_court_date',
 ] as const;
 export type McpAuditAction = (typeof MCP_AUDIT_ACTIONS)[number];
+
+/**
+ * Which cases a person's AI may see through MCP. 'app' = exactly what the app shows them
+ * (owner: every case; senior lawyer: own + junior lawyers' cases). 'own' = only cases they lead,
+ * are assigned to or have a task in. Office managers stay 'own' until the owner decides otherwise.
+ */
+export function mcpCaseScope(role: string | null | undefined): 'app' | 'own' {
+  return role === 'OWNER' || role === 'SENIOR_LAWYER' ? 'app' : 'own';
+}
+
+/** Thai phrase for what the AI sees, used in settings and consent copy. */
+export function mcpVisibilityText(role: string | null | undefined): string {
+  if (role === 'OWNER') return 'ทุกคดีในสำนักงาน';
+  if (role === 'SENIOR_LAWYER') return 'คดีของคุณและคดีของทนายในทีม';
+  return 'เฉพาะคดีที่คุณรับผิดชอบหรือมีงานอยู่';
+}
