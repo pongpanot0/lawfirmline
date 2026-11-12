@@ -263,7 +263,13 @@ function NewCaseForm() {
       }
     }
     if (analysisBusy) { setError('รอวิเคราะห์เอกสารให้เสร็จก่อนเปิดคดี'); return; }
-    if (formRef.current && !formRef.current.reportValidity()) return;
+    if (formRef.current) {
+      // The browser can't point at an invalid field inside a closed section, so open those sections first.
+      for (const field of Array.from(formRef.current.querySelectorAll<HTMLElement>('input:invalid, select:invalid, textarea:invalid'))) {
+        for (let section = field.closest('details'); section; section = section.parentElement?.closest('details') ?? null) section.open = true;
+      }
+      if (!formRef.current.reportValidity()) return;
+    }
     submittingRef.current = true;
     setSubmitting(true);
     setError('');
@@ -554,6 +560,15 @@ function NewCaseForm() {
                   </Button>
                 </fieldset>
 </div></details>
+{/* Required for this case type, so it stays visible — a required field inside a closed section blocks submit silently. */}
+{fieldSchema.some((field) => field.key === 'chargeSection') && (
+  <div className={`${styles.card} p-6`}>
+    <label className="block text-sm font-medium">
+      ข้อหาหรือฐานความผิด *
+      <textarea required rows={2} maxLength={2000} value={form.chargeSection} onChange={(event) => setForm({ ...form, chargeSection: event.target.value })} className={inputClass} />
+    </label>
+  </div>
+)}
 <details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Wallet aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ทุนทรัพย์ ข้อหา และอายุความ</span><span className={`block ${styles.hint}`}>ใช้คำนวณค่าขึ้นศาล และให้ระบบเตือนก่อนขาดอายุความ</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{(() => { const n = [form.redCaseNumber, form.limitationDeadline, form.claimedAmount, form.chargeSection, form.description, form.customFields.incidentDate, form.customFields.estimatedDamage].filter(Boolean).length; return n ? `กรอกแล้ว ${n}/7` : 'ยังไม่กรอก'; })()} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4"><div className="grid gap-4 sm:grid-cols-2">
                   <label htmlFor="red-case-number" className={fieldLabel}>หมายเลขคดีแดง (ไม่บังคับ)<input id="red-case-number" value={form.redCaseNumber} onChange={(e) => setForm({ ...form, redCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label>
                   <div role="group" aria-labelledby="limitation-deadline-label" className={fieldLabel}>
@@ -587,12 +602,6 @@ function NewCaseForm() {
               </div>
               </details>
 
-              {fieldSchema.some((field) => field.key === 'chargeSection') && (
-                <label className="block text-sm font-medium">
-                  ข้อหาหรือฐานความผิด
-                  <textarea rows={2} maxLength={2000} value={form.chargeSection} onChange={(event) => setForm({ ...form, chargeSection: event.target.value })} className={inputClass} />
-                </label>
-              )}
 
 </div></details>
 {fieldSchema.length > 0 && <details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><ClipboardList aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ข้อมูลเฉพาะ{selectedType?.name}</span><span className={`block ${styles.hint}`}>ช่องที่ประเภทคดีนี้ใช้ — กรอกตอนนี้หรือหลังเปิดคดีก็ได้</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{(() => { const n = customFieldList.filter((field) => !!form.customFields[field.key]).length; return n ? `กรอกแล้ว ${n}/${customFieldList.length}` : 'ยังไม่กรอก'; })()} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary>              {customFieldList.length > 0 && (

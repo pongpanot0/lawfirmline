@@ -54,7 +54,7 @@ test('import previews, owner/tenant scope, concurrent replay, safe undo and roll
 test('immutable playbook versions, concurrent apply and knowledge access', async ({ request }) => {
   const f = await fixture(request); const other = await fixture(request);
   try {
-    const definition = { name: `Medical ${f.tag}`, steps: [{ title: 'Collect records', instructions: 'Ask for records', stage: 'INTAKE_REVIEW' }, { title: 'Lawyer review', instructions: 'Review records', stage: 'INTAKE_REVIEW', offsetDays: 2, dayBasis: 'CALENDAR' }] };
+    const definition = { name: `Medical ${f.tag}`, steps: [{ title: 'Collect records', instructions: 'Ask for records', stage: 'PRE_LITIGATION' }, { title: 'Lawyer review', instructions: 'Review records', stage: 'PRE_LITIGATION', offsetDays: 2, dayBasis: 'CALENDAR' }] };
     const release = await ok(await request.post(`${base}/playbooks`, { headers: f.headers, data: definition }));
     const revised = await ok(await request.post(`${base}/playbooks`, { headers: f.headers, data: { ...definition, steps: [{ ...definition.steps[0], title: 'Updated procedure' }] } }));
     expect(release.version).toBe(1); expect(revised.version).toBe(2);
@@ -72,7 +72,7 @@ test('immutable playbook versions, concurrent apply and knowledge access', async
     expect((await ok(await request.post(`${endpoint}/apply`, { headers: f.headers, data: payload }))).id).toBe(applied[0].id);
     const tasks = await f.db.task.findMany({ where: { caseId: f.legalCase.id } }); expect(tasks).toHaveLength(3);
     const parent = tasks.find(t => t.parentId === null)!;
-    expect(parent.labels).toContain('stage:INTAKE_REVIEW');
+    expect(parent.labels).toContain('stage:PRE_LITIGATION');
     expect(tasks.find(t => t.title === 'Lawyer review')?.parentId).toBe(parent.id);
     expect(tasks.find(t => t.title === 'Collect records')?.parentId).toBe(parent.id);
     expect(tasks.every(t => t.assigneeId === f.auth.user.id)).toBe(true);

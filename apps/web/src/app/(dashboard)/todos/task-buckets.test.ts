@@ -9,4 +9,6 @@ test('classifies my work, handoffs and completed work without including unrelate
   assert.equal(taskBucket({ status: 'DONE', assignee: { id: 'other' }, createdById: 'me' }, 'me'), 'done');
   assert.equal(taskBucket({ status: 'TODO', assignee: { id: 'other' } }, 'me'), null);
   assert.equal(taskBucket({ status: 'TODO' }, undefined), null);
+  // The reviewer of a task they created finds it under ต้องทำ once it is sent for review.
+  assert.equal(taskBucket({ status: 'PENDING_REVIEW', assignee: { id: 'other' }, createdById: 'me', reviewerId: 'me', handedOffById: 'other' }, 'me'), 'todo');
 });

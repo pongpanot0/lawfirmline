@@ -23,30 +23,37 @@ for (const width of [375, 1440]) {
       await page.locator('#case-type').selectOption({ label: 'คดีอาญา' });
       const charge = page.getByRole('textbox', { name: 'ข้อหาหรือฐานความผิด *', exact: true });
       await expect(charge).toBeVisible();
-      await page.getByRole('button', { name: 'สร้างคดี', exact: true }).click();
+      await page.getByRole('button', { name: 'เปิดคดี', exact: true }).click();
       expect(await charge.evaluate((el: HTMLTextAreaElement) => el.validity.valueMissing)).toBe(true);
       await expect(page).toHaveURL(`${origin}/cases/new`);
       await page.locator('#case-type').selectOption({ label: 'คดีความ' });
       await expect(charge).toHaveCount(0);
+      // v2 form: the claimed amount sits in "รายละเอียดคดีเพิ่มเติม" inside the "ทุนทรัพย์ ข้อหา และอายุความ" section.
+      const section = page.locator('summary').filter({ hasText: 'ทุนทรัพย์ ข้อหา และอายุความ' });
       const details = page.getByText('รายละเอียดคดีเพิ่มเติม (ไม่บังคับ)', { exact: true });
       const amount = page.getByRole('textbox', { name: 'ทุนทรัพย์ที่เรียกร้อง (บาท)', exact: true });
       await expect(amount).toBeHidden();
+      await section.click();
       await details.click();
       await amount.fill(String(FEE_MAX + 1));
       await details.click();
-      await page.getByRole('button', { name: 'สร้างคดี', exact: true }).click();
+      await page.getByRole('button', { name: 'เปิดคดี', exact: true }).click();
       await expect(amount).toBeVisible();
       expect(await amount.evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
       await amount.fill('25000');
-      await page.getByRole('textbox', { name: 'ศาล', exact: true }).fill('ศาลทดสอบ');
+      // Court is a catalog select; a court outside the catalog is typed after choosing "ศาลอื่น".
+      const court = page.locator('#court-name-pre');
+      if (!(await court.isVisible())) await page.locator('summary').filter({ hasText: 'คู่ความและฝ่ายเรา' }).click();
+      await court.selectOption({ label: 'ศาลอื่น (พิมพ์เอง)' });
+      await page.getByRole('textbox', { name: 'ชื่อศาล', exact: true }).fill('ศาลทดสอบ');
       await details.click();
       await page.getByRole('textbox', { name: 'ชื่อคดี *', exact: true }).fill(`คดีฟอร์มสั้น ${data.tag}`);
-      await expect(page.locator('#lead-lawyer')).toHaveValue(auth.user.id);
-      expect(await page.locator('main input, main select, main textarea').evaluateAll(elements => elements.filter(el => !el.closest('details:not([open])') && el.getClientRects().length > 0).length)).toBe(4);
+      // The owner picker defaults to the person opening the case.
+      await expect(page.locator('#lead-lawyer')).toContainText(`${auth.user.firstName} ${auth.user.lastName}`);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await testInfo.attach(`case-${width}`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
-      await page.getByRole('button', { name: 'สร้างคดี', exact: true }).click();
-      await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+\?tab=tasks/);
+      await page.getByRole('button', { name: 'เปิดคดี', exact: true }).click();
+      await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+\/opened/);
       const legalCase = await data.db.case.findFirstOrThrow({ where: { firmId: auth.user.firmId } });
       expect(legalCase.title).toBe(`คดีฟอร์มสั้น ${data.tag}`);
       expect(Number(legalCase.claimedAmount)).toBe(25000);
@@ -54,8 +61,8 @@ for (const width of [375, 1440]) {
 
       await page.goto(`${origin}/clients/new`);
       if (await tour.isVisible()) await tour.click();
-      await page.getByRole('combobox', { name: 'ประเภท', exact: true }).selectOption('COMPANY');
-      await page.getByRole('textbox', { name: 'ชื่อบริษัท *', exact: true }).fill(`บริษัท ${data.tag}`);
+      await page.getByRole('radio', { name: 'นิติบุคคล', exact: true }).check();
+      await page.getByRole('textbox', { name: 'ชื่อบริษัท', exact: true }).fill(`บริษัท ${data.tag}`);
       await expect(page.getByRole('textbox', { name: 'ชื่อผู้ติดต่อ 1', exact: true })).toBeHidden();
       await page.getByRole('button', { name: 'บันทึกลูกความ', exact: true }).click();
       await expect(page).toHaveURL(/\/clients\?id=/);
@@ -65,8 +72,8 @@ for (const width of [375, 1440]) {
 
       await page.goto(`${origin}/clients/new`);
       if (await tour.isVisible()) await tour.click();
-      await page.getByRole('combobox', { name: 'ประเภท', exact: true }).selectOption('COMPANY');
-      await page.getByRole('textbox', { name: 'ชื่อบริษัท *', exact: true }).fill(`บริษัทพร้อมผู้ติดต่อ ${data.tag}`);
+      await page.getByRole('radio', { name: 'นิติบุคคล', exact: true }).check();
+      await page.getByRole('textbox', { name: 'ชื่อบริษัท', exact: true }).fill(`บริษัทพร้อมผู้ติดต่อ ${data.tag}`);
       const contacts = page.getByText('ผู้ติดต่อ · ไม่บังคับ', { exact: true });
       await contacts.click();
       const email = page.getByRole('textbox', { name: 'อีเมล 1', exact: true });

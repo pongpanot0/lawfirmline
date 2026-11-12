@@ -273,7 +273,6 @@ for (const width of [375, 1440]) {
       await page.getByText(autoName, { exact: true }).click();
       await page.getByRole('link', { name: 'ใช้กับคดี', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'เลือกคดีที่จะใช้ชุดงานอัตโนมัติ', exact: true })).toBeVisible();
-      if (width < 768) await page.locator(`a[href="/cases/${legalCase.id}?tab=tasks&sop=${second.id}"]:visible`).first().click();
       await page.locator(`a[href="/cases/${legalCase.id}?tab=tasks&sop=${second.id}"]:visible`).first().click();
       await expect(page).toHaveURL(`${origin}/cases/${legalCase.id}?tab=tasks&sop=${second.id}`);
       const select = page.getByRole('combobox', { name: 'ชุดงานอัตโนมัติ', exact: true });

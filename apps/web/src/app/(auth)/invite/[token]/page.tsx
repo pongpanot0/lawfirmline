@@ -46,15 +46,18 @@ export default function InvitePage() {
 
   const description = info
     ? fmt(d.auth.inviteJoin, { firm: info.firmName, email: info.email })
-    : error ? d.auth.inviteInvalid : d.auth.inviteLoading;
+    : error ? '' : d.auth.inviteLoading;
 
   return (
     <AuthShell title={d.auth.inviteTitle} description={description}>
       {!info ? (
         error ? (
-          <p className="text-sm">
-            <Link href="/login" className="font-medium text-primary hover:underline">{d.auth.backToSignIn}</Link>
-          </p>
+          <div className="space-y-3">
+            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+            <p className="text-sm">
+              <Link href="/login" className="font-medium text-primary hover:underline">{d.auth.backToSignIn}</Link>
+            </p>
+          </div>
         ) : (
           <p role="status" className="sr-only">{d.auth.inviteLoading}</p>
         )

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -27,13 +27,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const external = user?.firmRole === 'EXTERNAL';
+  // An explicit sign-out goes to plain /login; the "no user" redirect below must not add ?next= on the way out.
+  const signingOut = useRef(false);
   const signOut = () => {
+    signingOut.current = true;
     logout();
     window.location.assign('/login');
   };
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !user && !signingOut.current) {
       const next = `${pathname}${window.location.search}${window.location.hash}`;
       router.replace(`/login?next=${encodeURIComponent(next)}`);
     }
