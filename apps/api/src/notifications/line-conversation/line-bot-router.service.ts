@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AgendaItem, AuthUser } from '@lawfirm/shared';
+import { AgendaItem, AuthUser, secretaryCardLabel, secretaryCardPath } from '@lawfirm/shared';
 import { FirmLinkService } from '../firm-link.service';
+import { SecretaryChatService } from '../../secretary/secretary-chat.service';
 import { AgendaService } from '../../agenda/agenda.service';
 import { LineMessagingService } from '../line-messaging.service';
 import { LineAuthContextService } from './line-auth-context.service';
@@ -23,9 +24,19 @@ import {
   MENU_QUICK_REPLY,
   MENU_SELECTION_MAP,
   MYDAY_COMMAND,
+  leaveIntent,
 } from './line-menu';
 
 const MYDAY_SECTION_LIMIT = 5;
+/** LINE rejects a text message over 5000 characters. */
+const LINE_TEXT_MAX = 5000;
+/** Links under an AI answer; more turns a phone screen into a list of URLs. */
+const AI_LINKS_MAX = 3;
+/**
+ * Only turns this recent count as the conversation. Older ones are a different topic, and
+ * feeding them in made the same question get a different answer for each person.
+ */
+const AI_FOLLOW_UP_MS = 30 * 60_000;
 
 /** Which chat a message came from — a session belongs to one chat, not to a user. */
 export function chatKey(target: ConversationTarget): string {
@@ -52,6 +63,7 @@ export class LineBotRouterService {
     private quickActions: LineQuickActionsService,
     private query: LineQueryService,
     private reviewFlow: LineTaskReviewFlowService,
+    private secretary: SecretaryChatService,
   ) {}
 
   async route(
@@ -142,7 +154,10 @@ export class LineBotRouterService {
       return;
     }
 
-    const directFlow = MENU_SELECTION_MAP[text];
+    // A typed leave request ("ขอลาพรุ่งนี้") opens the leave form rather than the AI — but only
+    // outside a flow, where it could be the answer to a step (a task titled "ลางานบวช").
+    const typedLeave = !MENU_SELECTION_MAP[text] && !existing?.flowType ? leaveIntent(text) : null;
+    const directFlow = MENU_SELECTION_MAP[text] ?? (typedLeave ? FlowType.LEAVE : undefined);
     if (text === MENU_COMMAND || directFlow) {
       const interrupted = Boolean(existing?.flowType);
       const started = this.store.start({
@@ -161,7 +176,7 @@ export class LineBotRouterService {
             'ออกจากรายการที่ทำค้างไว้ แล้วเริ่มรายการใหม่ให้ครับ',
           );
         }
-        await this.startFlow(directFlow, started, text);
+        await this.startFlow(directFlow, started, typedLeave ?? text);
         return;
       }
       await this.showMainMenu(lineUserId, target);
@@ -182,12 +197,8 @@ export class LineBotRouterService {
       } else {
         this.store.update(lineUserId, { target });
       }
-      // Nothing matched a command — say so instead of silently re-sending a picture.
-      await this.showMainMenu(
-        lineUserId,
-        target,
-        `ยังไม่เข้าใจคำว่า "${text.slice(0, 40)}" ครับ`,
-      );
+      // Not a command: a question for the AI secretary (the same read-only, access-scoped one as the web panel).
+      await this.answerWithAi(authUser, lineUserId, target, text);
       return;
     }
 
@@ -254,6 +265,31 @@ export class LineBotRouterService {
     } else {
       await this.line.pushTo(lineUserId, text, MENU_QUICK_REPLY);
     }
+  }
+
+  /**
+   * The user typed a question, so the AI runs because they asked — never on its own.
+   * The answer may name cases the group cannot see, so in a group it goes to the asker's own chat.
+   */
+  private async answerWithAi(user: AuthUser, lineUserId: string, target: ConversationTarget, question: string) {
+    const isPrivate = chatKey(target) === 'user';
+    if (isPrivate) await this.line.showLoading(lineUserId);
+    let text: string;
+    try {
+      // History is the user's one secretary chat, so a question just asked on the web can be followed up here.
+      const past = await this.secretary.history(user, new Date(Date.now() - AI_FOLLOW_UP_MS));
+      const { reply, cards } = await this.secretary.chat(user, [...past, { role: 'user', content: question }]);
+      const origin = this.firmLink.originForSlug(user.firmSlug);
+      const links = cards.slice(0, AI_LINKS_MAX).map((c) => `🔗 ${secretaryCardLabel(c)}\n${origin}${secretaryCardPath(c)}`);
+      text = [reply, ...links].join('\n\n').slice(0, LINE_TEXT_MAX);
+    } catch (err) {
+      this.logger.warn(`LINE AI answer failed: ${err}`);
+      text = `ผู้ช่วย AI ตอบไม่ได้ในขณะนี้ครับ ลองถามใหม่อีกครั้ง\n\n${MENU_HINT}`;
+    }
+    if (!isPrivate) return this.replyPrivately(lineUserId, target, { text });
+    // A slow answer can outlive the reply token; push so the answer is never lost.
+    const replied = target.replyToken && (await this.line.replyWithQuickReply(target.replyToken, text, MENU_QUICK_REPLY));
+    if (!replied) await this.line.pushTo(lineUserId, text, MENU_QUICK_REPLY);
   }
 
   private startFlow(flowType: FlowType, session: ConversationSession, command?: string): Promise<void> {

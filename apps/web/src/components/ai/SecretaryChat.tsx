@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Loader2, SquarePen } from 'lucide-react';
-import { hasFirmCapability, type SecretaryCard } from '@lawfirm/shared';
+import { hasFirmCapability, secretaryCardLabel as cardLabel, secretaryCardPath as cardHref, type SecretaryCard } from '@lawfirm/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -25,32 +25,6 @@ const FINANCE_SUGGESTIONS = ['ลูกหนี้ค้างเกิน 60 �
  * restores it after a reload or on another device. Keyed by user so a sign-in switch never shows someone else's chat.
  */
 let cache: { userId: string; messages: Msg[] } | null = null;
-
-function cardHref(card: SecretaryCard): string {
-  switch (card.type) {
-    case 'case':
-      return `/cases/${card.id}`;
-    case 'intake':
-      return `/intake/${card.id}`;
-    case 'document':
-      return card.caseId ? `/cases/${card.caseId}?tab=documents` : '/documents';
-    case 'event':
-      return `/cases/${card.caseId}`;
-  }
-}
-
-function cardLabel(card: SecretaryCard): string {
-  switch (card.type) {
-    case 'case':
-      return card.ownRef ? `${card.ownRef} · ${card.title}` : card.title;
-    case 'intake':
-      return `รับเรื่อง · ${card.title}`;
-    case 'document':
-      return card.filename;
-    case 'event':
-      return `${new Date(card.startAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} · ${card.title}`;
-  }
-}
 
 export function SecretaryChat() {
   const { token, user } = useAuth();

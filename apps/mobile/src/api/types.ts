@@ -234,6 +234,7 @@ export interface LeaveItem {
   startDate: string;
   endDate: string;
   user?: { firstName: string; lastName: string };
+  decidedBy?: { firstName: string; lastName: string } | null;
   courtConflicts?: Array<{ eventId: string; caseId: string; caseRef: string; title: string; courtName: string | null; startAt: string }>;
 }
 

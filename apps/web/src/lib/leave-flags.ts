@@ -1,4 +1,4 @@
-import type { LeaveItem } from './api';
+import type { CalendarEventItem, LeaveItem } from './api';
 
 export type LeaveFlag = { userId: string; kind: 'ON_LEAVE' | 'PENDING'; label: string };
 
@@ -46,4 +46,40 @@ export function leaveWarning(name: string, date: string, kind?: LeaveFlag['kind'
 /** Pending leave an approver may decide: never their own, unless they are the owner (mirrors GET /leaves/pending). */
 export function leaveApprovalQueue<T extends Pick<LeaveItem, 'userId' | 'status'>>(leaves: T[], user: { id: string; firmRole?: string }): T[] {
   return leaves.filter((leave) => leave.status === 'PENDING' && (user.firmRole === 'OWNER' || leave.userId !== user.id));
+}
+
+/**
+ * One all-day calendar entry per day of each leave, for month grids.
+ * APPROVED always; PENDING only with `includePending` (flagged `leavePending`); REJECTED never.
+ */
+export function leaveDayEvents(
+  leaves: Pick<LeaveItem, 'id' | 'userId' | 'status' | 'type' | 'startDate' | 'endDate' | 'user'>[],
+  { includePending = false } = {},
+): CalendarEventItem[] {
+  return leaves
+    .filter((leave) => leave.status === 'APPROVED' || (includePending && leave.status === 'PENDING'))
+    .flatMap((leave) => {
+      const days: CalendarEventItem[] = [];
+      const cursor = new Date(`${leave.startDate.slice(0, 10)}T00:00:00Z`);
+      const end = leave.endDate.slice(0, 10);
+      while (cursor.toISOString().slice(0, 10) <= end) {
+        const date = cursor.toISOString().slice(0, 10);
+        days.push({
+          id: `leave:${leave.id}:${date}`,
+          title: `${TYPE_TH[leave.type]} · ${leave.user.firstName} ${leave.user.lastName}`,
+          type: 'LEAVE',
+          startAt: `${date}T09:00:00+07:00`,
+          endAt: `${date}T18:00:00+07:00`,
+          assigneeId: leave.userId,
+          leaveId: leave.id,
+          leaveType: leave.type,
+          leaveOwnerId: leave.userId,
+          leaveStartDate: leave.startDate.slice(0, 10),
+          leaveEndDate: end,
+          ...(leave.status === 'PENDING' && { leavePending: true }),
+        });
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      return days;
+    });
 }

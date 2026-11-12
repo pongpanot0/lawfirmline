@@ -40,6 +40,26 @@ export function taskPoints(size: TaskSize | `${TaskSize}`) {
 export const HEAVY_QUEUE_POINTS = 10;
 export const HEAVY_DAY_POINTS = 4;
 
+/** The one queue rule every screen uses: over = above the standard, near = 80% of it or more. */
+export function queueLoad(points: number): 'over' | 'near' | 'ok' {
+  return points > HEAVY_QUEUE_POINTS ? 'over' : points >= HEAVY_QUEUE_POINTS * 0.8 ? 'near' : 'ok';
+}
+
+/** The one day rule every screen uses: over = above HEAVY_DAY_POINTS, busy = above half of it. */
+export function dayLoad(points: number): 'over' | 'busy' | 'ok' {
+  return points > HEAVY_DAY_POINTS ? 'over' : points > HEAVY_DAY_POINTS / 2 ? 'busy' : 'ok';
+}
+
+export type WorkloadStatus = 'over_standard' | 'near_standard' | 'on_leave_this_week' | 'has_overdue' | 'free';
+
+/** Status badge for one team-radar member. Someone with overdue work is never "free", whatever their points. */
+export function workloadStatus(member: { openPoints: number; overdueCount: number; days: { onLeave: boolean }[] }): WorkloadStatus {
+  const load = queueLoad(member.openPoints);
+  if (load !== 'ok') return load === 'over' ? 'over_standard' : 'near_standard';
+  if (member.days.some((d) => d.onLeave)) return 'on_leave_this_week';
+  return member.overdueCount > 0 ? 'has_overdue' : 'free';
+}
+
 export type DailyTaskUpdateInput = { completed: string; remaining: string; blocker?: string };
 
 export function dailyTaskUpdateText(input: DailyTaskUpdateInput) {
@@ -106,7 +126,8 @@ export function assignmentWarnings(candidate?: AssignmentCandidate) {
     ...(!candidate.queue.length && !candidate.reviews.length ? ['ยังไม่มีงานบันทึกในระบบ จึงยังสรุปว่าว่างไม่ได้'] : []),
     ...candidate.queue.filter(t => t.blocker || t.holdReason || t.blockedBy).map(t => `${t.title}: ${t.holdReason || t.blocker || `รอ ${t.blockedBy}`}`),
     ...(candidate.member.appointments.length ? [`มี ${candidate.member.appointments.length} นัดในวันที่เลือก${candidate.member.appointments.some(e => !e.endAt) ? ' และยังไม่ทราบเวลาสิ้นสุดบางนัด' : ''}`] : []),
-    ...(candidate.points >= HEAVY_QUEUE_POINTS ? ['คิวงานสะสมมาก ตรวจลำดับงานก่อนเพิ่ม'] : []),
+    ...(queueLoad(candidate.points) === 'over' ? [`คิวงานเกินเกณฑ์ ${candidate.points - HEAVY_QUEUE_POINTS} แต้ม ตรวจลำดับงานก่อนเพิ่ม`]
+      : queueLoad(candidate.points) === 'near' ? ['คิวงานใกล้เกณฑ์ ตรวจลำดับงานก่อนเพิ่ม'] : []),
   ];
 }
 

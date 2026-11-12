@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, AlertTriangle, CalendarX, CheckCircle2, ChevronLeft, ChevronRight, Clock, Gavel, Info, Lightbulb, Target, UserPlus } from 'lucide-react';
-import { HEAVY_DAY_POINTS, HEAVY_QUEUE_POINTS, daysLate, ownerDecisionTasks, type DailyWorkboard, type TeamRadar as Radar, type TeamRadarDay, type TeamRadarMember } from '@lawfirm/shared';
+import { HEAVY_QUEUE_POINTS, dayLoad, daysLate, queueLoad, workloadStatus, ownerDecisionTasks, type DailyWorkboard, type TeamRadar as Radar, type TeamRadarDay, type TeamRadarMember } from '@lawfirm/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { bangkokDateInputValue } from '@/lib/bangkok';
@@ -22,22 +22,29 @@ const role = (value: string) => value === 'OWNER' ? 'เจ้าของสำ
 
 function Status({ member }: { member: TeamRadarMember }) {
   const leave = member.days.find((d) => d.onLeave);
-  const status = member.openPoints > HEAVY_QUEUE_POINTS
+  const kind = workloadStatus(member);
+  // has_overdue: the overdue badge below says it all — never show "free" next to it.
+  const status = kind === 'over_standard'
     ? { text: `เกินเกณฑ์ ${member.openPoints - HEAVY_QUEUE_POINTS} แต้ม`, Icon: AlertTriangle, tone: 'border-red-200 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200' }
-    : member.openPoints >= HEAVY_QUEUE_POINTS * .8
+    : kind === 'near_standard'
       ? { text: 'ใกล้เกณฑ์', Icon: Clock, tone: 'border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200' }
-      : leave ? { text: `ลา ${dayLabel(leave.date)}`, Icon: CalendarX, tone: 'border-border bg-muted text-muted-foreground' }
-        : { text: 'ว่าง · รับงานได้', Icon: CheckCircle2, tone: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200' };
-  return <div className="mt-2 flex flex-wrap gap-1"><span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${status.tone}`}><status.Icon className="h-3.5 w-3.5" aria-hidden />{status.text}</span>{member.overdueCount > 0 && <span className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950 dark:text-red-200"><AlertCircle className="h-3.5 w-3.5" aria-hidden />เกินกำหนด {member.overdueCount} งาน</span>}</div>;
+      : kind === 'on_leave_this_week' && leave ? { text: `ลา ${dayLabel(leave.date)}`, Icon: CalendarX, tone: 'border-border bg-muted text-muted-foreground' }
+        : kind === 'free' ? { text: 'ว่าง · รับงานได้', Icon: CheckCircle2, tone: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200' } : null;
+  return <div className="mt-2 flex flex-wrap gap-1">{status && <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${status.tone}`}><status.Icon className="h-3.5 w-3.5" aria-hidden />{status.text}</span>}{member.overdueCount > 0 && <span className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950 dark:text-red-200"><AlertCircle className="h-3.5 w-3.5" aria-hidden />เกินกำหนด {member.overdueCount} งาน</span>}</div>;
 }
 function Points({ member, mobile = false }: { member: TeamRadarMember; mobile?: boolean }) {
   const percent = Math.round(member.openPoints / HEAVY_QUEUE_POINTS * 100);
-  const color = percent > 100 ? 'bg-red-700' : percent >= 80 ? 'bg-amber-500' : 'bg-emerald-600';
+  const color = { over: 'bg-red-700', near: 'bg-amber-500', ok: 'bg-emerald-600' }[queueLoad(member.openPoints)];
   return <div className="min-w-0"><div className="flex justify-between gap-2 text-sm font-semibold"><span className={mobile ? "sr-only" : ""}>{member.openPoints} / {HEAVY_QUEUE_POINTS} แต้ม</span><span>{percent}%</span></div><div className="relative mt-2 h-3 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(percent, 100)}%` }} /><span className="absolute right-0 top-0 h-full w-0.5 bg-primary" /></div></div>;
 }
 function DayCell({ day, onClick }: { day: TeamRadarDay; onClick: () => void }) {
   if (!day.points && !day.onLeave && !day.courtCount && !day.outlookBusyMinutes) return <div className="min-h-11" />;
-  return <button type="button" title={`เปิดคิว ${dayLabel(day.date)}`} aria-label={`${dayLabel(day.date)} · ไม่ว่างใน Outlook ${(day.outlookBusyMinutes || 0) / 60} ชม. ${day.onLeave ? 'ลา' : `${day.points} แต้ม${day.courtCount ? ` นัดศาล ${day.courtCount}` : ''}${day.points > HEAVY_DAY_POINTS ? ' ภาระงานเกินเกณฑ์' : ''}`}`} onClick={onClick} className={`relative flex min-h-11 w-full items-center justify-center gap-0.5 rounded-md border text-sm font-semibold ${!day.points && !day.onLeave ? 'border-transparent' : day.onLeave ? 'bg-muted text-muted-foreground' : day.points > HEAVY_DAY_POINTS ? 'border-red-200 bg-red-50 text-red-700 dark:bg-red-950' : day.points > HEAVY_DAY_POINTS / 2 ? 'border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-950' : 'bg-muted/40'}`}>{day.onLeave ? <><CalendarX className="h-4 w-4" aria-hidden /><span className="sr-only">ลา</span></> : <>{day.points || null}{day.courtCount > 0 && <Gavel className="h-3 w-3" aria-hidden />}{day.points > HEAVY_DAY_POINTS && <Target className="h-3 w-3 text-red-700" aria-hidden />}</>}<span aria-hidden className="absolute bottom-1 left-1 right-1 h-1 rounded bg-muted"><span className="block h-full rounded bg-muted-foreground" style={{ width: `${Math.min(100, (day.outlookBusyMinutes || 0) / 840 * 100)}%` }} /></span></button>;
+  const load = dayLoad(day.points);
+  // Work booked on a leave day is a clash to fix, so it shows in red instead of hiding behind the leave icon.
+  const leaveClash = day.onLeave && day.points > 0;
+  const tone = leaveClash || load === 'over' ? 'border-red-200 bg-red-50 text-red-700 dark:bg-red-950' : day.onLeave ? 'bg-muted text-muted-foreground' : !day.points ? 'border-transparent' : load === 'busy' ? 'border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-950' : 'bg-muted/40';
+  const label = day.onLeave ? `ลา${leaveClash ? ` แต่มีงาน ${day.points} แต้ม` : ''}` : `${day.points} แต้ม${day.courtCount ? ` นัดศาล ${day.courtCount}` : ''}${load === 'over' ? ' ภาระงานเกินเกณฑ์' : ''}`;
+  return <button type="button" title={`เปิดคิว ${dayLabel(day.date)}`} aria-label={`${dayLabel(day.date)} ${label}${day.outlookBusyMinutes ? ` · ไม่ว่างใน Outlook ${Math.round(day.outlookBusyMinutes / 6) / 10} ชม.` : ''}`} onClick={onClick} className={`relative flex min-h-11 w-full items-center justify-center gap-0.5 rounded-md border text-sm font-semibold ${tone}`}>{day.onLeave ? <><CalendarX className="h-4 w-4" aria-hidden />{leaveClash && day.points}</> : <>{day.points || null}{day.courtCount > 0 && <Gavel className="h-3 w-3" aria-hidden />}{load === 'over' && <Target className="h-3 w-3 text-red-700" aria-hidden />}</>}<span aria-hidden className="absolute bottom-1 left-1 right-1 h-1 rounded bg-muted"><span className="block h-full rounded bg-muted-foreground" style={{ width: `${Math.min(100, (day.outlookBusyMinutes || 0) / 840 * 100)}%` }} /></span></button>;
 }
 
 export function TeamRadar({ canManage = false, onShowDaily, children }: { canManage?: boolean; onShowDaily?: () => void; children?: (counts: { team: number | null; today: number | null }, table: ReactNode) => ReactNode }) {

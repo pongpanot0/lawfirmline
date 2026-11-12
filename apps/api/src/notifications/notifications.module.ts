@@ -39,10 +39,12 @@ import { UsersModule } from '../users/users.module';
 import { SaasModule } from '../saas/saas.module';
 import { AgendaModule } from '../agenda/agenda.module';
 import { CalendarModule } from '../calendar/calendar.module';
+import { SecretaryModule } from '../secretary/secretary.module';
 
 @Module({
   imports: [
     forwardRef(() => TasksModule),
+    forwardRef(() => SecretaryModule),
     forwardRef(() => ClientsModule),
     forwardRef(() => CasesModule),
     UsersModule,
@@ -91,6 +93,7 @@ import { CalendarModule } from '../calendar/calendar.module';
     EmailService,
     ContactLineLinkService,
     ContactNotificationPreferenceService,
+    LeaveService,
   ],
 })
 export class NotificationsModule {}

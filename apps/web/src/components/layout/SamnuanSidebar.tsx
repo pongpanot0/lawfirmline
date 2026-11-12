@@ -68,7 +68,7 @@ const NAV_ITEMS = [
     icon: Receipt,
     group: 'firm',
     children: [
-      { href: '/invoices', labelKey: 'invoices' as const, icon: Receipt },
+      { href: '/invoices', labelKey: 'invoices' as const, icon: Receipt, capability: 'manageInvoices' as const },
       { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, capability: 'viewFirmReports' as const },
     ],
   },

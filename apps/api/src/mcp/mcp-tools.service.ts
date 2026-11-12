@@ -1,10 +1,11 @@
 import { BadRequestException, ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AuthUser, EXPENSE_CATEGORIES, HEAVY_QUEUE_POINTS, MONEY_MAX, MONEY_MIN, mcpCaseScope, hasFirmCapability, redactForAi, TaskStatus, subscriptionAllowsWrites, type TeamRadar } from '@lawfirm/shared';
+import { AuthUser, EXPENSE_CATEGORIES, HEAVY_QUEUE_POINTS, workloadStatus, MONEY_MAX, MONEY_MIN, mcpCaseScope, type McpNoticeDraft, hasFirmCapability, redactForAi, TaskStatus, subscriptionAllowsWrites, type TeamRadar } from '@lawfirm/shared';
 import { DailyOperationsService } from '../operations/daily-operations.service';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
-import { DateSuggestionSource, DateSuggestionStatus, EventType, TaskSource } from '../generated/prisma';
+import { DateSuggestionSource, DateSuggestionStatus, EventType, LeaveStatus, LeaveType, TaskSource } from '../generated/prisma';
+import { LeaveService } from '../leave/leave.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { SecretaryToolsService } from '../secretary/secretary-tools.service';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -31,20 +32,24 @@ const readSchemas = {
   my_work: {},
 };
 const writeSchemas = {
-  create_task: { caseId: text, title, description: note.optional(), dueDate: date.optional() },
+  create_task: { caseId: text.optional(), title, description: note.optional(), dueDate: date.optional() },
   complete_task: { taskId: text },
   add_case_note: { caseId: text, text: note },
   log_time: { caseId: text, hours: z.number().min(0.1).max(24).multipleOf(0.01), description: text.max(500), date: date.optional(), billable: z.boolean().optional() },
   draft_expense: { amount: z.number().min(MONEY_MIN).max(MONEY_MAX).multipleOf(0.01), description: text.max(500), category: z.enum(EXPENSE_CATEGORIES).optional(), date: date.optional(), caseId: text.optional() },
   propose_court_date: { caseId: text, title, startAt: text.refine((v) => courtDate(v) !== null, 'ระบุวันเวลาจริงในรูปแบบ ISO'), courtName: title.optional(), note: note.optional() },
+  request_leave: { type: z.nativeEnum(LeaveType), startDate: date, endDate: date },
+  draft_notice: { caseId: text.optional(), intakeId: text.optional(), content: text.max(20000), recipient: title.optional(), deadline: date.optional() },
 };
 const descriptions: Record<keyof typeof writeSchemas, string> = {
-  create_task: 'Create a task in your own case, assigned to you.',
-  complete_task: 'Complete your assigned task in your own case. Tasks requiring review must be submitted in the app.',
+  create_task: 'Create a task assigned to you. Pass caseId only when the work belongs to one of your cases; leave it out for a personal to-do (a meeting, office work) — never ask the user for a case just to create a task.',
+  complete_task: 'Complete a task assigned to you (on your own case or a personal to-do). Tasks requiring review must be submitted in the app.',
   add_case_note: 'Add a case comment marked as AI-created, without mentions.',
   log_time: 'Log your time on your own case, using your default hourly rate.',
   propose_court_date: 'Propose a court date for a person to accept in the case page. Never creates a calendar event.',
   draft_expense: 'Write down an out-of-pocket cost (THB) as a DRAFT reimbursement for the caller, optionally on one of their cases. Never submits it: the person attaches the receipt and sends it for approval in the app.',
+  request_leave: 'Submit a leave request for the caller only, dates inclusive (YYYY-MM-DD, Asia/Bangkok, from today, max 90 days). SICK = sick leave (recorded at once and the team is told), PERSONAL = personal business leave, VACATION = annual leave; PERSONAL/VACATION wait for approval. Confirm type and dates with the person before calling.',
+  draft_notice: 'Save a demand notice (หนังสือทวงถาม/บอกกล่าว) you wrote as a DRAFT on one of the caller\'s matters — pass caseId for a pre-filing case, or intakeId for an intake not yet a case (ids from find_matters): the full letter in formal Thai, the recipient, and the reply deadline. Use only facts from case_overview and the documents; never invent facts. Replaces any earlier AI draft. Never issues it: the lawyer reviews, edits and issues it in the app.',
 };
 
 @Injectable()
@@ -58,6 +63,7 @@ export class McpToolsService {
     private readonly billing: BillingService,
     private readonly links: FirmLinkService,
     private readonly operations: DailyOperationsService,
+    private readonly leaves: LeaveService,
   ) {}
 
   createServer(user: AuthUser, connection: { id: string; clientName: string }): McpServer {
@@ -97,9 +103,9 @@ export class McpToolsService {
         let entity: { id: string };
         const audit = (entityId: string) => this.audit(user, connection, name, caseId, entityId);
         if (name === 'complete_task') {
-          const task = await this.prisma.task.findFirst({ where: { id: a.taskId as string, case: this.caseFilter(user) } });
-          if (!task?.caseId) throw new NotFoundException('ไม่พบคดีนี้ในงานของคุณ');
-          caseId = task.caseId;
+          const task = await this.prisma.task.findFirst({ where: { id: a.taskId as string, OR: [{ case: this.caseFilter(user) }, { caseId: null, assigneeId: user.id, firmId: user.firmId }] } });
+          if (!task) throw new NotFoundException('ไม่พบงานนี้ในงานของคุณ');
+          caseId = task.caseId as string; // null for a personal to-do: update() then skips the case binding
           if (task.assigneeId !== user.id) throw new BadRequestException('ปิดได้เฉพาะงานที่มอบหมายให้คุณ');
           if (task.requiresReview) throw new BadRequestException('งานนี้ต้องส่งตรวจ กรุณากดส่งตรวจในแอป');
           entity = await this.tasks.update(task.id, { status: TaskStatus.DONE }, user, caseId, true, audit);
@@ -108,10 +114,39 @@ export class McpToolsService {
           if (caseId) await this.assertOwnCase(user, caseId);
           entity = await this.billing.createAiExpenseDraft(user, { caseId: caseId ?? null, amount: a.amount as number, description: a.description as string,
             category: a.category as string | undefined, date: a.date as string | undefined }, audit);
+        } else if (name === 'create_task') {
+          // No case = a personal to-do (e.g. a meeting); with a case it must be one this person may see.
+          if (caseId) await this.assertOwnCase(user, caseId);
+          entity = await this.tasks.create(user, caseId ?? null, { title: a.title as string, description: a.description as string | undefined, dueDate: a.dueDate as string | undefined, assigneeId: user.id }, TaskSource.MCP, undefined, 0, undefined, audit);
+        } else if (name === 'request_leave') {
+          // Always the caller's own leave; same rules, approvals and notices as the app and LINE.
+          const { id, type, status, startDate, endDate } = await this.leaves.create(user, { type: a.type as LeaveType, startDate: a.startDate as string, endDate: a.endDate as string }, audit);
+          return { id, type, status, startDate, endDate, leavesUrl: `${origin}/leaves`,
+            message: status === LeaveStatus.PENDING ? 'ส่งคำขอลาแล้ว รอผู้มีสิทธิ์อนุมัติ' : 'บันทึกการลาแล้ว' };
+        } else if (name === 'draft_notice') {
+          // Notice data lives on the intake; a pre-filing case issues it through its 1:1 intake.
+          let intake: { id: string } | null = null;
+          if (caseId) {
+            const legalCase = await this.prisma.case.findFirst({ where: { AND: [this.caseFilter(user), { id: caseId }] }, select: { intake: { select: { id: true } } } });
+            if (!legalCase) throw new NotFoundException('ไม่พบคดีนี้ในงานของคุณ');
+            if (!legalCase.intake) throw new BadRequestException('คดีนี้ไม่มีเรื่องรับที่ใช้ออกหนังสือทวงถาม');
+            intake = legalCase.intake;
+          } else if (a.intakeId) {
+            const filter = mcpScope(user) === 'app' ? await this.access.getIntakeFilterForUser(user) : this.access.getOwnIntakeFilterForUser(user);
+            intake = await this.prisma.intake.findFirst({ where: { AND: [filter, { id: a.intakeId as string }] }, select: { id: true } });
+            if (!intake) throw new NotFoundException('ไม่พบเรื่องนี้ในงานของคุณ');
+          } else throw new BadRequestException('ระบุ caseId หรือ intakeId');
+          const draft: McpNoticeDraft = { content: a.content as string, recipient: (a.recipient as string | undefined) ?? null, deadline: (a.deadline as string | undefined) ?? null,
+            draftedAt: new Date().toISOString(), draftedById: user.id, clientName: connection.clientName };
+          await this.prisma.$transaction(async (tx) => {
+            await tx.intake.update({ where: { id: intake.id }, data: { noticeDraft: { ...draft } } });
+            await tx.auditLog.create({ data: this.audit(user, connection, name, caseId, intake!.id) });
+          });
+          return { intakeId: intake.id, caseId, recipient: draft.recipient, deadline: draft.deadline, ...(caseId ? {} : { intakeUrl: `${origin}/intake/${encodeURIComponent(intake.id)}` }),
+            message: 'บันทึกร่างหนังสือทวงถามแล้ว ทนายต้องตรวจแก้และกดออกหนังสือในแอป' };
         } else {
           await this.assertOwnCase(user, caseId);
-          if (name === 'create_task') entity = await this.tasks.create(user, caseId, { title: a.title as string, description: a.description as string | undefined, dueDate: a.dueDate as string | undefined, assigneeId: user.id }, TaskSource.MCP, undefined, 0, undefined, audit);
-          else if (name === 'add_case_note') entity = await this.comments.createComment(user, caseId, a.text as string, [], { viaAi: true, audit });
+          if (name === 'add_case_note') entity = await this.comments.createComment(user, caseId, a.text as string, [], { viaAi: true, audit });
           else if (name === 'log_time') entity = await this.billing.createTimeEntry(user, caseId, { hours: a.hours as number, description: a.description as string, date: a.date as string | undefined, billable: a.billable as boolean | undefined }, { viaAi: true, audit });
           else entity = await this.prisma.$transaction(async (tx) => {
             const suggestion = await tx.documentDateSuggestion.create({ data: {
@@ -124,7 +159,7 @@ export class McpToolsService {
             return suggestion;
           });
         }
-        return { ...entity, caseId, ...(name === 'complete_task' || name === 'create_task' ? { kind: 'TASK' } : {}), ...(name === 'propose_court_date' ? { message: 'เสนอวันนัดแล้ว รอผู้ใช้ยอมรับในหน้าคดี' } : {}),
+        return { ...entity, caseId: caseId ?? null, ...(name === 'complete_task' || name === 'create_task' ? { kind: 'TASK' } : {}), ...(name === 'propose_court_date' ? { message: 'เสนอวันนัดแล้ว รอผู้ใช้ยอมรับในหน้าคดี' } : {}),
           ...(name === 'draft_expense' ? { message: 'บันทึกเป็นร่างเบิกแล้ว แนบใบเสร็จและกดส่งเบิกในแอป', expensesUrl: `${origin}/expenses` } : {}) };
       }));
     }
@@ -153,9 +188,7 @@ export function teamWorkload(radar: TeamRadar) {
     from: radar.start, standardPoints: HEAVY_QUEUE_POINTS,
     members: radar.members.map(({ userId: _id, days, ...m }) => {
       const leaveDays = days.filter((d) => d.onLeave).map((d) => d.date);
-      const status = m.openPoints > HEAVY_QUEUE_POINTS ? 'over_standard'
-        : m.openPoints >= HEAVY_QUEUE_POINTS * 0.8 ? 'near_standard'
-          : leaveDays.length ? 'on_leave_this_week' : 'free';
+      const status = workloadStatus({ ...m, days });
       return { ...m, status, loadPercent: Math.round((m.openPoints / HEAVY_QUEUE_POINTS) * 100), leaveDays,
         days: days.map(({ onLeave: _l, ...d }) => d) };
     }),
@@ -180,6 +213,7 @@ function redactWithLinks(value: unknown, origin: string, key = '', parentCaseId?
   const row = value as Record<string, unknown>;
   const isTask = row.kind === 'TASK' || key === 'openTasks';
   const caseId = row.caseId ?? ((row.kind === 'case' || row.type === 'case') ? row.id : isTask ? parentCaseId : undefined);
-  const url = typeof caseId === 'string' ? `${origin}/cases/${encodeURIComponent(caseId)}${isTask && typeof row.id === 'string' ? `?task=${encodeURIComponent(row.id)}` : ''}` : undefined;
+  const url = typeof caseId === 'string' ? `${origin}/cases/${encodeURIComponent(caseId)}${isTask && typeof row.id === 'string' ? `?task=${encodeURIComponent(row.id)}` : ''}`
+    : isTask && row.caseId === null && typeof row.id === 'string' ? `${origin}/todos?task=${encodeURIComponent(row.id)}` : undefined;
   return { ...Object.fromEntries(Object.entries(row).map(([k, v]) => [k, redactWithLinks(v, origin, k, typeof caseId === 'string' ? caseId : parentCaseId)])), ...(url ? { url } : {}) };
 }

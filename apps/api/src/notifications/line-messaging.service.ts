@@ -262,6 +262,18 @@ export class LineMessagingService {
     }
   }
 
+  /** LINE's "typing…" dots in a 1:1 chat while a slow answer is prepared; they clear when the answer lands. Best effort. */
+  async showLoading(chatId: string, seconds = 30): Promise<void> {
+    if (!this.isConfigured()) return;
+    const token = await this.getAccessToken();
+    if (!token) return;
+    await fetch('https://api.line.me/v2/bot/chat/loading/start', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId, loadingSeconds: seconds }),
+    }).catch((err) => this.logger.warn(`LINE loading indicator failed: ${err}`));
+  }
+
   async replyText(replyToken: string, text: string): Promise<boolean> {
     if (!this.isConfigured()) return false;
 

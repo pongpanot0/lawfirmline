@@ -57,7 +57,7 @@ export class LeaveService {
     if (end < start || end.getTime() - start.getTime() > 366 * 86400000) throw new BadRequestException('ช่วงวันที่ไม่ถูกต้อง');
     const leaves = await this.prisma.leaveRequest.findMany({
       where: { firmId: user.firmId, startDate: { lte: end }, endDate: { gte: start } },
-      include: { user: { select: { firstName: true, lastName: true } } },
+      include: { user: { select: { firstName: true, lastName: true } }, decidedBy: { select: { firstName: true, lastName: true } } },
       orderBy: { startDate: 'asc' },
     });
     return Promise.all(leaves.map(async (leave) => ({
@@ -98,7 +98,8 @@ export class LeaveService {
     });
   }
 
-  async create(user: AuthUser, input: { type: LeaveType; startDate: string; endDate: string }) {
+  /** `audit` (MCP) is written in the same transaction as the leave row. */
+  async create(user: AuthUser, input: { type: LeaveType; startDate: string; endDate: string }, audit?: (entityId: string) => Prisma.AuditLogUncheckedCreateInput) {
     if (!Object.values(LeaveType).includes(input.type)) throw new BadRequestException('ประเภทการลาไม่ถูกต้อง');
     const startDate = this.parseDate(input.startDate);
     const endDate = this.parseDate(input.endDate);
@@ -115,10 +116,17 @@ export class LeaveService {
     const status = input.type === LeaveType.SICK || user.firmRole === FirmRole.OWNER ? LeaveStatus.APPROVED : LeaveStatus.PENDING;
     let leave: Leave;
     try {
-      leave = await this.prisma.leaveRequest.create({
+      const insert = (db: Prisma.TransactionClient) => db.leaveRequest.create({
         data: { firmId: user.firmId, userId: user.id, type: input.type, startDate, endDate, status },
         include: { user: { select: { firstName: true, lastName: true } } },
       });
+      leave = audit
+        ? await this.prisma.$transaction(async (tx) => {
+          const created = await insert(tx);
+          await tx.auditLog.create({ data: audit(created.id) });
+          return created;
+        })
+        : await insert(this.prisma);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new BadRequestException('มีรายการลาช่วงนี้แล้ว');
       throw error;

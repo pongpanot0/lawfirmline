@@ -76,6 +76,9 @@ export default function LeavesScreen() {
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>{TYPES.find((option) => option.value === item.type)?.label ?? 'ลา'}</Text>
           <Text style={{ color: colors.muted, fontSize: 14 }}>{dateRange(item.startDate, item.endDate)}</Text>
+          {item.decidedBy && <Text style={{ color: colors.muted, fontSize: 14 }}>
+            {item.status === 'REJECTED' ? 'ปฏิเสธ' : 'อนุมัติ'}โดย {item.decidedBy.firstName} {item.decidedBy.lastName}
+          </Text>}
         </View>
         <Tag tone={item.status === 'APPROVED' ? 'ok' : item.status === 'REJECTED' ? 'due' : 'info'}>
           {item.status === 'APPROVED' ? 'อนุมัติแล้ว' : item.status === 'REJECTED' ? 'ไม่อนุมัติ' : 'รออนุมัติ'}
