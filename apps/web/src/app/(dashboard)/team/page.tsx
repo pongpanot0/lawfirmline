@@ -19,6 +19,7 @@ import { LoadFailed } from '@/components/ui/LoadFailed';
 import { SelectField, TextField } from '@/components/ui/form-fields';
 import { LicenseBadge, MemberLicenses } from '@/components/team/MemberLicenses';
 import { NoAccess } from '@/components/ui/NoAccess';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 type TeamMember = Awaited<ReturnType<typeof api.getTeamMembers>>[number];
 type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
@@ -172,7 +173,7 @@ export default function TeamPage() {
   const handleRemoveMember = async (member: TeamMember) => {
     if (!token || !canRemoveMember(member)) return;
     const name = `${member.firstName} ${member.lastName}`;
-    if (!window.confirm(fmt(d.team.confirmRemove, { name }))) return;
+    if (!await confirmDialog(fmt(d.team.confirmRemove, { name }))) return;
 
     setRemovingId(member.id);
     try {
@@ -197,7 +198,7 @@ export default function TeamPage() {
   const handleRoleChange = async (member: TeamMember, role: FirmRole) => {
     if (!token || role === member.firmRole) return;
     const label = ROLE_OPTIONS.find((o) => o.value === role);
-    if (!window.confirm(`เปลี่ยนบทบาทของ ${member.firstName} ${member.lastName} เป็น "${label ? label.label : role}"?\nสิทธิ์ที่เห็นและทำได้จะเปลี่ยนทันที`)) return;
+    if (!await confirmDialog(`เปลี่ยนบทบาทของ ${member.firstName} ${member.lastName} เป็น "${label ? label.label : role}"?\nสิทธิ์ที่เห็นและทำได้จะเปลี่ยนทันที`)) return;
     setChangingRoleId(member.id);
     try {
       await api.updateMemberRole(token, member.id, role);
@@ -211,7 +212,7 @@ export default function TeamPage() {
 
   const handleCancelInvite = async (inv: PendingInvite) => {
     if (!token) return;
-    if (!window.confirm(fmt(d.team.confirmCancelInvite, { email: inv.email }))) return;
+    if (!await confirmDialog(fmt(d.team.confirmCancelInvite, { email: inv.email }))) return;
 
     setCancellingId(inv.id);
     try {

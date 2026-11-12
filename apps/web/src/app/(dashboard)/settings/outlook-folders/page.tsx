@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DriveFolderMatchingTab } from '@/components/settings/DriveFolderMatchingTab';
 import { FolderMatchTable, type FolderMatchRow } from '@/components/settings/FolderMatchTable';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 type Notice = { type: 'success' | 'error'; text: string } | null;
 
@@ -80,7 +81,7 @@ export default function OutlookFolderMatchPage() {
   };
 
   const unlink = async (linkId: string) => {
-    if (!token || saving || !window.confirm('ยกเลิกการผูกโฟลเดอร์นี้? อีเมลที่ดึงเข้าคดีแล้วจะยังอยู่ในคดี')) return;
+    if (!token || saving || !await confirmDialog('ยกเลิกการผูกโฟลเดอร์นี้? อีเมลที่ดึงเข้าคดีแล้วจะยังอยู่ในคดี')) return;
     setSaving(true);
     setNotice(null);
     try {

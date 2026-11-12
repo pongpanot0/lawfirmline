@@ -16,6 +16,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { parseHolidayLines } from '@/lib/holidays';
 import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 /** Buddhist-era label for a Gregorian year. */
 const toBE = (year: number) => year + 543;
@@ -92,7 +93,7 @@ export default function HolidaysPage() {
       setError(fmt(d.holidays.bulkBadLine, { line: badLine }));
       return;
     }
-    if (!window.confirm(fmt(d.holidays.bulkConfirm, { year: toBE(year) }))) return;
+    if (!await confirmDialog(fmt(d.holidays.bulkConfirm, { year: toBE(year) }))) return;
 
     setBulkBusy(true);
     try {
@@ -108,7 +109,7 @@ export default function HolidaysPage() {
   };
 
   const handleDelete = async (holiday: PublicHolidayItem) => {
-    if (!token || !window.confirm(`${d.holidays.confirmDelete}\n${holiday.date.slice(0, 10)} ${holiday.name}`)) return;
+    if (!token || !await confirmDialog(`${d.holidays.confirmDelete}\n${holiday.date.slice(0, 10)} ${holiday.name}`)) return;
     setError('');
     try {
       await api.deletePublicHoliday(token, holiday.id);

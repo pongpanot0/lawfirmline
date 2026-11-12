@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState, Skeleton } from '@/components/ui/misc';
 import { TemplateDrawer } from './TemplateDrawer';
 import { ROLE_LABELS } from './workflow-ui';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 export function WorkflowTemplates({ token, canEdit, search = '', editor, onEditorChange }: {
   token: string; canEdit: boolean; search?: string;
@@ -32,7 +33,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
     .join(' ').toLocaleLowerCase().includes(query));
 
   const remove = async (t: WorkflowTemplate) => {
-    if (!window.confirm(`ลบแม่แบบ "${t.name}"? สายงานที่เริ่มไปแล้วไม่ได้รับผลกระทบ`)) return;
+    if (!await confirmDialog(`ลบแม่แบบ "${t.name}"? สายงานที่เริ่มไปแล้วไม่ได้รับผลกระทบ`)) return;
     try { await api.deleteWorkflowTemplate(token, t.id); load(); } catch (e) { setError(e instanceof Error ? e.message : 'ลบไม่สำเร็จ ลองใหม่อีกครั้ง'); }
   };
 

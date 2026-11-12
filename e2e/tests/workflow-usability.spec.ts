@@ -114,7 +114,7 @@ for (const width of [375, 1440]) {
       await workerPage.getByRole('textbox', { name: 'ทำถึงไหนแล้ว', exact: true }).fill('ตรวจเอกสารครบทั้งชุด');
       await workerPage.getByRole('textbox', { name: 'เหลืออะไร', exact: true }).fill('รอผู้ตรวจยืนยัน');
       await workerPage.getByRole('button', { name: 'บันทึกความคืบหน้าวันนี้', exact: true }).click();
-      await expect(workerPage.getByRole('status').filter({ hasText: 'บันทึกความคืบหน้าแล้ว' })).toBeVisible();
+      await expect(workerPage.getByRole('status').filter({ hasText: 'บันทึกความคืบหน้าแล้ว' }).first()).toBeVisible();
       await workerPage.getByRole('textbox', { name: 'หมายเหตุถึงผู้ตรวจ', exact: true }).fill('ตรวจเอกสารครบทุกหน้าแล้ว พร้อมให้ตรวจ');
       await workerPage.getByRole('button', { name: /^ส่งให้ .+ ตรวจ$/ }).click();
       await expect.poll(async () => (await data.db.task.findUniqueOrThrow({ where: { id: task.id } })).status).toBe('PENDING_REVIEW');

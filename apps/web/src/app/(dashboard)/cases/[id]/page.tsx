@@ -120,6 +120,7 @@ import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   TODO: 'ยังไม่เริ่ม',
@@ -917,7 +918,7 @@ export default function CaseDetailPage() {
     if (releaseId) router.push(`${caseTabHref(id, 'tasks')}&sop=${encodeURIComponent(releaseId)}`);
   };
   const deleteCase = async () => {
-    if (!token || !window.confirm(`ลบคดี "${legalCase.title}"? คดีพร้อมงาน นัด และเอกสารจะหายจากทุกหน้า และหยุดแจ้งเตือน`)) return;
+    if (!token || !await confirmDialog(`ลบคดี "${legalCase.title}"? คดีพร้อมงาน นัด และเอกสารจะหายจากทุกหน้า และหยุดแจ้งเตือน`)) return;
     try {
       await api.deleteCase(token, id);
       router.push('/cases');

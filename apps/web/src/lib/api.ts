@@ -170,7 +170,7 @@ async function send<T>(path: string, options: RequestOptions): Promise<T> {
     throw new ApiError(res.status, message, body, serverMessage);
   }
 
-  if (isAction) publishActionFeedback('success', actionSuccessMessage(method));
+  if (isAction) publishActionFeedback('success', actionSuccessMessage(method, path, fetchOptions.body));
 
   if (res.status === 204) return undefined as T;
   if (res.headers.get('content-length') === '0') return null as T;

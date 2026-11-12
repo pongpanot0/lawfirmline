@@ -9,6 +9,7 @@ import { DriveFolderPicker } from '@/components/drive/DriveFolderPicker';
 import { Button } from '@/components/ui/button';
 import { InlineEmptyState, Skeleton } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 /** ส่วน "OneDrive" ในแท็บเอกสารคดี — ไฟล์สดจาก folder ที่ผูกไว้ (ไม่เก็บสำเนา จนกว่าจะกดนำเข้า). */
 export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId: string; onImported: () => void; newFolderName?: string }) {
@@ -68,7 +69,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
   };
 
   const importAll = async () => {
-    if (!token || !window.confirm('นำเข้าไฟล์ทั้งหมดในโฟลเดอร์นี้เป็นเอกสารคดี?')) return;
+    if (!token || !await confirmDialog('นำเข้าไฟล์ทั้งหมดในโฟลเดอร์นี้เป็นเอกสารคดี?')) return;
     setBusyId('*');
     setError('');
     setNotice('');
@@ -116,7 +117,7 @@ export function CaseDriveSection({ caseId, onImported, newFolderName }: { caseId
   };
 
   const unlink = async () => {
-    if (!token || !window.confirm('ยกเลิกการผูกโฟลเดอร์นี้กับคดี? (ไฟล์ใน OneDrive ไม่ถูกลบ)')) return;
+    if (!token || !await confirmDialog('ยกเลิกการผูกโฟลเดอร์นี้กับคดี? (ไฟล์ใน OneDrive ไม่ถูกลบ)')) return;
     try {
       await api.unlinkCaseDriveFolder(token, caseId);
       load();

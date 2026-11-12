@@ -24,6 +24,7 @@ import { fmt } from '@/lib/i18n/dashboard';
 import { ClientAnnualReportsPanel } from '@/components/reports/ClientAnnualReportsPanel';
 import { Client360Panel } from '@/components/clients/Client360Panel';
 import { SearchHint } from '@/components/guide/SearchHint';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 export default function ClientsPage() {
   const d = useDashboardT();
@@ -52,7 +53,7 @@ export default function ClientsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const deleteClient = async () => {
     if (!token || !selected) return;
-    if (!window.confirm(`ลบลูกความ "${selected.name}" ถาวร? ผู้ติดต่อและสิทธิ์พอร์ทัลจะถูกลบด้วย กู้คืนไม่ได้`)) return;
+    if (!await confirmDialog(`ลบลูกความ "${selected.name}" ถาวร? ผู้ติดต่อและสิทธิ์พอร์ทัลจะถูกลบด้วย กู้คืนไม่ได้`)) return;
     setDeleteError(null);
     try {
       await api.deleteClient(token, selected.id);

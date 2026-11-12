@@ -14,6 +14,7 @@ import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { portalApi } from '@/lib/portal-api';
 import { usePortalAuth } from '@/lib/portal-auth';
 import { PortalShell } from '@/components/layout/PortalShell';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 export default function NewIntakePage() {
   const router = useRouter();
@@ -36,8 +37,8 @@ export default function NewIntakePage() {
   const addFile = (file: File) => setFiles((prev) => [...prev, file]);
   const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
 
-  const cancel = () => {
-    if ((title.trim() || detail.trim() || clientRequestedDate || keyDate || keyDateLabel.trim() || urgencyFlag || files.length) && !window.confirm('ทิ้งข้อมูลที่กรอกและกลับไปยังเรื่องที่ส่ง?')) return;
+  const cancel = async () => {
+    if ((title.trim() || detail.trim() || clientRequestedDate || keyDate || keyDateLabel.trim() || urgencyFlag || files.length) && !await confirmDialog('ทิ้งข้อมูลที่กรอกและกลับไปยังเรื่องที่ส่ง?')) return;
     router.push('/portal/intake');
   };
 

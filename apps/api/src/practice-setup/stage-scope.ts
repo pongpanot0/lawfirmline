@@ -17,5 +17,15 @@ const SIDE_LABEL: Record<PlaybookSide, string> = { PLAINTIFF: 'โจทก์',
 export function stepTaskTitle(step: { title: string; side?: PlaybookSide }, side: PlaybookSide | null): string {
   const title = step.title.trim();
   if (!step.side || side || title.includes('ฝ่าย')) return title;
-  return `${title} (ถ้าเป็นฝ่าย${SIDE_LABEL[step.side]})`;
+  const note = `ถ้าเป็นฝ่าย${SIDE_LABEL[step.side]}`;
+  // A title already ending in brackets takes the note inside them — never "(…) (ถ้าเป็นฝ่าย…)".
+  return title.endsWith(')') ? `${title.slice(0, -1)}, ${note})` : `${title} (${note})`;
+}
+
+/** Titles a step may carry on tasks made before the bracket merge; matching accepts both so nothing is duplicated. */
+export function stepTaskTitles(step: { title: string; side?: PlaybookSide }, side: PlaybookSide | null): string[] {
+  const current = stepTaskTitle(step, side);
+  const title = step.title.trim();
+  if (!step.side || side || title.includes('ฝ่าย') || !title.endsWith(')')) return [current];
+  return [current, `${title} (ถ้าเป็นฝ่าย${SIDE_LABEL[step.side]})`];
 }

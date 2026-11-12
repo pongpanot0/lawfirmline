@@ -1,5 +1,5 @@
 import { CaseStage } from '@lawfirm/shared';
-import { stagesToApply, stepMatchesSide, stepTaskTitle } from './stage-scope';
+import { stagesToApply, stepMatchesSide, stepTaskTitle, stepTaskTitles } from './stage-scope';
 
 describe('stage scope', () => {
   it('current and next stage in CASE_STAGE_ORDER', () => {
@@ -27,5 +27,8 @@ describe('stage scope', () => {
     expect(stepTaskTitle({ title: 'ยื่นคำร้องขอปล่อยชั่วคราว', side: 'DEFENDANT' }, null)).toBe('ยื่นคำร้องขอปล่อยชั่วคราว (ถ้าเป็นฝ่ายจำเลย)');
     expect(stepTaskTitle({ title: 'ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)', side: 'DEFENDANT' }, null)).toBe('ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)');
     expect(stepTaskTitle({ title: 'ยื่นคำร้องขอปล่อยชั่วคราว', side: 'DEFENDANT' }, 'DEFENDANT')).toBe('ยื่นคำร้องขอปล่อยชั่วคราว');
+    // A title already in brackets takes the note inside them, and the old double form still matches.
+    expect(stepTaskTitle({ title: 'ยื่นคำร้องขอปล่อยชั่วคราว (ถ้าลูกความถูกควบคุม)', side: 'DEFENDANT' }, null)).toBe('ยื่นคำร้องขอปล่อยชั่วคราว (ถ้าลูกความถูกควบคุม, ถ้าเป็นฝ่ายจำเลย)');
+    expect(stepTaskTitles({ title: 'ยื่นคำร้องขอปล่อยชั่วคราว (ถ้าลูกความถูกควบคุม)', side: 'DEFENDANT' }, null)).toContain('ยื่นคำร้องขอปล่อยชั่วคราว (ถ้าลูกความถูกควบคุม) (ถ้าเป็นฝ่ายจำเลย)');
   });
 });

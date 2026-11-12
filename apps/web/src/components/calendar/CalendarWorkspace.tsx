@@ -19,6 +19,7 @@ import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDateTime } from '@/lib/utils';
 import { bangkokDateInputValue } from '@/lib/bangkok';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const EVENT_COLORS: Record<string, string> = {
   COURT_DATE: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
@@ -284,7 +285,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
               <Button variant="outline" size="sm" onClick={() => setSelectedLeave(null)}>ปิด</Button>
               {user?.id === selectedLeave.leaveOwnerId && selectedLeave.leaveId && token && (
                 <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={async () => {
-                  if (!window.confirm(`ยกเลิก${selectedLeave.title} ${selectedLeave.leaveStartDate} ถึง ${selectedLeave.leaveEndDate}?`)) return;
+                  if (!await confirmDialog(`ยกเลิก${selectedLeave.title} ${selectedLeave.leaveStartDate} ถึง ${selectedLeave.leaveEndDate}?`)) return;
                   try { await api.cancelLeave(token, selectedLeave.leaveId!); }
                   catch (error) {
                     setLeaveError(error instanceof Error ? error.message : 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่');

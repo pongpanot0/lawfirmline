@@ -33,6 +33,8 @@ import {
 } from '@/lib/bangkok';
 import { COURT_DRAFT_PREFIX, parseCourtDayDraft } from '@/lib/court-day-draft';
 import { cn } from '@/lib/utils';
+import { confirmDialog } from '@/lib/confirm-dialog';
+import { useRouter } from 'next/navigation';
 
 const inputClass =
   'min-h-11 min-w-0 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -56,6 +58,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [stage, setStage] = useState(0);
+  const router = useRouter();
   const [itemTitle, setItemTitle] = useState('');
   const [downloading, setDownloading] = useState('');
   const [offlineUrl, setOfflineUrl] = useState('');
@@ -280,9 +283,13 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
       );
     }
   }
-  const canLeave = (e: React.MouseEvent) => {
-    if (busy || (dirty && !draftCached && !window.confirm(t.leaveConfirm)))
-      e.preventDefault();
+  // Leaving with unsaved, uncached edits: stop the link first, ask, then go only on yes.
+  const canLeave = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (busy) { e.preventDefault(); return; }
+    if (!dirty || draftCached) return;
+    e.preventDefault();
+    const href = e.currentTarget.getAttribute('href');
+    void confirmDialog(t.leaveConfirm).then((ok) => { if (ok && href) router.push(href); });
   };
 
   if (loading)
@@ -410,8 +417,8 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
               <Button
                 variant="outline"
                 className="min-h-11"
-                onClick={() => {
-                  if (!dirty || window.confirm(t.reloadConfirm)) {
+                onClick={async () => {
+                  if (!dirty || await confirmDialog(t.reloadConfirm)) {
                     clearLocalDraft();
                     void load();
                   }

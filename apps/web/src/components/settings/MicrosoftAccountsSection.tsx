@@ -9,6 +9,7 @@ import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ConnectionCaseLinkSummary, MailboxConnectionItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 type Notice = { type: 'success' | 'error'; text: string } | null;
 type SyncBody = { syncInboxToIntake?: boolean; syncCalendar?: boolean };
@@ -98,7 +99,7 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
     } finally {
       setBusyId(null);
     }
-    if (window.confirm('ยกเลิกการเชื่อมต่อบัญชี Microsoft นี้?')) await disconnectNow(id);
+    if (await confirmDialog('ยกเลิกการเชื่อมต่อบัญชี Microsoft นี้?')) await disconnectNow(id);
   };
 
   const importFolderBeforeDisconnect = async (caseId: string) => {
@@ -191,13 +192,14 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
               className="h-4 w-4"
               checked={c.syncInboxToIntake}
               disabled={busyId === c.id}
-              onChange={(e) => {
+              onChange={async (e) => {
+                const checked = e.target.checked;
                 if (
-                  e.target.checked &&
-                  !window.confirm('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" และเห็นเฉพาะคุณจนกว่าจะผูกกับคดีหรือรับเป็นคดีก่อนฟ้อง ยืนยันไหม?')
+                  checked &&
+                  !await confirmDialog('อีเมลใหม่ใน Inbox ของบัญชีนี้จะเข้าคิว "รับเรื่องทางอีเมล" และเห็นเฉพาะคุณจนกว่าจะผูกกับคดีหรือรับเป็นคดีก่อนฟ้อง ยืนยันไหม?')
                 )
                   return;
-                toggle(c, { syncInboxToIntake: e.target.checked });
+                toggle(c, { syncInboxToIntake: checked });
               }}
             />
             ดึง Inbox เข้าคิวรับเรื่องทางอีเมล

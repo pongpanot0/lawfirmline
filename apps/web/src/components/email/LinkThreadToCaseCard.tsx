@@ -9,6 +9,7 @@ import { OTHER_CASE, THREAD_REASON_LABELS } from '@/lib/case-email';
 import { caseTabHref } from '@/lib/case-tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 /** "ผูกกับคดี": suggestions are shown, never pre-selected — the person picks and confirms. */
 export function LinkThreadToCaseCard({
@@ -83,8 +84,8 @@ export function LinkThreadToCaseCard({
             variant="outline"
             className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
             disabled={busy}
-            onClick={() => {
-              if (window.confirm(`ยกเลิกการผูกอีเมลนี้กับคดี ${linkedCase.ownRef}? อีเมลจะกลับเข้าคิว`)) {
+            onClick={async () => {
+              if (await confirmDialog(`ยกเลิกการผูกอีเมลนี้กับคดี ${linkedCase.ownRef}? อีเมลจะกลับเข้าคิว`)) {
                 submit((t) => api.unlinkThreadFromCase(t, threadId), 'ยกเลิกการผูกไม่สำเร็จ ลองใหม่อีกครั้ง');
               }
             }}

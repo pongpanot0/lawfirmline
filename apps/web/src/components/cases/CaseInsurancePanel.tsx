@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronRight, Pencil } from 'lucide-react';
 import { InsurerSelect } from '@/components/InsurerSelect';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 export function CaseInsurancePanel({ caseId }: { caseId: string }) {
   const id = caseId;
@@ -109,7 +110,7 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
   const handleAdvance = async (stage: InsuranceClaimStage) => {
     if (!token || !id) return;
     const label = INSURANCE_CLAIM_STAGE_LABELS[stage];
-    if (!window.confirm(`เปลี่ยนสถานะเป็น "${label}"? ระบบจะสร้างงาน/เตือนที่เกี่ยวข้องให้อัตโนมัติ`)) return;
+    if (!await confirmDialog(`เปลี่ยนสถานะเป็น "${label}"? ระบบจะสร้างงาน/เตือนที่เกี่ยวข้องให้อัตโนมัติ`)) return;
     setSubmitting(true);
     setError(null);
     try {

@@ -7,6 +7,7 @@ import { defaultFolderCaseId } from '@/lib/case-email';
 import { DriveFolderPicker } from '@/components/drive/DriveFolderPicker';
 import { FolderMatchTable, type FolderMatchRow } from '@/components/settings/FolderMatchTable';
 import { DriveCaseImportTable } from '@/components/settings/DriveCaseImportTable';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 type Suggestions = Awaited<ReturnType<typeof api.getDriveFolderSuggestions>>;
 
@@ -107,7 +108,7 @@ export function DriveFolderMatchingTab() {
 
   const unlink = async (linkId: string) => {
     const caseId = items.find((r) => r.link?.id === linkId)?.link?.caseId;
-    if (!token || !parent || !caseId || !window.confirm('ยกเลิกการผูกโฟลเดอร์นี้? ไฟล์ใน OneDrive ยังอยู่ครบ')) return;
+    if (!token || !parent || !caseId || !await confirmDialog('ยกเลิกการผูกโฟลเดอร์นี้? ไฟล์ใน OneDrive ยังอยู่ครบ')) return;
     setMessage('');
     try {
       await api.unlinkCaseDriveFolder(token, caseId);

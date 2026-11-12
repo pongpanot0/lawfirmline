@@ -10,13 +10,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { fmt } from '@/lib/i18n/dashboard';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatDate } from '@/lib/utils';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -160,7 +161,7 @@ export default function TimesheetPage() {
   };
 
   const deleteEntry = async (entry: FirmTimesheetEntry) => {
-    if (!token || !window.confirm('ลบบันทึกเวลานี้?')) return;
+    if (!token || !await confirmDialog('ลบบันทึกเวลานี้?')) return;
     setRowError('');
     try {
       await api.deleteTimeEntry(token, entry.caseId, entry.id);
@@ -189,7 +190,7 @@ export default function TimesheetPage() {
           </div>
           <div className="flex items-center gap-2">
             <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.date}</span>
-            <ThaiDateInput label={d.timesheet.date} value={date} onChange={setDate} />
+            <ThaiDateField ariaLabel={d.timesheet.date} value={date} onChange={setDate} />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -233,9 +234,9 @@ export default function TimesheetPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.from}</span>
-            <ThaiDateInput label={d.timesheet.from} value={from} onChange={setFrom} />
+            <ThaiDateField ariaLabel={d.timesheet.from} value={from} onChange={setFrom} />
             <span aria-hidden className="text-sm font-medium text-muted-foreground">{d.timesheet.to}</span>
-            <ThaiDateInput label={d.timesheet.to} value={to} onChange={setTo} />
+            <ThaiDateField ariaLabel={d.timesheet.to} value={to} onChange={setTo} />
             {canViewTeam && (
               <select
                 aria-label="แสดงเวลาของ"

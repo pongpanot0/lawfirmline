@@ -26,6 +26,7 @@ import { CaseUnknownAddresses } from './CaseUnknownAddresses';
 import { EmailMentionTasks } from './EmailMentionTasks';
 import { MATCH_REASON_LABELS } from '@/lib/case-email';
 import { formatDateTime } from '@/lib/utils';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 type Notice = { type: 'success' | 'error'; text: string; action?: { label: string; onClick: () => void } } | null;
 
@@ -142,8 +143,8 @@ export function CaseEmailPanel({
       return { type: 'success', text: 'ผูกโฟลเดอร์แล้ว — ระบบกำลังดึงอีเมลย้อนหลัง กด "ดึงอีเมลตอนนี้" อีกครั้งในไม่กี่นาที' };
     });
 
-  const unlinkFolder = (link: CaseFolderLinkItem) => {
-    if (!window.confirm(`ยกเลิกการผูก "${link.displayPath}"? อีเมลที่ดึงเข้าคดีแล้วจะยังอยู่ในคดี`)) return;
+  const unlinkFolder = async (link: CaseFolderLinkItem) => {
+    if (!await confirmDialog(`ยกเลิกการผูก "${link.displayPath}"? อีเมลที่ดึงเข้าคดีแล้วจะยังอยู่ในคดี`)) return;
     run(`unlink-${link.id}`, async (t) => {
       await api.unlinkOutlookFolder(t, link.id);
       await load();
@@ -176,8 +177,8 @@ export function CaseEmailPanel({
       return { type: 'success', text: 'ยกเลิกแล้ว — อีเมลนี้กลับมาอยู่ในรายการรอตอบ' };
     });
 
-  const suggestDates = (message: CaseEmailThreadDetail['messages'][number]) => {
-    if (!window.confirm('ให้ AI อ่านอีเมลนี้เพื่อหาวันนัด / กำหนดยื่น?')) return;
+  const suggestDates = async (message: CaseEmailThreadDetail['messages'][number]) => {
+    if (!await confirmDialog('ให้ AI อ่านอีเมลนี้เพื่อหาวันนัด / กำหนดยื่น?')) return;
     run(`ai-dates-${message.id}`, async (t) => {
       const result = await api.suggestDatesFromEmailMessage(t, caseId, message.id);
       if (result.created === 0) return { type: 'success', text: 'AI ไม่พบวันนัดหรือกำหนดยื่นในอีเมลนี้' };
@@ -189,8 +190,8 @@ export function CaseEmailPanel({
     });
   };
 
-  const unlinkThread = (threadId: string) => {
-    if (!window.confirm('นำอีเมลนี้ออกจากคดี? อีเมลจะกลับไปอยู่ในคิวอีเมล')) return;
+  const unlinkThread = async (threadId: string) => {
+    if (!await confirmDialog('นำอีเมลนี้ออกจากคดี? อีเมลจะกลับไปอยู่ในคิวอีเมล')) return;
     run(`thread-${threadId}`, async (t) => {
       await api.unlinkThreadFromCase(t, threadId);
       setSelectedId(null);

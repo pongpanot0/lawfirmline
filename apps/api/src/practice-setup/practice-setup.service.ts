@@ -23,7 +23,7 @@ import { AutomationLogService } from '../common/services/automation-log.service'
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
-import { stagesToApply, stepMatchesSide, stepTaskTitle } from './stage-scope';
+import { stagesToApply, stepMatchesSide, stepTaskTitle, stepTaskTitles } from './stage-scope';
 import { assertCanOpenCases } from '../common/plan-limits';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface CheckedRow extends ImportRow { row: number; existingClientId: string | null; errors: string[] }
@@ -409,8 +409,11 @@ export class PracticeSetupService {
       }
     }
     // อย่าเสนองานที่มีอยู่แล้วในคดี ไม่ว่าจะสร้างจากขั้นนี้ (stage:<STAGE>) หรือจากการใช้ playbook (playbook:<releaseId>)
-    const existing = await this.prisma.task.findMany({ where: { caseId, title: { in: [...stepsByTitle.keys()] } }, select: { title: true } });
-    for (const t of existing) stepsByTitle.delete(t.title);
+    // Tasks made before the bracket merge carry the older title form; both count as already there.
+    const alias = new Map<string, string>();
+    for (const [title, { step }] of stepsByTitle) for (const known of stepTaskTitles(step, side)) alias.set(known, title);
+    const existing = await this.prisma.task.findMany({ where: { caseId, title: { in: [...alias.keys()] } }, select: { title: true } });
+    for (const t of existing) stepsByTitle.delete(alias.get(t.title) ?? t.title);
     if (!stepsByTitle.size) return [];
 
     const [team, firmMembers] = await Promise.all([

@@ -17,6 +17,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { StepTracker } from '@/components/process/StepTracker';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const STATUS_FILTERS = ['', 'DRAFT', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
@@ -140,7 +141,7 @@ export default function ExpensesPage() {
   const selectedTotal = expenses.filter(e => e.status === 'DRAFT' && selectedDraftIds.includes(e.id)).reduce((sum, e) => sum + e.amount, 0);
   const decideClaim = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     const authToken = token ?? getStoredToken();
-    if (!authToken || !window.confirm(status === 'APPROVED' ? 'อนุมัติใบเบิกนี้?' : 'ไม่อนุมัติใบเบิกนี้?')) return;
+    if (!authToken || !await confirmDialog(status === 'APPROVED' ? 'อนุมัติใบเบิกนี้?' : 'ไม่อนุมัติใบเบิกนี้?')) return;
     setBusyClaim(id);
     try { await api.updateExpenseClaimStatus(authToken, id, status); setReloadKey(n => n + 1); }
     catch (err) { setError(err instanceof Error ? err.message : d.expenses.loadFailed); }

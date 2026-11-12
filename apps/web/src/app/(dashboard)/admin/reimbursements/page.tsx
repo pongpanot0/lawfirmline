@@ -23,6 +23,7 @@ import { EmptyState, InlineEmptyState, PageLoading } from '@/components/ui/misc'
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { StepTracker } from '@/components/process/StepTracker';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const FILTERS = ['', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
@@ -108,9 +109,9 @@ export default function ReimbursementsPage() {
     load();
   };
 
-  const rejectClaim = (claim: ExpenseClaimSummary) => {
+  const rejectClaim = async (claim: ExpenseClaimSummary) => {
     const name = `${claim.submittedBy.firstName} ${claim.submittedBy.lastName}`.trim();
-    if (!window.confirm(`${d.reimbursements.reject}: ${name} ${formatCurrency(claim.totalAmount)}?`)) return;
+    if (!await confirmDialog(`${d.reimbursements.reject}: ${name} ${formatCurrency(claim.totalAmount)}?`)) return;
     void updateClaim(claim.id, 'REJECTED' as ExpenseClaimStatus);
   };
 

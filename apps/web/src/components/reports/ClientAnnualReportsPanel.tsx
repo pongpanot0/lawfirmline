@@ -8,6 +8,7 @@ import { AnnualReportView } from './AnnualReportView';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/misc';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 type Audience = AnnualReportSnapshot['audience'];
 type CaseRow = AnnualReportSnapshot['cases'][number];
@@ -112,7 +113,7 @@ export function ClientAnnualReportsPanel({
 
   const revoke = async (id: string) => {
     const target = reports.find((r) => r.id === id);
-    if (!window.confirm(`ถอนรายงานปี ${target ? target.year + 543 : ''} ของ ${client.name} จากพอร์ทัล? ผู้รับจะเปิดรายงานไม่ได้ทันที`)) return;
+    if (!await confirmDialog(`ถอนรายงานปี ${target ? target.year + 543 : ''} ของ ${client.name} จากพอร์ทัล? ผู้รับจะเปิดรายงานไม่ได้ทันที`)) return;
     setBusy(true);
     setError('');
     try {

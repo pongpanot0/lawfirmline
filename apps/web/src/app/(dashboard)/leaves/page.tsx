@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { SubmitSummary } from '@/components/guide/SubmitSummary';
@@ -18,6 +18,7 @@ import { leaveApprovalQueue } from '@/lib/leave-flags';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { StepTracker } from '@/components/process/StepTracker';
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -98,7 +99,7 @@ export default function LeavesPage() {
 
   const cancelLeave = async (id: string, what: string) => {
     if (!token) return;
-    if (!window.confirm(`ยกเลิกคำขอ${what}?`)) return;
+    if (!await confirmDialog(`ยกเลิกคำขอ${what}?`)) return;
     setBusyId(id);
     setActionError('');
     try {
@@ -171,11 +172,11 @@ export default function LeavesPage() {
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="min-w-0 space-y-1.5">
               <label htmlFor="leave-start" className="block text-sm font-medium">{d.leaves.startDate}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
-              <ThaiDateInput id="leave-start" value={form.startDate} onChange={(value) => setForm({ ...form, startDate: value, endDate: form.endDate && form.endDate >= value ? form.endDate : value })} required />
+              <ThaiDateField id="leave-start" value={form.startDate} onChange={(value) => setForm({ ...form, startDate: value, endDate: form.endDate && form.endDate >= value ? form.endDate : value })} required />
             </div>
             <div className="min-w-0 space-y-1.5">
               <label htmlFor="leave-end" className="block text-sm font-medium">{d.leaves.endDate}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
-              <ThaiDateInput id="leave-end" value={form.endDate} onChange={(value) => setForm({ ...form, endDate: value })} required />
+              <ThaiDateField id="leave-end" value={form.endDate} onChange={(value) => setForm({ ...form, endDate: value })} required />
             </div>
           </CardContent>
         </Card>
