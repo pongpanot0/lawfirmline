@@ -57,6 +57,9 @@ import { addOpponents, ensureOurClientParticipant } from '../cases/party-sync';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { formatIntakeNotificationReference } from '../notifications/reference-label';
 import { assertCanOpenCases } from '../common/plan-limits';
+import { buildDocx } from '../templates/docx-builder';
+
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
 
@@ -1014,7 +1017,62 @@ export class IntakeService {
       });
     }
 
-    return updated;
+    const noticeDocumentId = await this.saveNoticeFile(user, existing, dto);
+    return { ...updated, noticeDocumentId };
+  }
+
+  /**
+   * ออกหนังสือแล้วต้องได้ไฟล์ Word ไว้แก้/พิมพ์ส่ง — มีคดีแล้วเก็บในเอกสารคดี,
+   * ยังไม่มีคดีเก็บเป็นไฟล์แนบของเรื่อง (ย้ายเข้าคดีเองตอนเปิดคดี).
+   * ไม่มีเนื้อหาจาก AI/ที่พิมพ์มา → ได้โครงหนังสือให้ทนายเติม
+   */
+  private async saveNoticeFile(
+    user: AuthUser,
+    intake: Awaited<ReturnType<IntakeService['findOne']>>,
+    dto: NoticeDto,
+  ): Promise<string> {
+    const thaiDate = (d: Date) =>
+      d.toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'long', year: 'numeric' });
+    const sender = intake.clientName || intake.client?.name || '';
+    const body =
+      dto.noticeContent?.trim() ||
+      [
+        `วันที่ ${thaiDate(new Date())}`,
+        '',
+        'เรื่อง ทวงถาม',
+        `เรียน ${dto.noticeRecipient}`,
+        '',
+        '[ข้อเท็จจริงและข้อเรียกร้อง]',
+        '',
+        dto.noticeDeadline ? `จึงขอให้ท่านดำเนินการภายในวันที่ ${thaiDate(new Date(dto.noticeDeadline))}` : null,
+        '',
+        'ขอแสดงความนับถือ',
+        sender ? `(ในนามของ ${sender})` : null,
+      ]
+        .filter((line) => line !== null)
+        .join('\n');
+
+    const buffer = await buildDocx('หนังสือทวงถาม', body);
+    const safeRecipient = dto.noticeRecipient.replace(/[\\/:*?"<>|]/g, ' ').trim().slice(0, 60);
+    const filename = `หนังสือทวงถาม-${safeRecipient}-${bangkokDayKey(new Date())}.docx`;
+
+    if (intake.case) {
+      const document = await this.documentsService.createFromBuffer(user, intake.case.id, {
+        filename,
+        buffer,
+        mimeType: DOCX_MIME,
+        category: 'CORRESPONDENCE' as never,
+        documentDate: new Date().toISOString(),
+      });
+      return document.id;
+    }
+
+    const key = path.posix.join('intake', intake.id, `${Date.now()}-notice.docx`);
+    const storagePath = await this.fileStorage.put(key, buffer, DOCX_MIME);
+    const attachment = await this.prisma.intakeAttachment.create({
+      data: { intakeId: intake.id, filename, storagePath, mimeType: DOCX_MIME, uploadedById: user.id },
+    });
+    return attachment.id;
   }
 
   async draftNotice(user: AuthUser, id: string, analysisId?: string) {

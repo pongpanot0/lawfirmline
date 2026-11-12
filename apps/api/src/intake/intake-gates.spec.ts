@@ -21,6 +21,8 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: 'OWNER' } as any;
   let service: IntakeService;
   let prisma: any;
+  let fileStorage: any;
+  let documents: any;
   let conflictCheck: { latestForIntake: jest.Mock; gateNewCase: jest.Mock; recordForCase: jest.Mock };
 
   const intake = {
@@ -61,6 +63,9 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
       case: { findFirst: jest.fn(), findUnique: jest.fn() },
       firm: { findUnique: jest.fn().mockResolvedValue({ ownRefPrefix: 'REF' }) },
     };
+    prisma.intakeAttachment = { create: jest.fn().mockResolvedValue({ id: 'att-1' }) };
+    fileStorage = { put: jest.fn().mockResolvedValue('stored/path') };
+    documents = { adoptIntakeAttachments: jest.fn(), createFromBuffer: jest.fn().mockResolvedValue({ id: 'doc-1' }) };
     conflictCheck = { latestForIntake: jest.fn(), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() };
 
     const module = await Test.createTestingModule({
@@ -72,10 +77,10 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
         { provide: ConflictCheckService, useValue: conflictCheck },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({}) } },
-        { provide: FileStorageService, useValue: {} },
+        { provide: FileStorageService, useValue: fileStorage },
         { provide: TasksService, useValue: { create: jest.fn() } },
         { provide: IntakePrecedentAnalysisService, useValue: {} },
-        { provide: DocumentsService, useValue: { adoptIntakeAttachments: jest.fn() } },
+        { provide: DocumentsService, useValue: documents },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
       ],
     }).compile();
@@ -109,6 +114,32 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
 
     expect(prisma.intake.update).toHaveBeenCalled();
     expect(prisma.intake.update.mock.calls[0][0].data.stage).toBe('PRE_LITIGATION_NOTICE');
+  });
+
+  it('ออกหนังสือแล้วได้ไฟล์ Word ในเอกสารคดี (มีคดีแล้ว)', async () => {
+    prisma.intake.findFirst.mockResolvedValue({ ...intake, case: { id: 'case-1' } });
+
+    const result = await service.issueNotice(user, 'intake-1', {
+      noticeRecipient: 'บริษัท ก/ข',
+      noticeContent: 'เนื้อหาหนังสือ',
+      noticeContentReviewed: true,
+    } as any);
+
+    expect(documents.createFromBuffer).toHaveBeenCalledWith(
+      user,
+      'case-1',
+      expect.objectContaining({ filename: expect.stringMatching(/^หนังสือทวงถาม-บริษัท ก ข-.*\.docx$/), category: 'CORRESPONDENCE' }),
+    );
+    expect(documents.createFromBuffer.mock.calls[0][2].buffer.length).toBeGreaterThan(0);
+    expect(result.noticeDocumentId).toBe('doc-1');
+  });
+
+  it('ยังไม่มีคดี → ไฟล์หนังสือเก็บเป็นไฟล์แนบของเรื่อง', async () => {
+    const result = await service.issueNotice(user, 'intake-1', { noticeRecipient: 'คู่กรณี' } as any);
+
+    expect(fileStorage.put).toHaveBeenCalledWith(expect.stringMatching(/^intake\/intake-1\/.*\.docx$/), expect.any(Buffer), expect.any(String));
+    expect(prisma.intakeAttachment.create).toHaveBeenCalled();
+    expect(result.noticeDocumentId).toBe('att-1');
   });
 
   it('เอกสารที่ไม่จำเป็น หรือที่ระบุว่าไม่เกี่ยวข้อง ไม่กั้นการออกหนังสือ', async () => {
