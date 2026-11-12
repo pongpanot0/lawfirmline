@@ -152,7 +152,7 @@ export class AiWriteToolsService {
     } else if (name === 'create_sop') {
       // Open to every member (owner's call 2026-11-12); the app's SOP screen keeps its own role limits.
       const sop = await this.prisma.$transaction(async (tx) => {
-        const created = await tx.sop.create({ data: { firmId: user.firmId, title: a.title as string, content: a.content as string, category: (a.category as string | undefined) ?? null, updatedById: user.id }, select: { id: true, title: true, category: true } });
+        const created = await tx.sop.create({ data: { firmId: user.firmId, title: a.title as string, content: a.content as string, category: (a.category as string | undefined) ?? null, updatedById: user.id, createdById: user.id }, select: { id: true, title: true, category: true } });
         await tx.auditLog.create({ data: this.audit(user, via, name, undefined, created.id) });
         return created;
       });
