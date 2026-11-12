@@ -120,6 +120,19 @@ describe('LeaveService approval workflow', () => {
     expect(line.pushTo).not.toHaveBeenCalled();
   });
 
+  it('an audited (MCP) request writes the leave and its audit row in one transaction', async () => {
+    const prisma = makePrisma({ auditLog: { create: jest.fn() } });
+    prisma.$transaction = jest.fn((fn: any) => fn(prisma));
+    const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
+    await new LeaveService(prisma, line, notifier, center).create(
+      { id: 'alice', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any,
+      { type: LeaveType.VACATION, startDate: inDays(1), endDate: inDays(1) },
+      (entityId) => ({ firmId: 'firm-a', userId: 'alice', action: 'mcp.request_leave', metadata: { entityId } }),
+    );
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: 'mcp.request_leave', metadata: { entityId: 'leave-1' } }) });
+  });
+
   it('a VACATION request filed by a LAWYER is created PENDING and pushes both owners a quick reply', async () => {
     const prisma = makePrisma();
     const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;

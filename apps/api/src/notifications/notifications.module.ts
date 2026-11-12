@@ -93,6 +93,7 @@ import { SecretaryModule } from '../secretary/secretary.module';
     EmailService,
     ContactLineLinkService,
     ContactNotificationPreferenceService,
+    LeaveService,
   ],
 })
 export class NotificationsModule {}

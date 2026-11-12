@@ -8,7 +8,7 @@ test('renders a known action in Thai and keeps unknown actions visible', () => {
 });
 
 test('labels all AI connection audit actions', () => {
-  for (const action of ['connect', 'disconnect', 'settings', 'create_task', 'complete_task', 'add_case_note', 'log_time', 'propose_court_date', 'draft_expense']) {
+  for (const action of ['connect', 'disconnect', 'settings', 'create_task', 'complete_task', 'add_case_note', 'log_time', 'propose_court_date', 'draft_expense', 'request_leave', 'draft_notice']) {
     assert.notEqual(auditActionText(`mcp.${action}`), `ทำรายการ mcp.${action}`);
   }
 });

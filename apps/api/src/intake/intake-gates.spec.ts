@@ -1,3 +1,4 @@
+import { Prisma } from '../generated/prisma';
 import { CasesService } from '../cases/cases.service';
 import { Test } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
@@ -114,6 +115,8 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
 
     expect(prisma.intake.update).toHaveBeenCalled();
     expect(prisma.intake.update.mock.calls[0][0].data.stage).toBe('PRE_LITIGATION_NOTICE');
+    // Issuing consumes any AI (MCP) draft so it can't be reissued by accident.
+    expect(prisma.intake.update.mock.calls[0][0].data.noticeDraft).toBe(Prisma.DbNull);
   });
 
   it('ออกหนังสือแล้วได้ไฟล์ Word ในเอกสารคดี (มีคดีแล้ว)', async () => {
