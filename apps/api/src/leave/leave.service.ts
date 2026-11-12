@@ -57,7 +57,7 @@ export class LeaveService {
     if (end < start || end.getTime() - start.getTime() > 366 * 86400000) throw new BadRequestException('ช่วงวันที่ไม่ถูกต้อง');
     const leaves = await this.prisma.leaveRequest.findMany({
       where: { firmId: user.firmId, startDate: { lte: end }, endDate: { gte: start } },
-      include: { user: { select: { firstName: true, lastName: true } } },
+      include: { user: { select: { firstName: true, lastName: true } }, decidedBy: { select: { firstName: true, lastName: true } } },
       orderBy: { startDate: 'asc' },
     });
     return Promise.all(leaves.map(async (leave) => ({
