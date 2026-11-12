@@ -168,8 +168,14 @@ describe('SecretaryToolsService', () => {
   it('list_leaves rejects an over-long range and scopes to the firm', async () => {
     const { svc, prisma } = build();
     expect(await svc.run(lawyer, 'list_leaves', { from: '2026-01-01', to: '2026-06-01' })).toEqual({ content: { error: 'invalid_date_range' }, cards: [] });
-    await svc.run(lawyer, 'list_leaves', { from: '2026-11-10', to: '2026-11-20' });
-    expect(prisma.leaveRequest.findMany.mock.calls[0][0].where.firmId).toBe('f1');
+    prisma.leaveRequest.findMany.mockResolvedValueOnce([
+      { userId: 'u2', type: 'VACATION', status: 'PENDING', startDate: new Date('2026-11-12'), endDate: new Date('2026-11-12'), user: { firstName: 'Me', lastName: 'M' } },
+      { userId: 'u9', type: 'SICK', status: 'APPROVED', startDate: new Date('2026-11-12'), endDate: new Date('2026-11-12'), user: { firstName: 'Bob', lastName: 'B' } },
+    ]);
+    const { content } = await svc.run(lawyer, 'list_leaves', { from: '2026-11-10', to: '2026-11-20' }) as any;
+    // Same rule as GET /leaves: own leave in full, others' approved leave without the type.
+    expect(prisma.leaveRequest.findMany.mock.calls[0][0].where.AND[0]).toEqual({ firmId: 'f1', OR: [{ userId: 'u2' }, { status: 'APPROVED' }] });
+    expect(content.leaves.map((l: any) => l.type)).toEqual(['VACATION', null]);
   });
 
   it('petty_cash_balance only reads, never creates the fund', async () => {

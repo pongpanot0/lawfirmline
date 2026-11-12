@@ -229,7 +229,8 @@ export interface OwnerKpis {
 export interface LeaveItem {
   id: string;
   userId: string;
-  type: 'SICK' | 'PERSONAL' | 'VACATION';
+  /** null on someone else's leave unless you approve leave — others see only who is out and when. */
+  type: 'SICK' | 'PERSONAL' | 'VACATION' | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   startDate: string;
   endDate: string;

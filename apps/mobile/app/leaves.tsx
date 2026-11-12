@@ -23,7 +23,7 @@ const dateRange = (start: string, end: string) => start === end ? thDate(start) 
 export default function LeavesScreen() {
   const { user } = useAuth();
   const today = bangkokDay(new Date().toISOString());
-  const [type, setType] = useState<LeaveItem['type']>('PERSONAL');
+  const [type, setType] = useState<NonNullable<LeaveItem['type']>>('PERSONAL');
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [multiple, setMultiple] = useState(false);
@@ -53,7 +53,7 @@ export default function LeavesScreen() {
     <PageIntro detailOnly title="ขอลา" detail="เลือกประเภทและวันที่ แล้วส่งคำขอ" />
     <FormSection title="วันและประเภทการลา">
       <Dropdown inline label="ประเภทการลา" fieldLabel="ประเภทการลา" value={type} options={TYPES}
-        onChange={(value) => setType(value as LeaveItem['type'])} disabled={request.isPending} />
+        onChange={(value) => setType(value as NonNullable<LeaveItem['type']>)} disabled={request.isPending} />
       <DatePicker label={multiple ? 'วันเริ่มลา' : 'วันที่ลา'} required value={start} minDate={today} error={startError} disabled={request.isPending}
         onChange={(value) => { setStart(value); if (end < value) setEnd(value); }} />
       <SwitchRow label="ลาหลายวัน" value={multiple} onValueChange={setMultiple} disabled={request.isPending} />

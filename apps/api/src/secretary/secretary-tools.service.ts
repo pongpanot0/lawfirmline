@@ -9,6 +9,7 @@ import { CollectionsService } from '../billing/collections.service';
 import { daysToExpiry } from '../lawyer-license/license-milestones';
 import { AgendaService } from '../agenda/agenda.service';
 import { MatterBriefService } from './matter-brief.service';
+import { canSeeLeaveDetail, leaveVisibleWhere } from '../leave/leave-visibility';
 
 export interface OpenAiToolDef {
   type: 'function';
@@ -69,7 +70,7 @@ export class SecretaryToolsService {
         { documentId: { type: 'string' }, question: { type: 'string' } }, ['documentId', 'question']),
       tool('list_events', 'List calendar events in a date range (ISO dates). Max 50.',
         { from: { type: 'string' }, to: { type: 'string' }, caseId: { type: 'string' }, mineOnly: { type: 'boolean' } }, ['from', 'to']),
-      tool('list_leaves', 'List staff leave (pending and approved) overlapping a date range (ISO dates, max 62 days).',
+      tool('list_leaves', 'List leave overlapping a date range (ISO dates, max 62 days): your own in full, other people\'s approved leave as name and dates only (approvers see type and pending too).',
         { from: { type: 'string' }, to: { type: 'string' } }, ['from', 'to']),
       tool('search_sops', 'Search the firm\'s SOPs / office procedures by keyword. Returns up to 5 with their content.',
         { query: { type: 'string' } }, ['query']),
@@ -103,7 +104,7 @@ export class SecretaryToolsService {
     return { ...result, content: redactContent(result.content) };
   }
 
-  /** Same visibility as GET /leaves: every member sees the firm's leave calendar. */
+  /** Same visibility as GET /leaves (leave-visibility.ts): others' leave is name and dates only unless you approve leave. */
   private async listLeaves(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
     const from = new Date(String(a.from));
     const to = new Date(String(a.to));
@@ -111,13 +112,13 @@ export class SecretaryToolsService {
       return bad('invalid_date_range');
     }
     const leaves = await this.prisma.leaveRequest.findMany({
-      where: { firmId: user.firmId, status: { not: LeaveStatus.REJECTED }, startDate: { lte: to }, endDate: { gte: from } },
-      select: { type: true, status: true, startDate: true, endDate: true, user: { select: { firstName: true, lastName: true } } },
+      where: { AND: [leaveVisibleWhere(user), { status: { not: LeaveStatus.REJECTED }, startDate: { lte: to }, endDate: { gte: from } }] },
+      select: { userId: true, type: true, status: true, startDate: true, endDate: true, user: { select: { firstName: true, lastName: true } } },
       orderBy: { startDate: 'asc' }, take: MAX_LEAVES + 1,
     });
     return {
       content: { truncated: leaves.length > MAX_LEAVES, leaves: leaves.slice(0, MAX_LEAVES).map((l) => ({
-        name: `${l.user.firstName} ${l.user.lastName}`, type: l.type, status: l.status,
+        name: `${l.user.firstName} ${l.user.lastName}`, type: canSeeLeaveDetail(user, l.userId) ? l.type : null, status: l.status,
         startDate: l.startDate.toISOString().slice(0, 10), endDate: l.endDate.toISOString().slice(0, 10),
       })) },
       cards: [],

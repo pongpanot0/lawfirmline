@@ -91,7 +91,7 @@ export default function OwnerDecisions() {
         const busy = decision.isPending && decision.variables?.id === leave.id;
         const result = busy ? decision.variables?.decision : undefined;
         return <Card key={leave.id} style={{ gap: spacing.sm }}>
-          <Text style={styles.rowTitle}>{leave.user?.firstName} {leave.user?.lastName} · {LEAVE_TYPES[leave.type]}</Text>
+          <Text style={styles.rowTitle}>{leave.user?.firstName} {leave.user?.lastName} · {leave.type ? LEAVE_TYPES[leave.type] : 'ลา'}</Text>
           <Text style={styles.rowMeta}>{leaveRange(leave.startDate, leave.endDate)}</Text>
           {leave.courtConflicts?.length ? <>
             <Tag tone="due">ทับนัดศาล {leave.courtConflicts.length} นัด</Tag>
