@@ -104,11 +104,10 @@ export class LineLinkService {
     const trimmed = text.trim().toUpperCase();
     if (!LINK_CODE_PATTERN.test(trimmed)) return null;
 
-    const alreadyLinked = await this.prisma.user.findUnique({
+    const linked = await this.prisma.user.findUnique({
       where: { lineUserId },
       select: { id: true },
     });
-    if (alreadyLinked) return null;
 
     if (!this.limiter.recordAttempt(lineUserId)) {
       return '❌ พยายามเชื่อมต่อบ่อยเกินไป กรุณาลองใหม่ภายหลัง';
@@ -119,10 +118,12 @@ export class LineLinkService {
     });
 
     const GENERIC_FAILURE_MESSAGE =
-      '❌ ไม่สามารถเชื่อมต่อได้ กรุณาสร้างรหัสใหม่จาก Settings และลองอีกครั้ง';
+      '❌ รหัสไม่ถูกต้องหรือหมดอายุ กรุณากด "เชื่อมต่อ LINE" ในหน้าตั้งค่าเพื่อสร้างรหัสใหม่ แล้วส่งมาอีกครั้ง';
 
+    // Unknown code from an unlinked LINE account may be a client-portal code:
+    // let contact linking try it. A linked account gets the answer here.
     if (!user) {
-      return null;
+      return linked ? GENERIC_FAILURE_MESSAGE : null;
     }
 
     if (
@@ -132,24 +133,28 @@ export class LineLinkService {
       return GENERIC_FAILURE_MESSAGE;
     }
 
-    const existing = await this.prisma.user.findUnique({
-      where: { lineUserId },
-    });
-    if (existing && existing.id !== user.id) {
-      return GENERIC_FAILURE_MESSAGE;
-    }
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lineUserId,
-        lineConnectedAt: new Date(),
-        lineLinkCode: null,
-        lineLinkCodeExpiresAt: null,
-      },
-    });
+    // A fresh code proves the sender can sign in as `user`, so this LINE account
+    // moves to them. Without this, a LINE account left on a stale user (removed
+    // from the firm, external) could never be re-linked.
+    await this.prisma.$transaction([
+      ...(linked && linked.id !== user.id
+        ? [this.prisma.user.update({ where: { id: linked.id }, data: { lineUserId: null, lineConnectedAt: null } })]
+        : []),
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lineUserId,
+          lineConnectedAt: new Date(),
+          lineLinkCode: null,
+          lineLinkCodeExpiresAt: null,
+        },
+      }),
+    ]);
 
     this.limiter.reset(lineUserId);
+    if (linked && linked.id !== user.id) {
+      this.logger.log(`Moved LINE user ${lineUserId} from LexFlow user ${linked.id} to ${user.id}`);
+    }
     this.logger.log(`Linked LINE user ${lineUserId} to LexFlow user ${user.id}`);
     return `✅ เชื่อมต่อสำเร็จ!\nสวัสดีคุณ ${user.firstName} คุณจะได้รับแจ้งเตือนนัดหมายล่วงหน้า 3 วันก่อนถึงวันนัด`;
   }

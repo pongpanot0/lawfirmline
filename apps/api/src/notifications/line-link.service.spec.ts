@@ -7,7 +7,8 @@ import { LinkCodeAttemptLimiterService } from './link-code-attempt-limiter.servi
 describe('LineLinkService.handleIncomingMessage', () => {
   let service: LineLinkService;
   const mockPrisma = {
-    user: { findUnique: jest.fn(), update: jest.fn() },
+    user: { findUnique: jest.fn(), update: jest.fn((args) => args) },
+    $transaction: jest.fn(async (ops: unknown[]) => ops),
   };
   const mockConfig = { get: jest.fn() };
   const mockLimiter = { recordAttempt: jest.fn().mockReturnValue(true), reset: jest.fn() };
@@ -45,17 +46,34 @@ describe('LineLinkService.handleIncomingMessage', () => {
     expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
   });
 
-  it('returns null when this LINE user is already a linked staff account', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ id: 'admin-1' });
+  it('moves a LINE account from a stale linked user to the user whose fresh code it sent', async () => {
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'stale-user' })
+      .mockResolvedValueOnce({ id: 'user-1', firstName: 'Somchai', lineLinkCodeExpiresAt: new Date(Date.now() + 60_000) });
+
+    const result = await service.handleIncomingMessage('U-line-1', 'lf-eeac12');
+
+    expect(result).toContain('เชื่อมต่อสำเร็จ');
+    expect(mockPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'stale-user' },
+      data: { lineUserId: null, lineConnectedAt: null },
+    });
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'user-1' },
+      data: expect.objectContaining({ lineUserId: 'U-line-1', lineLinkCode: null }),
+    }));
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers an unknown code from an already-linked LINE account instead of falling through', async () => {
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'admin-1' })
+      .mockResolvedValueOnce(null);
 
     const result = await service.handleIncomingMessage('U-line-1', 'LF-XXXXXX');
 
-    expect(result).toBeNull();
-    expect(mockLimiter.recordAttempt).not.toHaveBeenCalled();
-    expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
-      where: { lineUserId: 'U-line-1' },
-      select: { id: true },
-    });
+    expect(result).toContain('รหัสไม่ถูกต้องหรือหมดอายุ');
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('returns the rate-limit message and does not look up a code when the limiter rejects the attempt', async () => {
@@ -82,6 +100,6 @@ describe('LineLinkService.handleIncomingMessage', () => {
 
     const result = await service.handleIncomingMessage('U-line-1', 'LF-ABC123');
 
-    expect(result).toContain('ไม่สามารถเชื่อมต่อได้');
+    expect(result).toContain('รหัสไม่ถูกต้องหรือหมดอายุ');
   });
 });
