@@ -9,10 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ThaiDateField } from '@/components/ui/ThaiDateField';
-import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { InlineEmptyState, Modal, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
-import { SubmitSummary } from '@/components/guide/SubmitSummary';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Check, Plus, Send, X } from 'lucide-react';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { leaveApprovalQueue, leaveDecisionText } from '@/lib/leave-flags';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -48,7 +47,7 @@ export default function LeavesPage() {
 
   const [leaves, setLeaves] = useState<(LeaveItem & { createdAt?: string })[]>([]);
   const [tab, setTab] = useState('MY');
-  useEffect(() => { const requested = new URLSearchParams(window.location.search).get('tab'); if (requested && ['MY', 'DONE', 'SUMMARY', ...(canApproveLeave ? ['APPROVE'] : [])].includes(requested)) setTab(requested); else if (canApproveLeave) setTab('APPROVE'); }, [canApproveLeave]);
+  useEffect(() => { const requested = new URLSearchParams(window.location.search).get('tab'); if (requested && ['MY', 'DONE', 'SUMMARY', 'CALENDAR', ...(canApproveLeave ? ['APPROVE'] : [])].includes(requested)) setTab(requested); else if (canApproveLeave) setTab('APPROVE'); }, [canApproveLeave]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -58,6 +57,8 @@ export default function LeavesPage() {
     startDate: '',
     endDate: '',
   });
+  const [formOpen, setFormOpen] = useState(false);
+  const closeForm = useCallback(() => setFormOpen(false), []);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -89,8 +90,10 @@ export default function LeavesPage() {
     setSubmitting(true);
     setSubmitError('');
     try {
-      await api.createLeave(token, form);
+      const created = await api.createLeave(token, form);
       setForm({ type: 'SICK', startDate: '', endDate: '' });
+      setFormOpen(false);
+      setTab(created.status === 'PENDING' ? 'MY' : 'DONE');
       setReloadKey((k) => k + 1);
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : d.leaves.submitFailed);
@@ -150,30 +153,32 @@ export default function LeavesPage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeader title={d.leaves.title} description={d.leaves.description} />
+      <PageHeader title={d.leaves.title} description={d.leaves.description} actions={
+        <div className="flex flex-col items-start gap-1 xl:items-end">
+          <Button onClick={() => { setSubmitError(''); setFormOpen(true); }}><Plus className="mr-1.5 h-4 w-4" aria-hidden />ยื่นคำขอลา</Button>
+          <span className="text-xs text-muted-foreground">เปิดฟอร์มขอลา</span>
+        </div>
+      } />
 
-      <TeamLeaveCalendar token={token} reloadKey={reloadKey} />
-
-      <details open><summary className="disclosure cursor-pointer py-3 font-medium">ยื่นคำขอลา</summary><form onSubmit={handleSubmit} className="space-y-4 [&>aside]:static [&>aside]:rounded-lg [&>aside]:border [&>aside]:shadow-none">
-        <Card>
-          <CardHeader><CardTitle>1. {d.leaves.formTitle}</CardTitle></CardHeader>
-          <CardContent>
-            <fieldset>
-              <legend className="mb-2 text-sm font-medium">{d.leaves.type}</legend>
-              <div className="flex flex-wrap gap-2">
-                {(['SICK', 'PERSONAL', 'VACATION'] as const).map((type) => (
-                  <label key={type} className={`inline-flex min-h-11 cursor-pointer items-center rounded-lg border px-4 text-sm focus-within:ring-2 focus-within:ring-ring ${form.type === type ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:bg-muted'}`}>
-                    <input type="radio" name="leave-type" value={type} checked={form.type === type} onChange={() => setForm({ ...form, type })} className="sr-only" />
-                    {typeLabel[type]}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>2. วันที่ลา</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+      <Modal open={formOpen} onClose={closeForm} ariaLabel="ยื่นคำขอลา" className="max-w-lg">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">ยื่นคำขอลา</h2>
+            <Button type="button" variant="ghost" size="icon" aria-label="ปิด" onClick={closeForm}><X className="h-4 w-4" aria-hidden /></Button>
+          </div>
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">{d.leaves.type}<span aria-hidden="true" className="ml-1 text-destructive">*</span></legend>
+            <div className="grid grid-cols-3 gap-1 rounded-lg border bg-muted/50 p-1">
+              {(['SICK', 'PERSONAL', 'VACATION'] as const).map((type) => (
+                <label key={type} className={`relative inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md px-3 text-sm focus-within:ring-2 focus-within:ring-ring ${form.type === type ? 'bg-primary font-medium text-primary-foreground shadow-sm' : 'hover:bg-card'}`}>
+                  <input type="radio" name="leave-type" value={type} checked={form.type === type} onChange={() => setForm({ ...form, type })} className="sr-only" />
+                  {form.type === type && <Check className="mr-1.5 h-4 w-4" aria-hidden />}{typeLabel[type]}
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">ลาป่วยบันทึกทันที · ลากิจและลาพักร้อนต้องรออนุมัติ</p>
+          </fieldset>
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="min-w-0 space-y-1.5">
               <label htmlFor="leave-start" className="block text-sm font-medium">{d.leaves.startDate}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
               <ThaiDateField id="leave-start" value={form.startDate} onChange={(value) => setForm({ ...form, startDate: value, endDate: form.endDate && form.endDate >= value ? form.endDate : value })} required />
@@ -182,21 +187,26 @@ export default function LeavesPage() {
               <label htmlFor="leave-end" className="block text-sm font-medium">{d.leaves.endDate}<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
               <ThaiDateField id="leave-end" value={form.endDate} onChange={(value) => setForm({ ...form, endDate: value })} required />
             </div>
-          </CardContent>
-        </Card>
-        {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
-        <SubmitSummary items={[
-          { label: d.leaves.startDate, done: !!form.startDate },
-          { label: d.leaves.endDate, done: !!form.endDate },
-        ]} loading={submitting} label={d.leaves.submit} loadingLabel={d.leaves.submitting} />
-      </form></details>
+          </div>
+          {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
+          <div className="flex flex-wrap items-start justify-between gap-3 border-t pt-4">
+            <Button type="button" variant="outline" onClick={closeForm}>ยกเลิก</Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button type="submit" disabled={!form.startDate || !form.endDate || submitting}><Send className="mr-1.5 h-4 w-4" aria-hidden />{submitting ? d.leaves.submitting : 'ส่งคำขอลา'}</Button>
+              {(!form.startDate || !form.endDate) && <span className="text-xs text-muted-foreground">เลือกวันเริ่มและวันสิ้นสุดก่อน</span>}
+            </div>
+          </div>
+        </form>
+      </Modal>
 
       <WhoActsTabs value={tab} onChange={setTab} tabs={[
         ...(canApproveLeave ? [{ key: 'APPROVE', label: 'รอฉันอนุมัติ', count: pending.length }] : []),
         { key: 'MY', label: 'ใบลาของฉัน', count: activeLeaves.length },
         { key: 'DONE', label: 'เสร็จแล้ว', count: completedLeaves.length },
         { key: 'SUMMARY', label: 'สรุปรายคน' },
+        { key: 'CALENDAR', label: 'ปฏิทิน' },
       ]} />
+      {tab === 'CALENDAR' && <TeamLeaveCalendar token={token} reloadKey={reloadKey} />}
       {tab === 'SUMMARY' && <LeaveSummary token={token} userId={user?.id} seeAll={canApproveLeave} reloadKey={reloadKey} />}
       {canApproveLeave && tab === 'APPROVE' && (
         <Card>
