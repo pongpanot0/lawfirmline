@@ -100,7 +100,7 @@ export function FolderMatchTable({
           ))}
         </datalist>
       </div>
-      <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t bg-card p-4 shadow-lg"><span className="text-sm">เลือกแล้ว {pending.length} โฟลเดอร์</span><div><Button disabled={pending.length === 0 || saving} onClick={() => onConfirm(pending)}>{saving ? 'กำลังผูก…' : `ยืนยันผูก ${pending.length} โฟลเดอร์`}</Button><p className="text-xs text-muted-foreground">ระบบจะดึงอีเมลย้อนหลังเข้าคดี</p></div></div>
+      <div className="sticky bottom-0 z-[45] flex flex-wrap items-center justify-between gap-3 border-t bg-card p-4 shadow-lg"><span className="text-sm">เลือกแล้ว {pending.length} โฟลเดอร์</span><div><Button disabled={pending.length === 0 || saving} onClick={() => onConfirm(pending)}>{saving ? 'กำลังผูก…' : `ยืนยันผูก ${pending.length} โฟลเดอร์`}</Button><p className="text-xs text-muted-foreground">ระบบจะดึงอีเมลย้อนหลังเข้าคดี</p></div></div>
     </div>
   );
 }

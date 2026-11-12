@@ -269,7 +269,7 @@ export default function CaseImportPage() {
             </table>
           </div>
 
-          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm">
+          <div className="sticky bottom-0 z-[45] flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm">
             <p className="text-sm tabular-nums">เลือก {selected.length} แถว · ข้าม {rows.filter((r) => problemsOf(r).length > 0).length} แถวที่มีปัญหา</p>
             <div className="flex flex-wrap gap-2"><Link href="/cases" className="inline-flex min-h-11 items-center px-4 text-sm hover:underline">ยกเลิก</Link><Button disabled={busy === 'create' || selected.length === 0} onClick={create}>
               {busy === 'create' ? 'กำลังสร้าง…' : `สร้าง ${selected.length} คดี`}

@@ -84,7 +84,7 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   if (await adoptPlaybook.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false)) await adoptPlaybook.click();
 
   await expect(page.getByRole('heading', { name: 'Cargo Claim Workbench' })).toBeVisible();
-  await expect(page.getByText('Playbook: Cargo Claim Assessment · v1')).toBeVisible();
+  await expect(page.getByText(/Cargo Claim Assessment · ฉบับที่ 1/).first()).toBeVisible();
   await page.getByRole('tab', { name: /เอกสาร 16 รายการ/ }).click();
   await expect(page.getByTestId('cargo-requirement')).toHaveCount(16);
   await expect(page.getByText('Bill of Lading / HAWB / MAWB')).toBeVisible();
@@ -116,7 +116,7 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   }
 
   await page.goto(`${tenant.origin}/playbooks`);
-  await expect(page.getByText(/Cargo Claim Assessment · v1/)).toBeVisible();
+  await expect(page.getByText(/Cargo Claim Assessment · ฉบับที่ 1/).first()).toBeVisible();
   await expect(page.getByText('Cargo · 16 docs')).toBeVisible();
 });
 

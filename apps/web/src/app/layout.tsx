@@ -5,6 +5,7 @@ import { LocaleProvider } from '@/components/landing/LocaleProvider';
 import { FacebookPixel } from '@/components/FacebookPixel';
 import { ActionFeedback } from '@/components/feedback/ActionFeedback';
 import { AiWorkingIndicator } from '@/components/feedback/AiWorkingIndicator';
+import { ThaiValidity } from '@/components/ui/ThaiValidity';
 import './globals.css';
 
 const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'samnuan.com';
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </LocaleProvider>
           <ActionFeedback />
           <AiWorkingIndicator />
+          <ThaiValidity />
           <FacebookPixel />
         </ThemeProvider>
       </body>

@@ -65,8 +65,11 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           onSearchChange={setSearchQuery}
           onMenuClick={() => setMobileNavOpen(true)}
         />
-        <main id="workspace-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 pb-24 md:p-6 md:pb-24 lg:p-8 lg:pb-24 scrollbar-thin">
+        <main id="workspace-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 pb-0 md:p-6 md:pb-0 lg:p-8 lg:pb-0 scrollbar-thin">
           <div className="samnuan-page"><PageGuide pathname={pathname} />{children}</div>
+          {/* Room under the last row for the floating AI button. A spacer, not padding: padding would hold
+              every sticky bottom bar 6rem above the screen edge with content showing beneath it. */}
+          <div aria-hidden="true" className="h-24 shrink-0" />
         </main>
       </div>
       {pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (

@@ -721,7 +721,7 @@ function NewCaseForm() {
 
               <section className="space-y-3 rounded-lg border bg-card p-4"><h2 className="border-b pb-3 text-lg font-semibold">5 อีเมลที่เกี่ยวข้อง (ไม่บังคับ)</h2><p className="text-sm text-muted-foreground">ผูกอีเมลที่มีอยู่แล้วเข้าคดีตอนสร้าง — ไฟล์แนบจะเข้าแท็บเอกสาร · แสดงเฉพาะอีเมลในกล่องของคุณ</p>{token && <EmailLinkCandidates token={token} clientId={form.clientId} selected={selectedEmails} onChange={setSelectedEmails} />}</section>
 </div></details>
-<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Settings2 aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ชุดงานอัตโนมัติ (SOP)</span><span className={`block ${styles.hint}`}>เลือกชุดงานอัตโนมัติ ระบบจะสร้างรายการงานของคดีให้หลังเปิดคดี</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{playbookId || cargoClaimEnabled ? 'เลือกแล้ว' : 'ไม่ใช้'} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">              <details className="rounded-lg border border-border p-3">
+<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Settings2 aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ชุดงานอัตโนมัติ</span><span className={`block ${styles.hint}`}>เลือกชุดงานอัตโนมัติ ระบบจะสร้างรายการงานของคดีให้หลังเปิดคดี</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{playbookId || cargoClaimEnabled ? 'เลือกแล้ว' : 'ไม่ใช้'} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">              <details className="rounded-lg border border-border p-3">
                 <summary className="min-h-6 cursor-pointer text-sm font-medium">ขั้นตอนงานอัตโนมัติ / Cargo Claim{(cargoClaimEnabled || playbookId) && ' · เลือกแล้ว'}</summary>
                 <p className="mt-2 text-xs text-muted-foreground">เปิดคดีก่อน แล้วดูรายการงานจากชุดงานเพื่อยืนยันเพิ่มงานในหน้าคดี</p>
               <label className="mt-4 block text-sm font-medium" htmlFor="new-case-playbook">
@@ -742,7 +742,7 @@ function NewCaseForm() {
                   <option value={CARGO_CLAIM_PLAYBOOK_KEY}>{CARGO_CLAIM_PLAYBOOK_NAME} · รุ่นล่าสุด</option>
                   {playbooks.filter((playbook) => playbook.templateKey !== CARGO_CLAIM_PLAYBOOK_KEY).map((playbook) => (
                     <option key={playbook.id} value={playbook.id}>
-                      {playbook.name} · v{playbook.version}{playbook.caseTypeId === form.caseTypeId ? ' (แนะนำ)' : ''}
+                      {playbook.name} · ฉบับที่ {playbook.version}{playbook.caseTypeId === form.caseTypeId ? ' (แนะนำ)' : ''}
                     </option>
                   ))}
                 </select>

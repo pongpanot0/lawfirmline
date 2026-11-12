@@ -172,9 +172,17 @@ export function InvoicePanel({
         quantity: parseFloat(item.quantity) || 1,
         unitPrice: parseFloat(item.unitPrice),
       }));
-    // ใบที่ออกจากงานต้องมีอะไรให้เก็บเงิน ส่วนใบเปล่าปล่อยว่างไว้ก่อนได้
     if (!standalone && !lineItems.length && !pickedTimeIds.length && !pickedExpenseIds.length) {
       setError('เลือกงานที่จะเก็บเงิน หรือเพิ่มรายการเอง');
+      return;
+    }
+    // An issued invoice takes the next number, so a blank one would leave an empty ฿0 invoice in the run.
+    if (standalone && !billToId) {
+      setError('เลือกผู้รับใบแจ้งหนี้ก่อนออก');
+      return;
+    }
+    if (standalone && !lineItems.length) {
+      setError('เพิ่มรายการอย่างน้อย 1 รายการ (ชื่อรายการและราคา) ก่อนออก');
       return;
     }
     if (discountAmount > total) {
@@ -501,7 +509,7 @@ export function InvoicePanel({
               {error}
             </p>
           )}
-          {formOnly ? <SubmitSummary items={[{ label: 'ส่วนลดไม่เกินยอดรวม', done: discountAmount <= total }, { label: 'ระบุเหตุผลเมื่อให้ส่วนลด', done: discountAmount <= 0 || !!discountReason.trim() }]} loading={submitting} label="ออกใบแจ้งหนี้" loadingLabel="กำลังออก…" /> : <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+          {formOnly ? <SubmitSummary items={[...(standalone ? [{ label: 'เลือกผู้รับใบแจ้งหนี้', done: !!billToId }, { label: 'มีรายการอย่างน้อย 1 รายการ', done: items.some((item) => item.description.trim() && parseFloat(item.unitPrice) > 0) }] : []), { label: 'ส่วนลดไม่เกินยอดรวม', done: discountAmount <= total }, { label: 'ระบุเหตุผลเมื่อให้ส่วนลด', done: discountAmount <= 0 || !!discountReason.trim() }]} loading={submitting} label="ออกใบแจ้งหนี้" loadingLabel="กำลังออก…" /> : <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
             {submitting
               ? 'กำลังออก…'
               : customers.length > 1

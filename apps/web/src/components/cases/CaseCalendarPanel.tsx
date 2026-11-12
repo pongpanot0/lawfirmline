@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -148,7 +149,7 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
     return <article key={event.id} className={`${v2.card} flex flex-wrap items-center gap-5 p-5 ${first ? 'shadow-[0_4px_16px_rgba(20,46,67,.06)]' : ''}`}>
       <div className={`w-20 rounded-lg py-2 text-center ${first ? 'bg-[#142e43] text-white' : 'bg-[#eeebe3]'}`}><div className="text-xs">{fmtPart(event.startAt, { month: 'short' })}</div><div className="text-3xl font-bold leading-none">{fmtPart(event.startAt, { day: 'numeric' })}</div><div className="text-xs">{fmtPart(event.startAt, { weekday: 'long' }).replace(/^วัน/, '')}</div></div>
       <div className="min-w-0 flex-1">{kind(event)}<h4 className="mt-1 text-lg font-bold">{event.title}</h4><p className="text-sm">{[new Date(event.startAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }), event.courtName, event.onlineMeetingUrl ? 'ออนไลน์ (Teams)' : null, days >= 0 ? (days < 1 ? 'วันนี้' : `อีก ${Math.ceil(days)} วัน`) : null].filter(Boolean).join(' · ')}</p>{(reminders.length > 0 || people) && <p className={v2.hint}>{[reminders.length ? `เตือนทีมก่อน ${reminders.join(' และ ')}` : null, people ? `${event.type === 'COURT_DATE' ? 'ผู้ไปศาล' : 'ผู้ไปนัด'}: ${people}` : null].filter(Boolean).join(' · ')}</p>}</div>
-      <div className="flex gap-2"><button type="button" className={`${v2.btn} ${v2.outline}`} onClick={() => setDialog({ event })}>แก้ไข</button></div>
+      <div className="flex gap-2">{event.type === 'COURT_DATE' && <Link href={`/court-day/${event.id}`} title="เตรียมเอกสารและบันทึกผลนัดนี้" className={`${v2.btn} ${v2.primary}`}>เปิดแฟ้มไปศาล</Link>}<button type="button" className={`${v2.btn} ${v2.outline}`} onClick={() => setDialog({ event })}>แก้ไข</button></div>
     </article>;
   };
   return (
@@ -162,7 +163,7 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
       {loadError ? <LoadFailed message={loadError} onRetry={() => setReloadKey((n) => n + 1)} /> : view === 'calendar' ? <CalendarView events={events} month={month} onMonthChange={setMonth} onDayClick={(date) => setDialog({ event: null, defaultDate: date })} onEventClick={(ev) => setDialog({ event: events.find((e) => e.id === ev.id) ?? null })} /> : <><div className="space-y-3">{upcoming.length ? upcoming.map((event, index) => card(event, index === 0)) : <section className={`${v2.card} p-5`}><p className="font-semibold">ยังไม่มีนัดที่กำลังจะมาถึง</p><p className={v2.hint}>กด “เพิ่มนัด” เพื่อลงนัดศาลหรือนัดลูกความ ระบบจะเตือนทีมให้</p></section>}</div>{past.length > 0 && <details className={`${v2.card} group`}><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden"><span><b>นัดที่ผ่านมา ({past.length})</b> <span className={v2.label}>· ล่าสุด {past[0].title} {fmtPart(past[0].startAt, { day: 'numeric', month: 'short' })}</span></span><span className="inline-flex items-center gap-1 text-sm font-semibold underline">ดู <ChevronDown aria-hidden="true" className="h-4 w-4 transition-transform group-open:rotate-180" /></span></summary><div className="space-y-3 border-t border-[#e2e0d8] p-5">{past.map((event) => card(event, false))}</div></details>}<details className={v2.card}><summary className="cursor-pointer px-5 py-3 font-semibold">ไทม์ไลน์คดี</summary><div className="p-5"><CaseTimelineView events={events} onEventClick={(event) => setDialog({ event })} /></div></details></>}
       {showCalculator && <div role="dialog" aria-modal="true" aria-labelledby="calendar-calculate-title" onKeyDown={(event) => { if (event.key === 'Escape' && !applying) setShowCalculator(false); }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md space-y-3 rounded-xl bg-white p-5"><div className="flex justify-between"><h2 id="calendar-calculate-title" className="text-lg font-bold">คำนวณวันครบกำหนด</h2><button type="button" aria-label="ปิด" onClick={() => setShowCalculator(false)} className={`${v2.btn} ${v2.ghost}`}><X aria-hidden="true" className="h-5 w-5" /></button></div><p className={v2.hint}>{d.dateSuggestions.applyTriggerHint}</p><form onSubmit={handleApply} className="space-y-3"><label className="block text-sm"><span className="mb-1 block">{d.dateSuggestions.applyTriggerDate}</span><ThaiDateInput required value={triggerDate} onChange={setTriggerDate} /></label><Button type="submit" disabled={applying}>{d.dateSuggestions.applyTrigger}</Button></form>{notice && <p role="status" className={v2.hint}>{notice}</p>}{error && <p role="alert" className={v2.error}>{error}</p>}</div></div>}
       {dialog && !dialog.event && !dialog.full && (
-        <CaseAppointmentDialog caseId={caseId} caseCourtName={legalCase?.courtName} caseOwnerId={legalCase?.leadLawyerId} users={users} onClose={() => setDialog(null)} onSaved={() => setReloadKey((n) => n + 1)} onMoreOptions={() => setDialog({ event: null, defaultDate: new Date(), full: true })} />
+        <CaseAppointmentDialog caseId={caseId} caseCourtName={legalCase?.courtName} caseOwnerId={legalCase?.leadLawyerId} users={users} onClose={() => setDialog(null)} onSaved={() => { setReloadKey((n) => n + 1); onChanged?.(); }} onMoreOptions={() => setDialog({ event: null, defaultDate: new Date(), full: true })} />
       )}
       {dialog && (dialog.event || dialog.full) && (
         <CalendarEventDialog
@@ -173,7 +174,7 @@ export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onCha
           event={dialog.event}
           defaultDate={dialog.defaultDate}
           onClose={() => setDialog(null)}
-          onSaved={() => setReloadKey((n) => n + 1)}
+          onSaved={() => { setReloadKey((n) => n + 1); onChanged?.(); }}
         />
       )}
     </div>

@@ -290,6 +290,17 @@ export function CalendarEventDialog({
             ),
           }]
         : []),
+      // A court date has its own preparation file; reach it from here, not only from งานวันนี้ the day before.
+      ...(event.case && event.type === 'COURT_DATE'
+        ? [{
+            label: 'แฟ้มไปศาล',
+            value: (
+              <Link href={`/court-day/${event.id}`} className="font-medium text-primary hover:underline">
+                เปิดแฟ้มไปศาล — เตรียมเอกสาร และบันทึกผลนัด
+              </Link>
+            ),
+          }]
+        : []),
       {
         label: d.calendar.assignee,
         value: assigneeNames.length ? assigneeNames.join(', ') : d.calendar.assigneeLead,
