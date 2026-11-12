@@ -37,6 +37,8 @@ function SopsContent() {
   const { token, user } = useAuth();
   const canManageContent = hasFirmCapability(user?.firmRole, 'manageFirmContent');
   const canEditFlows = user?.firmRole === FirmRole.OWNER || user?.firmRole === FirmRole.SENIOR_LAWYER;
+  // Everyone in the firm may write down their own way of working (handbook or handoff flow); editing others' stays with the roles above.
+  const canCreate = !!user?.firmRole && user.firmRole !== FirmRole.EXTERNAL;
   const [sops, setSops] = useState<SopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -105,13 +107,13 @@ function SopsContent() {
       <PageHeader
         title="คู่มือการทำงาน"
         description="วิธีทำงานของสำนักงาน ชุดงานที่ระบบสร้างให้ในคดี และสายงานส่งต่อ"
-        actions={canEditFlows || canManageContent ? <div className="relative">
+        actions={canCreate ? <div className="relative">
           <Button onClick={() => setCreateOpen(!createOpen)} aria-expanded={createOpen} aria-haspopup="menu" title="เลือกรูปแบบที่ต้องการสร้าง"><Plus className="h-4 w-4" />สร้างใหม่ <ChevronDown className="h-4 w-4" /></Button>
           <p className="mt-1 text-xs text-muted-foreground">เลือกรูปแบบที่ต้องการสร้าง</p>
           {createOpen && <div role="menu" aria-label="สร้างใหม่" onKeyDown={(e) => { if (e.key === 'Escape') setCreateOpen(false); }} className="absolute right-0 z-20 w-72 max-w-[85vw] rounded-xl border bg-card p-2 shadow-lg">
-            {canManageContent && <button role="menuitem" className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setEditing({}); setError(null); setSaved(''); setCreateOpen(false); }}>คู่มือการทำงาน <span className="block text-xs text-muted-foreground">เขียนขั้นตอนให้ทีมอ่าน</span></button>}
+            <button role="menuitem" className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setEditing({}); setError(null); setSaved(''); setCreateOpen(false); }}>คู่มือการทำงาน <span className="block text-xs text-muted-foreground">เขียนขั้นตอนให้ทีมอ่าน</span></button>
             {canManageContent && <Link role="menuitem" href="/playbooks/new" className="block rounded-md p-3 hover:bg-muted">ชุดงานอัตโนมัติ <span className="block text-xs text-muted-foreground">ระบบสร้างงานให้ในคดีตามขั้นตอนนี้</span></Link>}
-            {canEditFlows && <button role="menuitem" className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); setCreateOpen(false); }}>สายงานส่งต่อ <span className="block text-xs text-muted-foreground">งานส่งต่อจากคนหนึ่งไปอีกคนทีละขั้น</span></button>}
+            <button role="menuitem" className="no-marker block w-full rounded-md p-3 text-left hover:bg-muted" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); setCreateOpen(false); }}>สายงานส่งต่อ <span className="block text-xs text-muted-foreground">งานส่งต่อจากคนหนึ่งไปอีกคนทีละขั้น</span></button>
           </div>}
         </div> : undefined}
       />
@@ -182,7 +184,7 @@ function SopsContent() {
         </Card>
       )}
 
-      {token && (view === 'all' || view === 'handoff') && <WorkflowTemplates token={token} canEdit={canEditFlows} search={q} editor={flowEditor} onEditorChange={setFlowEditor} />}
+      {token && (view === 'all' || view === 'handoff') && <WorkflowTemplates token={token} canEdit={canEditFlows} canCreate={canCreate} search={q} editor={flowEditor} onEditorChange={setFlowEditor} />}
 
       {!loading && !loadError && (view === 'all' || view === 'auto') && autoItems.length > 0 && (
         <div className="mb-3 space-y-3">
@@ -277,8 +279,8 @@ function SopsContent() {
       )}
       {!loading && !loadError && (view === 'auto' ? !autoItems.length : view === 'manual' ? !manualItems.length : false) && <EmptyState
         title={search ? 'ไม่พบคู่มือที่ค้นหา' : 'ยังไม่มีคู่มือในหมวดนี้'}
-        description={search ? 'ลองค้นด้วยชื่อคู่มือหรือคำในขั้นตอน' : canManageContent ? 'เพิ่มรายการในหมวดนี้เพื่อให้ทีมใช้งาน'  : 'ขอให้ผู้ดูแลสำนักงานเพิ่มคู่มือ'}
-        action={!search && canManageContent ? (view === 'auto'
+        description={search ? 'ลองค้นด้วยชื่อคู่มือหรือคำในขั้นตอน' : (view === 'auto' ? canManageContent : canCreate) ? 'เพิ่มรายการในหมวดนี้เพื่อให้ทีมใช้งาน'  : 'ขอให้ผู้ดูแลสำนักงานเพิ่มคู่มือ'}
+        action={!search && (view === 'auto' ? canManageContent : canCreate) ? (view === 'auto'
           ? <Link href="/playbooks/new" className={buttonVariants({ size: 'sm', variant: 'outline' })}><Zap className="h-4 w-4" aria-hidden />สร้างชุดงานอัตโนมัติ</Link>
           : <Button size="sm" variant="outline" onClick={() => { setEditing({}); setError(null); setSaved(''); }}><Plus className="h-4 w-4" aria-hidden />เขียนคู่มือ</Button>) : undefined} />}
     </div>

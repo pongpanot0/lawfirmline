@@ -11,8 +11,8 @@ import { ROLE_LABELS } from './workflow-ui';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { Select } from '@/components/ui/select';
 
-export function WorkflowTemplates({ token, canEdit, search = '', editor, onEditorChange }: {
-  token: string; canEdit: boolean; search?: string;
+export function WorkflowTemplates({ token, canEdit, canCreate = canEdit, search = '', editor, onEditorChange }: {
+  token: string; canEdit: boolean; /** Make new templates; editing others' still needs canEdit. */ canCreate?: boolean; search?: string;
   editor?: WorkflowTemplate | 'new' | null;
   onEditorChange?: (template: WorkflowTemplate | 'new' | null) => void;
 }) {
@@ -55,7 +55,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
     <section aria-label="สายงานส่งต่อ" className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-semibold">สายงานส่งต่อ</h2>
-        {canEdit && !onEditorChange && <Button onClick={() => setEditor('new')}><Plus className="h-4 w-4" aria-hidden />สร้างสายงานส่งต่อ</Button>}
+        {(canEdit || canCreate) && !onEditorChange && <Button onClick={() => setEditor('new')}><Plus className="h-4 w-4" aria-hidden />สร้างสายงานส่งต่อ</Button>}
       </div>
       <p className="text-sm text-muted-foreground">ส่งงานทีละขั้น เมื่อขั้นก่อนเสร็จจึงส่งต่อให้ผู้รับขั้นถัดไป</p>
       {templates && <div className="grid min-w-0 gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2">
@@ -108,7 +108,7 @@ export function WorkflowTemplates({ token, canEdit, search = '', editor, onEdito
           </details>
         </article>
       ))}
-      {canEdit && <TemplateDrawer open={editing !== null} token={token} template={editing === 'new' ? null : editing} onClose={closeEditor} onSaved={load} />}
+      {(canEdit || canCreate) && <TemplateDrawer open={editing !== null && (canEdit || editing === 'new')} token={token} template={editing === 'new' ? null : editing} onClose={closeEditor} onSaved={load} />}
     </section>
   );
 }
