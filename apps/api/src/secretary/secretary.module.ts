@@ -9,12 +9,17 @@ import { SecretaryToolsService } from './secretary-tools.service';
 import { MatterBriefService } from './matter-brief.service';
 import { SecretaryChatService } from './secretary-chat.service';
 import { SecretaryController } from './secretary.controller';
+import { AiWriteToolsService } from './ai-write-tools.service';
+import { TasksModule } from '../tasks/tasks.module';
+import { CasesModule } from '../cases/cases.module';
+import { OperationsModule } from '../operations/operations.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 // PrismaModule and CommonModule (CaseAccessService/Guard) are @Global.
 @Module({
-  imports: [forwardRef(() => RagModule), forwardRef(() => NotificationsModule), forwardRef(() => BillingModule), AgendaModule],
+  imports: [forwardRef(() => RagModule), forwardRef(() => NotificationsModule), forwardRef(() => BillingModule), forwardRef(() => TasksModule), forwardRef(() => CasesModule), forwardRef(() => OperationsModule), forwardRef(() => WorkflowsModule), AgendaModule],
   controllers: [SecretaryController],
-  providers: [MatterBriefService, SecretaryToolsService, SecretaryChatService, DailyBriefService, DailyBriefScheduler],
-  exports: [MatterBriefService, SecretaryToolsService, SecretaryChatService],
+  providers: [MatterBriefService, SecretaryToolsService, SecretaryChatService, DailyBriefService, DailyBriefScheduler, AiWriteToolsService],
+  exports: [MatterBriefService, SecretaryToolsService, SecretaryChatService, AiWriteToolsService],
 })
 export class SecretaryModule {}

@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LeaveStatus } from '../generated/prisma';
-import { hasFirmCapability, redactForAi } from '@lawfirm/shared';
-import type { AgendaItem, AuthUser, FirmCapability, SecretaryCard } from '@lawfirm/shared';
+import { HEAVY_QUEUE_POINTS, hasFirmCapability, redactForAi, workloadStatus } from '@lawfirm/shared';
+import type { AgendaItem, AuthUser, FirmCapability, SecretaryCard, TeamRadar } from '@lawfirm/shared';
+import { DailyOperationsService } from '../operations/daily-operations.service';
+import { bangkokDayKey } from '../common/utils/bangkok-time';
+import { validDay } from './ai-write-tools.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { RagService } from '../rag/rag.service';
@@ -31,6 +34,7 @@ const tool = (name: string, description: string, properties: Record<string, unkn
 const OFFICE_TOOL_CAPABILITY: Record<string, FirmCapability> = {
   receivables: 'manageInvoices',
   petty_cash_balance: 'viewPettyCash',
+  team_workload: 'runOperations',
 };
 const canUse = (user: AuthUser, name: string) => {
   const cap = OFFICE_TOOL_CAPABILITY[name];
@@ -55,6 +59,7 @@ export class SecretaryToolsService {
     private readonly rag: RagService,
     private readonly collections: CollectionsService,
     private readonly agenda: AgendaService,
+    private readonly operations: DailyOperationsService,
   ) {}
 
   /** Only the tools this user may run — the model never sees an office tool it would be refused. */
@@ -80,6 +85,8 @@ export class SecretaryToolsService {
         { minDaysOverdue: { type: 'number' } }, []),
       tool('petty_cash_balance', 'Current petty cash fund balance (THB).', {}, []),
       tool('my_work', 'The caller\'s own work right now, the same as their "my day" screen: overdue items, today, tomorrow, the next days, tasks waiting for their review, and schedule warnings. Use it for broad questions like "what work do I/we have".', {}, []),
+      tool('team_workload', `Workload of every firm member for 7 days from a date (default today, Asia/Bangkok): open task points vs the ${HEAVY_QUEUE_POINTS}-point standard, overdue and review counts, and per-day task points, appointments, court dates and leave. Counts only — no case or task details. Use it for "who is free / overloaded".`,
+        { from: { type: 'string', description: 'YYYY-MM-DD' } }, []),
     ].filter((d) => canUse(user, d.function.name));
   }
 
@@ -99,6 +106,12 @@ export class SecretaryToolsService {
       case 'receivables': result = await this.receivables(user, a, scope); break;
       case 'petty_cash_balance': result = await this.pettyCashBalance(user); break;
       case 'my_work': result = await this.myWork(user, scope); break;
+      case 'team_workload': {
+        const from = typeof a.from === 'string' && a.from ? a.from : bangkokDayKey(new Date());
+        if (!validDay(from)) return bad('invalid_date_range');
+        result = { content: teamWorkload(await this.operations.radar(user, from)), cards: [] };
+        break;
+      }
       default: return bad('unknown_tool');
     }
     return { ...result, content: redactContent(result.content) };
@@ -346,4 +359,17 @@ function redactContent(content: unknown, key = ''): unknown {
     return Object.fromEntries(Object.entries(content).map(([k, v]) => [k, redactContent(v, k)]));
   }
   return content;
+}
+
+/** Same status rule as the web TeamRadar card, spelled out so the model doesn't have to infer it. */
+export function teamWorkload(radar: TeamRadar) {
+  return {
+    from: radar.start, standardPoints: HEAVY_QUEUE_POINTS,
+    members: radar.members.map(({ userId: _id, days, ...m }) => {
+      const leaveDays = days.filter((d) => d.onLeave).map((d) => d.date);
+      const status = workloadStatus({ ...m, days });
+      return { ...m, status, loadPercent: Math.round((m.openPoints / HEAVY_QUEUE_POINTS) * 100), leaveDays,
+        days: days.map(({ onLeave: _l, ...d }) => d) };
+    }),
+  };
 }

@@ -8,7 +8,7 @@ import { DailyOperationsService } from './daily-operations.service';
 import { DailyOperationsController, TeamWorkloadController } from './daily-operations.controller';
 
 @Module({
-  imports: [TasksModule, forwardRef(() => NotificationsModule)],
+  imports: [forwardRef(() => TasksModule), forwardRef(() => NotificationsModule)],
   controllers: [OperationsController, DailyOperationsController, TeamWorkloadController],
   providers: [OperationsService, DailyOperationsService, FirmRoleGuard],
   exports: [DailyOperationsService],

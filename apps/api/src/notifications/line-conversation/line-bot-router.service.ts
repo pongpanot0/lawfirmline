@@ -15,6 +15,7 @@ import { LineAdvanceFlowService } from './flows/line-advance-flow.service';
 import { LineTaskReviewFlowService, REVIEW_NOTE_ACTION } from './flows/line-task-review-flow.service';
 import { LineLeaveFlowService } from './flows/line-leave-flow.service';
 import { LineQuickActionsService } from './line-quick-actions.service';
+import { AI_CONFIRM_ACTION, AI_CONFIRM_COMMAND, LINE_AI_WRITES, LineAiWriteService } from './line-ai-write.service';
 import { CASE_SEARCH_COMMAND, LineQueryService, OPEN_TASKS_COMMAND, QueryReply } from './line-query.service';
 import { ConversationSession, ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
 import {
@@ -64,6 +65,7 @@ export class LineBotRouterService {
     private query: LineQueryService,
     private reviewFlow: LineTaskReviewFlowService,
     private secretary: SecretaryChatService,
+    private aiWrite: LineAiWriteService,
   ) {}
 
   async route(
@@ -113,6 +115,15 @@ export class LineBotRouterService {
           await this.reply(lineUserId, target, { text: 'ส่งขั้นตอนต่อไปที่แชตส่วนตัวกับบอทแล้วครับ' });
         }
       }
+      return;
+    }
+
+    // An AI-write ยืนยัน button saves exactly the proposal it was drawn for, whatever the chat state now.
+    const aiConfirm = AI_CONFIRM_ACTION.exec(text);
+    if (aiConfirm) {
+      const saved = await this.aiWrite.confirm(authUser, lineUserId, aiConfirm[1].toLowerCase());
+      // null: a second tap of the same button — the first one already saved it.
+      if (saved) await this.reply(lineUserId, target, { text: saved }, MENU_QUICK_REPLY);
       return;
     }
 
@@ -220,6 +231,15 @@ export class LineBotRouterService {
     if (existing.flowType === FlowType.ADVANCE) return this.advanceFlow.handle(updated, text);
     if (existing.flowType === FlowType.TASK_REVIEW) return this.reviewFlow.handle(updated, text);
     if (existing.flowType === FlowType.LEAVE) return this.leaveFlow.handle(updated, text);
+    if (existing.flowType === FlowType.AI_WRITE) {
+      // Typed "ยืนยัน" names no proposal; only the button does — show it again.
+      if (text === AI_CONFIRM_COMMAND) {
+        return this.reply(lineUserId, target, { text: 'กดปุ่ม ✅ ยืนยัน ด้านล่างเพื่อบันทึกครับ', quickReply: this.aiWrite.heldQuickReply(lineUserId) });
+      }
+      // Anything else is a new message: the waiting write is dropped (the AI may propose a corrected one).
+      this.store.clear(lineUserId);
+      return this.answerWithAi(authUser, lineUserId, target, text, 'รายการที่รอยืนยันยังไม่ได้บันทึกครับ');
+    }
   }
 
   private async replyMyDay(
@@ -271,25 +291,28 @@ export class LineBotRouterService {
    * The user typed a question, so the AI runs because they asked — never on its own.
    * The answer may name cases the group cannot see, so in a group it goes to the asker's own chat.
    */
-  private async answerWithAi(user: AuthUser, lineUserId: string, target: ConversationTarget, question: string) {
+  private async answerWithAi(user: AuthUser, lineUserId: string, target: ConversationTarget, question: string, notice?: string) {
     const isPrivate = chatKey(target) === 'user';
     if (isPrivate) await this.line.showLoading(lineUserId);
     let text: string;
+    let quickReply = MENU_QUICK_REPLY;
     try {
       // History is the user's one secretary chat, so a question just asked on the web can be followed up here.
       const past = await this.secretary.history(user, new Date(Date.now() - AI_FOLLOW_UP_MS));
-      const { reply, cards } = await this.secretary.chat(user, [...past, { role: 'user', content: question }]);
+      const { reply, cards, proposal } = await this.secretary.chat(user, [...past, { role: 'user', content: question }], { writeTools: LINE_AI_WRITES });
       const origin = this.firmLink.originForSlug(user.firmSlug);
       const links = cards.slice(0, AI_LINKS_MAX).map((c) => `🔗 ${secretaryCardLabel(c)}\n${origin}${secretaryCardPath(c)}`);
-      text = [reply, ...links].join('\n\n').slice(0, LINE_TEXT_MAX);
+      text = [notice, reply, ...(proposal ? [] : links)].filter(Boolean).join('\n\n').slice(0, LINE_TEXT_MAX);
+      // A proposed write saves nothing yet: it waits for the person's own "ยืนยัน".
+      if (proposal) quickReply = this.aiWrite.hold(user, lineUserId, proposal);
     } catch (err) {
       this.logger.warn(`LINE AI answer failed: ${err}`);
       text = `ผู้ช่วย AI ตอบไม่ได้ในขณะนี้ครับ ลองถามใหม่อีกครั้ง\n\n${MENU_HINT}`;
     }
-    if (!isPrivate) return this.replyPrivately(lineUserId, target, { text });
+    if (!isPrivate) return this.replyPrivately(lineUserId, target, { text, quickReply });
     // A slow answer can outlive the reply token; push so the answer is never lost.
-    const replied = target.replyToken && (await this.line.replyWithQuickReply(target.replyToken, text, MENU_QUICK_REPLY));
-    if (!replied) await this.line.pushTo(lineUserId, text, MENU_QUICK_REPLY);
+    const replied = target.replyToken && (await this.line.replyWithQuickReply(target.replyToken, text, quickReply));
+    if (!replied) await this.line.pushTo(lineUserId, text, quickReply);
   }
 
   private startFlow(flowType: FlowType, session: ConversationSession, command?: string): Promise<void> {
@@ -308,6 +331,8 @@ export class LineBotRouterService {
         return this.leaveFlow.start(session, command);
       case FlowType.TASK_REVIEW:
         throw new Error('TASK_REVIEW starts from a postback, not a menu command');
+      case FlowType.AI_WRITE:
+        throw new Error('AI_WRITE starts from an AI answer, not a menu command');
     }
   }
 

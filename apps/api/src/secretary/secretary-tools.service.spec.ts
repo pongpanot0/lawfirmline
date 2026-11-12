@@ -31,7 +31,7 @@ describe('SecretaryToolsService', () => {
       retrieve: jest.fn().mockResolvedValue([]),
       ensureCaseIndexed: jest.fn().mockResolvedValue(undefined),
     };
-    const svc = new SecretaryToolsService(prisma as any, access as any, brief as any, rag as any, collections as any, agenda as any);
+    const svc = new SecretaryToolsService(prisma as any, access as any, brief as any, rag as any, collections as any, agenda as any, {} as any);
     return { svc, prisma, brief, rag, collections, agenda };
   }
 
@@ -126,7 +126,7 @@ describe('SecretaryToolsService', () => {
   it('definitions gives office managers every tool', () => {
     expect(build().svc.definitions(user).map((d) => d.function.name)).toEqual([
       'find_matters', 'case_overview', 'search_documents', 'read_document', 'list_events',
-      'list_leaves', 'search_sops', 'lawyer_licenses', 'receivables', 'petty_cash_balance', 'my_work',
+      'list_leaves', 'search_sops', 'lawyer_licenses', 'receivables', 'petty_cash_balance', 'my_work', 'team_workload',
     ]);
   });
 
@@ -208,5 +208,24 @@ describe('SecretaryToolsService', () => {
     expect(c.waitingForMyReview.items[0]).toEqual({ id: 't9', kind: 'TASK', caseId: null, title: 'ตรวจคำฟ้อง', caseRef: null, worker: 'ทนาย ข', dueDate: '2026-11-11' });
     expect(c.warnings).toEqual(['นัดชนกัน']);
     expect(r.cards.map((x) => x.id)).toEqual(['c1', 'c2']);
+  });
+
+  describe('team_workload', () => {
+    const radar = { start: '2026-11-12', days: ['2026-11-12'], members: [{ userId: 'u-a', firstName: 'A', lastName: 'One', role: 'LAWYER', openCount: 6, openPoints: 12, overdueCount: 0, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 2, points: 4, eventCount: 1, courtCount: 0, onLeave: false, outlookBusyMinutes: 0 }] }] };
+    const make = () => {
+      const operations = { radar: jest.fn().mockResolvedValue(radar) };
+      return { operations, svc: new SecretaryToolsService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, operations as any) };
+    };
+    it('only owners / office managers get it, counts only with no user ids', async () => {
+      const { svc, operations } = make();
+      expect(svc.definitions({ firmRole: 'LAWYER' } as any).map((d) => d.function.name)).not.toContain('team_workload');
+      expect(svc.definitions({ firmRole: 'OWNER' } as any).map((d) => d.function.name)).toContain('team_workload');
+      expect((await svc.run({ firmRole: 'LAWYER' } as any, 'team_workload', {})).content).toEqual({ error: 'forbidden' });
+      const out = await svc.run({ firmRole: 'OWNER' } as any, 'team_workload', { from: '2026-11-12' });
+      expect(operations.radar).toHaveBeenCalledWith(expect.objectContaining({ firmRole: 'OWNER' }), '2026-11-12');
+      expect((out.content as any).members[0]).toMatchObject({ status: 'over_standard', loadPercent: 120 });
+      expect(JSON.stringify(out.content)).not.toContain('u-a');
+      expect((await svc.run({ firmRole: 'OWNER' } as any, 'team_workload', { from: '2026-02-30' })).content).toEqual({ error: 'invalid_date_range' });
+    });
   });
 });
