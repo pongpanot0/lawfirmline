@@ -12,6 +12,7 @@ import { AUDIT_ACTIONS, auditActionText } from '@/lib/audit-actions';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/misc';
+import { Select } from '@/components/ui/select';
 
 export default function AuditLogPage() {
   const d = useDashboardT();
@@ -53,9 +54,9 @@ export default function AuditLogPage() {
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 p-4">
           <label className="w-full text-sm font-medium">ประเภทเหตุการณ์
-            <select className="mt-2 h-10 w-full rounded-lg border bg-card px-3" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+            <Select className="mt-2 h-10 w-full rounded-lg border bg-card px-3" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
               <option value="">ทั้งหมด</option>{Object.entries(AUDIT_ACTIONS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
-            </select>
+            </Select>
           </label>
         </CardContent>
       </Card>

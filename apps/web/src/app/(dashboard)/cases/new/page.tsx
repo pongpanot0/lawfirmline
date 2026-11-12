@@ -53,6 +53,7 @@ import {
   CARGO_CLAIM_PLAYBOOK_NAME,
   CASE_STAGE_LABELS_TH, CaseStage,
 } from '@lawfirm/shared';
+import { Select } from '@/components/ui/select';
 
 export default function NewCasePage() {
   return <Suspense fallback={<PageLoading title="กำลังโหลดข้อมูลเปิดคดี" lines={3} />}><NewCaseForm /></Suspense>;
@@ -471,7 +472,7 @@ function NewCaseForm() {
 
             <div className={`${styles.card} p-7 shadow-[0_6px_20px_rgba(20,46,67,.06)]`}><div className="flex items-center justify-between"><div><h2 className="text-xl font-bold">ข้อมูลที่ต้องมี</h2><p className={styles.hint}>4 ช่องนี้พอสำหรับเปิดคดี</p></div>{!missing.length && <span className="rounded-full bg-[#e6f3ec] px-3 py-1 text-sm font-semibold text-[#227052]"><Check aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> ครบแล้ว</span>}</div><div className="mt-5 grid min-w-0 gap-x-8 gap-y-6 md:grid-cols-2">
               <label htmlFor="case-type" className={fieldLabel}>ประเภทคดี <span className="text-destructive">*</span>
-                <select id="case-type" aria-invalid={showValidation && !form.caseTypeId} aria-describedby={showValidation && !form.caseTypeId ? "case-type-error" : undefined} disabled={loadingTypes} value={form.caseTypeId} className={`${inputClass} ${showValidation && !form.caseTypeId ? styles.invalid : ''}`}
+                <Select id="case-type" aria-invalid={showValidation && !form.caseTypeId} aria-describedby={showValidation && !form.caseTypeId ? "case-type-error" : undefined} disabled={loadingTypes} value={form.caseTypeId} className={`${inputClass} ${showValidation && !form.caseTypeId ? styles.invalid : ''}`}
                   onChange={(event) => setForm((current) => current.caseTypeId === event.target.value ? current : {
                     ...current, caseTypeId: event.target.value, chargeSection: '',
                     customFields: {
@@ -481,7 +482,7 @@ function NewCaseForm() {
                   })}>
                   <option value="">{loadingTypes ? 'กำลังโหลดประเภทคดี…' : 'เลือกประเภทคดี'}</option>
                   {caseTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
-                </select>
+                </Select>
                 {showValidation && !form.caseTypeId && <span id="case-type-error" className={`block ${styles.error}`}>ยังไม่ได้เลือกประเภทคดี</span>}<span className={`block font-normal ${styles.hint}`}>ประเภทคดีกำหนดขั้นตอนงานและข้อมูลที่ต้องกรอก</span>
               </label>
               <div>
@@ -497,9 +498,9 @@ function NewCaseForm() {
                   onFreeText={(clientName) => setForm({ ...form, clientId: '', clientName })} />
                 {form.clientName.trim() && !form.clientId && !form.useTmpClient && <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <span>ชื่อนี้จะเพิ่มเป็นลูกความใหม่เมื่อสร้างคดี · ประเภท</span>
-                  <select aria-label="ประเภทลูกความใหม่" value={form.clientType} onChange={(event) => setForm({ ...form, clientType: event.target.value })} className="min-h-9 rounded-lg border border-input bg-background px-2 text-sm text-foreground">
+                  <Select aria-label="ประเภทลูกความใหม่" value={form.clientType} onChange={(event) => setForm({ ...form, clientType: event.target.value })} className="min-h-9 rounded-lg border border-input bg-background px-2 text-sm text-foreground">
                     <option value="INDIVIDUAL">บุคคลธรรมดา</option><option value="COMPANY">นิติบุคคล</option>
-                  </select>
+                  </Select>
                 </div>}
                 <p className={styles.hint}>ถ้าไม่พบในรายชื่อ ระบบจะเพิ่มเป็นลูกความใหม่ให้</p>
                 {sameCustomer && <p className="mt-1 text-xs text-muted-foreground">ใช้ชื่อเดียวกับผู้ว่าจ้างรายแรก</p>}
@@ -514,7 +515,7 @@ function NewCaseForm() {
               </div>
               <fieldset><legend className={fieldLabel}>คดีนี้ฟ้องแล้วหรือยัง *</legend><div className="mt-1 grid grid-cols-2 gap-2">{[{ label: 'ยังไม่ฟ้อง', value: false }, { label: 'อยู่ในศาลแล้ว', value: true }].map((option) => <label key={option.label} className={`${styles.btn} ${styles.opt} ${(stageIndex > 0) === option.value ? styles.on : ''} cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring`}><input type="radio" name="court-status" className="sr-only" checked={(stageIndex > 0) === option.value} onChange={() => setStage(option.value ? CaseStage.FILING : CaseStage.PRE_LITIGATION)} />{(stageIndex > 0) === option.value && <Check aria-hidden="true" className="h-[1.1em] w-[1.1em]" />}{option.label}</label>)}</div>{stageIndex === 0 && <p className={styles.hint}>ถ้าอยู่ในศาลแล้ว จะถามชื่อศาลกับหมายเลขคดีดำเพิ่ม</p>}</fieldset>
               {stageIndex > 0 && <>
-                <label htmlFor="court-stage" className={fieldLabel}>ตอนนี้อยู่ขั้นไหนในศาล *<select id="court-stage" value={stage} onChange={(event) => setStage(event.target.value as CaseStage)} className={inputClass}>{stages.slice(1).map((item) => <option key={item} value={item}>{CASE_STAGE_LABELS_TH[item]}</option>)}</select></label>
+                <label htmlFor="court-stage" className={fieldLabel}>ตอนนี้อยู่ขั้นไหนในศาล *<Select id="court-stage" value={stage} onChange={(event) => setStage(event.target.value as CaseStage)} className={inputClass}>{stages.slice(1).map((item) => <option key={item} value={item}>{CASE_STAGE_LABELS_TH[item]}</option>)}</Select></label>
                 <div className="grid grid-cols-2 gap-4">
                   <label htmlFor="court-name" className={fieldLabel}>ศาล{stageIndex > 0 ? ' *' : ''}
                     <CourtSelect id="court-name" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} />
@@ -525,13 +526,13 @@ function NewCaseForm() {
                       placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={`${inputClass} ${showValidation && !blackUnknown && !form.blackCaseNumber.trim() ? styles.invalid : ''}`} />
                     {showValidation && !blackUnknown && !form.blackCaseNumber.trim() && <span id="black-case-number-error" className="block text-sm text-destructive">ยังไม่ได้กรอกหมายเลขคดีดำ</span>}<span className="sr-only">ใช้ค้นหาและอ้างอิงคดีในศาล</span>
                   </label>
-                  <label htmlFor="court-level" className={fieldLabel}>ระดับศาล<select id="court-level" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>{Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label>
+                  <label htmlFor="court-level" className={fieldLabel}>ระดับศาล<Select id="court-level" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>{Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</Select></label>
                   {stageIndex > 0 && <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={blackUnknown} onChange={(e) => setBlackUnknown(e.target.checked)} />ยังไม่ทราบเลขคดี — สร้างงาน "ใส่หมายเลขคดีดำ" ให้ทนายผู้รับผิดชอบ</label>}
                 </div>
               </>}
             </div></div>
 <div className="pt-3"><h2 className="text-xl font-bold">ข้อมูลเพิ่มเติม <span className={styles.label}>(ไม่บังคับ — กรอกตอนนี้หรือหลังเปิดคดีก็ได้)</span></h2></div>
-<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Scale aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> คู่ความและฝ่ายเรา</span><span className={`block ${styles.hint}`}>ใครฟ้องใคร — ใช้ในคำฟ้องและตรวจผลประโยชน์ขัดกัน</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{(() => { const n = Number(!!form.partyRole) + Number(opponents.some((row) => !!row.name.trim())); return n ? `กรอกแล้ว ${n}/2` : 'ยังไม่กรอก'; })()} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">                {stageIndex === 0 && <div className="grid gap-4 sm:grid-cols-2"><label htmlFor="court-level-pre" className={fieldLabel}>ระดับศาล<select id="court-level-pre" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>{Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label><label htmlFor="court-name-pre" className={fieldLabel}>ศาล<CourtSelect id="court-name-pre" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} /></label><label htmlFor="black-case-number-pre" className={fieldLabel}>หมายเลขคดีดำ<input id="black-case-number-pre" value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label></div>}
+<details className={`${styles.card} group p-6`}><summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3 focus-visible:ring-2 focus-visible:ring-ring"><span><span className="block text-lg font-bold"><Scale aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> คู่ความและฝ่ายเรา</span><span className={`block ${styles.hint}`}>ใครฟ้องใคร — ใช้ในคำฟ้องและตรวจผลประโยชน์ขัดกัน</span></span><span className="rounded-full bg-[#eeebe3] px-3 py-1 text-sm">{(() => { const n = Number(!!form.partyRole) + Number(opponents.some((row) => !!row.name.trim())); return n ? `กรอกแล้ว ${n}/2` : 'ยังไม่กรอก'; })()} · <ChevronDown aria-hidden="true" className="inline h-[1.1em] w-[1.1em] group-open:rotate-180" /> <span className="group-open:hidden">เปิด</span><span className="hidden group-open:inline">ปิด</span></span></summary><div className="mt-4 space-y-4">                {stageIndex === 0 && <div className="grid gap-4 sm:grid-cols-2"><label htmlFor="court-level-pre" className={fieldLabel}>ระดับศาล<Select id="court-level-pre" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>{Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</Select></label><label htmlFor="court-name-pre" className={fieldLabel}>ศาล<CourtSelect id="court-name-pre" value={form.courtName} courts={courts} onChange={(courtName) => setForm((current) => ({ ...current, courtName }))} className={inputClass} /></label><label htmlFor="black-case-number-pre" className={fieldLabel}>หมายเลขคดีดำ<input id="black-case-number-pre" value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} /></label></div>}
                 <fieldset><legend className={fieldLabel}>เราเป็นทนายให้ฝ่ายไหน</legend><div className="mt-2 flex flex-wrap gap-2">{['', ...Object.values(PartyRole)].map((role) => <label key={role} className={`${styles.btn} ${styles.opt} ${form.partyRole === role ? styles.on : ''} cursor-pointer whitespace-nowrap has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring`}><input type="radio" name="party-role" className="sr-only" checked={form.partyRole === role} onChange={() => setForm({ ...form, partyRole: role })} />{form.partyRole === role && <Check aria-hidden="true" className="mr-2 h-4 w-4" />}{role ? PARTY_ROLE_LABELS[role as PartyRole] : 'ยังไม่ระบุ'}</label>)}</div></fieldset>
                 <fieldset className="min-w-0 space-y-2">
                   <legend className={fieldLabel}>คู่ความฝ่ายตรงข้าม</legend>
@@ -539,18 +540,18 @@ function NewCaseForm() {
                     <div key={index} className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem_auto]">
                       <input aria-label={`ชื่อคู่ความฝ่ายตรงข้ามรายที่ ${index + 1}`} value={row.name} placeholder="ชื่อบุคคลหรือบริษัท" maxLength={200}
                         onChange={(e) => setOpponents((rows) => rows.map((r, i) => i === index ? { ...r, name: e.target.value } : r))} className={inputClass} />
-                      <select aria-label={`ฐานะคู่ความรายที่ ${index + 1}`} value={row.role}
+                      <Select aria-label={`ฐานะคู่ความรายที่ ${index + 1}`} value={row.role}
                         onChange={(e) => setOpponents((rows) => rows.map((r, i) => i === index ? { ...r, role: e.target.value } : r))} className={inputClass}>
                         <option value="">ตรงข้ามกับฝ่ายเรา (ค่าเริ่มต้น)</option>
                         <option value="PLAINTIFF">โจทก์</option><option value="DEFENDANT">จำเลย</option>
                         <option value="PETITIONER">ผู้ร้อง</option><option value="RESPONDENT">ผู้คัดค้าน</option>
                         <option value="OPPOSING_LAWYER">ทนายฝ่ายตรงข้าม</option><option value="OPPOSING_INSURER">บริษัทประกันฝ่ายตรงข้าม</option>
                         <option value="OTHER">อื่น ๆ</option>
-                      </select>
-                      <select aria-label={`ประเภทบุคคลรายที่ ${index + 1}`} value={row.personType}
+                      </Select>
+                      <Select aria-label={`ประเภทบุคคลรายที่ ${index + 1}`} value={row.personType}
                         onChange={(e) => setOpponents((rows) => rows.map((r, i) => i === index ? { ...r, personType: e.target.value } : r))} className={inputClass}>
                         <option value="">ประเภท</option><option value="บุคคลธรรมดา">บุคคลธรรมดา</option><option value="นิติบุคคล">นิติบุคคล</option>
-                      </select>
+                      </Select>
                       <Button type="button" variant="ghost" size="icon" aria-label={`ลบคู่ความรายที่ ${index + 1}`} disabled={opponents.length === 1}
                         onClick={() => setOpponents((rows) => rows.filter((_, i) => i !== index))}><X className="h-4 w-4" /></Button>
                     </div>
@@ -612,10 +613,10 @@ function NewCaseForm() {
                       <label key={field.key} htmlFor={"custom-" + field.key} className="block text-sm font-medium">
                         {field.label}
                         {field.type === 'select' ? (
-                          <select id={"custom-" + field.key} value={form.customFields[field.key] ?? ''} onChange={(event) => setForm({ ...form, customFields: { ...form.customFields, [field.key]: event.target.value } })} className={inputClass}>
+                          <Select id={"custom-" + field.key} value={form.customFields[field.key] ?? ''} onChange={(event) => setForm({ ...form, customFields: { ...form.customFields, [field.key]: event.target.value } })} className={inputClass}>
                             <option value="">เลือก{field.label}</option>
                             {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
-                          </select>
+                          </Select>
                         ) : (
                           <input id={"custom-" + field.key} type={field.type} step={field.type === 'number' ? 'any' : undefined} value={form.customFields[field.key] ?? ''} onChange={(event) => setForm({ ...form, customFields: { ...form.customFields, [field.key]: event.target.value } })} className={inputClass} />
                         )}
@@ -659,7 +660,7 @@ function NewCaseForm() {
                         {row.customerId && (
                           <div className="col-span-full min-w-0 space-y-2">
                             {contacts.length > 0 ? (
-                              <select
+                              <Select
                                 aria-label={"ผู้ติดต่อผู้ว่าจ้างรายที่ " + (index + 1)}
                                 value={row.contactId ?? ''}
                                 onChange={(event) => setCustomers((rows) => rows.map((item, i) => i === index ? { ...item, contactId: event.target.value } : item))}
@@ -667,7 +668,7 @@ function NewCaseForm() {
                               >
                                 <option value="">ยังไม่ระบุผู้ติดต่อ</option>
                                 {contacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.name}</option>)}
-                              </select>
+                              </Select>
                             ) : (
                               <p className="text-xs text-muted-foreground">ยังไม่มีชื่อผู้ติดต่อ</p>
                             )}
@@ -726,7 +727,7 @@ function NewCaseForm() {
                 <p className="mt-2 text-xs text-muted-foreground">เปิดคดีก่อน แล้วดูรายการงานจากชุดงานเพื่อยืนยันเพิ่มงานในหน้าคดี</p>
               <label className="mt-4 block text-sm font-medium" htmlFor="new-case-playbook">
                 ชุดงานอัตโนมัติ <span className="font-normal text-muted-foreground">(เลือกได้)</span>
-                <select
+                <Select
                   id="new-case-playbook"
                   className={inputClass}
                   value={cargoClaimEnabled ? CARGO_CLAIM_PLAYBOOK_KEY : playbookId}
@@ -745,7 +746,7 @@ function NewCaseForm() {
                       {playbook.name} · ฉบับที่ {playbook.version}{playbook.caseTypeId === form.caseTypeId ? ' (แนะนำ)' : ''}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               </details>
 

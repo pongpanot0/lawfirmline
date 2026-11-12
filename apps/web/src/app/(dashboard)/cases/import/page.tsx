@@ -8,6 +8,7 @@ import { api, ApiError, type ExcelCaseDraft, type ExcelCaseResult, type ImportCl
 import { excelRowProblems, toCreateRow } from '@/lib/excel-case-import';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 
 // Same wording as the close-case dialog and the template.
 const OUTCOME_OPTIONS: [ImportClosedOutcome, string][] = [
@@ -196,15 +197,15 @@ export default function CaseImportPage() {
                       <input value={r.title} onChange={(e) => update(r.rowNumber, { title: e.target.value })} className={field} />
                     </label>
                     <label className="text-xs">ทนายหลัก
-                      <select value={r.leadLawyerId} onChange={(e) => update(r.rowNumber, { leadLawyerId: e.target.value })} className={field}>
+                      <Select value={r.leadLawyerId} onChange={(e) => update(r.rowNumber, { leadLawyerId: e.target.value })} className={field}>
                         <option value="">— เลือก — {r.leadEmail && !r.leadLawyerId ? `(ในไฟล์: ${r.leadEmail})` : ''}</option>
                         {lawyers.map((l) => <option key={l.id} value={l.id}>{lawyerName.get(l.id)}</option>)}
-                      </select>
+                      </Select>
                     </label>
                     <label className="text-xs">ชั้นศาล
-                      <select value={r.courtLevel} onChange={(e) => update(r.rowNumber, { courtLevel: e.target.value as CourtLevel })} className={field}>
+                      <Select value={r.courtLevel} onChange={(e) => update(r.rowNumber, { courtLevel: e.target.value as CourtLevel })} className={field}>
                         {Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}
-                      </select>
+                      </Select>
                     </label>
                     <label className="text-xs">เลขคดีดำ
                       <input value={r.blackCaseNumber ?? ''} onChange={(e) => update(r.rowNumber, { blackCaseNumber: e.target.value })} className={field} />
@@ -219,14 +220,14 @@ export default function CaseImportPage() {
                     {r.closed && (
                       <>
                         <label className="text-xs">ผลคดี
-                          <select
+                          <Select
                             value={r.outcome ?? ''}
                             onChange={(e) => update(r.rowNumber, { outcome: (e.target.value || undefined) as ImportClosedOutcome | undefined })}
                             className={field}
                           >
                             <option value="">— เลือกผลคดี —</option>
                             {OUTCOME_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                          </select>
+                          </Select>
                         </label>
                         <label className="text-xs">สรุปตอนปิด
                           <input

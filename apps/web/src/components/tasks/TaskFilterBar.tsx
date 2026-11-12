@@ -7,6 +7,7 @@ import { EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskDueFilter, TaskFilters } 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { Select } from '@/components/ui/select';
 
 interface Props {
   value: TaskFilters;
@@ -54,38 +55,38 @@ export function TaskFilterBar({ value, onChange, users, labels, statuses, shown,
           className="h-11 w-full sm:h-9 sm:w-48"
         />
       )}
-      <select value={value.status} onChange={(e) => set('status', e.target.value)} aria-label={d.todos.filterStatus} className={select}>
+      <Select value={value.status} onChange={(e) => set('status', e.target.value)} aria-label={d.todos.filterStatus} className={select}>
         <option value="">{d.todos.filterStatus}</option>
         {statuses.map((s) => (
           <option key={s} value={s}>{statusLabel[s]}</option>
         ))}
-      </select>
-      <select value={value.priority} onChange={(e) => set('priority', e.target.value)} aria-label={d.todos.priority} className={select}>
+      </Select>
+      <Select value={value.priority} onChange={(e) => set('priority', e.target.value)} aria-label={d.todos.priority} className={select}>
         <option value="">{d.todos.priority}</option>
         {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
           <option key={p} value={p}>{priorityLabel(d, p)}</option>
         ))}
-      </select>
-      <select value={value.assigneeId} onChange={(e) => set('assigneeId', e.target.value)} aria-label={d.todos.filterAssignee} className={select}>
+      </Select>
+      <Select value={value.assigneeId} onChange={(e) => set('assigneeId', e.target.value)} aria-label={d.todos.filterAssignee} className={select}>
         <option value="">{d.todos.filterAssignee}</option>
         <option value="unassigned">{d.taskDetail.unassigned}</option>
         {users.map((u) => (
           <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
         ))}
-      </select>
+      </Select>
       {labels.length > 0 && (
-        <select value={value.label} onChange={(e) => set('label', e.target.value)} aria-label={d.taskDetail.labels} className={select}>
+        <Select value={value.label} onChange={(e) => set('label', e.target.value)} aria-label={d.taskDetail.labels} className={select}>
           <option value="">{d.taskDetail.labels}</option>
           {labels.map((l) => (
             <option key={l} value={l}>{l}</option>
           ))}
-        </select>
+        </Select>
       )}
-      <select value={value.due} onChange={(e) => set('due', e.target.value as TaskDueFilter)} aria-label={d.todos.filterDue} className={select}>
+      <Select value={value.due} onChange={(e) => set('due', e.target.value as TaskDueFilter)} aria-label={d.todos.filterDue} className={select}>
         {dueOptions.map((o) => (
           <option key={o.value} value={o.value}>{o.value ? o.label : d.todos.filterDue}</option>
         ))}
-      </select>
+      </Select>
       <span className="text-xs tabular-nums text-muted-foreground" aria-live="polite">
         {active ? `${shown}/${total}` : total}
       </span>

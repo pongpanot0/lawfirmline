@@ -14,6 +14,7 @@ import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 /**
  * งาน/checklist ของเรื่องรับเข้า — intake คืองานก่อนฟ้องที่ทนายทำจริง
@@ -144,7 +145,7 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <Select
               value={assigneeId}
               onChange={(e) => setAssigneeId(e.target.value)}
               className="h-11 rounded-lg border border-input bg-background px-2 text-sm sm:h-9"
@@ -152,7 +153,7 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
             >
               <option value="">ฉันเอง</option>
               <AssigneeOptions users={lawyers} flags={leaveFlags} nameOf={(u) => u.firstName} />
-            </select>
+            </Select>
             <ThaiDateInput value={dueDate} onChange={setDueDate} />
             <Button type="button" size="sm" onClick={add} disabled={busy || !title.trim()} className="ml-auto">
               <Plus className="mr-1 h-4 w-4" aria-hidden /> เพิ่มงาน

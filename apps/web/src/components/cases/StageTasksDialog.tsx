@@ -9,6 +9,7 @@ import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
 import { leaveFlagsForDate, leaveWarning } from '@/lib/leave-flags';
 import { useAuth } from '@/lib/auth';
 import { api, LeaveItem, StageTaskDraft, StageTaskProposal, UserItem } from '@/lib/api';
+import { Select } from '@/components/ui/select';
 
 type DraftRow = StageTaskProposal & { checked: boolean };
 
@@ -106,10 +107,10 @@ export function StageTasksDialog({
                 </div>
                 {row.checked && editing === i && <div className="mt-2 flex flex-wrap items-center gap-2 pl-8">
                   <ThaiDateField className="w-48" ariaLabel="วันครบกำหนด" value={row.dueDate ?? ''} onChange={(v) => edit(i, { dueDate: v || null })} />
-                  <select className="min-h-11 rounded-lg border border-[#c9ccc6] bg-white px-2 text-sm" aria-label="คนทำ" value={row.assigneeId ?? ''} onChange={(e) => edit(i, { assigneeId: e.target.value || null })}>
+                  <Select className="min-h-11 rounded-lg border border-[#c9ccc6] bg-white px-2 text-sm" aria-label="คนทำ" value={row.assigneeId ?? ''} onChange={(e) => edit(i, { assigneeId: e.target.value || null })}>
                     <option value="">ยังไม่มอบหมาย</option>
                     <AssigneeOptions users={lawyers} flags={rowFlags} nameOf={(u) => u.firstName} />
-                  </select>
+                  </Select>
                 </div>}
                 {row.checked && rowAssignee && row.dueDate && rowFlags.has(rowAssignee.id) && <p className="mt-1 flex items-start gap-1 pl-8 text-xs text-warning"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{leaveWarning(rowAssignee.firstName, row.dueDate, rowFlags.get(rowAssignee.id)?.kind)}</p>}
               </li>;

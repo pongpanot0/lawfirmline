@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Landmark } from 'lucide-react';
 import type { CaseStatus } from '@lawfirm/shared';
 import { StatusBadge } from './StatusBadge';
+import { Select } from '@/components/ui/select';
 
 export interface WorkflowCase {
   id: string;
@@ -71,7 +72,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                   )}
                 </Link>
                 {canDrag && onStatusChange && (
-                  <select
+                  <Select
                     aria-label={`สถานะคดี ${c.ownRef}`}
                     value={c.status}
                     disabled={c.status === 'CLOSED' || c.status === 'ARCHIVED'}
@@ -82,7 +83,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                     {WORKFLOW_COLUMNS.map((w) => (
                       <option key={w.status} value={w.status} disabled={w.status === 'CLOSED' || w.status === 'ARCHIVED'}>{getCaseStatusDisplay(w.status, d.caseStatus).label}</option>
                     ))}
-                  </select>
+                  </Select>
                 )}
                 <div className="mt-2">
                   <StatusBadge status={c.status as CaseStatus} />

@@ -35,6 +35,7 @@ import { COURT_DRAFT_PREFIX, parseCourtDayDraft } from '@/lib/court-day-draft';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { useRouter } from 'next/navigation';
+import { Select } from '@/components/ui/select';
 
 const inputClass =
   'min-h-11 min-w-0 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -868,7 +869,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   </label>
                   <label className="block text-sm">
                     {t.nextKind}
-                    <select
+                    <Select
                       className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                       value={state.nextKind ?? ''}
                       onChange={(e) => edit({ nextKind: (e.target.value || undefined) as CourtEventKind | undefined })}
@@ -877,7 +878,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                       {Object.values(CourtEventKind).map((kind) => (
                         <option key={kind} value={kind}>{COURT_EVENT_KIND_LABELS[kind]}</option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <label className="block min-w-0 text-sm">
                     {t.nextAt}
@@ -935,7 +936,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                 >
                   <label className="block text-sm">
                     {t.expenseCategory}
-                    <select
+                    <Select
                       className={`${inputClass} mt-1`}
                       value={state.expenseCategory ?? 'ค่าเดินทาง'}
                       onChange={(e) =>
@@ -956,7 +957,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                               ][i]}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <label className="block text-sm">
                     {t.amount}
@@ -979,19 +980,19 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   <p className="text-sm text-muted-foreground">{t.draftHelp}</p>
                   <label className="block text-sm">
                     {t.draftRecipient}
-                    <select
+                    <Select
                       className={`${inputClass} mt-1`}
                       value={state.draftRecipientKind ?? 'CLIENT'}
                       onChange={(e) => edit({ draftRecipientKind: e.target.value as 'CLIENT' | 'CUSTOMER', draftCustomerId: '' })}
                     >
                       <option value="CLIENT">{t.representedClient}</option>
                       {data.event.case.customers.length > 0 && <option value="CUSTOMER">{t.payer}</option>}
-                    </select>
+                    </Select>
                   </label>
                   {state.draftRecipientKind === 'CUSTOMER' && (
                     <label className="block text-sm">
                       {t.choosePayer}
-                      <select
+                      <Select
                         className={`${inputClass} mt-1`}
                         value={state.draftCustomerId ?? ''}
                         onChange={(e) => edit({ draftCustomerId: e.target.value })}
@@ -1002,7 +1003,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                             {customer.name}{isPrimary ? ` · ${locale === 'th' ? 'หลัก' : 'Primary'}` : ''}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                   )}
                 </Option>

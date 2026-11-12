@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { daysInMonth, isInvalidParts, isPartialParts, pad, parseIsoParts, partsToIso, MIN_BE_YEAR, type ThaiDateParts } from '@/lib/thai-date';
+import { Select } from './select';
 
 export const THAI_MONTHS = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -89,7 +90,7 @@ export function ThaiDateInput({ value, onChange, id, className, required, disabl
         required={required}
         onChange={(e) => update({ d: onlyDigits(e.target.value, 2) })}
       />
-      <select
+      <Select
         aria-label="เดือน"
         className={selectClass}
         value={local.m}
@@ -99,7 +100,7 @@ export function ThaiDateInput({ value, onChange, id, className, required, disabl
       >
         <option value="">เดือน</option>
         {THAI_MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
-      </select>
+      </Select>
       <input
         aria-label="ปี พ.ศ."
         inputMode="numeric"

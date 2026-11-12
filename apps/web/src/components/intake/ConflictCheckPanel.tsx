@@ -8,6 +8,7 @@ import { useLocale } from '@/components/landing/LocaleProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/ui/select';
 
 const SELECT_CLASS = 'h-9 rounded-lg border border-input bg-card px-3 text-sm';
 
@@ -204,13 +205,13 @@ export function ConflictCheckPanel({
               <span className="mb-1 block text-muted-foreground">
                 {th ? 'คำตัดสินของทนาย' : 'Lawyer decision'}
               </span>
-              <select value={result} onChange={(e) => setResult(e.target.value)} className={SELECT_CLASS}>
+              <Select value={result} onChange={(e) => setResult(e.target.value)} className={SELECT_CLASS}>
                 {Object.entries(CONFLICT_RESULT_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {th ? label.th : label.en}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <Button type="button" onClick={save} disabled={busy || !result}>
               {th ? 'บันทึกผลตรวจ' : 'Record result'}

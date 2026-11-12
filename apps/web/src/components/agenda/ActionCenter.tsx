@@ -9,6 +9,7 @@ import { useLocale } from '@/components/landing/LocaleProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
+import { Select } from '@/components/ui/select';
 
 export type ActionQueue = { items: { id: string; kind: string; title: string; detail: string | null; caseRef: string | null; owner: string | null; ownerId: string | null; dueAt: string | null; url: string }[]; limited: boolean };
 type TaskInbox = Awaited<ReturnType<typeof api.getTaskInbox>>;
@@ -132,10 +133,10 @@ export function ActionCenter({ token, tasks, tasksFailed = false, userId, scope 
     <div className="flex flex-wrap items-center gap-2 px-5 py-4">
       {tasks !== undefined && (['all', 'mine', 'overdue'] as const).map(value => <button key={value} aria-pressed={scope === value} onClick={() => onScopeChange?.(value)} className={`min-h-11 rounded-lg px-3 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9 ${scope === value ? 'bg-foreground text-background' : 'bg-muted/60 text-muted-foreground hover:bg-muted'}`}>{value === 'all' ? (th ? 'ทั้งหมด' : 'All') : value === 'mine' ? (th ? 'มอบหมายให้ฉัน' : 'Assigned to me') : (th ? 'เกินกำหนด' : 'Overdue')}</button>)}
       <label className="sr-only" htmlFor="action-queue-category">{th ? 'กรองตามประเภทงาน' : 'Filter by work type'}</label>
-      <select id="action-queue-category" value={category} onChange={event => setCategory(event.target.value)} className="min-h-11 max-w-full rounded-lg border border-border bg-card px-3 text-xs sm:min-h-9">
+      <Select id="action-queue-category" value={category} onChange={event => setCategory(event.target.value)} className="min-h-11 max-w-full rounded-lg border border-border bg-card px-3 text-xs sm:min-h-9">
         <option value="ALL">{th ? 'ทุกประเภท' : 'All work types'}</option>
         {Object.keys(labels).filter(kind => (tasks ?? []).some(task => (taskActions.get(task.id)?.kind ?? 'TASK') === kind) || (queue?.items ?? []).some(item => item.kind === kind)).map(kind => <option key={kind} value={kind}>{labels[kind][th ? 0 : 1]}</option>)}
-      </select>
+      </Select>
       <span className="ml-auto text-xs tabular-nums text-muted-foreground">{combined.length} {th ? 'รายการ' : 'items'}</span>
     </div>
 

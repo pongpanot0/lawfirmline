@@ -121,6 +121,7 @@ import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   TODO: 'ยังไม่เริ่ม',
@@ -1045,7 +1046,7 @@ export default function CaseDetailPage() {
           <div className="min-h-0 space-y-5 overflow-y-auto overscroll-contain px-6 py-5">
             <fieldset><legend className={v2.flabel}>ลูกความแจ้งว่าอะไร *</legend>
               <div className="mt-2 grid gap-2">{CLOSE_REASONS.map((reason) => <label key={reason.value} className={`flex cursor-pointer items-center gap-3 rounded-lg px-4 py-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${closeReason === reason.value ? 'border-2 border-[#142e43] bg-[#e9eef3]' : 'border border-[#7d847e] bg-white'}`}><input type="radio" name="close-reason" value={reason.value} checked={closeReason === reason.value} onChange={() => { setCloseReason(reason.value); setClosingOutcome(reason.value === 'NOT_RETAINED' ? 'WITHDRAWN' : ''); }} className="h-5 w-5" /><span><b>{reason.label}</b><span className={`${v2.hint} block`}>{reason.hint}</span></span></label>)}</div></fieldset>
-            {closeReason && closeReason !== 'NOT_RETAINED' && <label className="block"><span className={v2.flabel}>ผลของคดี *</span><select value={closingOutcome} onChange={(e) => setClosingOutcome(e.target.value)} required className={`${v2.field} text-base sm:text-[15px]`}><option value="" disabled>เลือกผลคดี</option><option value="WON">ชนะคดี</option><option value="SETTLED">ตกลงกันได้</option><option value="MEDIATED">ไกล่เกลี่ยสำเร็จ</option><option value="LOST">แพ้คดี</option><option value="WITHDRAWN">ถอนฟ้อง / ยุติ</option></select><p className={v2.hint}>ใช้ในรายงานผลคดีของสำนักงาน</p></label>}
+            {closeReason && closeReason !== 'NOT_RETAINED' && <label className="block"><span className={v2.flabel}>ผลของคดี *</span><Select value={closingOutcome} onChange={(e) => setClosingOutcome(e.target.value)} required className={`${v2.field} text-base sm:text-[15px]`}><option value="" disabled>เลือกผลคดี</option><option value="WON">ชนะคดี</option><option value="SETTLED">ตกลงกันได้</option><option value="MEDIATED">ไกล่เกลี่ยสำเร็จ</option><option value="LOST">แพ้คดี</option><option value="WITHDRAWN">ถอนฟ้อง / ยุติ</option></Select><p className={v2.hint}>ใช้ในรายงานผลคดีของสำนักงาน</p></label>}
             <label className="block" htmlFor="closing-summary"><span className={v2.flabel}>หมายเหตุ</span><textarea id="closing-summary" value={closingSummary} onChange={(e) => setClosingSummary(e.target.value)} placeholder="เช่น ลูกความโทรมาแจ้ง 11 พ.ย." className={`${v2.field} min-h-[72px] text-base sm:text-[15px]`} /></label>
             {outstandingFailed && <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#fbf3e0] p-3 text-sm"><p>ตรวจของค้างไม่สำเร็จ — ปิดคดีต่อได้ ระบบจะตรวจอีกครั้งตอนยืนยัน</p><button type="button" onClick={() => void loadOutstanding()} className={`${v2.btn} ${v2.outline} min-h-0 py-1.5`}>ตรวจอีกครั้ง</button></div>}
             {outstanding && <div className="border-l-4 border-[#b8913a] bg-[#fbf3e0] py-2 pl-3 pr-2 text-sm"><p className="flex items-center gap-1 font-semibold text-[#6b4f0b]"><AlertTriangle aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ตรวจก่อนปิด</p>
@@ -1138,7 +1139,7 @@ export default function CaseDetailPage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="text-xs text-muted-foreground">ประเภท</label>
-                      <select
+                      <Select
                         value={activityForm.type}
                         onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
                         className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
@@ -1146,7 +1147,7 @@ export default function CaseDetailPage() {
                         {Object.entries(ACTIVITY_LABELS).map(([value, label]) => (
                           <option key={value} value={value}>{label}</option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs text-muted-foreground">วันที่และเวลา</label>
@@ -1504,7 +1505,7 @@ export default function CaseDetailPage() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="text-xs font-medium text-muted-foreground">
                       สถานะงาน
-                      <select
+                      <Select
                         aria-label="กรองตามสถานะงาน"
                         value={checklistStatusFilter}
                         onChange={(event) => setChecklistStatusFilter(event.target.value)}
@@ -1514,11 +1515,11 @@ export default function CaseDetailPage() {
                         {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
                           <option key={value} value={value}>{label}</option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     <label className="text-xs font-medium text-muted-foreground">
                       เจ้าของงาน
-                      <select
+                      <Select
                         aria-label="กรองตามเจ้าของงาน"
                         value={checklistOwnerFilter}
                         onChange={(event) => setChecklistOwnerFilter(event.target.value)}
@@ -1529,7 +1530,7 @@ export default function CaseDetailPage() {
                           <option key={owner.id} value={owner.id}>{owner.firstName} {owner.lastName}</option>
                         ))}
                         {checklistTasks.some((task) => !task.assignee) && <option value="UNASSIGNED">ยังไม่มอบหมาย</option>}
-                      </select>
+                      </Select>
                     </label>
                   </div>
                   {filteredChecklistTasks.map((t) => (
@@ -1586,7 +1587,7 @@ export default function CaseDetailPage() {
                 <div className="space-y-1.5 border-t border-border pt-2">
                   <p className="text-xs font-medium text-muted-foreground">SOP</p>
                   <div className="flex gap-2">
-                    <select
+                    <Select
                       aria-label="เลือกชุดงานอัตโนมัติ"
                       className="min-h-11 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm"
                       value={pendingPlaybookId}
@@ -1596,7 +1597,7 @@ export default function CaseDetailPage() {
                       {playbooks.map((p) => (
                         <option key={p.id} value={p.id}>{p.name} · ฉบับที่ {p.version}</option>
                       ))}
-                    </select>
+                    </Select>
                     <Button
                       type="button"
                       variant="outline"
@@ -1655,7 +1656,7 @@ export default function CaseDetailPage() {
                   className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm"
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                <select
+                <Select
                   value={quickTaskAssignee}
                   onChange={(e) => setQuickTaskAssignee(e.target.value)}
                   className="min-h-11 rounded-lg border border-input bg-background px-2 text-sm"
@@ -1663,7 +1664,7 @@ export default function CaseDetailPage() {
                 >
                   <option value="">ฉันเอง</option>
                   <AssigneeOptions users={lawyers} flags={quickTaskLeaveFlags} nameOf={(u) => u.firstName} />
-                </select>
+                </Select>
                 <ThaiDateField className="w-48" ariaLabel="วันครบกำหนด" value={quickTaskDue ?? ''} onChange={setQuickTaskDue} />
                 <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={addQuickTask} disabled={!quickTaskTitle.trim() || quickTaskBusy}>
                   เพิ่มงาน

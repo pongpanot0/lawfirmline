@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { InlineEmptyState } from '@/components/ui/misc';
+import { Select } from '@/components/ui/select';
 
 type Action = 'filing' | 'service' | 'judgment' | 'appeal';
 
@@ -155,25 +156,25 @@ export function CaseProceedingsCard({
             {action === 'service' && (
               <label className="block">
                 <span className="mb-1 block text-muted-foreground">วิธีส่งหมาย</span>
-                <select className={SELECT} value={method} onChange={(e) => setMethod(e.target.value as ServiceMethod)}>
+                <Select className={SELECT} value={method} onChange={(e) => setMethod(e.target.value as ServiceMethod)}>
                   {Object.values(ServiceMethod).map((m) => <option key={m} value={m}>{SERVICE_METHOD_LABELS[m]}</option>)}
-                </select>
+                </Select>
               </label>
             )}
             {action === 'judgment' && (
               <>
                 <label className="block">
                   <span className="mb-1 block text-muted-foreground">ศาลที่พิพากษา</span>
-                  <select className={SELECT} value={level} onChange={(e) => setLevel(e.target.value as CourtLevel)}>
+                  <Select className={SELECT} value={level} onChange={(e) => setLevel(e.target.value as CourtLevel)}>
                     {Object.values(CourtLevel).map((l) => <option key={l} value={l}>{COURT_LEVEL_LABELS[l]}</option>)}
-                  </select>
+                  </Select>
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-muted-foreground">ผลคำพิพากษา</span>
-                  <select required className={SELECT} value={outcome} onChange={(e) => setOutcome(e.target.value as JudgmentOutcome)}>
+                  <Select required className={SELECT} value={outcome} onChange={(e) => setOutcome(e.target.value as JudgmentOutcome)}>
                     <option value="" disabled>เลือกผล</option>
                     {Object.values(JudgmentOutcome).map((o) => <option key={o} value={o}>{JUDGMENT_OUTCOME_LABELS[o]}</option>)}
-                  </select>
+                  </Select>
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-muted-foreground">จำนวนเงินตามคำพิพากษา (บาท)</span>

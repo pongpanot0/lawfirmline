@@ -9,6 +9,7 @@ import { FIRM_ROLE_LABELS } from '@lawfirm/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 const ROLE_LABELS: Record<FirmRoleStr, { th: string; en: string }> = {
   OWNER: { th: 'เจ้าของสำนักงาน', en: 'Firm owner' },
@@ -95,23 +96,23 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
                 <label className="block text-sm">ชื่องาน<Input id={`sop-step-title-${index}`} aria-label={`ชื่องานขั้นตอน ${index + 1}`} aria-invalid={!!titleErrors?.[index]} maxLength={200} value={step.title} onChange={e => editStep(index, { title: e.target.value })} /></label>{titleErrors?.[index] && <p role="alert" className="text-xs text-destructive">{titleErrors[index]}</p>}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block text-sm">{th ? 'สร้างงานเมื่อ' : 'Create task when'}
-                    <select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.stage ?? ''} onChange={e => editStep(index, { stage: (e.target.value || undefined) as PlaybookStep['stage'] })}>
+                    <Select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.stage ?? ''} onChange={e => editStep(index, { stage: (e.target.value || undefined) as PlaybookStep['stage'] })}>
                       <option value="">{th ? 'นำชุดงานอัตโนมัติไปใช้' : 'SOP is applied'}</option>
                       {Object.values(CaseStage).map(value => <option key={value} value={value}>{stageLabel(value)}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <label className="block text-sm">{th ? 'ให้ใครทำ' : 'Assign to'}
-                    <select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.primaryRole ?? ''} onChange={e => editStep(index, { primaryRole: (e.target.value || undefined) as FirmRoleStr | undefined })}>
+                    <Select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.primaryRole ?? ''} onChange={e => editStep(index, { primaryRole: (e.target.value || undefined) as FirmRoleStr | undefined })}>
                       <option value="">{th ? 'ทนายเจ้าของคดี' : 'Case lead'}</option>
                       {ROLE_OPTIONS.map(role => <option key={role} value={role}>{ROLE_LABELS[role][th ? 'th' : 'en']}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <label className="block text-sm">{th ? 'ใช้เมื่อเราเป็นฝ่าย' : 'Only when we act for'}
-                    <select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.side ?? ''} onChange={e => editStep(index, { side: (e.target.value || undefined) as PlaybookStep['side'] })}>
+                    <Select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.side ?? ''} onChange={e => editStep(index, { side: (e.target.value || undefined) as PlaybookStep['side'] })}>
                       <option value="">{th ? 'ทุกฝ่าย' : 'Either side'}</option>
                       <option value="PLAINTIFF">{th ? 'โจทก์ / ผู้ร้อง' : 'Plaintiff / petitioner'}</option>
                       <option value="DEFENDANT">{th ? 'จำเลย / ผู้คัดค้าน' : 'Defendant / respondent'}</option>
-                    </select>
+                    </Select>
                   </label>
                   <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={!!step.requiresAttachment} onChange={e => editStep(index, { requiresAttachment: e.target.checked || undefined })} />
@@ -125,7 +126,7 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
                   {step.routine && <div className="mt-3 space-y-3">
                     <label className="block text-sm">{th ? 'ผลที่ต้องส่ง' : 'Expected result'}<Input required maxLength={2000} value={step.routine.expectedOutput} onChange={e => editStep(index, { routine: { ...step.routine!, expectedOutput: e.target.value } })} /></label>
                     <label className="block text-sm">{th ? 'รายการตรวจ · ข้อละบรรทัด' : 'Checks · one per line'}<textarea required value={step.routine.checks.join('\n')} onChange={e => editStep(index, { routine: { ...step.routine!, checks: e.target.value.split('\n') } })} className="mt-1 min-h-24 w-full rounded-lg border p-2" /></label>
-                    <label className="block text-sm">{th ? 'ไฟล์ผลงานที่ต้องแนบ' : 'Required attachment'}<select value={step.routine.attachment} onChange={e => editStep(index, { routine: { ...step.routine!, attachment: e.target.value as 'NONE' | 'ANY' | 'PDF' } })} className="mt-1 h-10 w-full rounded-lg border px-2"><option value="PDF">PDF</option><option value="ANY">{th ? 'ไฟล์ผลงาน' : 'Any result file'}</option><option value="NONE">{th ? 'ไม่บังคับไฟล์' : 'No attachment required'}</option></select></label>
+                    <label className="block text-sm">{th ? 'ไฟล์ผลงานที่ต้องแนบ' : 'Required attachment'}<Select value={step.routine.attachment} onChange={e => editStep(index, { routine: { ...step.routine!, attachment: e.target.value as 'NONE' | 'ANY' | 'PDF' } })} className="mt-1 h-10 w-full rounded-lg border px-2"><option value="PDF">PDF</option><option value="ANY">{th ? 'ไฟล์ผลงาน' : 'Any result file'}</option><option value="NONE">{th ? 'ไม่บังคับไฟล์' : 'No attachment required'}</option></Select></label>
                     <label className="block text-sm">{th ? 'ต้นฉบับที่ต้องใช้ในแฟ้มคดี (ถ้ามี)' : 'Source documents to use (optional)'}<Input maxLength={1000} value={step.routine.sourceHint ?? ''} onChange={e => editStep(index, { routine: { ...step.routine!, sourceHint: e.target.value } })} /></label>
                     <label className="block text-sm">{th ? 'ตัวอย่างชื่อไฟล์ (ถ้ามี)' : 'Example filename (optional)'}<Input maxLength={300} value={step.routine.exampleFilename ?? ''} onChange={e => editStep(index, { routine: { ...step.routine!, exampleFilename: e.target.value } })} /></label>
                     <details className="rounded-lg border p-3"><summary className="disclosure cursor-pointer text-sm">{th ? 'แบบบันทึก ตัวอย่างผลงาน และวิธีแก้เมื่อเอกสารขาด' : 'Source form, worked example and missing documents'}</summary><div className="mt-3 space-y-3">
@@ -139,8 +140,8 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
                 <details className="rounded-lg border bg-muted/20 p-3"><summary className="disclosure cursor-pointer text-sm text-muted-foreground">{th ? 'กำหนดส่งและผู้ทำสำรอง' : 'Deadline and backup role'}</summary>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <label className="block text-sm">{th ? 'ครบกำหนดใน (วัน)' : 'Due after days'}<Input type="number" min={0} max={365} value={step.offsetDays ?? ''} onChange={e => editStep(index, { offsetDays: e.target.value === '' ? undefined : Math.max(0, Math.min(365, Number(e.target.value))) })} className="mt-1" /></label>
-                    <label className="block text-sm">{th ? 'วิธีนับวัน' : 'Day basis'}<select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.dayBasis ?? 'CALENDAR'} onChange={e => editStep(index, { dayBasis: e.target.value as PlaybookDayBasis })}>{(Object.keys(DAY_BASIS_LABELS) as PlaybookDayBasis[]).map(value => <option key={value} value={value}>{DAY_BASIS_LABELS[value][th ? 'th' : 'en']}</option>)}</select></label>
-                    <label className="block text-sm">{th ? 'ผู้ทำสำรอง' : 'Backup role'}<select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.secondaryRole ?? ''} onChange={e => editStep(index, { secondaryRole: (e.target.value || undefined) as FirmRoleStr | undefined })}><option value="">{th ? 'ไม่มี' : 'None'}</option>{ROLE_OPTIONS.map(role => <option key={role} value={role}>{ROLE_LABELS[role][th ? 'th' : 'en']}</option>)}</select></label>
+                    <label className="block text-sm">{th ? 'วิธีนับวัน' : 'Day basis'}<Select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.dayBasis ?? 'CALENDAR'} onChange={e => editStep(index, { dayBasis: e.target.value as PlaybookDayBasis })}>{(Object.keys(DAY_BASIS_LABELS) as PlaybookDayBasis[]).map(value => <option key={value} value={value}>{DAY_BASIS_LABELS[value][th ? 'th' : 'en']}</option>)}</Select></label>
+                    <label className="block text-sm">{th ? 'ผู้ทำสำรอง' : 'Backup role'}<Select className="mt-1 h-10 w-full rounded-lg border bg-background px-2" value={step.secondaryRole ?? ''} onChange={e => editStep(index, { secondaryRole: (e.target.value || undefined) as FirmRoleStr | undefined })}><option value="">{th ? 'ไม่มี' : 'None'}</option>{ROLE_OPTIONS.map(role => <option key={role} value={role}>{ROLE_LABELS[role][th ? 'th' : 'en']}</option>)}</Select></label>
                   </div>
                 </details>
                 <div className="flex flex-wrap gap-2 border-t pt-3">

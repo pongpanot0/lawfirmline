@@ -10,6 +10,7 @@ import { formatCurrency } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/misc';
 import { KpiStrip } from './KpiStrip';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { Select } from '@/components/ui/select';
 
 function monthOptions() {
   const options: Array<{ value: string; label: string }> = [];
@@ -70,7 +71,7 @@ export function OwnerKpiSection({ token }: { token: string }) {
     <div className="mb-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">ภาพรวมเจ้าของสำนักงาน</h2>
-        <select
+        <Select
           aria-label="เดือน"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
@@ -81,7 +82,7 @@ export function OwnerKpiSection({ token }: { token: string }) {
               {m.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <KpiStrip items={[

@@ -50,6 +50,7 @@ import { buildQuoteHtml } from '@/lib/quote-doc';
 import { CaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -239,7 +240,7 @@ function IntakeAssignees({
         })}
       </div>
       {(
-        <select
+        <Select
           aria-label="มอบหมายให้"
           className="h-9 w-full max-w-xs rounded-lg border border-dashed border-input bg-transparent px-3 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground"
           value=""
@@ -257,7 +258,7 @@ function IntakeAssignees({
               {u.firmRole ? ` (${FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole})` : ''}
             </option>
           ))}
-        </select>
+        </Select>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
@@ -1150,7 +1151,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   </Button>
                 )}
             </div>
-            {documentRequests.length > 0 && <ul className="mt-3 space-y-2">{documentRequests.map((request) => <li key={request.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{request.name} {request.required ? '· จำเป็น' : '· เสริม'}</span><select aria-label={`สถานะ ${request.name}`} value={request.status} className="max-w-full rounded-md border bg-background px-2 py-1" onChange={async (event) => { if (!token) return; try { await api.updateIntakeDocumentRequest(token, id, request.id, { status: event.target.value }); await loadDocumentRequests(); await reload(); } catch (err) { setFileError(err instanceof ApiError ? err.message : 'บันทึกสถานะเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง'); } }}><option value="REQUESTED">ขอแล้ว</option><option value="MISSING">ยังขาด</option><option value="RECEIVED">ได้รับแล้ว</option><option value="NOT_APPLICABLE">ไม่จำเป็น</option></select></li>)}</ul>}
+            {documentRequests.length > 0 && <ul className="mt-3 space-y-2">{documentRequests.map((request) => <li key={request.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{request.name} {request.required ? '· จำเป็น' : '· เสริม'}</span><Select aria-label={`สถานะ ${request.name}`} value={request.status} className="max-w-full rounded-md border bg-background px-2 py-1" onChange={async (event) => { if (!token) return; try { await api.updateIntakeDocumentRequest(token, id, request.id, { status: event.target.value }); await loadDocumentRequests(); await reload(); } catch (err) { setFileError(err instanceof ApiError ? err.message : 'บันทึกสถานะเอกสารไม่สำเร็จ ลองใหม่อีกครั้ง'); } }}><option value="REQUESTED">ขอแล้ว</option><option value="MISSING">ยังขาด</option><option value="RECEIVED">ได้รับแล้ว</option><option value="NOT_APPLICABLE">ไม่จำเป็น</option></Select></li>)}</ul>}
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {expectedDocuments.map((item) => {
                 const matched = isChecklistMatched(item);
@@ -1273,7 +1274,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                         {matchingRequests.length > 1 && (
                           <label className="mt-2 block text-xs text-amber-950">
                             เลือกรายการเอกสารที่จะอัปเดต
-                            <select
+                            <Select
                               className="mt-1 min-h-9 w-full rounded-md border border-amber-300 bg-card px-2"
                               value={selectedRequestId ?? ''}
                               onChange={(e) => setSuggestionRequestIds((previous) => ({ ...previous, [suggestion.documentId]: e.target.value }))}
@@ -1284,7 +1285,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                                   {request.name} · {request.required ? 'จำเป็น' : 'เสริม'}
                                 </option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
                         )}
                       </div>
@@ -1661,7 +1662,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
             {intake.case?.id && (
               <div>
                 <label htmlFor="intake-lead-lawyer" className="block text-xs font-semibold">ทนายหลัก</label>
-                <select
+                <Select
                   id="intake-lead-lawyer"
                   value={caseLeadId}
                   disabled={!caseLeadId || savingLead}
@@ -1671,7 +1672,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   {lawyers.map((u) => (
                     <option key={u.id} value={u.id}>{`${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || u.email}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             )}
             <IntakeAssignees
@@ -1700,7 +1701,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
           <CardContent>
             {editingPlaybook ? (
               <div className="flex items-center gap-2">
-                <select
+                <Select
                   aria-label="เลือกชุดงานอัตโนมัติ"
                   defaultValue={intake.preferredPlaybookId ?? ''}
                   disabled={savingPlaybook}
@@ -1711,7 +1712,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   {playbooks.map((p) => (
                     <option key={p.id} value={p.id}>{p.name} · ฉบับที่ {p.version}</option>
                   ))}
-                </select>
+                </Select>
                 <Button variant="ghost" size="sm" disabled={savingPlaybook} onClick={() => setEditingPlaybook(false)}>ยกเลิก</Button>
               </div>
             ) : intake.preferredPlaybookId ? (
@@ -1750,7 +1751,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   </div>
                   <div>
                     <label className="block text-sm font-medium">ความแข็งแกร่งของคดี</label>
-                    <select
+                    <Select
                       value={caseStrength}
                       onChange={(e) => setCaseStrength(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -1758,7 +1759,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                       <option value="สูง">สูง</option>
                       <option value="กลาง">กลาง</option>
                       <option value="ต่ำ">ต่ำ</option>
-                    </select>
+                    </Select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium">หมายเหตุการประเมิน</label>
@@ -1785,7 +1786,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium">การตัดสินใจ</label>
-                    <select
+                    <Select
                       value={decision}
                       onChange={(e) => setDecision(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -1793,7 +1794,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                       {Object.entries(DECISION_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>{v}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium">หมายเหตุ</label>
@@ -1819,7 +1820,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
                           <label className="block text-sm font-medium">ทนายเจ้าของคดี</label>
-                          <select
+                          <Select
                             value={decideLeadLawyerId}
                             onChange={(e) => setDecideLeadLawyerId(e.target.value)}
                             className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -1828,7 +1829,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                             {lawyers.map((u) => (
                               <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                             ))}
-                          </select>
+                          </Select>
                         </div>
                         <div>
                           <label className="block text-sm font-medium">ทุนทรัพย์ที่เรียกร้อง (บาท)</label>
@@ -1842,7 +1843,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                       </div>
                       <div>
                         <label className="block text-sm font-medium">Playbook</label>
-                        <select
+                        <Select
                           value={decidePlaybookId}
                           onChange={(e) => setDecidePlaybookId(e.target.value)}
                           className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -1853,7 +1854,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                               {p.name}{p.caseTypeId && p.caseTypeId === intake.caseTypeId ? ' (แนะนำตามประเภทคดี)' : ''}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </div>
                     </div>
                   )}
@@ -1874,7 +1875,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   {/* ลักษณะ flow ตัดออกจากฟอร์ม — playbook ทำหน้าที่นี้แทน (ค่าเดิมยังถูกส่งกลับตาม state) */}
                   <div>
                     <label className="block text-sm font-medium">สถานะก่อนฟ้อง</label>
-                    <select
+                    <Select
                       value={preLitigationStatus}
                       onChange={(e) => setPreLitigationStatus(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -1882,7 +1883,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                       {Object.entries(PRE_LITIGATION_STATUS_LABELS).map(([key, label]) => (
                         <option key={key} value={key}>{label}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium">ข้อเสนอจ่าย/ค่าสินไหม (บาท)</label>
@@ -1939,7 +1940,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="block text-sm font-medium">ประเภทเรื่อง</label>
-                      <select
+                      <Select
                         value={editMatterType}
                         onChange={(e) => setEditMatterType(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -1948,7 +1949,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                         {Object.entries(MATTER_TYPE_LABELS).map(([k, v]) => (
                           <option key={k} value={k}>{v}</option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium">คู่กรณี</label>
@@ -1960,7 +1961,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                     </div>
                     <div>
                       <label className="block text-sm font-medium">ฝ่ายเรา</label>
-                      <select
+                      <Select
                         value={editPartyRole}
                         onChange={(e) => setEditPartyRole(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -1968,12 +1969,12 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                         <option value="">ไม่ระบุ</option>
                         <option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option>
                         <option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option>
-                      </select>
+                      </Select>
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
-                    <select
+                    <Select
                       value={editCaseTypeId}
                       onChange={(e) => {
                         const caseTypeId = e.target.value;
@@ -1986,12 +1987,12 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                       {caseTypes.map((t) => (
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   {playbooks.length > 0 && (
                     <div>
                       <label className="block text-sm font-medium">ชุดงานอัตโนมัติ (ถ้ามี)</label>
-                      <select
+                      <Select
                         value={editPlaybookId}
                         onChange={(e) => setEditPlaybookId(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -2002,7 +2003,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                             {p.name} · ฉบับที่ {p.version}{p.caseTypeId === editCaseTypeId ? ' (แนะนำ)' : ''}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                       <p className="mt-1 text-xs text-muted-foreground">ระบบจะสร้างงานให้เองตอนเปิดเป็นคดี — เปลี่ยนได้อีกครั้งตอนนั้น</p>
                     </div>
                   )}
@@ -2070,7 +2071,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="block text-sm font-medium">ประเภทผู้ส่ง</label>
-                      <select
+                      <Select
                         value={editReferralType}
                         onChange={(e) => setEditReferralType(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -2078,11 +2079,11 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                         {Object.entries(REFERRAL_TYPE_LABELS).map(([k, v]) => (
                           <option key={k} value={k}>{v}</option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium">ช่องทาง</label>
-                      <select
+                      <Select
                         value={editReferralChannel}
                         onChange={(e) => setEditReferralChannel(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -2090,7 +2091,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                         {Object.entries(REFERRAL_CHANNEL_LABELS).map(([k, v]) => (
                           <option key={k} value={k}>{v}</option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                   </div>
                   <div>

@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/misc';
 import { CargoClaimFields } from './CargoClaimFields';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
+import { Select } from '@/components/ui/select';
 
 const STATUS_LABELS = {
   REQUESTED: 'ขอแล้ว',
@@ -205,7 +206,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
                 <div key={item.id} data-testid="cargo-requirement" className="grid gap-2 py-3 sm:grid-cols-[minmax(9rem,1fr)_7rem_minmax(10rem,1fr)_auto] sm:items-center">
                   <div className="flex items-start gap-2 text-sm font-medium"><label className="flex items-start gap-2"><input type="checkbox" checked={item.required} onChange={(event) => void updateRequirement(item.id, { required: event.target.checked })} className="mt-1" /><span>{item.label}</span></label></div>
                   <Badge variant={item.status === 'RECEIVED' ? 'success' : 'warning'} className="justify-self-start">{STATUS_LABELS[item.status]}</Badge>
-                  {item.document ? <span className="truncate text-sm" title={item.document.filename}>{item.document.filename}</span> : <select aria-label={`เลือกไฟล์สำหรับ ${item.label}`} value={item.documentId ?? ''} onChange={(event) => void updateRequirement(item.id, { documentId: event.target.value || null, status: event.target.value ? 'RECEIVED' : item.status })} className="min-h-11 min-w-0 rounded-lg border bg-background px-2 text-sm sm:min-h-9"><option value="">เลือกไฟล์ที่อัปโหลดแล้ว</option>{documents.map((document) => <option key={document.id} value={document.id}>{document.filename}</option>)}</select>}
+                  {item.document ? <span className="truncate text-sm" title={item.document.filename}>{item.document.filename}</span> : <Select aria-label={`เลือกไฟล์สำหรับ ${item.label}`} value={item.documentId ?? ''} onChange={(event) => void updateRequirement(item.id, { documentId: event.target.value || null, status: event.target.value ? 'RECEIVED' : item.status })} className="min-h-11 min-w-0 rounded-lg border bg-background px-2 text-sm sm:min-h-9"><option value="">เลือกไฟล์ที่อัปโหลดแล้ว</option>{documents.map((document) => <option key={document.id} value={document.id}>{document.filename}</option>)}</Select>}
                   {caseId && <label className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-1 rounded-lg border px-3 text-sm hover:bg-accent focus-within:ring-2 focus-within:ring-ring sm:min-h-9">{uploadingRequirementId === item.id ? 'กำลังอัปโหลด…' : item.document ? 'เปลี่ยน' : <><Upload className="h-3.5 w-3.5" aria-hidden /> เพิ่มไฟล์</>}<input className="sr-only" type="file" disabled={uploadingRequirementId === item.id} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadForRequirement(item.id, file); event.currentTarget.value = ''; }} /></label>}
                 </div>
               ))}

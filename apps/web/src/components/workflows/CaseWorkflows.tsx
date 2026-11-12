@@ -12,6 +12,7 @@ import { InlineEmptyState, Modal, Skeleton } from '@/components/ui/misc';
 import { StartWorkflowDrawer } from './StartWorkflowDrawer';
 import { fileSize, shortThaiDate } from './workflow-ui';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 const RUN_STATUS: Record<CaseWorkflowRun['status'], { label: string; variant: 'default' | 'success' | 'muted' }> = {
   ACTIVE: { label: 'กำลังทำ', variant: 'default' },
@@ -151,9 +152,9 @@ function RunCard({ run, token, onChanged }: { run: CaseWorkflowRun; token: strin
           <h3 className="font-semibold">ส่งกลับให้แก้ — {run.name}</h3>
           <label className="block text-sm">
             กลับไปขั้น
-            <select className="mt-1 h-10 w-full rounded-md border border-input bg-card px-2" value={toStep} onChange={(e) => setToStep(Number(e.target.value))}>
+            <Select className="mt-1 h-10 w-full rounded-md border border-input bg-card px-2" value={toStep} onChange={(e) => setToStep(Number(e.target.value))}>
               {run.steps.slice(0, Math.max(currentIndex, 0)).map((s, i) => <option key={s.taskId} value={i}>{i + 1}. {s.title} — {s.assignee?.name ?? '—'}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="block text-sm">
             เหตุผล (ผู้รับจะเห็น)

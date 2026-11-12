@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { api, type ChecklistClassificationSuggestion } from '@/lib/api';
 import { documentCategoryLabel } from '@/lib/stage-labels';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 
 type UploadEvent = {
   scope: 'case' | 'intake';
@@ -124,9 +125,9 @@ export function JevDocumentReviewQueue() {
           <p className="truncate text-sm font-medium" title={item.filename}>{item.filename}</p>
           <p className="mt-1 text-xs text-muted-foreground">หลักฐานจากเอกสาร: {item.sourceExcerpt}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <select aria-label={`เลือกหมวดสำหรับ ${item.filename}`} value={item.label} onChange={(event) => setItems((current) => current.map((candidate) => candidate.documentId === item.documentId ? { ...candidate, label: event.target.value } : candidate))} className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm">
+            <Select aria-label={`เลือกหมวดสำหรับ ${item.filename}`} value={item.label} onChange={(event) => setItems((current) => current.map((candidate) => candidate.documentId === item.documentId ? { ...candidate, label: event.target.value } : candidate))} className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm">
               {CATEGORIES.map((category) => <option key={category} value={category}>{documentCategoryLabel(category, 'th')}</option>)}
-            </select>
+            </Select>
             <Button type="button" size="sm" disabled={!canConfirm} onClick={() => void confirm(item)}>ยืนยันหมวด</Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setItems((current) => current.filter((candidate) => candidate.documentId !== item.documentId))}>ข้าม</Button>
           </div>

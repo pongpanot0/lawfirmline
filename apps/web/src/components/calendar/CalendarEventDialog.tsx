@@ -21,6 +21,7 @@ import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import { Modal } from '@/components/ui/misc';
 import { TravelPreviewCard } from '@/components/TravelPreviewCard';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { Select } from '@/components/ui/select';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SELECT_CLASS ='w-full h-9 rounded-lg border border-input bg-card px-3 text-sm';
@@ -372,7 +373,7 @@ export function CalendarEventDialog({
           ) : (
             <label className="block text-sm">
               <span className="mb-1 block text-muted-foreground">{d.calendar.caseLabel}</span>
-              <select
+              <Select
                 required
                 value={form.caseId}
                 disabled={!!savedId}
@@ -397,7 +398,7 @@ export function CalendarEventDialog({
                     {c.ownRef} — {c.title}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
 
@@ -424,7 +425,7 @@ export function CalendarEventDialog({
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block text-muted-foreground">{d.calendar.courtEventKind}</span>
-                <select
+                <Select
                   value={form.courtEventKind}
                   onChange={(e) => setForm({ ...form, courtEventKind: e.target.value as CourtEventKind | '' })}
                   className={SELECT_CLASS}
@@ -433,7 +434,7 @@ export function CalendarEventDialog({
                   {Object.values(CourtEventKind).map((kind) => (
                     <option key={kind} value={kind}>{COURT_EVENT_KIND_LABELS[kind]}</option>
                   ))}
-                </select>
+                </Select>
               </label>
             </>
           )}
@@ -455,7 +456,7 @@ export function CalendarEventDialog({
           {hasDuration && (
             <label className="block text-sm">
               <span className="mb-1 block text-muted-foreground">ระยะเวลา</span>
-              <select
+              <Select
                 value={form.durationMin}
                 onChange={(e) => { setDurationTouched(true); setForm({ ...form, durationMin: Number(e.target.value) }); }}
                 className={SELECT_CLASS}
@@ -463,7 +464,7 @@ export function CalendarEventDialog({
                 {DURATION_OPTIONS.map((o) => (
                   <option key={o.minutes} value={o.minutes}>{o.label}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
 

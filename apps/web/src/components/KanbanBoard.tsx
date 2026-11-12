@@ -12,6 +12,7 @@ import { caseNumberDisplay } from '@/lib/case-number-display';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { handoffNoteError, isHeld, reviewerName as reviewerNameOf } from '@/lib/task-review-view';
+import { Select } from '@/components/ui/select';
 
 /** Dense card action: 44px tall on touch screens, compact from sm up. */
 const act = 'inline-flex min-h-11 items-center gap-1 rounded-md border px-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:min-h-8';
@@ -348,7 +349,7 @@ export function KanbanBoard({
                   <p className="text-xs text-muted-foreground">{d.todos.noReviewers}</p>
                 )}
                 {pickReviewer && !reviewerLoadError && reviewerChoicesFor(task).length > 0 && (
-                  <select
+                  <Select
                     value={handoffReviewerId}
                     disabled={!!task.reviewerId}
                     onChange={(e) => setHandoffReviewerId(e.target.value)}
@@ -361,7 +362,7 @@ export function KanbanBoard({
                         {u.firstName} {u.lastName}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
                 <input
                   value={handoffNote}

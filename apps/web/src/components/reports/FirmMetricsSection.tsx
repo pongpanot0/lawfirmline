@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton, TableEmptyRow } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatCurrency } from '@/lib/utils';
+import { Select } from '@/components/ui/select';
 
 const PERIODS: Array<{ value: FirmMetricsPeriod; label: string }> = [
   { value: 'this_month', label: 'เดือนนี้' },
@@ -69,14 +70,14 @@ export function FirmMetricsSection({ token }: { token: string }) {
     <Card className="mb-6">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle>ชั่วโมงทำงานและการเก็บเงิน</CardTitle>
-        <select
+        <Select
           aria-label="ช่วงเวลา"
           value={period}
           onChange={(e) => setPeriod(e.target.value as FirmMetricsPeriod)}
           className="flex h-10 rounded-lg border border-input bg-card px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-        </select>
+        </Select>
       </CardHeader>
       <CardContent className="space-y-3 overflow-x-auto">
         {!billed && <p className="text-sm text-muted-foreground">สำนักงานไม่ได้คิดค่าบริการตามชั่วโมง</p>}

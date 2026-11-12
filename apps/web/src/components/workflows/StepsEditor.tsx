@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import type { WorkflowRole, WorkflowStepDef } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { ROLE_LABELS, ROLE_ORDER, blankStep } from './workflow-ui';
+import { Select } from '@/components/ui/select';
 
 /** Ordered steps of a handoff chain: who does what, for how many business days. */
 export function StepsEditor({ steps, onChange }: { steps: WorkflowStepDef[]; onChange: (steps: WorkflowStepDef[]) => void }) {
@@ -36,13 +37,13 @@ export function StepsEditor({ steps, onChange }: { steps: WorkflowStepDef[]; onC
           <div className="grid gap-2 sm:grid-cols-[1fr_9rem]">
             <label className="text-xs text-muted-foreground">
               ใครทำ
-              <select
+              <Select
                 className="mt-1 min-h-11 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
                 value={step.role}
                 onChange={(e) => update(i, { role: e.target.value as WorkflowRole })}
               >
                 {ROLE_ORDER.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
-              </select>
+              </Select>
             </label>
             <label className="text-xs text-muted-foreground">
               ภายใน (วันทำการ)

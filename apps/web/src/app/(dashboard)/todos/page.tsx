@@ -36,6 +36,7 @@ import { bangkokDateInputValue } from '@/lib/bangkok';
 import { DateField, SelectField, TextareaField, TextField } from '@/components/ui/form-fields';
 import { formatDate } from '@/lib/utils';
 import { taskBucket } from './task-buckets';
+import { Select } from '@/components/ui/select';
 
 function TodosPageContent() {
   const d = useDashboardT();
@@ -523,7 +524,7 @@ function TodosPageContent() {
                     className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm"
                   />
                   <div className="flex flex-wrap items-center gap-2">
-                    <select
+                    <Select
                       aria-label={d.taskDetail.assignee}
                       value={subDraft.assigneeId}
                       onChange={(e) => setSubDraft({ ...subDraft, assigneeId: e.target.value })}
@@ -531,7 +532,7 @@ function TodosPageContent() {
                     >
                       <option value="">{d.todos.assignToMe}</option>
                       <AssigneeOptions users={assignableUsers} flags={subtaskDraftLeaveFlags} />
-                    </select>
+                    </Select>
                     <ThaiDateInput
                       value={subDraft.dueDate}
                       onChange={(v) => setSubDraft({ ...subDraft, dueDate: v })}

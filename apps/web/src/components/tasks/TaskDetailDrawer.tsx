@@ -26,6 +26,7 @@ import { leaveWarning } from '@/lib/leave-flags';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { TaskAiPanel } from './TaskAiPanel';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { Select } from '@/components/ui/select';
 
 interface Props {
   taskId: string | null;
@@ -645,7 +646,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               {task.caseId && (
                 <div className="sm:col-span-2">
                   <label htmlFor="td-blocked" className={label}>{text('รอให้งานอื่นเสร็จก่อน', 'Wait for another task to finish')}</label>
-                  <select
+                  <Select
                     id="td-blocked"
                     disabled={busy}
                     value={task.blockedById ?? ''}
@@ -658,7 +659,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                         {t.title}{t.status === 'DONE' ? ` (${d.todos.columnDone})` : ''}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
               <div className="sm:col-span-2">
