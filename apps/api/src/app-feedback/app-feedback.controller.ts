@@ -11,7 +11,7 @@ import { SkipSubscription } from '../saas/decorators/saas.decorators';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { safeMimeType } from '../common/utils/safe-mime-type';
 import { AppFeedbackService, FEEDBACK_MAX_BYTES } from './app-feedback.service';
-import { CreateAppFeedbackDto, FeedbackCommentsQueryDto, FeedbackPagesQueryDto, FeedbackQueryDto, ResolveFeedbackDto } from './dto/app-feedback.dto';
+import { CreateAppFeedbackDto, FeedbackCommentsQueryDto, FeedbackPagesQueryDto, FeedbackQueryDto, ResolveFeedbackDto, SendLineRoundDto } from './dto/app-feedback.dto';
 
 @Controller('app-feedback')
 @UseGuards(JwtAuthGuard)
@@ -60,7 +60,7 @@ export class PlatformFeedbackController {
   lineRounds() { return this.feedback.lineRounds(); }
 
   @Post('line-rounds')
-  sendLineRound(@CurrentUser() user: AuthUser) { return this.feedback.sendLineRound(user.id); }
+  sendLineRound(@CurrentUser() user: AuthUser, @Body() dto: SendLineRoundDto) { return this.feedback.sendLineRound(user.id, dto.userIds); }
 
   @Get(':id/screenshot')
   async screenshot(@Param('id') id: string, @Res() res: Response) {

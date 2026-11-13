@@ -133,14 +133,18 @@ describe('AppFeedbackService', () => {
 
   it('surveys LINE-linked Users whose oldest membership is staff (what the bot acts as); counts their firms', async () => {
     db.user.findMany.mockResolvedValue([
-      { id: 'u1', lineUserId: 'L1', firmMembers: [{ firmId: 'f1', role: 'LAWYER' }] },
-      { id: 'u2', lineUserId: 'L2', firmMembers: [{ firmId: 'f2', role: 'OWNER' }] },
+      { id: 'u1', firstName: 'A', lastName: 'B', lineUserId: 'L1', firmMembers: [{ firmId: 'f1', role: 'LAWYER', firm: { name: 'F1' } }] },
+      { id: 'u2', firstName: 'C', lastName: 'D', lineUserId: 'L2', firmMembers: [{ firmId: 'f2', role: 'OWNER', firm: { name: 'F2' } }] },
       // Staff elsewhere, but the bot resolves them as their older EXTERNAL membership: they could never answer.
-      { id: 'u3', lineUserId: 'L3', firmMembers: [{ firmId: 'f3', role: 'EXTERNAL' }] },
+      { id: 'u3', firstName: 'E', lastName: 'F', lineUserId: 'L3', firmMembers: [{ firmId: 'f3', role: 'EXTERNAL', firm: { name: 'F3' } }] },
     ]);
     db.appFeedbackLineRound.findMany.mockResolvedValue([{ id: 'r1', sentAt: new Date(0), recipientCount: 2 }]);
     db.appFeedback.groupBy.mockResolvedValue([{ lineRoundId: 'r1', rating: 1, _count: { _all: 1, message: 1 } }, { lineRoundId: 'r1', rating: 3, _count: { _all: 1, message: 0 } }]);
-    expect(await service.lineRounds()).toEqual({ recipients: { users: 2, firms: 2 }, lastSentAt: new Date(0), rounds: [{ id: 'r1', sentAt: new Date(0), recipientCount: 2, answered: 2, bad: 1, ok: 0, good: 1, comments: 1 }] });
+    expect(await service.lineRounds()).toEqual({
+      recipients: { users: 2, firms: 2, people: [{ id: 'u1', name: 'A B', firm: 'F1' }, { id: 'u2', name: 'C D', firm: 'F2' }] },
+      lastSentAt: new Date(0),
+      rounds: [{ id: 'r1', sentAt: new Date(0), recipientCount: 2, answered: 2, bad: 1, ok: 0, good: 1, comments: 1 }],
+    });
     expect(db.user.findMany.mock.calls[0][0]).toMatchObject({ where: { lineUserId: { not: null }, firmMembers: { some: { role: { not: 'EXTERNAL' } } } }, select: { firmMembers: { orderBy: { createdAt: 'asc' }, take: 1 } } });
   });
 
@@ -155,6 +159,22 @@ describe('AppFeedbackService', () => {
       { label: '😐 พอใช้', text: '😐 พอใช้', data: 'fbk:round1:2' },
       { label: '😊 ใช้ง่าย', text: '😊 ใช้ง่าย', data: 'fbk:round1:3' },
     ]]);
+  });
+
+  it('sends only to chosen recipients and counts the round by them', async () => {
+    db.user.findMany.mockResolvedValue(['L1', 'L2', 'L3'].map((lineUserId, index) => ({ id: `u${index}`, lineUserId, firmMembers: [] })));
+    line.pushTo.mockResolvedValue(true);
+    expect(await service.sendLineRound('admin', ['u1'])).toEqual({ id: 'round1', recipientCount: 1, delivered: 1 });
+    expect(db.appFeedbackLineRound.create).toHaveBeenCalledWith({ data: { sentById: 'admin', recipientCount: 1 } });
+    expect(line.pushTo).toHaveBeenCalledTimes(1);
+    expect(line.pushTo.mock.calls[0][0]).toBe('L2');
+  });
+
+  it.each([[['nobody']], [['u0', 'not-eligible']]])('refuses a chosen list with anyone ineligible %j, before creating a round', async (ids) => {
+    db.user.findMany.mockResolvedValue([{ id: 'u0', lineUserId: 'L0', firmMembers: [] }]);
+    await expect(service.sendLineRound('admin', ids)).rejects.toThrow(BadRequestException);
+    expect(db.appFeedbackLineRound.create).not.toHaveBeenCalled();
+    expect(line.pushTo).not.toHaveBeenCalled();
   });
 
   it('upserts the second tap on round/user without erasing a comment', async () => {
