@@ -124,7 +124,8 @@ export class LeaveService {
       where: { firmId: user.firmId, userId: user.id, startDate: { lte: endDate }, endDate: { gte: startDate }, status: { not: LeaveStatus.REJECTED } },
     });
     if (overlap) throw new BadRequestException('มีรายการลาทับช่วงนี้แล้ว');
-    const status = input.type === LeaveType.SICK || user.firmRole === FirmRole.OWNER ? LeaveStatus.APPROVED : LeaveStatus.PENDING;
+    // Every type waits for an approver; only an owner (who has no one above them) self-approves.
+    const status = user.firmRole === FirmRole.OWNER ? LeaveStatus.APPROVED : LeaveStatus.PENDING;
     let leave: Leave;
     try {
       const insert = (db: Prisma.TransactionClient) => db.leaveRequest.create({
