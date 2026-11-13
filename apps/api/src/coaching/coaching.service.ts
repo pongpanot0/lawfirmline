@@ -10,6 +10,7 @@ import { chatModel } from '../common/openai-model';
 import { RagService } from '../rag/rag.service';
 import { CoachingNotifierService } from './coaching-notifier.service';
 import { CoachingQueryDto, SaveCoachingDto } from './dto/coaching.dto';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { taskRef } from './standup.service';
 
 const DAY_MS = 86400000;
@@ -23,7 +24,7 @@ const draftSchema = z.object({
 
 @Injectable()
 export class CoachingService {
-  constructor(private prisma: PrismaService, private config: ConfigService, private rag: RagService, private notifier: CoachingNotifierService) {}
+  constructor(private prisma: PrismaService, private config: ConfigService, private rag: RagService, private notifier: CoachingNotifierService, private caseAccess: CaseAccessService) {}
 
   async cuesFor(firmId: string, userIds: string[]): Promise<Map<string, { unacknowledged: number; lastSentAt: string | null }>> {
     if (!userIds.length) return new Map();
@@ -44,7 +45,7 @@ export class CoachingService {
       return { row, notification };
     });
     await this.notifier.send(notification);
-    return (await this.views(user.firmId, [row]))[0];
+    return (await this.views(user, [row]))[0];
   }
 
   async acknowledge(user: AuthUser, id: string, reply?: string): Promise<CoachingNoteView> {
@@ -53,7 +54,7 @@ export class CoachingService {
     const row = await this.prisma.coachingNote.findFirst({ where, include: noteInclude });
     if (!row) throw new NotFoundException('ไม่พบคำแนะนำ');
     // A retry preserves the first acknowledgement and reply.
-    return (await this.views(user.firmId, [row]))[0];
+    return (await this.views(user, [row]))[0];
   }
 
   async list(user: AuthUser, query: CoachingQueryDto): Promise<{ summary: CoachingTeamSummary; notes: CoachingNoteView[] }> {
@@ -62,20 +63,20 @@ export class CoachingService {
         ...(query.status && { acknowledgedAt: query.status === 'pending' ? null : { not: null } }) }, include: noteInclude, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
       this.summary(user.firmId),
     ]);
-    return { summary, notes: await this.views(user.firmId, rows) };
+    return { summary, notes: await this.views(user, rows) };
   }
 
   async member(user: AuthUser, userId: string): Promise<CoachingNoteView[]> {
     const member = await this.prisma.firmMember.findUnique({ where: { firmId_userId: { firmId: user.firmId, userId } } });
     if (!member) throw new NotFoundException('ไม่พบสมาชิกในสำนักงาน');
-    return this.notesFor(user.firmId, userId);
+    return this.notesFor(user, userId);
   }
 
-  mine(user: AuthUser): Promise<CoachingNoteView[]> { return this.notesFor(user.firmId, user.id); }
+  mine(user: AuthUser): Promise<CoachingNoteView[]> { return this.notesFor(user, user.id); }
 
-  private async notesFor(firmId: string, userId: string): Promise<CoachingNoteView[]> {
-    const rows = await this.prisma.coachingNote.findMany({ where: { firmId, userId }, include: noteInclude, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
-    return this.views(firmId, rows);
+  private async notesFor(user: AuthUser, userId: string): Promise<CoachingNoteView[]> {
+    const rows = await this.prisma.coachingNote.findMany({ where: { firmId: user.firmId, userId }, include: noteInclude, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    return this.views(user, rows);
   }
 
   private async summary(firmId: string): Promise<CoachingTeamSummary> {
@@ -92,9 +93,9 @@ export class CoachingService {
     return { sentThisMonth, awaitingAck, notCoached30d: members.filter((m) => !coached.has(m.userId)).length };
   }
 
-  private async views(firmId: string, rows: NoteRow[]): Promise<CoachingNoteView[]> {
+  private async views(user: AuthUser, rows: NoteRow[]): Promise<CoachingNoteView[]> {
     const ids = [...new Set(rows.flatMap((r) => r.linkedTaskIds))];
-    const tasks = ids.length ? await this.prisma.task.findMany({ where: { AND: [firmTaskScope(firmId), { id: { in: ids } }] }, select: { id: true, title: true, case: { select: { ownRef: true } } } }) : [];
+    const tasks = ids.length ? await this.prisma.task.findMany({ where: { AND: [firmTaskScope(user.firmId), { id: { in: ids } }, { OR: [{ caseId: null }, { case: this.caseAccess.getCaseFilterForUser(user) }] }] }, select: { id: true, title: true, case: { select: { ownRef: true } } } }) : [];
     const refs = new Map(tasks.map((t) => [t.id, taskRef(t)]));
     return rows.map((r) => ({ id: r.id, user: r.user, author: r.author, praise: r.praise, improve: r.improve, nextStep: r.nextStep,
       linkedTasks: r.linkedTaskIds.flatMap((id) => refs.has(id) ? [refs.get(id)!] : []), aiDrafted: r.aiDrafted,
@@ -111,17 +112,18 @@ export class CoachingService {
     const monday = new Date(dayStart.getTime() - ((weekday + 6) % 7) * DAY_MS);
     const weeks = Array.from({ length: STANDARD_HISTORY_WEEKS }, (_, i) => ({ weekStart: bangkokDayKey(new Date(monday.getTime() - (STANDARD_HISTORY_WEEKS - 1 - i) * 7 * DAY_MS)), finishedPoints: 0 }));
     const since = new Date(monday.getTime() - (STANDARD_HISTORY_WEEKS - 1) * 7 * DAY_MS);
+    const caseScope = { OR: [{ caseId: null }, { case: this.caseAccess.getCaseFilterForUser(user) }] };
     const [comments, standups, workload] = await Promise.all([
       this.prisma.taskComment.findMany({ where: { authorId: userId, createdAt: { gte: new Date(now.getTime() - 14 * DAY_MS), lte: now },
-        task: { AND: [firmTaskScope(user.firmId)] }, OR: [{ kind: 'DAILY_UPDATE' }, { task: { assigneeId: userId } }] },
+        task: { AND: [firmTaskScope(user.firmId), caseScope] }, OR: [{ kind: 'DAILY_UPDATE' }, { task: { assigneeId: userId } }] },
         select: { taskId: true, body: true, kind: true, createdAt: true }, orderBy: { createdAt: 'desc' } }),
       this.prisma.dailyStandup.findMany({ where: { firmId: user.firmId, userId }, orderBy: { day: 'desc' }, take: 10,
         select: { day: true, status: true, yesterdayTaskIds: true, yesterdayNote: true, todayTaskIds: true, todayNote: true, blocker: true } }),
-      this.prisma.task.findMany({ where: { AND: [firmTaskScope(user.firmId), { assigneeId: userId, OR: [{ status: { not: 'DONE' } }, { completedAt: { gte: since, lte: now } }] }] },
+      this.prisma.task.findMany({ where: { AND: [firmTaskScope(user.firmId), { assigneeId: userId, OR: [{ status: { not: 'DONE' } }, { completedAt: { gte: since, lte: now } }] }, caseScope] },
         select: { id: true, status: true, size: true, dueDate: true, completedAt: true } }),
     ]);
     const ids = [...new Set([...comments.map((c) => c.taskId), ...standups.flatMap((s) => [...s.yesterdayTaskIds, ...s.todayTaskIds]), ...workload.map((t) => t.id)])];
-    const tasks = ids.length ? await this.prisma.task.findMany({ where: { AND: [firmTaskScope(user.firmId), { id: { in: ids } }] }, select: { id: true, title: true, case: { select: { ownRef: true } } } }) : [];
+    const tasks = ids.length ? await this.prisma.task.findMany({ where: { AND: [firmTaskScope(user.firmId), { id: { in: ids } }, caseScope] }, select: { id: true, title: true, case: { select: { ownRef: true } } } }) : [];
     const refs = new Map(tasks.map((t) => [t.id, taskRef(t)]));
     const open = workload.filter((t) => t.status !== 'DONE' && t.status !== 'PENDING_REVIEW');
     let finishedCount = 0;
@@ -133,7 +135,9 @@ export class CoachingService {
         finishedCount++;
       }
     }
-    const payload = { tasks: [...refs.values()], comments, standups, stats: {
+    const payload = { tasks: [...refs.values()], comments, standups: standups.map((s) => ({ ...s,
+      yesterdayTaskIds: s.yesterdayTaskIds.filter((id) => refs.has(id)), todayTaskIds: s.todayTaskIds.filter((id) => refs.has(id)),
+    })), stats: {
       openPoints: open.reduce((sum, t) => sum + taskPoints(t.size), 0), standardPoints: personalStandard({ points: weeks.reduce((sum, week) => sum + week.finishedPoints, 0), count: finishedCount }),
       overdueCount: open.filter((t) => t.dueDate && t.dueDate < now).length, finishedPointsPerWeek: weeks,
     } };

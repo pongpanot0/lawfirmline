@@ -44,7 +44,7 @@ describe('Owner daily operations', () => {
     await expect(service.move(owner, 'a', 'UP')).resolves.toEqual({ changed: false });
     expect(prisma.task.update).not.toHaveBeenCalled();
   });
-  it('buckets a member\'s week by planned day with size points, hearings, leave, and reviews apart', async () => {
+  it.each([FirmRole.OWNER, FirmRole.OFFICE_MANAGER])('buckets a member\'s week with manager cues for %s', async (firmRole) => {
     const radarPrisma = {
       outlookCalendarItem: { findMany: jest.fn().mockResolvedValue([
         { userId: 'w', startAt: new Date('2026-09-27T22:00:00Z'), endAt: new Date('2026-09-28T02:00:00Z'), showAs: 'busy', isAllDay: false, subject: 'private' },
@@ -68,7 +68,7 @@ describe('Owner daily operations', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-11-12T18:00:00Z'));
     let radar;
     try {
-      radar = await new DailyOperationsService(radarPrisma as any, {} as any, {} as any, {} as any, standup as any, coaching as any).radar(owner, '2026-09-28');
+      radar = await new DailyOperationsService(radarPrisma as any, {} as any, {} as any, {} as any, standup as any, coaching as any).radar({ ...owner, firmRole }, '2026-09-28');
     } finally {
       jest.useRealTimers();
     }
@@ -85,6 +85,25 @@ describe('Owner daily operations', () => {
     expect(w.days[2].onLeave).toBe(true);
     expect(JSON.stringify(radar)).not.toMatch(/private|subject/);
     expect(radarPrisma.outlookCalendarItem.findMany).toHaveBeenCalledWith(expect.objectContaining({ select: { userId: true, startAt: true, endAt: true, showAs: true, isAllDay: true }, where: expect.objectContaining({ connection: { firmId: 'firm', showCalendar: true, status: 'ACTIVE' }, isAllDay: false }) }));
+  });
+  it.each([FirmRole.LAWYER, FirmRole.SENIOR_LAWYER])('hides coaching and colleagues standup states from %s viewers', async (firmRole) => {
+    const db = {
+      firmMember: { findMany: jest.fn().mockResolvedValue(['me', 'other'].map((userId) => ({ userId, role: 'LAWYER', user: { firstName: userId, lastName: '' } }))) },
+      task: { findMany: jest.fn().mockResolvedValue([]) },
+      leaveRequest: { findMany: jest.fn().mockResolvedValue([]) },
+      calendarEvent: { findMany: jest.fn().mockResolvedValue([]) },
+      outlookCalendarItem: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const standup = { statesFor: jest.fn().mockResolvedValue(new Map([['me', 'blocked'], ['other', 'checked_in']])) };
+    const coaching = { cuesFor: jest.fn().mockResolvedValue(new Map([['me', { unacknowledged: 2, lastSentAt: 'secret' }], ['other', { unacknowledged: 3, lastSentAt: 'secret' }]])) };
+    const svc = new DailyOperationsService(db as never, {} as never, {} as never, {} as never, standup as never, coaching as never);
+    const result = await svc.radar({ ...owner, id: 'me', firmRole }, '2026-11-13');
+    expect(result.members.map((m) => ({ id: m.userId, standup: m.standup, coaching: m.coaching }))).toEqual([
+      { id: 'me', standup: 'blocked', coaching: { unacknowledged: 0, lastSentAt: null } },
+      { id: 'other', standup: 'not_required', coaching: { unacknowledged: 0, lastSentAt: null } },
+    ]);
+    expect(coaching.cuesFor).not.toHaveBeenCalled();
+    expect(standup.statesFor).toHaveBeenCalledWith('firm', ['me'], expect.any(String));
   });
   it('shows a colleague\'s load to any member but hides work in cases they cannot open, and why someone is on leave', async () => {
     const lawyer = { id: 'me', firmId: 'firm', firmRole: FirmRole.LAWYER } as AuthUser;

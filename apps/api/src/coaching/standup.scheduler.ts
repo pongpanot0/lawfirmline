@@ -22,14 +22,14 @@ export class StandupScheduler {
     for (const [firmId, userIds] of firms) {
       try {
         const states = await this.standup.statesFor(firmId, userIds, day);
-        const logs = await this.prisma.standupPromptLog.findMany({ where: { userId: { in: userIds }, day: date }, select: { userId: true } });
+        const logs = await this.prisma.standupPromptLog.findMany({ where: { firmId, userId: { in: userIds }, day: date }, select: { userId: true } });
         const sent = new Set(logs.map((l) => l.userId));
         for (const userId of userIds) {
           if (states.get(userId) !== 'not_yet' || sent.has(userId)) continue;
           try {
             const notification = await this.prisma.$transaction(async (tx) => {
               // Claim and inbox are atomic, so concurrent workers cannot send duplicate prompts.
-              await tx.standupPromptLog.create({ data: { userId, day: date } });
+              await tx.standupPromptLog.create({ data: { firmId, userId, day: date } });
               const checkedIn = await tx.dailyStandup.findUnique({ where: { firmId_userId_day: { firmId, userId, day: date } }, select: { id: true } });
               if (checkedIn) return null;
               return this.notifier.record(tx, firmId, userId, 'STANDUP', 'เช็กอินเช้านี้', '/my-day');

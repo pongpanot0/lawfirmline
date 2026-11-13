@@ -4,6 +4,7 @@ import { DailyStandup } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { assertFirmRefs, firmTaskScope } from '../common/firm-refs';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { StandupDto } from './dto/coaching.dto';
 
 const DAY_MS = 86400000;
@@ -12,7 +13,7 @@ export const taskRef = (task: { id: string; title: string; case: { ownRef: strin
 
 @Injectable()
 export class StandupService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private caseAccess: CaseAccessService) {}
 
   async statesFor(firmId: string, userIds: string[], day: string): Promise<Map<string, StandupState>> {
     if (!userIds.length) return new Map();
@@ -45,7 +46,7 @@ export class StandupService {
       this.suggestions(user, day),
     ]);
     const state = states.get(user.id) ?? 'not_required';
-    return { day, state, required: state !== 'not_required' && state !== 'on_leave', entry: row ? (await this.views(user.firmId, [row]))[0] : null, suggestions };
+    return { day, state, required: state !== 'not_required' && state !== 'on_leave', entry: row ? (await this.views(user, [row]))[0] : null, suggestions };
   }
 
   async upsert(user: AuthUser, dto: StandupDto): Promise<StandupEntry> {
@@ -64,7 +65,7 @@ export class StandupService {
   private async write(user: AuthUser, data: Pick<DailyStandup, 'status' | 'yesterdayTaskIds' | 'todayTaskIds' | 'yesterdayNote' | 'todayNote' | 'blocker'>) {
     const key = { firmId: user.firmId, userId: user.id, day: new Date(`${bangkokDayKey(new Date())}T00:00:00Z`) };
     const row = await this.prisma.dailyStandup.upsert({ where: { firmId_userId_day: key }, create: { ...key, ...data }, update: data });
-    return (await this.views(user.firmId, [row]))[0];
+    return (await this.views(user, [row]))[0];
   }
 
   async history(user: AuthUser, userId: string, days: number): Promise<StandupEntry[]> {
@@ -72,12 +73,12 @@ export class StandupService {
     if (!member) throw new NotFoundException('ไม่พบสมาชิกในสำนักงาน');
     const end = new Date(`${bangkokDayKey(new Date())}T00:00:00Z`);
     const rows = await this.prisma.dailyStandup.findMany({ where: { firmId: user.firmId, userId, day: { gte: new Date(end.getTime() - (days - 1) * DAY_MS), lte: end } }, orderBy: { day: 'desc' } });
-    return this.views(user.firmId, rows);
+    return this.views(user, rows);
   }
 
-  private async views(firmId: string, rows: DailyStandup[]): Promise<StandupEntry[]> {
+  private async views(user: AuthUser, rows: DailyStandup[]): Promise<StandupEntry[]> {
     const ids = [...new Set(rows.flatMap((r) => [...r.yesterdayTaskIds, ...r.todayTaskIds]))];
-    const tasks = ids.length ? await this.prisma.task.findMany({ where: { AND: [firmTaskScope(firmId), { id: { in: ids } }] }, select: taskSelect }) : [];
+    const tasks = ids.length ? await this.prisma.task.findMany({ where: { AND: [firmTaskScope(user.firmId), { id: { in: ids } }, { OR: [{ caseId: null }, { case: this.caseAccess.getCaseFilterForUser(user) }] }] }, select: taskSelect }) : [];
     const refs = new Map(tasks.map((t) => [t.id, taskRef(t)]));
     const pick = (ids: string[]) => ids.flatMap((id) => refs.has(id) ? [refs.get(id)!] : []);
     return rows.map((r) => ({ day: r.day.toISOString().slice(0, 10), status: r.status, yesterday: pick(r.yesterdayTaskIds), yesterdayNote: r.yesterdayNote, today: pick(r.todayTaskIds), todayNote: r.todayNote, blocker: r.blocker, updatedAt: r.updatedAt.toISOString() }));
@@ -92,15 +93,16 @@ export class StandupService {
     const start = new Date(`${previous.toISOString().slice(0, 10)}T00:00:00+07:00`);
     const end = new Date(start.getTime() + DAY_MS);
     const todayStart = new Date(`${day}T00:00:00+07:00`);
+    const caseScope = { OR: [{ caseId: null }, { case: this.caseAccess.getCaseFilterForUser(user) }] };
     const [yesterday, today] = await Promise.all([
       this.prisma.task.findMany({ where: { AND: [firmTaskScope(user.firmId), { assigneeId: user.id, OR: [
         { comments: { some: { authorId: user.id, kind: 'DAILY_UPDATE', createdAt: { gte: start, lt: end } } } },
         { status: 'DONE', completedAt: { gte: start, lt: end } },
-      ] }] }, select: taskSelect, orderBy: [{ queuePosition: 'asc' }, { id: 'asc' }], take: 20 }),
+      ] }, caseScope] }, select: taskSelect, orderBy: [{ queuePosition: 'asc' }, { id: 'asc' }], take: 20 }),
       this.prisma.task.findMany({ where: { AND: [firmTaskScope(user.firmId), { assigneeId: user.id, status: { notIn: ['DONE', 'PENDING_REVIEW'] }, OR: [
         { scheduledFor: new Date(`${day}T00:00:00Z`) },
         { scheduledFor: null, dueDate: { gte: todayStart, lt: new Date(todayStart.getTime() + DAY_MS) } },
-      ] }] }, select: taskSelect, orderBy: [{ queuePosition: 'asc' }, { id: 'asc' }], take: 20 }),
+      ] }, caseScope] }, select: taskSelect, orderBy: [{ queuePosition: 'asc' }, { id: 'asc' }], take: 20 }),
     ]);
     return { yesterday: yesterday.map(taskRef), today: today.map(taskRef) };
   }

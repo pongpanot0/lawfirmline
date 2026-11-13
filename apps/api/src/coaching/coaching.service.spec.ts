@@ -1,3 +1,4 @@
+import { CaseAccessService } from '../common/services/case-access.service';
 import { AuthUser } from '@lawfirm/shared';
 import { CoachingService } from './coaching.service';
 
@@ -29,7 +30,8 @@ function build(configured = true) {
   const config = { get: jest.fn((key: string) => key === 'OPENAI_API_KEY' ? configured ? 'sk-test' : undefined : undefined) };
   const rag = { logRun: jest.fn().mockResolvedValue(undefined) };
   const notifier = { record: jest.fn().mockResolvedValue({ id: 'notification' }), send: jest.fn().mockResolvedValue(undefined) };
-  return { db, config, rag, notifier, svc: new CoachingService(db as never, config as never, rag as never, notifier as never) };
+  const caseAccess = new CaseAccessService(db as never);
+  return { db, config, rag, notifier, caseAccess, svc: new CoachingService(db as never, config as never, rag as never, notifier as never, caseAccess) };
 }
 const response = (content: unknown) => ({ ok: true, json: async () => ({ choices: [{ message: { content: typeof content === 'string' ? content : JSON.stringify(content) } }], usage: { prompt_tokens: 20, completion_tokens: 10 } }) }) as Response;
 
@@ -53,8 +55,49 @@ describe('CoachingService', () => {
     expect(rag.logRun).toHaveBeenCalledWith(expect.objectContaining({ operation: 'coaching_draft', firmId: 'f1', userId: 'manager', status: 'success', inputTokens: 20, outputTokens: 10 }));
     expect(db.coachingNote.create).not.toHaveBeenCalled(); expect(db.dailyStandup.create).not.toHaveBeenCalled();
     expect(db.notification.create).not.toHaveBeenCalled(); expect(db.$transaction).not.toHaveBeenCalled(); expect(notifier.record).not.toHaveBeenCalled();
-    expect(db.taskComment.findMany.mock.calls[0][0]).toMatchObject({ where: { authorId: 'u1', createdAt: { gte: new Date('2026-10-30T01:00:00Z'), lte: now }, task: { AND: [expect.anything()] }, OR: [{ kind: 'DAILY_UPDATE' }, { task: { assigneeId: 'u1' } }] } });
+    expect(db.taskComment.findMany.mock.calls[0][0]).toMatchObject({ where: { authorId: 'u1', createdAt: { gte: new Date('2026-10-30T01:00:00Z'), lte: now }, task: { AND: [expect.anything(), expect.anything()] }, OR: [{ kind: 'DAILY_UPDATE' }, { task: { assigneeId: 'u1' } }] } });
     expect(db.dailyStandup.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { firmId: 'f1', userId: 'u1' }, take: 10, orderBy: { day: 'desc' } }));
+  });
+
+  it('scopes AI comments, workload and linked refs to the manager case ACL', async () => {
+    const { db, svc, caseAccess } = build();
+    const caseFilter = { firmId: 'f1', deletedAt: null, id: 'accessible-case' };
+    const filterSpy = jest.spyOn(caseAccess, 'getCaseFilterForUser').mockReturnValue(caseFilter);
+    db.taskComment.findMany.mockResolvedValue([{ taskId, body: 'visible update', kind: 'DAILY_UPDATE', createdAt: now }]);
+    db.dailyStandup.findMany.mockResolvedValue([{ yesterdayTaskIds: [unknownId], todayTaskIds: [taskId, unknownId], todayNote: null }]);
+    db.task.findMany.mockResolvedValueOnce([{ id: taskId, status: 'TODO', size: 'M' }])
+      .mockResolvedValueOnce([{ id: taskId, title: 'visible task', case: null }]);
+    const result = await svc.draft(user, 'u1');
+    const acl = { OR: [{ caseId: null }, { case: caseFilter }] };
+    expect(filterSpy).toHaveBeenCalledWith(user);
+    expect(db.taskComment.findMany.mock.calls[0][0].where.task.AND).toEqual(expect.arrayContaining([acl]));
+    for (const [query] of db.task.findMany.mock.calls) expect(query.where.AND).toEqual(expect.arrayContaining([acl]));
+    const input = JSON.parse(JSON.parse(fetchSpy.mock.calls[0][1].body).messages[1].content);
+    expect(input.tasks).toEqual([{ id: taskId, title: 'visible task', caseRef: null }]);
+    expect(input.comments).toEqual([{ taskId, body: 'visible update', kind: 'DAILY_UPDATE', createdAt: now.toISOString() }]);
+    expect(JSON.stringify(input)).not.toContain(unknownId);
+    expect(result.linkedTasks).toEqual([{ id: taskId, title: 'visible task', caseRef: null }]);
+  });
+
+  it.each(['mine', 'member', 'list', 'save', 'acknowledge'] as const)('%s hydrates linked titles using the viewer case ACL', async (method) => {
+    const { db, svc } = build();
+    const linkedNote = note({ linkedTaskIds: [taskId, unknownId] });
+    db.coachingNote.findMany.mockResolvedValue([linkedNote]);
+    db.coachingNote.findFirst.mockResolvedValue(linkedNote);
+    db.coachingNote.create.mockResolvedValue(linkedNote);
+    db.task.findMany.mockResolvedValue([{ id: taskId, title: 'allowed standalone', case: null }]);
+    let result;
+    if (method === 'mine') result = (await svc.mine(recipient))[0];
+    else if (method === 'member') result = (await svc.member(recipient, 'u1'))[0];
+    else if (method === 'list') result = (await svc.list(recipient, {})).notes[0];
+    else if (method === 'save') result = await svc.save(recipient, { userId: 'u1', praise: 'ชม', improve: 'ปรับ', nextStep: 'ทำ', linkedTaskIds: [], aiDrafted: false });
+    else result = await svc.acknowledge(recipient, 'n1');
+    expect(result.linkedTasks).toEqual([{ id: taskId, title: 'allowed standalone', caseRef: null }]);
+    expect(db.task.findMany.mock.calls[0][0].where.AND).toEqual(expect.arrayContaining([
+      { OR: [{ caseId: null }, { case: { firmId: 'f1', deletedAt: null, OR: [
+        { leadLawyerId: 'u1' }, { assignments: { some: { userId: 'u1' } } }, { tasks: { some: { assigneeId: 'u1' } } },
+      ] } }] },
+    ]));
   });
 
   it('computes open points, overdue tasks and eight Bangkok weeks without the operations service', async () => {

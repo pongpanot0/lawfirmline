@@ -8,6 +8,7 @@ import { StandupService } from './standup.service';
 import { StandupScheduler } from './standup.scheduler';
 import { CoachingNotifierService } from './coaching-notifier.service';
 
+// CommonModule globally provides CaseAccessService, as it does for OperationsModule.
 @Module({
   imports: [forwardRef(() => NotificationsModule), forwardRef(() => RagModule)],
   controllers: [CoachingController, StandupController],

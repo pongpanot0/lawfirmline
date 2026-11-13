@@ -1,3 +1,4 @@
+import { CaseAccessService } from '../common/services/case-access.service';
 import { AuthUser } from '@lawfirm/shared';
 import { StandupService } from './standup.service';
 
@@ -14,7 +15,7 @@ function build() {
     dailyStandup: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null),
       upsert: jest.fn(async ({ create, update }: any) => row({ ...create, ...update })) },
   };
-  return { db, svc: new StandupService(db as never) };
+  return { db, svc: new StandupService(db as never, new CaseAccessService(db as never)) };
 }
 
 describe('StandupService', () => {
@@ -89,10 +90,25 @@ describe('StandupService', () => {
     expect(yesterday).toMatchObject({ take: 20, where: { AND: [expect.anything(), { assigneeId: 'u1', OR: [
       { comments: { some: { authorId: 'u1', kind: 'DAILY_UPDATE', createdAt: { gte: new Date('2026-11-11T17:00:00Z'), lt: new Date('2026-11-12T17:00:00Z') } } } },
       { status: 'DONE', completedAt: { gte: new Date('2026-11-11T17:00:00Z'), lt: new Date('2026-11-12T17:00:00Z') } },
-    ] }] } });
+    ] }, expect.anything()] } });
     expect(db.task.findMany.mock.calls[1][0]).toMatchObject({ take: 20, where: { AND: [expect.anything(), { status: { notIn: ['DONE', 'PENDING_REVIEW'] }, OR: [
       { scheduledFor: new Date('2026-11-16') }, { scheduledFor: null, dueDate: { gte: new Date('2026-11-15T17:00:00Z'), lt: new Date('2026-11-16T17:00:00Z') } },
-    ] }] } });
+    ] }, expect.anything()] } });
+  });
+
+  it('scopes suggestions and history task titles to the viewer case ACL, not the subject', async () => {
+    const { db, svc } = build();
+    const acl = { OR: [{ caseId: null }, { case: { firmId: 'f1', deletedAt: null, OR: [
+      { leadLawyerId: 'u1' }, { assignments: { some: { userId: 'u1' } } }, { tasks: { some: { assigneeId: 'u1' } } },
+    ] } }] };
+    db.task.findMany.mockResolvedValue([{ id: 't1', title: 'visible task', case: null }]);
+    expect(await svc.suggestions(user, '2026-11-13')).toEqual({
+      yesterday: [{ id: 't1', title: 'visible task', caseRef: null }], today: [{ id: 't1', title: 'visible task', caseRef: null }],
+    });
+    db.dailyStandup.findMany.mockResolvedValue([row({ userId: 'other', yesterdayTaskIds: ['hidden'], todayTaskIds: ['t1', 'hidden'] })]);
+    const history = await svc.history(user, 'other', 6);
+    expect(history[0]).toMatchObject({ yesterday: [], today: [{ id: 't1', title: 'visible task', caseRef: null }] });
+    for (const [query] of db.task.findMany.mock.calls) expect(query.where.AND).toEqual(expect.arrayContaining([acl]));
   });
 
   it('history is firm/member scoped, newest first and limited by calendar days', async () => {
@@ -107,6 +123,6 @@ describe('StandupService', () => {
     const { db, svc } = build(); db.dailyStandup.findUnique.mockResolvedValue(row({ todayTaskIds: ['t1', 'deleted'] }));
     db.task.findMany.mockResolvedValue([{ id: 't1', title: 'งาน', case: null }]);
     expect((await svc.today(user)).entry?.today).toEqual([{ id: 't1', title: 'งาน', caseRef: null }]);
-    expect(db.task.findMany.mock.calls[db.task.findMany.mock.calls.length - 1][0]).toMatchObject({ where: { AND: [expect.anything(), { id: { in: ['t1', 'deleted'] } }] } });
+    expect(db.task.findMany.mock.calls[db.task.findMany.mock.calls.length - 1][0]).toMatchObject({ where: { AND: [expect.anything(), { id: { in: ['t1', 'deleted'] } }, expect.anything()] } });
   });
 });

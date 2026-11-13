@@ -33,6 +33,7 @@ CREATE TABLE "DailyStandup" (
 -- CreateTable
 CREATE TABLE "StandupPromptLog" (
     "id" TEXT NOT NULL,
+    "firmId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "day" DATE NOT NULL,
 
@@ -64,7 +65,7 @@ CREATE INDEX "DailyStandup_firmId_day_idx" ON "DailyStandup"("firmId", "day");
 CREATE UNIQUE INDEX "DailyStandup_firmId_userId_day_key" ON "DailyStandup"("firmId", "userId", "day");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StandupPromptLog_userId_day_key" ON "StandupPromptLog"("userId", "day");
+CREATE UNIQUE INDEX "StandupPromptLog_firmId_userId_day_key" ON "StandupPromptLog"("firmId", "userId", "day");
 
 -- CreateIndex
 CREATE INDEX "CoachingNote_firmId_userId_createdAt_idx" ON "CoachingNote"("firmId", "userId", "createdAt");
@@ -77,6 +78,9 @@ ALTER TABLE "DailyStandup" ADD CONSTRAINT "DailyStandup_firmId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "DailyStandup" ADD CONSTRAINT "DailyStandup_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StandupPromptLog" ADD CONSTRAINT "StandupPromptLog_firmId_fkey" FOREIGN KEY ("firmId") REFERENCES "Firm"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CoachingNote" ADD CONSTRAINT "CoachingNote_firmId_fkey" FOREIGN KEY ("firmId") REFERENCES "Firm"("id") ON DELETE CASCADE ON UPDATE CASCADE;

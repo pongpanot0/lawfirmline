@@ -158,9 +158,10 @@ export class DailyOperationsService {
       this.standards(user.firmId),
     ]);
     const userIds = members.map((m) => m.userId);
+    const canRunOperations = hasFirmCapability(user.firmRole, 'runOperations');
     const [standupStates, coachingCues] = await Promise.all([
-      this.standup.statesFor(user.firmId, userIds, bangkokDayKey(now)),
-      this.coaching.cuesFor(user.firmId, userIds),
+      this.standup.statesFor(user.firmId, canRunOperations ? userIds : [user.id], bangkokDayKey(now)),
+      canRunOperations ? this.coaching.cuesFor(user.firmId, userIds) : new Map(),
     ]);
     const outlookByUser = new Map(members.map((m) => [m.userId, mergeOutlookBusy(outlookItems.filter((i) => i.userId === m.userId), start, end)]));
     return {
@@ -175,7 +176,7 @@ export class DailyOperationsService {
           openCount: open.length,
           openPoints: open.reduce((sum, t) => sum + taskPoints(t.size), 0),
           standardPoints: standardOf(m.userId),
-          standup: standupStates.get(m.userId) ?? 'not_required',
+          standup: canRunOperations || m.userId === user.id ? standupStates.get(m.userId) ?? 'not_required' : 'not_required',
           coaching: coachingCues.get(m.userId) ?? { unacknowledged: 0, lastSentAt: null },
           overdueCount: open.filter((t) => t.dueDate && t.dueDate < now).length,
           reviewCount: mine.length - open.length,

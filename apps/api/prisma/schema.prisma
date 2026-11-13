@@ -419,6 +419,7 @@ enum ClosingEmailRecipientKind {
 }
 
 model Firm {
+  standupPromptLogs StandupPromptLog[]
   dailyStandups DailyStandup[]
   coachingNotes CoachingNote[]
   appFeedback AppFeedback[]
@@ -3353,12 +3354,14 @@ model DailyStandup {
   @@index([firmId, day])
 }
 
-/// One prompt per user per Bangkok day.
+/// One prompt per firm member per Bangkok day.
 model StandupPromptLog {
+  firmId String
+  firm   Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
   id     String   @id @default(uuid())
   userId String
   day    DateTime @db.Date
-  @@unique([userId, day])
+  @@unique([firmId, userId, day])
 }
 
 model CoachingNote {
