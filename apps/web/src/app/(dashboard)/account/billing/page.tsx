@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BillingPeriod, hasFirmCapability, PLAN_CONFIG, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
+import { BillingPeriod, hasFirmCapability, PLAN_CONFIG, planPriceThb, SELLABLE_PLANS, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, BillingInvoiceItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -105,11 +105,14 @@ function BillingPageContent() {
   };
 
   // Card subscribers switch in place: Stripe charges the prorated difference to the saved card.
+  // Changing monthly <-> yearly restarts the billing period today (Stripe resets the anchor),
+  // so that confirm says a new period is billed, minus the unused part of the old one.
   const handleChangePlan = async (plan: SubscriptionPlan) => {
     if (changingPlan) return;
     const total = planPriceThb(plan, billingPeriod).toLocaleString(loc);
     const price = `${total} ${billingPeriod === BillingPeriod.YEARLY ? d.billing.perYear : d.billing.perMonth}`;
-    if (!confirm(fmt(d.billing.changePlanConfirm, { plan: PLAN_CONFIG[plan].name, price }))) return;
+    const message = subscription?.billingPeriod === billingPeriod ? d.billing.changePlanConfirm : d.billing.changePeriodConfirm;
+    if (!confirm(fmt(message, { plan: PLAN_CONFIG[plan].name, price }))) return;
     setChangingPlan(plan);
     setPaymentError('');
     try {
@@ -230,17 +233,22 @@ function BillingPageContent() {
               const yearly = billingPeriod === BillingPeriod.YEARLY;
               const total = planPriceThb(plan.plan as SubscriptionPlan, billingPeriod);
               const shownMonthly = yearly ? Math.round(total / 12) : plan.priceThb;
+              // isCurrent from the API is ACTIVE-only; a past-due card subscriber is still on their plan.
+              const isCurrentPlan = autoRenew ? subscription?.plan === plan.plan : plan.isCurrent;
+              const samePeriod = !autoRenew || subscription?.billingPeriod === billingPeriod;
+              // A legacy plan (Solo) is listed only because it is current; it can't be switched to.
+              const showAsCurrent = (isCurrentPlan && samePeriod) || (autoRenew && !SELLABLE_PLANS.includes(plan.plan as SubscriptionPlan));
               return (
               <Card
                 key={plan.plan}
-                aria-current={plan.isCurrent ? 'true' : undefined}
-                className={plan.isCurrent ? 'border-2 border-primary' : ''}
+                aria-current={isCurrentPlan ? 'true' : undefined}
+                className={isCurrentPlan ? 'border-2 border-primary' : ''}
               >
                 <CardContent className="flex h-full flex-col gap-4 p-6">
                   {/* Same order on every card: name, price, seats, then features. */}
                   <div className="flex min-h-7 flex-wrap items-center justify-between gap-2">
                     <h3 className="font-semibold">{plan.name}</h3>
-                    {plan.isCurrent && <Badge variant="default">{d.billing.currentPlan}</Badge>}
+                    {isCurrentPlan && <Badge variant="default">{d.billing.currentPlan}</Badge>}
                   </div>
                   <div className="border-b pb-4">
                     <p className="text-3xl font-semibold tabular-nums text-foreground">
@@ -264,7 +272,7 @@ function BillingPageContent() {
                       </li>
                     ))}
                   </ul>
-                  {plan.isCurrent && (!autoRenew || subscription?.billingPeriod === billingPeriod) ? (
+                  {showAsCurrent ? (
                     <p className="flex min-h-11 items-center justify-center rounded-lg bg-muted text-sm font-medium text-muted-foreground">{d.billing.currentPlan}</p>
                   ) : autoRenew ? (
                     <div className="space-y-1.5">
@@ -277,7 +285,7 @@ function BillingPageContent() {
                       >
                         {changingPlan === plan.plan ? d.billing.changingPlan : d.billing.changePlan}
                       </Button>
-                      <p id={`change-plan-hint-${plan.plan}`} className="text-center text-xs text-muted-foreground">{d.billing.changePlanHint}</p>
+                      <p id={`change-plan-hint-${plan.plan}`} className="text-center text-xs text-muted-foreground">{samePeriod ? d.billing.changePlanHint : d.billing.changePeriodHint}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
