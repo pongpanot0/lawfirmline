@@ -176,7 +176,7 @@ export default function LeavesPage() {
                 </label>
               ))}
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">ลาป่วยบันทึกทันที · ลากิจและลาพักร้อนต้องรออนุมัติ</p>
+            <p className="mt-2 text-xs text-muted-foreground">ทุกประเภทต้องรออนุมัติ</p>
           </fieldset>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="min-w-0 space-y-1.5">

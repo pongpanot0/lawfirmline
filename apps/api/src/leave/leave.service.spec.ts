@@ -194,15 +194,14 @@ describe('LeaveService approval workflow', () => {
     }));
   });
 
-  it('a SICK request is created APPROVED and never triggers an owner approval push', async () => {
+  it('a SICK request waits for approval like any other type', async () => {
     const prisma = makePrisma();
     const line = { sendText: jest.fn(async () => true), push: jest.fn(async () => true) } as any;
     const leave = await new LeaveService(prisma, line, notifier, center).create(
       { id: 'alice', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any,
       { type: LeaveType.SICK, startDate: inDays(1), endDate: inDays(1) },
     );
-    expect(leave.status).toBe(LeaveStatus.APPROVED);
-    expect(line.push).not.toHaveBeenCalled();
+    expect(leave.status).toBe(LeaveStatus.PENDING);
   });
 
   it('an audited (MCP) request writes the leave and its audit row in one transaction', async () => {
