@@ -31,6 +31,12 @@ export class SessionService {
     return true;
   }
 
+  /** Read-only twin of touch() for access tokens: logout must end them now, not when they expire. */
+  async isActive(jti: string): Promise<boolean> {
+    const session = await this.prisma.session.findUnique({ where: { jti }, select: { revokedAt: true, expiresAt: true } });
+    return !!session && !session.revokedAt && session.expiresAt >= new Date();
+  }
+
   async revokeByJti(jti: string): Promise<void> {
     await this.prisma.session.updateMany({ where: { jti, revokedAt: null }, data: { revokedAt: new Date() } });
   }

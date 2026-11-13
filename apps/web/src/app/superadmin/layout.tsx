@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -10,9 +10,15 @@ import { NoAccess } from '@/components/ui/NoAccess';
 export default function SuperadminLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
+  const signingOut = useRef(false);
 
+  // Apex has no session of its own: login hands off to the firm subdomain, so
+  // without ?next= the operator lands on /dashboard instead of back here.
   useEffect(() => {
-    if (!loading && !user) router.replace('/login');
+    if (!loading && !user && !signingOut.current) {
+      const next = `${window.location.pathname}${window.location.search}`;
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
+    }
   }, [user, loading, router]);
 
   if (loading || !user) {
@@ -39,6 +45,7 @@ export default function SuperadminLayout({ children }: { children: React.ReactNo
         <button
           type="button"
           onClick={() => {
+            signingOut.current = true;
             logout();
             window.location.assign('/login');
           }}
