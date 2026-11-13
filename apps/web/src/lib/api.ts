@@ -2097,6 +2097,13 @@ export const api = {
     }),
 
   /** Stripe Customer Portal URL: card, plan change, cancel, invoices. */
+  changePlan: (token: string, plan: string, billingPeriod: 'MONTHLY' | 'YEARLY') =>
+    request<import('@lawfirm/shared').SubscriptionSummary>('/saas/billing/change-plan', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ plan, billingPeriod }),
+    }),
+
   billingPortal: (token: string) =>
     request<{ url: string }>('/saas/billing/portal', { method: 'POST', token }),
 

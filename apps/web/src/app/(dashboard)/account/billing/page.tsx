@@ -45,6 +45,7 @@ function BillingPageContent() {
   const [paymentError, setPaymentError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [changingPlan, setChangingPlan] = useState<string | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(BillingPeriod.MONTHLY);
   const [reload, setReload] = useState(0);
   const loc = dateLocale(locale);
@@ -63,6 +64,7 @@ function BillingPageContent() {
     Promise.all([api.getPlans(t), api.getBillingHistory(t), api.getSubscription(t)])
       .then(([p, h, sub]) => {
         setSubscription(sub);
+        if (sub.billingPeriod) setBillingPeriod(sub.billingPeriod);
         setPlans(p);
         setHistory(h);
       })
@@ -74,7 +76,8 @@ function BillingPageContent() {
 
   useEffect(() => {
     const planParam = searchParams.get('plan') as SubscriptionPlan | null;
-    if (planParam && !loading) {
+    // A card subscriber can't open a second checkout; they pick "switch plan" on the card instead.
+    if (planParam && !loading && !subscription?.autoRenew) {
       const selected = plans.find((p) => p.plan === planParam && !p.isCurrent);
       if (selected) {
         router.replace('/account/billing');
@@ -98,6 +101,23 @@ function BillingPageContent() {
       // exactly like a successful one.
       setPaymentError(err instanceof Error ? err.message : d.billing.cancelFailed);
       setCancelling(false);
+    }
+  };
+
+  // Card subscribers switch in place: Stripe charges the prorated difference to the saved card.
+  const handleChangePlan = async (plan: SubscriptionPlan) => {
+    if (changingPlan) return;
+    const total = planPriceThb(plan, billingPeriod).toLocaleString(loc);
+    const price = `${total} ${billingPeriod === BillingPeriod.YEARLY ? d.billing.perYear : d.billing.perMonth}`;
+    if (!confirm(fmt(d.billing.changePlanConfirm, { plan: PLAN_CONFIG[plan].name, price }))) return;
+    setChangingPlan(plan);
+    setPaymentError('');
+    try {
+      await api.changePlan(authToken(), plan, billingPeriod);
+      window.location.reload();
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : d.billing.loadFailed);
+      setChangingPlan(null);
     }
   };
 
@@ -131,6 +151,7 @@ function BillingPageContent() {
   };
 
   const paymentSuccess = searchParams.get('success') === '1';
+  const autoRenew = !!subscription?.autoRenew;
   const canManagePayment = user.subscriptionStatus === SubscriptionStatus.ACTIVE || user.subscriptionStatus === SubscriptionStatus.PAST_DUE;
   const formatDay = (value: string | Date) => new Date(value).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -243,8 +264,21 @@ function BillingPageContent() {
                       </li>
                     ))}
                   </ul>
-                  {plan.isCurrent ? (
+                  {plan.isCurrent && (!autoRenew || subscription?.billingPeriod === billingPeriod) ? (
                     <p className="flex min-h-11 items-center justify-center rounded-lg bg-muted text-sm font-medium text-muted-foreground">{d.billing.currentPlan}</p>
+                  ) : autoRenew ? (
+                    <div className="space-y-1.5">
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        disabled={!!changingPlan}
+                        aria-describedby={`change-plan-hint-${plan.plan}`}
+                        onClick={() => handleChangePlan(plan.plan as SubscriptionPlan)}
+                      >
+                        {changingPlan === plan.plan ? d.billing.changingPlan : d.billing.changePlan}
+                      </Button>
+                      <p id={`change-plan-hint-${plan.plan}`} className="text-center text-xs text-muted-foreground">{d.billing.changePlanHint}</p>
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       <Button

@@ -1096,6 +1096,10 @@ export interface SubscriptionSummary {
   maxUsers: number;
   memberCount: number;
   canAccessApp: boolean;
+  /** Paid by card through a Stripe subscription that renews on its own (plan changes go through changePlan, not checkout). */
+  autoRenew: boolean;
+  /** Billing period of that auto-renew subscription; null otherwise. */
+  billingPeriod: BillingPeriod | null;
 }
 
 export interface PlanOption extends PlanConfig {

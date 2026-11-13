@@ -48,6 +48,14 @@ export class CheckoutDto {
   paymentMethod?: 'card' | 'promptpay';
 }
 
+export class ChangePlanDto {
+  @IsEnum(SubscriptionPlan)
+  plan!: SubscriptionPlan;
+
+  @IsEnum(BillingPeriod)
+  billingPeriod!: BillingPeriod;
+}
+
 export class UpdateFirmSettingsDto {
   @IsOptional()
   @IsString()
