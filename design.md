@@ -6,7 +6,7 @@ Scope: all 79 web pages and 41 native screens in [the inventory](docs/design/202
 
 ## Visual system
 
-- Genre: modern-minimal. Staff app: Workbench. Public site and policy content: Long Document.
+- Genre: modern-minimal. Staff app: Workbench. Public landing: Marquee Hero led by a real product screenshot. Policy content: Long Document.
 - Paper cream, navy ink and a permanently navy navigation rail. Staff dark mode uses navy canvas and cream text. Public, account and client surfaces use paper cream.
 - Brass appears only in identity and court emphasis. Status always includes text.
 - Upright Trirong for wordmark and major web headings; Noto Sans Thai for content, with Inter/system fallbacks. Native keeps installed Anuphan headings and system body.
