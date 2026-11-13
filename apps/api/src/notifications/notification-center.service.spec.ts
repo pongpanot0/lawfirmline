@@ -51,7 +51,10 @@ describe('NotificationCenterService', () => {
   it('every category is on until the user saves an opt-out', async () => {
     prisma.userNotificationPreference.findMany.mockResolvedValue([{ userId: 'a', category: 'TASK', push: false, line: true }]);
     const prefs = await svc.preferences('a');
-    expect(prefs).toHaveLength(10);
+    expect(prefs).toHaveLength(12);
+    for (const category of ['COACHING', 'STANDUP']) {
+      expect(prefs.find((p) => p.category === category)).toEqual({ category, push: true, line: true });
+    }
     expect(prefs.find((p) => p.category === 'TASK')).toEqual({ category: 'TASK', push: false, line: true });
     expect(prefs.find((p) => p.category === 'LEAVE')).toEqual({ category: 'LEAVE', push: true, line: true });
 

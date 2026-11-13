@@ -419,6 +419,8 @@ enum ClosingEmailRecipientKind {
 }
 
 model Firm {
+  dailyStandups DailyStandup[]
+  coachingNotes CoachingNote[]
   appFeedback AppFeedback[]
   mcpEnabled            Boolean            @default(false)
   mcpConnections        McpConnection[]
@@ -634,6 +636,9 @@ model Session {
 }
 
 model User {
+  dailyStandups DailyStandup[]
+  receivedCoachingNotes CoachingNote[] @relation("CoachingNoteRecipient")
+  authoredCoachingNotes CoachingNote[] @relation("CoachingNoteAuthor")
   appFeedback AppFeedback[]
   mcpConnections         McpConnection[]
   id                     String             @id @default(uuid())
@@ -800,6 +805,8 @@ enum NotificationCategory {
   EMAIL
   DAILY_BRIEF
   LICENSE
+  COACHING
+  STANDUP
 }
 
 /// One staff notification, kept as the in-app inbox. Written for every
@@ -3319,4 +3326,57 @@ model AppFeedbackLineRound {
   sentById       String
   recipientCount Int
   answers        AppFeedback[]
+}
+
+
+enum StandupStatus {
+  CHECKED_IN
+  SKIPPED
+}
+
+model DailyStandup {
+  id               String        @id @default(uuid())
+  firmId           String
+  userId           String
+  day              DateTime      @db.Date
+  status           StandupStatus
+  yesterdayTaskIds String[]      @default([])
+  yesterdayNote    String?       @db.Text
+  todayTaskIds     String[]      @default([])
+  todayNote        String?       @db.Text
+  blocker          String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([firmId, userId, day])
+  @@index([firmId, day])
+}
+
+/// One prompt per user per Bangkok day.
+model StandupPromptLog {
+  id     String   @id @default(uuid())
+  userId String
+  day    DateTime @db.Date
+  @@unique([userId, day])
+}
+
+model CoachingNote {
+  id             String    @id @default(uuid())
+  firmId         String
+  userId         String
+  authorId       String
+  praise         String    @db.Text
+  improve        String    @db.Text
+  nextStep       String    @db.Text
+  linkedTaskIds  String[]  @default([])
+  aiDrafted      Boolean   @default(false)
+  acknowledgedAt DateTime?
+  reply          String?
+  createdAt      DateTime  @default(now())
+  firm   Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user   User @relation("CoachingNoteRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  author User @relation("CoachingNoteAuthor", fields: [authorId], references: [id])
+  @@index([firmId, userId, createdAt])
+  @@index([firmId, acknowledgedAt])
 }

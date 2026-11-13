@@ -1126,3 +1126,6 @@ export * from './strip-email-signature';
 export * from './mcp';
 
 export * from './outlook-calendar';
+
+export * from './standup';
+export * from './coaching';

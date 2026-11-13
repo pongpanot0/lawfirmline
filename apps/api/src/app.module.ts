@@ -1,3 +1,4 @@
+import { CoachingModule } from './coaching/coaching.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PracticeSetupModule } from './practice-setup/practice-setup.module';
 import { LawyerLicenseModule } from './lawyer-license/lawyer-license.module';
@@ -111,6 +112,7 @@ import { McpModule } from './mcp/mcp.module';
     CargoClaimsModule,
     WorkflowsModule,
     McpModule,
+    CoachingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -1,10 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
+import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 
-type Db = Pick<PrismaService, 'client' | 'clientContact' | 'caseType' | 'firmMember'>;
+type Db = Pick<PrismaService, 'client' | 'clientContact' | 'caseType' | 'firmMember' | 'task'>;
 
 export interface FirmRefs {
+  taskIds?: Array<string | null | undefined>;
   /** Client rows — also what customerId / additional clientId point at. */
   clientIds?: Array<string | null | undefined>;
   contactIds?: Array<string | null | undefined>;
@@ -32,11 +34,12 @@ export async function assertFirmRefs(
   refs: FirmRefs,
   opts?: AssertFirmRefsOptions,
 ): Promise<void> {
+  const taskIds = present(refs.taskIds);
   const clientIds = present(refs.clientIds);
   const contactIds = present(refs.contactIds);
   const caseTypeIds = present(refs.caseTypeIds);
   const userIds = present(refs.userIds);
-  const [clients, contacts, caseTypes, members] = await Promise.all([
+  const [clients, contacts, caseTypes, members, tasks] = await Promise.all([
     clientIds.length ? db.client.count({ where: { id: { in: clientIds }, firmId } }) : 0,
     contactIds.length ? db.clientContact.count({ where: { id: { in: contactIds }, client: { firmId } } }) : 0,
     caseTypeIds.length ? db.caseType.count({ where: { id: { in: caseTypeIds }, firmId } }) : 0,
@@ -50,7 +53,9 @@ export async function assertFirmRefs(
           },
         })
       : 0,
+    taskIds.length ? db.task.count({ where: { AND: [firmTaskScope(firmId), { id: { in: taskIds } }] } }) : 0,
   ]);
+  if (tasks !== taskIds.length) throw new BadRequestException('งานที่เลือกไม่อยู่ในสำนักงานนี้');
   if (clients !== clientIds.length) throw new BadRequestException('ลูกความที่เลือกไม่อยู่ในสำนักงานนี้');
   if (contacts !== contactIds.length) throw new BadRequestException('ผู้ติดต่อที่เลือกไม่อยู่ในสำนักงานนี้');
   if (caseTypes !== caseTypeIds.length) throw new BadRequestException('ประเภทคดีที่เลือกไม่อยู่ในสำนักงานนี้');
@@ -60,4 +65,14 @@ export async function assertFirmRefs(
     }
     throw new BadRequestException('ผู้ใช้ที่เลือกไม่ได้อยู่ในสำนักงานนี้');
   }
+}
+
+/** Same tenant rule as the daily board, including unambiguous legacy personal tasks. */
+export function firmTaskScope(firmId: string): Prisma.TaskWhereInput {
+  return { OR: [
+    { firmId, OR: [{ caseId: null }, { case: { firmId, deletedAt: null } }] },
+    { firmId: null, case: { firmId, deletedAt: null } },
+    { firmId: null, caseId: null, intake: { firmId } },
+    { firmId: null, caseId: null, intakeId: null, createdBy: { firmMembers: { some: { firmId }, every: { firmId } } } },
+  ] };
 }

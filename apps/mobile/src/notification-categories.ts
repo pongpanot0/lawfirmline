@@ -4,6 +4,8 @@ import type { NotificationCategory } from './api/types';
 
 /** Inbox icon and the label a user mutes by, per notification category. */
 export const CATEGORY_META: Record<NotificationCategory, { label: string; Icon: React.ComponentType<{ size?: number; color?: string }> }> = {
+  COACHING: { label: 'คำแนะนำ', Icon: MessageSquare },
+  STANDUP: { label: 'เช็กอินเช้า', Icon: ClipboardList },
   TASK: { label: 'งาน', Icon: ClipboardList },
   CASE: { label: 'คดี / เรื่องรับใหม่', Icon: Briefcase },
   COMMENT: { label: 'ความเห็น / กล่าวถึง', Icon: MessageSquare },
