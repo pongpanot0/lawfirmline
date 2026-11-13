@@ -356,6 +356,25 @@ export class EmailService {
     }
   }
 
+  async sendTeamDigestEmail(params: { to: string; dayLabel: string; lines: string[] }): Promise<boolean> {
+    if (!this.isConfigured()) {
+      this.logger.warn(`Email provider not configured; skipped team digest email to ${maskEmail(params.to)}`);
+      return false;
+    }
+    const subject = `สรุปทีมประจำวัน (${params.dayLabel})`;
+    try {
+      await this.send({
+        to: params.to, subject, text: params.lines.join('\n'),
+        html: `<div style="font-family:Arial,sans-serif;white-space:pre-wrap">${escapeHtml(params.lines.join('\n'))}</div>
+          <p><a href="${escapeHtml(`${this.getAppUrl()}/operations`)}">เปิดทีม</a></p>`,
+      });
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send team digest email to ${maskEmail(params.to)}: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
   /** Fallback for members who have not linked LINE. */
   async sendDailyDigestEmail(params: DailyDigestEmailParams): Promise<boolean> {
     if (!this.isConfigured()) {
