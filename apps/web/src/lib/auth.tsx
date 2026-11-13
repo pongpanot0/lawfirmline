@@ -22,7 +22,7 @@ interface AuthContextValue {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
-  logout: () => void;
+  logout: () => Promise<void>;
   applySession: (accessToken: string, refreshToken: string, user?: AuthUser | null) => void;
 }
 
@@ -99,15 +99,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { void clearCourtOffline(); }
   }, [user]);
 
-  const logout = useCallback(() => {
+  // Resolves once the API has revoked the session and cleared the shared refresh cookie,
+  // so a redirect to www/login can't silently restore the session from that cookie.
+  const logout = useCallback(async () => {
     const refreshToken = localStorage.getItem(REFRESH_KEY);
-    if (refreshToken) void api.logout(refreshToken).catch(() => {});
+    const revoked = refreshToken ? api.logout(refreshToken).catch(() => {}) : undefined;
     clearCourtDayDrafts();
     void clearCourtOffline();
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
     setToken(null);
     setUser(null);
+    await revoked;
   }, []);
 
   return (

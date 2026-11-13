@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { signedOutUrl } from '@/lib/firm-slug';
 import { PageGuide } from '@/components/guide/PageGuide';
 import { PageTour } from '@/components/onboarding/PageTour';
 import { AppShell } from '@/components/layout/AppShell';
@@ -29,10 +30,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const external = user?.firmRole === 'EXTERNAL';
   // An explicit sign-out goes to plain /login; the "no user" redirect below must not add ?next= on the way out.
   const signingOut = useRef(false);
-  const signOut = () => {
+  const signOut = async () => {
     signingOut.current = true;
-    logout();
-    window.location.assign('/login');
+    await logout();
+    window.location.assign(signedOutUrl(window.location.host, window.location.protocol));
   };
 
   useEffect(() => {

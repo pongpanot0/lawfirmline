@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { signedOutUrl } from '@/lib/firm-slug';
 import { NoAccess } from '@/components/ui/NoAccess';
 
 /** The program owner's console — its own shell, outside every firm's workspace. */
@@ -44,10 +45,10 @@ export default function SuperadminLayout({ children }: { children: React.ReactNo
         <span className="text-sm text-muted-foreground">{user.email}</span>
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
             signingOut.current = true;
-            logout();
-            window.location.assign('/login');
+            await logout();
+            window.location.assign(signedOutUrl(window.location.host, window.location.protocol));
           }}
           className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-lg px-3 text-sm hover:bg-accent"
         >
