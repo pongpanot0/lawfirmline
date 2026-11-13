@@ -211,7 +211,7 @@ describe('SecretaryToolsService', () => {
   });
 
   describe('team_workload', () => {
-    const radar = { start: '2026-11-12', days: ['2026-11-12'], members: [{ userId: 'u-a', firstName: 'A', lastName: 'One', role: 'LAWYER', openCount: 6, openPoints: 12, standardPoints: 10, overdueCount: 0, reviewCount: 0, unscheduledCount: 0, days: [{ date: '2026-11-12', taskCount: 2, points: 4, eventCount: 1, courtCount: 0, onLeave: false, outlookBusyMinutes: 0 }] }] };
+    const radar = { start: '2026-11-12', days: ['2026-11-12'], members: [{ userId: 'u-a', firstName: 'A', lastName: 'One', role: 'LAWYER', openCount: 6, openPoints: 12, standardPoints: 10, overdueCount: 0, reviewCount: 0, unscheduledCount: 0, standup: 'not_yet' as const, coaching: { unacknowledged: 0, lastSentAt: null }, days: [{ date: '2026-11-12', taskCount: 2, points: 4, eventCount: 1, courtCount: 0, onLeave: false, outlookBusyMinutes: 0 }] }] };
     const make = () => {
       const operations = { radar: jest.fn().mockResolvedValue(radar) };
       return { operations, svc: new SecretaryToolsService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, operations as any) };

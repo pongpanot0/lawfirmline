@@ -1,3 +1,4 @@
+import type { StandupState } from './standup';
 import { awaitsReviewBy } from './task-review';
 export enum TaskWorkType {
   TRANSCRIPTION = 'TRANSCRIPTION',
@@ -199,6 +200,8 @@ export interface TeamRadarDay {
 export interface TeamRadarMember {
   userId: string; firstName: string; lastName: string; role: string;
   openCount: number; openPoints: number; standardPoints: number; overdueCount: number; reviewCount: number; unscheduledCount: number;
+  standup: StandupState;
+  coaching: { unacknowledged: number; lastSentAt: string | null };
   days: TeamRadarDay[];
 }
 

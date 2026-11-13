@@ -12,7 +12,7 @@ describe('Owner daily operations', () => {
     $transaction: jest.fn(),
   };
   const notifier = { notifyAssigned: jest.fn() };
-  const service = new DailyOperationsService(prisma as any, {} as any, notifier as any, {} as any);
+  const service = new DailyOperationsService(prisma as any, {} as any, notifier as any, {} as any, {} as any, {} as any);
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.task.findFirst.mockResolvedValue(rows[1]);
@@ -52,7 +52,7 @@ describe('Owner daily operations', () => {
         { userId: 'w', startAt: new Date('2026-09-28T05:00:00Z'), endAt: new Date('2026-09-28T06:00:00Z'), showAs: 'free', isAllDay: false },
         { userId: 'w', startAt: new Date('2026-09-28T05:00:00Z'), endAt: new Date('2026-09-28T06:00:00Z'), showAs: 'busy', isAllDay: true },
       ]) },
-      firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'w', role: 'LAWYER', user: { firstName: 'W', lastName: 'L' } }]) },
+      firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'w', role: 'LAWYER', user: { firstName: 'W', lastName: 'L' } }, { userId: 'v', role: 'LAWYER', user: { firstName: 'V', lastName: 'L' } }]) },
       task: { findMany: jest.fn().mockResolvedValue([
         { assigneeId: 'w', status: 'TODO', size: 'L', scheduledFor: new Date('2026-09-28T00:00:00Z'), dueDate: null },
         // no plan day: falls back to the deadline's Bangkok day (01:00 BKK on the 29th)
@@ -63,10 +63,23 @@ describe('Owner daily operations', () => {
       leaveRequest: { findMany: jest.fn().mockResolvedValue([{ userId: 'w', startDate: new Date('2026-09-30T00:00:00Z'), endDate: new Date('2026-09-30T00:00:00Z') }]) },
       calendarEvent: { findMany: jest.fn().mockResolvedValue([{ type: 'COURT_DATE', startAt: new Date('2026-09-28T02:00:00Z'), assigneeId: null, assignees: [], case: { leadLawyerId: 'w' } }]) },
     };
-    const radar = await new DailyOperationsService(radarPrisma as any, {} as any, {} as any, {} as any).radar(owner, '2026-09-28');
+    const standup = { statesFor: jest.fn().mockResolvedValue(new Map([['w', 'blocked'], ['v', 'checked_in']])) };
+    const coaching = { cuesFor: jest.fn().mockResolvedValue(new Map([['w', { unacknowledged: 2, lastSentAt: '2026-11-12T01:00:00.000Z' }]])) };
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-12T18:00:00Z'));
+    let radar;
+    try {
+      radar = await new DailyOperationsService(radarPrisma as any, {} as any, {} as any, {} as any, standup as any, coaching as any).radar(owner, '2026-09-28');
+    } finally {
+      jest.useRealTimers();
+    }
+    expect(standup.statesFor).toHaveBeenCalledTimes(1);
+    expect(standup.statesFor).toHaveBeenCalledWith('firm', ['w', 'v'], '2026-11-13');
+    expect(coaching.cuesFor).toHaveBeenCalledTimes(1);
+    expect(coaching.cuesFor).toHaveBeenCalledWith('firm', ['w', 'v']);
+    expect(radar.members[1]).toMatchObject({ standup: 'checked_in', coaching: { unacknowledged: 0, lastSentAt: null } });
     const w = radar.members[0];
     expect(radar.days).toEqual(['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']);
-    expect(w).toMatchObject({ openCount: 3, openPoints: 7, reviewCount: 1, unscheduledCount: 1 });
+    expect(w).toMatchObject({ openCount: 3, openPoints: 7, reviewCount: 1, unscheduledCount: 1, standup: 'blocked', coaching: { unacknowledged: 2, lastSentAt: '2026-11-12T01:00:00.000Z' } });
     expect(w.days[0]).toEqual({ date: '2026-09-28', taskCount: 1, points: 4, eventCount: 1, courtCount: 1, onLeave: false, outlookBusyMinutes: 180 });
     expect(w.days[1]).toMatchObject({ taskCount: 1, points: 2 });
     expect(w.days[2].onLeave).toBe(true);
@@ -94,7 +107,7 @@ describe('Owner daily operations', () => {
       leaveRequest: { findMany: jest.fn().mockResolvedValue([{ id: 'l', type: 'SICK', startDate: new Date('2026-09-30T00:00:00Z'), endDate: new Date('2026-09-30T00:00:00Z') }]) },
     };
     const caseAccess = { getCaseFilterForUser: jest.fn().mockReturnValue({ firmId: 'firm' }) };
-    const view = await new DailyOperationsService(p as any, {} as any, {} as any, caseAccess as any).person(lawyer, 'w', '2026-09-28');
+    const view = await new DailyOperationsService(p as any, {} as any, {} as any, caseAccess as any, {} as any, {} as any).person(lawyer, 'w', '2026-09-28');
     expect(view.tasks.map((t) => [t.title, t.case?.id ?? null, t.size])).toEqual([['งานที่คุณไม่มีสิทธิ์ดู', null, 'L'], ['ร่วมกัน', 'shared', 'M'], ['งานที่คุณไม่มีสิทธิ์ดู', null, 'S']]);
     expect(view.cases.map((c) => c.id)).toEqual(['shared']);
     expect(view.hiddenCaseCount).toBe(1);

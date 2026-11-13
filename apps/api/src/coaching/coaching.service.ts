@@ -1,6 +1,6 @@
 import { BadGatewayException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser, CoachingDraft, CoachingNoteView, CoachingTeamSummary, HEAVY_QUEUE_POINTS, TaskRef, redactForAi, taskPoints } from '@lawfirm/shared';
+import { AuthUser, CoachingDraft, CoachingNoteView, CoachingTeamSummary, personalStandard, STANDARD_HISTORY_WEEKS, TaskRef, redactForAi, taskPoints } from '@lawfirm/shared';
 import { z } from 'zod';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
@@ -109,8 +109,8 @@ export class CoachingService {
     const dayStart = bangkokDayStart(now);
     const weekday = new Date(`${bangkokDayKey(now)}T00:00:00Z`).getUTCDay();
     const monday = new Date(dayStart.getTime() - ((weekday + 6) % 7) * DAY_MS);
-    const weeks = Array.from({ length: 8 }, (_, i) => ({ weekStart: bangkokDayKey(new Date(monday.getTime() - (7 - i) * 7 * DAY_MS)), finishedPoints: 0 }));
-    const since = new Date(monday.getTime() - 7 * 7 * DAY_MS);
+    const weeks = Array.from({ length: STANDARD_HISTORY_WEEKS }, (_, i) => ({ weekStart: bangkokDayKey(new Date(monday.getTime() - (STANDARD_HISTORY_WEEKS - 1 - i) * 7 * DAY_MS)), finishedPoints: 0 }));
+    const since = new Date(monday.getTime() - (STANDARD_HISTORY_WEEKS - 1) * 7 * DAY_MS);
     const [comments, standups, workload] = await Promise.all([
       this.prisma.taskComment.findMany({ where: { authorId: userId, createdAt: { gte: new Date(now.getTime() - 14 * DAY_MS), lte: now },
         task: { AND: [firmTaskScope(user.firmId)] }, OR: [{ kind: 'DAILY_UPDATE' }, { task: { assigneeId: userId } }] },
@@ -124,13 +124,17 @@ export class CoachingService {
     const tasks = ids.length ? await this.prisma.task.findMany({ where: { AND: [firmTaskScope(user.firmId), { id: { in: ids } }] }, select: { id: true, title: true, case: { select: { ownRef: true } } } }) : [];
     const refs = new Map(tasks.map((t) => [t.id, taskRef(t)]));
     const open = workload.filter((t) => t.status !== 'DONE' && t.status !== 'PENDING_REVIEW');
+    let finishedCount = 0;
     for (const task of workload) {
       if (task.status !== 'DONE' || !task.completedAt) continue;
       const i = Math.floor((task.completedAt.getTime() - since.getTime()) / (7 * DAY_MS));
-      if (i >= 0 && i < weeks.length) weeks[i].finishedPoints += taskPoints(task.size);
+      if (i >= 0 && i < weeks.length) {
+        weeks[i].finishedPoints += taskPoints(task.size);
+        finishedCount++;
+      }
     }
     const payload = { tasks: [...refs.values()], comments, standups, stats: {
-      openPoints: open.reduce((sum, t) => sum + taskPoints(t.size), 0), standardPoints: HEAVY_QUEUE_POINTS,
+      openPoints: open.reduce((sum, t) => sum + taskPoints(t.size), 0), standardPoints: personalStandard({ points: weeks.reduce((sum, week) => sum + week.finishedPoints, 0), count: finishedCount }),
       overdueCount: open.filter((t) => t.dueDate && t.dueDate < now).length, finishedPointsPerWeek: weeks,
     } };
     const names = await this.privateNames(user.firmId);

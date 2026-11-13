@@ -10,6 +10,8 @@ import { bangkokDateOnly, bangkokDayKey, bangkokDayStart } from '../common/utils
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { mergeOutlookBusy, OUTLOOK_BUSY_STATUSES } from '../calendar/outlook-busy';
+import { StandupService } from '../coaching/standup.service';
+import { CoachingService } from '../coaching/coaching.service';
 import { AssignDailyTaskDto, CreateDailyTaskDto } from './dto/daily-operations.dto';
 
 const DAY_MS = 86400000;
@@ -38,7 +40,7 @@ export function dailyTaskScope(firmId: string): Prisma.TaskWhereInput {
 
 @Injectable()
 export class DailyOperationsService {
-  constructor(private prisma: PrismaService, private tasks: TasksService, private notifier: AssignmentNotifierService, private caseAccess: CaseAccessService) {}
+  constructor(private prisma: PrismaService, private tasks: TasksService, private notifier: AssignmentNotifierService, private caseAccess: CaseAccessService, private standup: StandupService, private coaching: CoachingService) {}
 
   async assignees(user: AuthUser): Promise<AssigneeLoad[]> {
     const now = new Date();
@@ -155,6 +157,11 @@ export class DailyOperationsService {
       }),
       this.standards(user.firmId),
     ]);
+    const userIds = members.map((m) => m.userId);
+    const [standupStates, coachingCues] = await Promise.all([
+      this.standup.statesFor(user.firmId, userIds, bangkokDayKey(now)),
+      this.coaching.cuesFor(user.firmId, userIds),
+    ]);
     const outlookByUser = new Map(members.map((m) => [m.userId, mergeOutlookBusy(outlookItems.filter((i) => i.userId === m.userId), start, end)]));
     return {
       start: date, days,
@@ -168,6 +175,8 @@ export class DailyOperationsService {
           openCount: open.length,
           openPoints: open.reduce((sum, t) => sum + taskPoints(t.size), 0),
           standardPoints: standardOf(m.userId),
+          standup: standupStates.get(m.userId) ?? 'not_required',
+          coaching: coachingCues.get(m.userId) ?? { unacknowledged: 0, lastSentAt: null },
           overdueCount: open.filter((t) => t.dueDate && t.dueDate < now).length,
           reviewCount: mine.length - open.length,
           unscheduledCount: open.filter((t) => !taskDay(t)).length,
