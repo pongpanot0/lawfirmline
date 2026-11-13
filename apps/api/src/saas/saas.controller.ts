@@ -24,7 +24,7 @@ import { InvitationService } from './invitation.service';
 import { SubscriptionService } from './subscription.service';
 import { TenantService } from './tenant.service';
 import { AuthService } from '../auth/auth.service';
-import { AcceptInviteDto, CheckoutDto, InviteUserDto, UpdateMemberRoleDto, UpdateFirmSettingsDto } from './dto/saas.dto';
+import { AcceptInviteDto, ChangePlanDto, CheckoutDto, InviteUserDto, UpdateMemberRoleDto, UpdateFirmSettingsDto } from './dto/saas.dto';
 import { FirmRoleGuard } from './guards/firm-role.guard';
 import { RequireCapability, SkipSubscription } from './decorators/saas.decorators';
 import { BillingPeriod, SubscriptionPlan } from '@lawfirm/shared';
@@ -73,6 +73,14 @@ export class SaasController {
       (dto.billingPeriod as BillingPeriod | undefined) ?? BillingPeriod.MONTHLY,
       dto.paymentMethod ?? 'card',
     );
+  }
+
+  @Post('billing/change-plan')
+  @UseGuards(JwtAuthGuard, FirmRoleGuard)
+  @RequireCapability('manageSubscription')
+  @SkipSubscription()
+  changePlan(@CurrentUser() user: AuthUser, @Body() dto: ChangePlanDto) {
+    return this.subscriptions.changePlan(user, dto.plan as SubscriptionPlan, dto.billingPeriod as BillingPeriod);
   }
 
   @Post('billing/portal')

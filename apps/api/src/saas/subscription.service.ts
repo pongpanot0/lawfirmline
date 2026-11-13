@@ -49,6 +49,10 @@ export class SubscriptionService {
     }
 
     const authUser = await this.tenant.buildAuthUser(user.id, user.firmId);
+    const autoRenew = !!firm.stripeSubscriptionId && firm.subscriptionStatus !== SubscriptionStatus.CANCELED;
+    const stripeSub = autoRenew
+      ? await this.prisma.subscription.findUnique({ where: { stripeSubscriptionId: firm.stripeSubscriptionId! }, select: { billingPeriod: true } })
+      : null;
     return {
       status: firm.subscriptionStatus as SubscriptionStatus,
       plan: firm.subscriptionPlan as SubscriptionPlan | null,
@@ -58,6 +62,8 @@ export class SubscriptionService {
       maxUsers: firm.maxUsers,
       memberCount,
       canAccessApp: authUser ? this.tenant.canAccessApp(authUser) : false,
+      autoRenew,
+      billingPeriod: (stripeSub?.billingPeriod as BillingPeriod | undefined) ?? null,
     };
   }
 
@@ -92,7 +98,7 @@ export class SubscriptionService {
     const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId } });
     if (!firm) throw new BadRequestException('Firm not found');
     if (firm.stripeSubscriptionId && firm.subscriptionStatus !== SubscriptionStatus.CANCELED) {
-      throw new BadRequestException('สำนักงานมีแพ็กเกจอยู่แล้ว เปลี่ยนแพ็กเกจหรือบัตรได้ที่ "จัดการการชำระเงิน"');
+      throw new BadRequestException('สำนักงานมีแพ็กเกจที่ต่ออายุอัตโนมัติอยู่แล้ว กด "เปลี่ยนเป็นแพ็กเกจนี้" ที่แพ็กเกจที่ต้องการแทน');
     }
 
     const customer = await this.ensureCustomer(firm.id, firm.name, firm.stripeCustomerId, user.email);
@@ -153,6 +159,62 @@ export class SubscriptionService {
     await this.stripe.client.subscriptions.update(firm.stripeSubscriptionId, { cancel_at_period_end: true });
     await this.prisma.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'SUBSCRIPTION_CANCEL_REQUESTED' } });
     return { success: true };
+  }
+
+  /**
+   * Moves a card (auto-renew) subscription to another plan or billing period.
+   * Stripe charges the prorated difference to the card on file right away
+   * (a downgrade becomes credit on the next invoice). If the charge fails,
+   * nothing changes. The firm is then re-synced from Stripe, same as a webhook.
+   */
+  async changePlan(user: AuthUser, plan: SubscriptionPlan, billingPeriod: BillingPeriod) {
+    if (!this.tenant.isOwner(user)) throw new ForbiddenException('Only owners can manage billing');
+    if (!SELLABLE_PLANS.includes(plan)) throw new BadRequestException('แพ็กเกจนี้ไม่เปิดขายแล้ว');
+    const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId } });
+    if (!firm?.stripeSubscriptionId || firm.subscriptionStatus === SubscriptionStatus.CANCELED) {
+      throw new BadRequestException('สำนักงานนี้ไม่มีแพ็กเกจที่ต่ออายุอัตโนมัติ เลือกแพ็กเกจแล้วชำระเงินใหม่แทน');
+    }
+    const members = await this.tenant.getMemberCount(firm.id);
+    if (members > PLAN_CONFIG[plan].maxUsers) {
+      throw new BadRequestException(`สำนักงานมีสมาชิก ${members} คน แต่แพ็กเกจนี้รับได้ ${PLAN_CONFIG[plan].maxUsers} คน นำสมาชิกออกก่อนเปลี่ยนแพ็กเกจ`);
+    }
+
+    const sub = await this.stripe.client.subscriptions.retrieve(firm.stripeSubscriptionId);
+    const item = sub.items.data[0];
+    if (!item) throw new BadRequestException('ไม่พบรายการแพ็กเกจใน Stripe');
+    const currentPeriod = sub.metadata.billingPeriod === BillingPeriod.YEARLY ? BillingPeriod.YEARLY : BillingPeriod.MONTHLY;
+    if (sub.metadata.plan === plan && currentPeriod === billingPeriod) {
+      throw new BadRequestException('สำนักงานใช้แพ็กเกจนี้อยู่แล้ว');
+    }
+
+    const product = await this.stripe.client.products.create({ name: `Samnuan ${PLAN_CONFIG[plan].name}` });
+    try {
+      await this.stripe.client.subscriptions.update(sub.id, {
+        items: [{
+          id: item.id,
+          price_data: {
+            currency: 'thb',
+            product: product.id,
+            unit_amount: planPriceThb(plan, billingPeriod) * 100,
+            recurring: { interval: billingPeriod === BillingPeriod.YEARLY ? 'year' : 'month' },
+          },
+        }],
+        metadata: { firmId: firm.id, plan, billingPeriod },
+        proration_behavior: 'always_invoice',
+        payment_behavior: 'error_if_incomplete',
+      });
+    } catch (err) {
+      // 402 = declined or the bank wants 3-D Secure; error_if_incomplete means the update was not applied.
+      if (err instanceof Stripe.errors.StripeError && err.statusCode === 402) {
+        throw new BadRequestException(`ตัดบัตรไม่สำเร็จ แพ็กเกจยังเป็นแบบเดิม (${err.message}) เปลี่ยนบัตรได้ที่ "จัดการการชำระเงิน"`);
+      }
+      throw err;
+    }
+    await this.prisma.auditLog.create({
+      data: { firmId: firm.id, userId: user.id, action: 'SUBSCRIPTION_PLAN_CHANGED', metadata: { from: sub.metadata.plan ?? null, to: plan, billingPeriod } },
+    });
+    await this.syncSubscription(sub.id);
+    return this.getSummary(user);
   }
 
   async getBillingHistory(user: AuthUser) {
