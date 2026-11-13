@@ -8,6 +8,7 @@ import { FirmRole, Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseListItem, CaseProgress, CaseTypeItem, UserItem } from '@/lib/api';
 import { CaseViewToggle } from '@/components/cases/CaseViewToggle';
+import { CaseSummaryBars } from '@/components/cases/CaseSummaryBars';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { caseStatusOptions, getCaseStatusDisplay } from '@/lib/case-status';
@@ -80,6 +81,8 @@ function CasesPageContent() {
   const [stageFilter, setStageFilter] = useState(searchParams.get('stage') ?? (searchParams.get('view') === 'intake' ? 'PRE_LITIGATION' : ''));
   const urlStage = searchParams.get('stage');
   useEffect(() => { if (urlStage) setStageFilter(urlStage); }, [urlStage]);
+  // Links that filter by stage (intake, operations) only make sense on the table.
+  const view = searchParams.get('view') === 'table' || searchParams.get('view') === 'intake' || urlStage ? 'table' : 'queue';
   const [lawyerFilter, setLawyerFilter] = useState('');
   const [page, setPage] = useState(0);
   const [sortAsc, setSortAsc] = useState(false);
@@ -282,6 +285,8 @@ function CasesPageContent() {
         }
       />
 
+      <CaseViewToggle current={view} />
+      {view === 'queue' ? <>
       <WhoActsTabs tabs={tabs} value={tab} onChange={() => { setPhase('ALL'); setPage(0); }} />
       <div className="my-4 flex flex-wrap items-center justify-between gap-3"><FilterChips items={chips} value={phase} onChange={setPhase} /><Input aria-label="ค้นหาคดี" placeholder={d.cases.searchPlaceholder} value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-full sm:w-64" /></div>
       {loadError ? <LoadFailed onRetry={() => setReloadKey((k) => k + 1)} /> : loading ? <PageLoading variant="list" title={d.cases.loading} lines={3} /> : displayed.length === 0 ? <EmptyState icon={Briefcase} title={{ TODO: 'ไม่มีคดีที่ต้องทำ', WAITING_CLIENT: 'ไม่มีคดีที่รอลูกความ', WAITING_COURT: 'ไม่มีคดีที่รอศาล', CLOSED: 'ไม่มีคดีที่ปิดแล้ว' }[tab] ?? 'ไม่มีคดี'} description="ลองเปลี่ยนตัวกรองหรือค้นหาอีกครั้ง" /> : <div className="space-y-3">{displayed.map(({ item, state }) => {
@@ -290,8 +295,16 @@ function CasesPageContent() {
         const href = state.next?.kind === 'TASK' && state.next.taskId ? `/cases/${item.id}?task=${encodeURIComponent(state.next.taskId)}` : caseHref(item.id);
         return <article key={item.id} className="relative space-y-3 rounded-lg border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/40"><div className="flex flex-wrap items-center gap-3"><span className="rounded bg-muted px-2 py-1 font-mono text-sm">{item.ownRef}</span><h2 className="font-semibold">{/* The whole card opens the case; the stretched link covers it. */}<Link href={caseHref(item.id)} className="after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring">{item.title}</Link></h2></div><div className="flex flex-wrap items-center gap-3">{state.total > 0 && <span className="rounded bg-muted px-2 py-1 text-sm">งานขั้นนี้ {state.done}/{state.total}</span>}<div className="w-56"><StepTracker steps={steps} variant="mini" /></div></div>{state.next && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"><p className="text-sm font-medium">▸ ต่อไป: {state.next.text} {due && <span className={`ml-2 rounded px-2 py-1 ${due.urgent ? 'bg-destructive/10 text-destructive' : 'bg-muted'}`}>{due.text}</span>}{state.next.assigneeName && state.next.assigneeName !== `${user?.firstName} ${user?.lastName}` && <span className="ml-2 text-muted-foreground">{state.next.assigneeName}</span>}</p><Link className={`${buttonVariants()} relative z-10`} href={href}>ทำเลย →</Link></div>}</article>;
       })}</div>}
-      <details className="mt-6"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">มุมมองตาราง · ตัวกรองเพิ่ม · นำเข้า/ส่งออก</summary>
-      <div className="mb-4 flex gap-2"><Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={exportCsv}><Download className="h-4 w-4" />{d.common.export}</Button>{canCreate && <Button variant="outline" size="sm" onClick={() => router.push('/cases/import')}><Upload className="h-4 w-4" />นำเข้าจาก Excel</Button>}</div>
+      </> : <>
+      {!loading && !loadError && sorted.length > 0 && (
+        <div className="mb-4 grid gap-4 md:grid-cols-2">
+          <CaseSummaryBars title="คดีแยกตามช่วง" hint="นับจากคดีที่กรองอยู่ในตารางด้านล่าง"
+            rows={[...[{ key: 'PRE', label: 'ก่อนฟ้อง' }, { key: 'COURT', label: 'ในศาล' }, { key: 'ENFORCEMENT', label: 'บังคับคดี' }].map(({ key, label }) => ({ label, count: sorted.filter((c) => phases[key].includes(c.stage ?? '')).length })),
+              { label: 'ยังไม่ระบุขั้นตอน', count: sorted.filter((c) => !Object.values(phases).flat().includes(c.stage ?? '')).length }].filter((row, index) => index < 3 || row.count > 0)} />
+          <CaseSummaryBars title="คดีแยกตามสถานะ" hint="นับจากคดีที่กรองอยู่ในตารางด้านล่าง"
+            rows={caseStatusOptions(d.caseStatus).map((opt) => ({ label: opt.label, count: sorted.filter((c) => c.status === opt.value).length })).filter((row) => row.count > 0)} />
+        </div>
+      )}
       {canManageLegacyIntakes && ((unlinkedIntakeCount ?? 0) > 0 || legacyConversionMessage) && (
         <Card className="mb-4 border-warning/40 bg-warning/5">
           <CardContent className="flex flex-wrap items-center gap-3 p-4">
@@ -367,7 +380,6 @@ function CasesPageContent() {
             ))}
           </Select>
           <Select aria-label="กรองตามประเภทคดี" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(0); }} className="min-h-11 rounded-lg border border-input bg-card px-3 text-sm"><option value="">ทุกประเภทคดี</option>{caseTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</Select>
-          <CaseViewToggle current="list" />
           <details className="group relative">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
               <Columns3 aria-hidden="true" className="h-4 w-4" /> คอลัมน์
@@ -417,8 +429,12 @@ function CasesPageContent() {
         <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold">{stageFilter === 'PRE_LITIGATION' ? 'คดีก่อนฟ้อง' : 'คดีทั้งหมด'}</h2>
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{sorted.length}</span>
           </div>
-          <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{sorted.length}</span>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" title="ดาวน์โหลดคดีที่กรองไว้เป็นไฟล์ CSV" disabled={sorted.length === 0} onClick={exportCsv}><Download className="h-4 w-4" />{d.common.export}</Button>
+            {canCreate && <Button variant="outline" size="sm" title="เพิ่มคดีหลายรายการจากไฟล์ Excel" onClick={() => router.push('/cases/import')}><Upload className="h-4 w-4" />นำเข้าจาก Excel</Button>}
+          </div>
         </div>
         <CardContent className="p-0">
           {loadError ? (
@@ -589,7 +605,7 @@ function CasesPageContent() {
           )}
         </CardContent>
       </Card>
-      </details>
+      </>}
     </div>
   );
 }

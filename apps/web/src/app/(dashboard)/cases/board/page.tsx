@@ -60,7 +60,7 @@ export default function CaseBoardPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center justify-end rounded-lg border bg-card p-4"><CaseViewToggle current="board" /></div>
+      <CaseViewToggle current="board" />
 
       {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
