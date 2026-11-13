@@ -36,13 +36,26 @@ export function taskPoints(size: TaskSize | `${TaskSize}`) {
   return TASK_SIZE_POINTS[size as TaskSize];
 }
 
-/** ponytail: fixed office-wide thresholds; per-member capacity when people clearly differ. */
+/** Office default queue standard, used until a member has enough finished work to set their own. */
 export const HEAVY_QUEUE_POINTS = 10;
 export const HEAVY_DAY_POINTS = 4;
+/** Weeks of finished work behind a member's personal standard. */
+export const STANDARD_HISTORY_WEEKS = 8;
+
+/**
+ * A member's queue standard = points they actually finished per week over the last STANDARD_HISTORY_WEEKS weeks,
+ * so a fast lawyer can carry more than 10 and a slower one is flagged earlier.
+ * Too little history (fewer than 5 finished tasks) keeps the office default. Clamped to 5–30 so one odd stretch can't make it absurd.
+ * ponytail: leave weeks count as zero-output weeks; exclude them if standards dip after long leave.
+ */
+export function personalStandard(finished: { points: number; count: number }) {
+  if (finished.count < 5) return HEAVY_QUEUE_POINTS;
+  return Math.min(30, Math.max(5, Math.round(finished.points / STANDARD_HISTORY_WEEKS)));
+}
 
 /** The one queue rule every screen uses: over = above the standard, near = 80% of it or more. */
-export function queueLoad(points: number): 'over' | 'near' | 'ok' {
-  return points > HEAVY_QUEUE_POINTS ? 'over' : points >= HEAVY_QUEUE_POINTS * 0.8 ? 'near' : 'ok';
+export function queueLoad(points: number, standard = HEAVY_QUEUE_POINTS): 'over' | 'near' | 'ok' {
+  return points > standard ? 'over' : points >= standard * 0.8 ? 'near' : 'ok';
 }
 
 /** The one day rule every screen uses: over = above HEAVY_DAY_POINTS, busy = above half of it. */
@@ -53,11 +66,24 @@ export function dayLoad(points: number): 'over' | 'busy' | 'ok' {
 export type WorkloadStatus = 'over_standard' | 'near_standard' | 'on_leave_this_week' | 'has_overdue' | 'free';
 
 /** Status badge for one team-radar member. Someone with overdue work is never "free", whatever their points. */
-export function workloadStatus(member: { openPoints: number; overdueCount: number; days: { onLeave: boolean }[] }): WorkloadStatus {
-  const load = queueLoad(member.openPoints);
+export function workloadStatus(member: { openPoints: number; standardPoints: number; overdueCount: number; days: { onLeave: boolean }[] }): WorkloadStatus {
+  const load = queueLoad(member.openPoints, member.standardPoints);
   if (load !== 'ok') return load === 'over' ? 'over_standard' : 'near_standard';
   if (member.days.some((d) => d.onLeave)) return 'on_leave_this_week';
   return member.overdueCount > 0 ? 'has_overdue' : 'free';
+}
+
+type WorkloadMember = Parameters<typeof workloadStatus>[0];
+const workloadUrgency = (m: WorkloadMember) => {
+  const status = workloadStatus(m);
+  if (status === 'over_standard') return 0;
+  if (m.overdueCount > 0) return 1;
+  return { near_standard: 2, has_overdue: 1, free: 3, on_leave_this_week: 4 }[status];
+};
+
+/** Team-radar order: over standard, then overdue, near standard, free, on leave; more overdue, then fuller (points vs own standard) first within a group. */
+export function compareWorkload(a: WorkloadMember, b: WorkloadMember) {
+  return workloadUrgency(a) - workloadUrgency(b) || b.overdueCount - a.overdueCount || b.openPoints / b.standardPoints - a.openPoints / a.standardPoints;
 }
 
 export type DailyTaskUpdateInput = { completed: string; remaining: string; blocker?: string };
@@ -79,7 +105,7 @@ export interface DailyWorkTask {
 
 export interface DailyWorkMember {
   userId: string; firstName: string; lastName: string; email: string; role: string;
-  workTypes: TaskWorkType[]; onLeave: boolean;
+  workTypes: TaskWorkType[]; onLeave: boolean; standardPoints: number;
   appointments: { id: string; title: string; startAt: string; endAt: string | null }[];
 }
 
@@ -126,8 +152,8 @@ export function assignmentWarnings(candidate?: AssignmentCandidate) {
     ...(!candidate.queue.length && !candidate.reviews.length ? ['ยังไม่มีงานบันทึกในระบบ จึงยังสรุปว่าว่างไม่ได้'] : []),
     ...candidate.queue.filter(t => t.blocker || t.holdReason || t.blockedBy).map(t => `${t.title}: ${t.holdReason || t.blocker || `รอ ${t.blockedBy}`}`),
     ...(candidate.member.appointments.length ? [`มี ${candidate.member.appointments.length} นัดในวันที่เลือก${candidate.member.appointments.some(e => !e.endAt) ? ' และยังไม่ทราบเวลาสิ้นสุดบางนัด' : ''}`] : []),
-    ...(queueLoad(candidate.points) === 'over' ? [`คิวงานเกินเกณฑ์ ${candidate.points - HEAVY_QUEUE_POINTS} แต้ม ตรวจลำดับงานก่อนเพิ่ม`]
-      : queueLoad(candidate.points) === 'near' ? ['คิวงานใกล้เกณฑ์ ตรวจลำดับงานก่อนเพิ่ม'] : []),
+    ...(queueLoad(candidate.points, candidate.member.standardPoints) === 'over' ? [`คิวงานเกินเกณฑ์ ${candidate.points - candidate.member.standardPoints} แต้ม ตรวจลำดับงานก่อนเพิ่ม`]
+      : queueLoad(candidate.points, candidate.member.standardPoints) === 'near' ? ['คิวงานใกล้เกณฑ์ ตรวจลำดับงานก่อนเพิ่ม'] : []),
   ];
 }
 
@@ -172,7 +198,7 @@ export interface TeamRadarDay {
 
 export interface TeamRadarMember {
   userId: string; firstName: string; lastName: string; role: string;
-  openCount: number; openPoints: number; overdueCount: number; reviewCount: number; unscheduledCount: number;
+  openCount: number; openPoints: number; standardPoints: number; overdueCount: number; reviewCount: number; unscheduledCount: number;
   days: TeamRadarDay[];
 }
 

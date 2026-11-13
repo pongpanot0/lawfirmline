@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LeaveStatus } from '../generated/prisma';
-import { HEAVY_QUEUE_POINTS, hasFirmCapability, redactForAi, workloadStatus } from '@lawfirm/shared';
+import { hasFirmCapability, redactForAi, workloadStatus } from '@lawfirm/shared';
 import type { AgendaItem, AuthUser, FirmCapability, SecretaryCard, TeamRadar } from '@lawfirm/shared';
 import { DailyOperationsService } from '../operations/daily-operations.service';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
@@ -85,7 +85,7 @@ export class SecretaryToolsService {
         { minDaysOverdue: { type: 'number' } }, []),
       tool('petty_cash_balance', 'Current petty cash fund balance (THB).', {}, []),
       tool('my_work', 'The caller\'s own work right now, the same as their "my day" screen: overdue items, today, tomorrow, the next days, tasks waiting for their review, and schedule warnings. Use it for broad questions like "what work do I/we have".', {}, []),
-      tool('team_workload', `Workload of every firm member for 7 days from a date (default today, Asia/Bangkok): open task points vs the ${HEAVY_QUEUE_POINTS}-point standard, overdue and review counts, and per-day task points, appointments, court dates and leave. Counts only — no case or task details. Use it for "who is free / overloaded".`,
+      tool('team_workload', `Workload of every firm member for 7 days from a date (default today, Asia/Bangkok): open task points vs each member's own standard (standardPoints, from points they finished per week over the last 8 weeks), overdue and review counts, and per-day task points, appointments, court dates and leave. Counts only — no case or task details. Use it for "who is free / overloaded".`,
         { from: { type: 'string', description: 'YYYY-MM-DD' } }, []),
     ].filter((d) => canUse(user, d.function.name));
   }
@@ -364,11 +364,11 @@ function redactContent(content: unknown, key = ''): unknown {
 /** Same status rule as the web TeamRadar card, spelled out so the model doesn't have to infer it. */
 export function teamWorkload(radar: TeamRadar) {
   return {
-    from: radar.start, standardPoints: HEAVY_QUEUE_POINTS,
+    from: radar.start,
     members: radar.members.map(({ userId: _id, days, ...m }) => {
       const leaveDays = days.filter((d) => d.onLeave).map((d) => d.date);
       const status = workloadStatus({ ...m, days });
-      return { ...m, status, loadPercent: Math.round((m.openPoints / HEAVY_QUEUE_POINTS) * 100), leaveDays,
+      return { ...m, status, loadPercent: Math.round((m.openPoints / m.standardPoints) * 100), leaveDays,
         days: days.map(({ onLeave: _l, ...d }) => d) };
     }),
   };

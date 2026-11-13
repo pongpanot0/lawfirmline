@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { canAssignFirmRole, DailyWorkboard, DailyWorkTask, FirmRole, HEAVY_QUEUE_POINTS, TASK_SIZES, TASK_WORK_TYPES, TaskPriority, TaskSize, TaskWorkType, taskPoints } from '@lawfirm/shared';
+import { canAssignFirmRole, DailyWorkboard, DailyWorkTask, FirmRole, TASK_SIZES, TASK_WORK_TYPES, TaskPriority, TaskSize, TaskWorkType, taskPoints } from '@lawfirm/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { bangkokInputToIso } from '@/lib/bangkok';
@@ -46,7 +46,7 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
   }, [assignmentDate, board, token]);
   const candidates = assignmentCandidates(availability.members.filter((m) => user && (m.userId === user.id || canAssignFirmRole(user.firmRole, m.role as FirmRole))), availability.tasks.filter((t) => t.id !== task?.id), workType, assignmentDate);
   const selected = candidates.find((c) => c.member.userId === assigneeId);
-  const risks = selected ? [selected.member.onLeave && 'มีวันลาที่อนุมัติแล้ว', !selected.configured && 'ยังไม่ได้กำหนดให้ทำงานประเภทนี้', selected.unknown && 'ความคืบหน้าของงานเดิมยังไม่ครบ', selected.member.appointments.length > 0 && 'มีนัดหมายในวันที่เลือก', placeFirst && selected.queue.length > 0 && 'งานเดิมถูกเลื่อนลำดับ', selected.points + taskPoints(size) > HEAVY_QUEUE_POINTS && `คิวรวมจะเป็น ${selected.points + taskPoints(size)} แต้ม (เกิน ${HEAVY_QUEUE_POINTS})`].filter(Boolean) : [];
+  const risks = selected ? [selected.member.onLeave && 'มีวันลาที่อนุมัติแล้ว', !selected.configured && 'ยังไม่ได้กำหนดให้ทำงานประเภทนี้', selected.unknown && 'ความคืบหน้าของงานเดิมยังไม่ครบ', selected.member.appointments.length > 0 && 'มีนัดหมายในวันที่เลือก', placeFirst && selected.queue.length > 0 && 'งานเดิมถูกเลื่อนลำดับ', selected.points + taskPoints(size) > selected.member.standardPoints && `คิวรวมจะเป็น ${selected.points + taskPoints(size)} แต้ม (เกิน ${selected.member.standardPoints})`].filter(Boolean) : [];
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
