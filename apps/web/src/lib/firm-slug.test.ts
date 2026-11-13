@@ -4,6 +4,7 @@ import {
   buildFirmHandoffUrl,
   isHandoffPath,
   shouldRedirectAfterLogin,
+  signedOutUrl,
 } from './firm-slug.ts';
 
 describe('post-login firm redirect', () => {
@@ -48,5 +49,18 @@ describe('handoff session bootstrap', () => {
     assert.equal(isHandoffPath('/handoff/'), true);
     assert.equal(isHandoffPath('/dashboard'), false);
     assert.equal(isHandoffPath('/login'), false);
+  });
+});
+
+describe('sign-out destination', () => {
+  it('sends a firm subdomain to the shared www login', () => {
+    assert.equal(signedOutUrl('thesiambarristers.samnuan.com', 'https:'), 'https://www.samnuan.com/login');
+  });
+  it('keeps local dev on localhost with its port', () => {
+    assert.equal(signedOutUrl('office.localhost:3000', 'http:'), 'http://localhost:3000/login');
+  });
+  it('stays on the current host when it is not a firm subdomain', () => {
+    assert.equal(signedOutUrl('www.samnuan.com', 'https:'), '/login');
+    assert.equal(signedOutUrl('samnuan.com', 'https:'), '/login');
   });
 });

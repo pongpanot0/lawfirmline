@@ -28,6 +28,14 @@ export function shouldRedirectAfterLogin(currentHost: string, firmSlug: string):
   return needsFirmHostRedirect(currentHost, firmSlug, rootDomain());
 }
 
+/** Where sign-out lands: the shared www login, never a firm subdomain (local dev keeps localhost:port). */
+export function signedOutUrl(currentHost: string, protocol: string): string {
+  if (!extractFirmSlugFromHost(currentHost, rootDomain())) return '/login';
+  const local = currentHost.match(/\.localhost(:\d+)?$/);
+  const host = local ? `localhost${local[1] ?? ''}` : `www.${rootDomain()}`;
+  return `${protocol}//${host}/login`;
+}
+
 const HANDOFF_PATH = '/handoff';
 
 /**
