@@ -39,6 +39,7 @@ describe('LineBotRouter my-day command', () => {
       { begin: jest.fn(), handle: jest.fn() } as any,
       {} as any,
       {} as any,
+      {} as any,
     );
   });
 

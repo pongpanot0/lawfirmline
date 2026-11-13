@@ -13,6 +13,7 @@ import {
   FilePlus2,
   LogOut,
   Mail,
+  MessageSquareText,
   PauseCircle,
   Receipt,
   CalendarOff,
@@ -27,32 +28,55 @@ import { Card, PageIntro, SectionLabel } from '@/components/ui';
 import { colors, spacing, pageContent, radius } from '@/theme';
 
 const ITEMS = [
-  { route: '/account', Icon: UserRound, title: 'บัญชีของฉัน', detail: 'ข้อมูลส่วนตัวและรหัสผ่าน' },
-  { route: '/document-waiting', Icon: FileClock, title: 'รอเอกสารจากภายนอก', detail: 'ขาดอะไร รอจากใคร ติดตามวันไหน และได้รับแล้วหรือยัง' },
-  { route: '/settings', Icon: Settings, title: 'ตั้งค่า', detail: 'การแจ้งเตือน (แอป / LINE) และขนาดตัวอักษร' },
-  { route: '/search', Icon: Search, title: 'ค้นหาไฟล์', detail: 'ค้นชื่อไฟล์ในทุกคดีที่เข้าถึงได้' },
-  { route: '/email-search', Icon: Mail, title: 'ค้นหาอีเมล', detail: 'ค้นอีเมลจากชื่อลูกความ หัวเรื่อง หรือข้อความ ในทุกคดี' },
-  { route: '/leaves', Icon: CalendarOff, title: 'ขอลา', detail: 'เลือกประเภทและวันที่ ดูสถานะคำขอ' },
-  { route: '/expenses/claims', Icon: Receipt, title: 'ชุดเบิก', detail: 'รายการที่ส่งเป็นชุด และสถานะการจ่าย' },
-  { route: '/clients', Icon: Contact, title: 'ลูกความ', detail: 'สมุดลูกความ โทร/อีเมล และคดีของแต่ละราย' },
-  { route: '/expenses', Icon: Wallet, title: 'ค่าใช้จ่าย', detail: 'บันทึกค่าใช้จ่ายหน้างาน ถ่ายใบเสร็จ ส่งเบิก' },
-  { route: '/timesheet', Icon: Clock, title: 'ยืนยันเวลา', detail: 'ยืนยันเวลาทำงานจากนัดศาล งาน อีเมล และกิจกรรมวันนี้' },
-  { route: '/case/new', Icon: FilePlus2, title: 'รับเคสใหม่', detail: 'สร้างคดี เลือกคนหลัก คนรอง และแนบไฟล์' },
-  { route: '/reports', Icon: BarChart3, title: 'รายงาน', detail: 'สรุปคดีที่ปิด ระยะเวลาเฉลี่ย และปริมาณงาน' },
-  { route: '/knowledge', Icon: BookOpen, title: 'คลังความรู้', detail: 'ค้นหาสรุปคดี แนวคำพิพากษา บทเรียน' },
-  { route: '/operations', Icon: PauseCircle, title: 'งานพักไว้', detail: 'คิวงานที่รอคนอื่น เรียงตามกำหนดติดตาม' },
+  { route: '/app-feedback', Icon: MessageSquareText, title: 'ส่งความเห็นเกี่ยวกับแอป',
+    detail: 'แจ้งปัญหาหรือเสนอไอเดียให้ทีม Samnuan' },
+  { route: '/account', Icon: UserRound, title: 'บัญชีของฉัน',
+    detail: 'ข้อมูลส่วนตัวและรหัสผ่าน' },
+  { route: '/document-waiting', Icon: FileClock, title: 'รอเอกสารจากภายนอก',
+    detail: 'ขาดอะไร รอจากใคร ติดตามวันไหน ' +
+      'และได้รับแล้วหรือยัง' },
+  { route: '/settings', Icon: Settings, title: 'ตั้งค่า',
+    detail: 'การแจ้งเตือน (แอป / LINE) และขนาดตัวอักษร' },
+  { route: '/search', Icon: Search, title: 'ค้นหาไฟล์',
+    detail: 'ค้นชื่อไฟล์ในทุกคดีที่เข้าถึงได้' },
+  { route: '/email-search', Icon: Mail, title: 'ค้นหาอีเมล',
+    detail: 'ค้นอีเมลจากชื่อลูกความ หัวเรื่อง ' +
+      'หรือข้อความ ในทุกคดี' },
+  { route: '/leaves', Icon: CalendarOff, title: 'ขอลา',
+    detail: 'เลือกประเภทและวันที่ ดูสถานะคำขอ' },
+  { route: '/expenses/claims', Icon: Receipt, title: 'ชุดเบิก',
+    detail: 'รายการที่ส่งเป็นชุด และสถานะการจ่าย' },
+  { route: '/clients', Icon: Contact, title: 'ลูกความ',
+    detail: 'สมุดลูกความ โทร/อีเมล และคดีของแต่ละราย' },
+  { route: '/expenses', Icon: Wallet, title: 'ค่าใช้จ่าย',
+    detail: 'บันทึกค่าใช้จ่ายหน้างาน ถ่ายใบเสร็จ ส่งเบิก' },
+  { route: '/timesheet', Icon: Clock, title: 'ยืนยันเวลา',
+    detail: 'ยืนยันเวลาทำงานจากนัดศาล งาน อีเมล ' +
+      'และกิจกรรมวันนี้' },
+  { route: '/case/new', Icon: FilePlus2, title: 'รับเคสใหม่',
+    detail: 'สร้างคดี เลือกคนหลัก คนรอง และแนบไฟล์' },
+  { route: '/reports', Icon: BarChart3, title: 'รายงาน',
+    detail: 'สรุปคดีที่ปิด ระยะเวลาเฉลี่ย และปริมาณงาน' },
+  { route: '/knowledge', Icon: BookOpen, title: 'คลังความรู้',
+    detail: 'ค้นหาสรุปคดี แนวคำพิพากษา บทเรียน' },
+  { route: '/operations', Icon: PauseCircle, title: 'งานพักไว้',
+    detail: 'คิวงานที่รอคนอื่น เรียงตามกำหนดติดตาม' },
 ] as const;
 
 const GROUPS = [
-  { title: 'งานสำนักงาน', routes: ['/case/new', '/clients', '/leaves', '/expenses', '/expenses/claims', '/timesheet', '/operations'] },
+  { title: 'งานสำนักงาน',
+    routes: ['/case/new', '/clients', '/leaves', '/expenses', '/expenses/claims', '/timesheet', '/operations'] },
   { title: 'เอกสารและข้อมูล', routes: ['/search', '/email-search', '/document-waiting', '/reports', '/knowledge'] },
-  { title: 'บัญชีและการตั้งค่า', routes: ['/account', '/settings'] },
+  { title: 'บัญชีและการตั้งค่า', routes: ['/account', '/settings', '/app-feedback'] },
 ];
 
 export default function MoreScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const confirmLogout = () => Alert.alert('ออกจากระบบ', user?.email ? `ออกจากระบบจาก ${user.email}?` : 'ออกจากระบบจากเครื่องนี้?', [
+  const confirmLogout = () => Alert.alert(
+    'ออกจากระบบ',
+    user?.email ? `ออกจากระบบจาก ${user.email}?` : 'ออกจากระบบจากเครื่องนี้?',
+    [
     { text: 'ยกเลิก', style: 'cancel' }, { text: 'ออกจากระบบ', style: 'destructive', onPress: logout },
   ]);
 
@@ -62,7 +86,8 @@ export default function MoreScreen() {
       {GROUPS.map(group => <View key={group.title}>
         <SectionLabel style={{ marginTop: spacing.md }}>{group.title}</SectionLabel>
         <Card style={styles.menuCard}>
-          {ITEMS.filter(item => group.routes.includes(item.route) && (item.route !== '/operations' || hasFirmCapability(user?.firmRole, 'runOperations'))).map((item, index) => (
+          {ITEMS.filter(item => group.routes.includes(item.route) &&
+            (item.route !== '/operations' || hasFirmCapability(user?.firmRole, 'runOperations'))).map((item, index) => (
             <View key={item.route}>
               {index > 0 ? <View style={styles.divider} /> : null}
               <Pressable
@@ -97,7 +122,8 @@ export default function MoreScreen() {
           </View>
         </Pressable>
         <View style={styles.divider} />
-        <Pressable accessibilityRole="button" accessibilityLabel="ลบบัญชีและข้อมูล" accessibilityHint="ส่งคำขอและติดตามสถานะ"
+        <Pressable accessibilityRole="button" accessibilityLabel="ลบบัญชีและข้อมูล"
+          accessibilityHint="ส่งคำขอและติดตามสถานะ"
           onPress={() => router.push('/delete-account')}
           style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: colors.soft }]}>
           <View style={styles.row}>

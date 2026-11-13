@@ -1891,7 +1891,100 @@ export type CaseProgress = { caseId: string; bucket: 'TODO' | 'WAITING_CLIENT' |
 export type CaseJourney = Omit<Journey, 'next'> & { next: (NonNullable<Journey['next']> & { kind: 'INFO' | 'PRELIT' | 'TASK' | 'ADVANCE' }) | null; infoMissing: string[]; preLitSteps: JourneyStep[]; preLitNext: Journey['next']; currentTasks: { id: string; title: string; status: string; assigneeName: string | null; dueDate: string | null; skippedReason: string | null }[] };
 export type SkippedTask = { id: string; status: string; skippedReason: string; skippedAt: string; skippedById: string };
 
+export type FeedbackKind = 'BUG' | 'SUGGESTION' | 'OTHER' | 'RATING';
+export type FeedbackPlatform = 'web' | 'ios' | 'android';
+export interface FeedbackItem {
+  id: string;
+  kind: FeedbackKind;
+  source: 'WEB' | 'MOBILE' | 'LINE';
+  rating: number | null;
+  message: string | null;
+  route: string | null;
+  platform: string | null;
+  appVersion: string | null;
+  hasScreenshot: boolean;
+  createdAt: string;
+  resolvedAt: string | null;
+  user: { id: string; name: string };
+  firm: { id: string; name: string } | null;
+}
+export interface FeedbackPage {
+  route: string;
+  platform: string | null;
+  responses: number;
+  bad: number;
+  ok: number;
+  good: number;
+  comments: number;
+}
+export interface FeedbackComment {
+  id: string;
+  rating: number | null;
+  message: string | null;
+  createdAt: string;
+  user: { id: string; name: string };
+  firm: { id: string; name: string } | null;
+}
+export interface FeedbackRound {
+  id: string;
+  sentAt: string;
+  recipientCount: number;
+  answered: number;
+  bad: number;
+  ok: number;
+  good: number;
+  comments: number;
+}
+export interface FeedbackRounds {
+  recipients: { users: number; firms: number };
+  lastSentAt: string | null;
+  rounds: FeedbackRound[];
+}
+type FeedbackListQuery = {
+  status?: 'open' | 'resolved' | 'all';
+  kind?: FeedbackKind;
+  firmId?: string;
+  q?: string;
+  cursor?: string;
+  limit?: number;
+};
+type FeedbackPageQuery = { platform?: FeedbackPlatform; days?: number };
+function feedbackQuery(data: object): string {
+  return new URLSearchParams(
+    Object.entries(data)
+      .filter(([, value]) => value !== undefined && value !== '')
+      .map(([key, value]) => [key, String(value)]),
+  ).toString();
+}
+
 export const api = {
+  createAppFeedback: (token: string, form: FormData) =>
+    request<{ id: string }>('/app-feedback', { method: 'POST', token, body: form, silent: true }),
+  getFeedback: (token: string, query: FeedbackListQuery) =>
+    request<{ items: FeedbackItem[]; nextCursor: string | null }>(
+      `/platform/feedback?${feedbackQuery(query)}`,
+      { token },
+    ),
+  getFeedbackSummary: (token: string) => request<{ open: number }>('/platform/feedback/summary', { token }),
+  resolveFeedback: (token: string, ids: string[], resolved: boolean) =>
+    request<{ count: number }>('/platform/feedback/resolve', {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ ids, resolved }),
+    }),
+  getFeedbackScreenshot: (token: string, id: string) =>
+    fetchBlob(`/platform/feedback/${encodeURIComponent(id)}/screenshot`, { token }),
+  getFeedbackPages: (token: string, query: FeedbackPageQuery) =>
+    request<FeedbackPage[]>(`/platform/feedback/pages?${feedbackQuery(query)}`, { token }),
+  getFeedbackPageComments: (token: string, query: FeedbackPageQuery & { route: string }) =>
+    request<FeedbackComment[]>(`/platform/feedback/pages/comments?${feedbackQuery(query)}`, { token }),
+  getFeedbackLineRounds: (token: string) =>
+    request<FeedbackRounds>('/platform/feedback/line-rounds', { token }),
+  sendFeedbackLineRound: (token: string) =>
+    request<{ id: string; recipientCount: number; delivered: number }>('/platform/feedback/line-rounds', {
+      method: 'POST',
+      token,
+    }),
   getMyMcpConnections: (token: string) => request<import('@lawfirm/shared').MyMcpConnections>('/mcp/connections/mine', { token }),
   revokeMyMcpConnection: (token: string, id: string) => request<void>(`/mcp/connections/mine/${encodeURIComponent(id)}`, { token, method: 'DELETE' }),
   getMcpSettings: (token: string) => request<import('@lawfirm/shared').McpFirmSettings>('/mcp/settings', { token }),

@@ -2,6 +2,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PracticeSetupModule } from './practice-setup/practice-setup.module';
 import { LawyerLicenseModule } from './lawyer-license/lawyer-license.module';
 import { PaperFilesModule } from './paper-files/paper-files.module';
+import { AppFeedbackModule } from './app-feedback/app-feedback.module';
 import { ErrorLogModule } from './error-log/error-log.module';
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
@@ -64,6 +65,7 @@ import { McpModule } from './mcp/mcp.module';
     ScheduleModule.forRoot(),
     PrismaModule,
     ErrorLogModule,
+    AppFeedbackModule,
     CommonModule,
     HealthModule,
     AuthModule,

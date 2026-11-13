@@ -13,6 +13,7 @@ import { DateField, SelectField, TextField } from '@/components/ui/form-fields';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { EmptyState, Skeleton } from '@/components/ui/misc';
+import { SuperadminFeedback } from '@/components/feedback-app/SuperadminFeedback';
 
 const STATUSES: PlatformFirm['subscriptionStatus'][] = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELED', 'EXPIRED'];
 const PLANS = ['FREE', 'SOLO', 'TEAM', 'FIRM', 'PROFESSIONAL'] as const;
@@ -36,6 +37,18 @@ const endOfBangkokDay = (value: string) => new Date(`${value}T23:59:59+07:00`).t
 
 export default function SuperadminPage() {
   const { token } = useAuth();
+  const [topTab, setTopTab] = useState<'firms' | 'feedback'>('firms');
+  const [feedbackOpen, setFeedbackOpen] = useState<number | null>(null);
+  const refreshSummary = () => {
+    if (!token) return;
+    api.getFeedbackSummary(token)
+      .then((summary) => setFeedbackOpen(summary.open))
+      .catch(() => setFeedbackOpen(null));
+  };
+  useEffect(() => {
+    refreshSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
   const [overview, setOverview] = useState<PlatformOverview | null>(null);
   const [firms, setFirms] = useState<PlatformFirm[]>([]);
   const [q, setQ] = useState('');
@@ -74,77 +87,101 @@ export default function SuperadminPage() {
 
   return (
     <div>
-      <PageHeader title="ทุกสำนักงาน" description="ดูและจัดการทุกสำนักงานที่ใช้โปรแกรม" />
-
-      {stats && (
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-          {stats.map((s) => (
-            <Card key={s.label}>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{s.value}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <TextField
-        label="ค้นหา"
-        placeholder="ชื่อสำนักงาน, slug หรืออีเมลสมาชิก"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        containerClassName="mb-4 max-w-sm"
-      />
-
-      {error ? (
-        <LoadFailed message="โหลดรายการสำนักงานไม่สำเร็จ" onRetry={load} />
-      ) : firms.length === 0 && loading ? (
-        <div role="status" className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>
-      ) : firms.length === 0 ? (
-        <EmptyState title="ไม่พบสำนักงาน" />
+      <div className="mb-6 flex w-full border-b border-border">
+        {([['firms', 'สำนักงาน'], ['feedback', 'Feedback']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={topTab === id}
+            onClick={() => setTopTab(id)}
+            className={`flex-1 border-b-2 p-4 font-semibold focus-visible:ring-2 focus-visible:ring-ring ${
+              topTab === id ? 'border-primary' : 'border-transparent'
+            }`}
+          >
+            {label}
+            {id === 'feedback' && feedbackOpen !== null && (
+              <span className="ml-2 rounded-full bg-muted px-2 py-1 text-sm">{feedbackOpen} รอดำเนินการ</span>
+            )}
+          </button>
+        ))}
+      </div>
+      {topTab === 'feedback' ? (
+        token && <SuperadminFeedback token={token} open={feedbackOpen} refreshSummary={refreshSummary} />
       ) : (
-        <div className="space-y-2">
-          {firms.map((firm) => (
-            <Card key={firm.id}>
-              <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
-                <div className="min-w-0 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{firm.name}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{firm.slug}</span>
-                    <Badge variant={STATUS_VARIANT[firm.subscriptionStatus]}>{STATUS_LABEL[firm.subscriptionStatus]}</Badge>
-                    {firm.subscriptionPlan && <Badge variant="outline">{firm.subscriptionPlan}</Badge>}
-                    {firm.stripeManaged && <Badge variant="outline">Stripe</Badge>}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {firm.ownerEmail ?? 'ไม่มีเจ้าของ'} · สมาชิก {firm.memberCount}/{firm.maxUsers} · คดี {firm.caseCount}
-                  </p>
-                  <p className="text-xs tabular-nums text-muted-foreground">
-                    สมัคร {formatDate(firm.createdAt)}
-                    {firm.subscriptionStatus === 'TRIAL' && ` · ทดลองถึง ${formatDate(firm.trialEndAt)}`}
-                    {firm.currentPeriodEnd && ` · รอบบิลถึง ${formatDate(firm.currentPeriodEnd)}`}
-                  </p>
-                </div>
-                <Button type="button" variant="outline" onClick={() => setEditing(firm)}>จัดการ</Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+        <>
+          <PageHeader title="ทุกสำนักงาน" description="ดูและจัดการทุกสำนักงานที่ใช้โปรแกรม" />
 
-      <SideDrawer open={!!editing} title={editing?.name ?? ''} onClose={() => setEditing(null)}>
-        {editing && token && (
-          <FirmEditor
-            key={editing.id}
-            token={token}
-            firm={editing}
-            onSaved={() => {
-              setEditing(null);
-              load();
-            }}
+          {stats && (
+            <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+              {stats.map((s) => (
+                <Card key={s.label}>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">{s.label}</p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums">{s.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <TextField
+            label="ค้นหา"
+            placeholder="ชื่อสำนักงาน, slug หรืออีเมลสมาชิก"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            containerClassName="mb-4 max-w-sm"
           />
-        )}
-      </SideDrawer>
+
+          {error ? (
+            <LoadFailed message="โหลดรายการสำนักงานไม่สำเร็จ" onRetry={load} />
+          ) : firms.length === 0 && loading ? (
+            <div role="status" className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>
+          ) : firms.length === 0 ? (
+            <EmptyState title="ไม่พบสำนักงาน" />
+          ) : (
+            <div className="space-y-2">
+              {firms.map((firm) => (
+                <Card key={firm.id}>
+                  <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{firm.name}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{firm.slug}</span>
+                        <Badge variant={STATUS_VARIANT[firm.subscriptionStatus]}>{STATUS_LABEL[firm.subscriptionStatus]}</Badge>
+                        {firm.subscriptionPlan && <Badge variant="outline">{firm.subscriptionPlan}</Badge>}
+                        {firm.stripeManaged && <Badge variant="outline">Stripe</Badge>}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {firm.ownerEmail ?? 'ไม่มีเจ้าของ'} · สมาชิก {firm.memberCount}/{firm.maxUsers} · คดี {firm.caseCount}
+                      </p>
+                      <p className="text-xs tabular-nums text-muted-foreground">
+                        สมัคร {formatDate(firm.createdAt)}
+                        {firm.subscriptionStatus === 'TRIAL' && ` · ทดลองถึง ${formatDate(firm.trialEndAt)}`}
+                        {firm.currentPeriodEnd && ` · รอบบิลถึง ${formatDate(firm.currentPeriodEnd)}`}
+                      </p>
+                    </div>
+                    <Button type="button" variant="outline" onClick={() => setEditing(firm)}>จัดการ</Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <SideDrawer open={!!editing} title={editing?.name ?? ''} onClose={() => setEditing(null)}>
+            {editing && token && (
+              <FirmEditor
+                key={editing.id}
+                token={token}
+                firm={editing}
+                onSaved={() => {
+                  setEditing(null);
+                  load();
+                }}
+              />
+            )}
+          </SideDrawer>
+        </>
+      )}
     </div>
   );
 }
