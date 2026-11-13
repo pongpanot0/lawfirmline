@@ -25,6 +25,34 @@ describe('EmailService', () => {
     service = module.get(EmailService);
   });
 
+  describe('sendTeamDigestEmail', () => {
+    const params = { to: 'owner@example.com', dayLabel: 'จ. 9 พ.ย. 2569', lines: ['สรุปทีม', '<script>bad</script>', '', 'ดูรายละเอียดในแอป: https://app.example/operations'] };
+    it('sends the Thai subject, plain lines and escaped HTML with a team link', async () => {
+      expect(await service.sendTeamDigestEmail(params)).toBe(true);
+      const body = lastRequestBody();
+      expect(body.subject).toBe('สรุปทีมประจำวัน (จ. 9 พ.ย. 2569)');
+      expect(body.text).toBe(params.lines.join('\n'));
+      expect(body.html).toContain('&lt;script&gt;bad&lt;/script&gt;');
+      expect(body.html).not.toContain('<script>');
+      expect(body.html).toContain(`${service.getAppUrl()}/operations`);
+    });
+    it('returns false when the provider refuses', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 422, json: async () => ({ message: 'bad' }) });
+      expect(await service.sendTeamDigestEmail(params)).toBe(false);
+    });
+    it('returns false without a request when email is not configured', async () => {
+      const key = config.RESEND_API_KEY;
+      delete config.RESEND_API_KEY;
+      try {
+        const unconfigured = new EmailService(mockConfig as unknown as ConfigService);
+        expect(await unconfigured.sendTeamDigestEmail(params)).toBe(false);
+        expect(fetchMock).not.toHaveBeenCalled();
+      } finally {
+        config.RESEND_API_KEY = key;
+      }
+    });
+  });
+
   describe('sendDocumentPublishedEmail', () => {
     it('escapes HTML in documentTitle so an injected <script> tag is not sent unescaped', async () => {
       await service.sendDocumentPublishedEmail({
