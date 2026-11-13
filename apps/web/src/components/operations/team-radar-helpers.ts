@@ -2,7 +2,7 @@ export function suggestMember<T extends { userId: string; overdueCount: number; 
   return members.filter((member) => member.overdueCount === 0 && today.some((person) => person.userId === member.userId && !person.onLeave)).sort((a, b) => a.openPoints - b.openPoints)[0];
 }
 
-const avatarColors = ['bg-[#f7dfd5] text-[#733e35]', 'bg-[#d8eee1] text-[#245b48]', 'bg-[#eadff5] text-[#674782]', 'bg-[#f9ebc8] text-[#70510b]', 'bg-[#dcedf7] text-[#35577c]', 'bg-[#f7dfea] text-[#874860]'];
+const avatarColors = ['bg-[var(--terra-bg-f7dfd5)] text-[var(--terra-text-733e35)]', 'bg-[var(--terra-bg-d8eee1)] text-[var(--terra-text-245b48)]', 'bg-[var(--terra-bg-eadff5)] text-[var(--terra-text-674782)]', 'bg-[var(--terra-bg-f9ebc8)] text-[var(--terra-text-70510b)]', 'bg-[var(--terra-bg-dcedf7)] text-[var(--terra-text-35577c)]', 'bg-[var(--terra-bg-f7dfea)] text-[var(--terra-text-874860)]'];
 export function avatarColor(userId: string): string {
   let hash = 0;
   for (const char of userId) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0;

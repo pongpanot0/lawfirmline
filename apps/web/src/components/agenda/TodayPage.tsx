@@ -12,6 +12,7 @@ import { Tabs, TabsList } from '@/components/ui/tabs';
 import { PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import type { ActionQueue } from './ActionCenter';
+import { StandupCard } from './StandupCard';
 import { dayGroup, dayOffset } from './today-helpers';
 
 type Task = Awaited<ReturnType<typeof api.getTaskInbox>>[number];
@@ -71,6 +72,7 @@ export function TodayPage() {
   const caseIds = new Set((data.stats?.recentCases ?? []).slice(0, 4).map(item => item.id));
   const matters = [...data.intakes.filter(item => item.case?.id && !caseIds.has(item.case.id)).map(item => ({ id: item.case!.id, title: item.title || item.description || 'คดีก่อนฟ้อง', detail: item.insurerName || item.clientName || '', at: item.receivedDate })), ...(data.stats?.recentCases ?? []).slice(0, 4).map(item => ({ id: item.id, title: item.title, detail: item.ownRef, at: item.updatedAt }))].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
   return <div className="mx-auto max-w-[1440px] space-y-6 pb-24">
+    <StandupCard />
     {partial && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">โหลดเรื่องและคดีล่าสุดได้ไม่ครบ <button className="underline" onClick={() => void load()}>ลองอีกครั้ง</button></p>}
     {error && <p role="alert" className="rounded-lg border border-red-200 p-3 text-sm">{error} <button className="underline" onClick={() => void load()}>ลองอีกครั้ง</button></p>}
     <header className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-semibold">งานวันนี้</h1><p className="mt-2 text-muted-foreground">{bangkokDayLabel(today, 'th-TH')} {Number(today.slice(0, 4)) + 543} · งานที่ต้องทำและนัดที่ใกล้ถึง</p></div>{(user?.role === Role.ADMIN || user?.role === Role.LAWYER) && <div className="text-right"><Link href="/cases/new" className={buttonVariants({ variant: 'outline' })} title="กดเพื่อเปิดคดีหรือเรื่องก่อนฟ้อง"><Plus className="h-4 w-4" aria-hidden />เปิดคดีใหม่</Link><p className="mt-1 text-xs text-muted-foreground">กดเพื่อเปิดคดีหรือเรื่องก่อนฟ้อง</p></div>}</header>
