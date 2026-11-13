@@ -18,7 +18,6 @@ export const landingCopy = {
       trialUnit: 'วัน',
       currency: 'บาท',
       ctaPrimary: 'ทดลองใช้ฟรี 30 วัน',
-      ctaSecondary: 'ขอนัดสาธิต',
       note: 'ไม่ต้องใช้บัตรเครดิต · ไม่มีค่าติดตั้ง',
     },
     problems: {
@@ -118,9 +117,7 @@ export const landingCopy = {
     cta: {
       title: 'เริ่มใช้ Samnuan ฟรี 30 วัน',
       subtitle: 'ไม่ต้องใช้บัตรเครดิต — ถูกใจค่อยเลือกแพ็กเกจ',
-      demo: 'ขอนัดสาธิต',
       tryFree: 'ทดลองใช้ฟรี',
-      demoSubject: 'ขอนัดสาธิต Samnuan',
     },
     footer: '© 2026 Samnuan — ระบบจัดการสำนักงานกฎหมาย',
     legal: { label: 'ข้อมูลบัญชี', privacy: 'ความเป็นส่วนตัว', deleteAccount: 'ขอลบบัญชี' },
@@ -142,7 +139,6 @@ export const landingCopy = {
       trialUnit: 'days',
       currency: 'THB',
       ctaPrimary: 'Start 30-day free trial',
-      ctaSecondary: 'Book a demo',
       note: 'No credit card · No setup fee',
     },
     problems: {
@@ -242,9 +238,7 @@ export const landingCopy = {
     cta: {
       title: 'Try Samnuan free for 30 days',
       subtitle: 'No credit card required — pick a plan when you are ready.',
-      demo: 'Book a demo',
       tryFree: 'Start free trial',
-      demoSubject: 'Samnuan Demo Request',
     },
     footer: '© 2026 Samnuan — Legal practice management',
     legal: { label: 'Account information', privacy: 'Privacy', deleteAccount: 'Delete account' },

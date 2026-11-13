@@ -292,16 +292,6 @@
   background: var(--color-accent-ink);
 }
 
-.lf-btn--ghost-on-accent {
-  background: transparent;
-  color: var(--color-accent-ink);
-  border: 1px solid oklch(99% 0 0 / 0.4);
-}
-
-.lf-btn--ghost-on-accent:hover {
-  background: oklch(99% 0 0 / 0.12);
-}
-
 .lf-link {
   color: var(--color-ink-2);
   text-decoration: underline;

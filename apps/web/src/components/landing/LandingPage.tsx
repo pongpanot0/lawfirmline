@@ -8,10 +8,8 @@ import casesScreenshot from '../../../public/marketing/cases-list.png';
 import scheduleScreenshot from '../../../public/marketing/court-schedule.png';
 import { Check, ArrowRight } from 'lucide-react';
 import { PLAN_CONFIG, SubscriptionPlan, TRIAL_DAYS } from '@lawfirm/shared';
-import { fbTrack } from '@/components/FacebookPixel';
 import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 import { useLocale } from './LocaleProvider';
-import { demoHref } from './contact';
 import { LandingNavbar } from './LandingNavbar';
 import { PricingSection } from './PricingSection';
 import { useLandingMotion } from './useLandingMotion';
@@ -57,9 +55,6 @@ export function LandingPage() {
             {t.hero.ctaPrimary}
             <ArrowRight className="h-4 w-4" />
           </Link>
-          <a href={demoHref} onClick={() => fbTrack('Lead')} className="lf-btn lf-btn--outline w-full sm:w-auto">
-            {t.hero.ctaSecondary}
-          </a>
         </div>
         <p className="lf-rise mt-4 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)', "--i": 4 } as CSSProperties}>
           {t.hero.note}
@@ -189,7 +184,7 @@ export function LandingPage() {
 
       <PricingSection />
 
-      {/* CTA — one visual anchor (trial), one supporting link (demo) */}
+      {/* CTA — one action: start the free trial */}
       <section
         id="trial"
         className="lf-section"
@@ -214,9 +209,6 @@ export function LandingPage() {
             <Link href="/register" className="lf-btn lf-btn--on-accent w-full sm:w-auto">
               {t.cta.tryFree}
             </Link>
-            <a href={demoHref} onClick={() => fbTrack('Lead')} className="lf-btn lf-btn--ghost-on-accent w-full sm:w-auto">
-              {t.cta.demo}
-            </a>
           </div>
         </div>
       </section>
