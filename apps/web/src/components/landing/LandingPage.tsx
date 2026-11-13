@@ -1,246 +1,108 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import Link from 'next/link';
+import { PLAN_CONFIG, SubscriptionPlan } from '@lawfirm/shared';
 import Image from 'next/image';
+import { ArrowDown, ArrowRight, CalendarDays, Clock3, Files, Layers3, MessageCircle, Orbit } from 'lucide-react';
 import dashboardScreenshot from '../../../public/marketing/dashboard.png';
 import casesScreenshot from '../../../public/marketing/cases-list.png';
 import scheduleScreenshot from '../../../public/marketing/court-schedule.png';
-import { Check, ArrowRight } from 'lucide-react';
-import { PLAN_CONFIG, SubscriptionPlan, TRIAL_DAYS } from '@lawfirm/shared';
-import { fbTrack } from '@/components/FacebookPixel';
 import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 import { useLocale } from './LocaleProvider';
-import { demoHref } from './contact';
 import { LandingNavbar } from './LandingNavbar';
 import { PricingSection } from './PricingSection';
 import { useLandingMotion } from './useLandingMotion';
 import './landing-tokens.css';
 
-/** Thai has no spaces between words, so the browser may break a heading mid-phrase. Each
- *  space-separated phrase is kept whole and the line breaks fall between phrases. */
-function Phrases({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(' ').map((phrase, i) => (
-        <span key={i}>
-          {i > 0 && ' '}
-          <span className="inline-block">{phrase}</span>
-        </span>
-      ))}
-    </>
-  );
-}
+const icons = [Layers3, CalendarDays, Files, Orbit, MessageCircle];
 
 export function LandingPage() {
-  const { locale, t } = useLocale();
+  const { t, locale } = useLocale();
   const scope = useLandingMotion();
+  const shots = [
+    { image: dashboardScreenshot, label: t.tour.dashboard },
+    { image: casesScreenshot, label: t.tour.cases },
+    { image: scheduleScreenshot, label: t.tour.schedule },
+  ];
 
   return (
     <div className="samnuan-paper lf-landing" ref={scope}>
+      <div className="tech-progress" aria-hidden="true" />
       <LandingNavbar />
-
-      {/* Hero: the statement, two actions, then one plain price line (price is the first filter
-          for small firms). Rendered visible from the server; nothing here waits for script. */}
-      <section className="lf-shell lf-section text-center">
-        <h1 className="lf-display lf-hero-title mx-auto max-w-5xl">
-          <span className="lf-rise block" style={{ "--i": 0 } as CSSProperties}>{t.hero.title}</span>
-          <span className="lf-rise block" style={{ color: 'var(--color-accent)', "--i": 1 } as CSSProperties}>
-            <Phrases text={t.hero.titleHighlight} />
-          </span>
-        </h1>
-        <p className="lf-rise lf-lede mx-auto mt-6 max-w-2xl text-base sm:text-lg" style={{ "--i": 2 } as CSSProperties}>
-          {t.hero.subtitle}
-        </p>
-        <div className="lf-rise mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center" style={{ "--i": 3 } as CSSProperties}>
-          <Link href="/register" className="lf-btn lf-btn--primary w-full sm:w-auto">
-            {t.hero.ctaPrimary}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <a href={demoHref} onClick={() => fbTrack('Lead')} className="lf-btn lf-btn--outline w-full sm:w-auto">
-            {t.hero.ctaSecondary}
-          </a>
-        </div>
-        <p className="lf-rise mt-4 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)', "--i": 4 } as CSSProperties}>
-          {t.hero.note}
-        </p>
-
-        <a href="#pricing" className="lf-rise lf-price-line mx-auto mt-10" style={{ "--i": 5 } as CSSProperties}>
-          {[
-            { value: PLAN_CONFIG[SubscriptionPlan.TEAM].priceThb, unit: t.hero.currency, label: t.hero.facts.team },
-            { value: PLAN_CONFIG[SubscriptionPlan.FIRM].priceThb, unit: t.hero.currency, label: t.hero.facts.firm },
-            { value: TRIAL_DAYS, unit: t.hero.trialUnit, label: t.hero.facts.trial },
-          ].map((fact) => (
-            <span key={fact.label} className="lf-price-item">
-              <strong style={{ color: 'var(--color-ink)' }}>
-                {fact.value.toLocaleString(locale === 'th' ? 'th-TH' : 'en-US')} {fact.unit}
-              </strong>{' '}
-              {fact.label}
-            </span>
-          ))}
-          <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
-        </a>
-
-        {/* The product itself, peeking above the fold: the strongest proof on the page. */}
-        <figure className="lf-rise lf-tour-frame lf-hero-shot" style={{ "--i": 6 } as CSSProperties}>
-          <Image
-            src={dashboardScreenshot}
-            alt={t.tour.dashboard}
-            width={2880}
-            height={1800}
-            sizes="(min-width: 64rem) 64rem, 100vw"
-            priority
-          />
-        </figure>
-      </section>
-
-      {/* Problems — numbered editorial row, the "why" before the product */}
-      <section className="lf-section lf-section--tight lf-section--paper2">
-        <div className="lf-shell">
-          <h2 className="lf-display-s text-center text-xl sm:text-2xl" data-motion="head">{t.problems.title}</h2>
-          <ul className="lf-problems mt-8">
-            {t.problems.items.map((text) => (
-              <li key={text} className="lf-problem" data-motion="problem">
-                <p className="text-sm font-medium leading-snug" style={{ color: 'var(--color-ink)' }}>
-                  {text}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      {/* Product tour — a full-bleed dark act with the two working screens, side by side
-          (stacked on phones); real screens from a sample firm account, not a mockup. */}
-      <section className="lf-section lf-section--dark">
-        <div className="lf-shell">
-          <div className="lf-section-head lf-section-head--center">
-            <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }} data-motion="head">{t.tour.title}</h2>
-            <p className="lf-lede mt-3">{t.tour.subtitle}</p>
+      <nav className="tech-section-nav" aria-label={locale === 'th' ? 'ส่วนต่าง ๆ ของหน้า' : 'Page sections'}>
+        {[
+          ['hero', locale === 'th' ? 'หน้าหลัก' : 'Home'],
+          ['tour', t.tour.title],
+          ['problems', t.problems.title],
+          ['features', t.nav.features],
+          ['pricing', t.nav.pricing],
+          ['trial', t.nav.trial],
+        ].map(([id, label], i) => <a key={id} href={`#${id}`} aria-label={`${String(i + 1).padStart(2, '0')} / 06 — ${label}`}><span /></a>)}
+      </nav>
+      <main>
+        <section id="hero" data-section className="tech-hero">
+          <div className="tech-grid" aria-hidden="true" /><div className="tech-aurora" aria-hidden="true" />
+          <div className="lf-shell tech-hero-inner">
+            <div className="tech-hero-copy">
+              <p className="tech-eyebrow" data-hero><span className="tech-dot" /> {t.hero.category}</p>
+              <h1 className="tech-title"><span className="tech-title-mask"><span data-title>{t.hero.title}</span></span><span className="tech-title-mask"><span data-title>{t.hero.titleHighlight}</span></span></h1>
+              <p className="tech-lede" data-hero>{t.hero.subtitle}</p>
+              <div className="tech-actions" data-hero>
+                <Link href="/register" className="lf-btn lf-btn--primary">{t.hero.ctaPrimary}<ArrowRight size={17} aria-hidden /></Link>
+              </div>
+              <p className="tech-note" data-hero>{t.hero.note}<br />{t.hero.starting.replace('{price}', PLAN_CONFIG[SubscriptionPlan.TEAM].priceThb.toLocaleString()).replace('{count}', String(PLAN_CONFIG[SubscriptionPlan.TEAM].maxUsers))}</p>
+            </div>
+            <div className="tech-hero-depth" data-hero-visual>
+            <div className="tech-hero-visual">
+              <span className="tech-sheen" aria-hidden="true" /><div className="tech-window-bar"><span /><span /><span /><b> SAMNUAN / WORKSPACE</b></div>
+              <Image src={dashboardScreenshot} alt={t.tour.dashboard} priority sizes="(min-width: 900px) 55vw, 100vw" />
+              <div className="tech-visual-label"><span className="tech-dot" /> {t.tour.dashboard}</div>
+            </div>
+            <div className="tech-chip tech-chip--hero" aria-hidden="true"><CalendarDays size={16} /> {locale === 'th' ? 'นัดศาลพรุ่งนี้ 09:00' : 'Court tomorrow · 09:00'}</div>
+            </div>
+            <a className="tech-scroll" href="#tour"><ArrowDown size={16} aria-hidden /> {locale === 'th' ? 'สำรวจระบบ' : 'EXPLORE THE PLATFORM'}</a>
           </div>
-          <div className="lf-tour-stage">
-            <figure className="lf-tour-frame" data-motion="shot">
-              <Image src={scheduleScreenshot} alt={t.tour.schedule} width={2880} height={1800} sizes="(min-width: 40rem) 36rem, 100vw" />
-            </figure>
-            <figure className="lf-tour-frame" data-motion="shot">
-              <Image src={casesScreenshot} alt={t.tour.cases} width={2880} height={1800} sizes="(min-width: 40rem) 36rem, 100vw" />
-            </figure>
-          </div>
+        </section>
+        <div className="tech-strip" aria-label={t.features.title}>
+          <div className="tech-strip-track">{[0, 1].map(copy => <div className="tech-strip-inner" aria-hidden={copy === 1} key={copy}>{t.features.items.map((item, i) => <span key={item.title}><b>0{i + 1}</b> {item.title}</span>)}</div>)}</div>
         </div>
-      </section>
-
-      {/* Problems + features — one Bento block: pain points as small tiles, product tiles as the anchors */}
-      <section id="features" className="lf-section">
-        <div className="lf-shell">
-          <div className="lf-section-head lf-section-head--center">
-            <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }} data-motion="head">{t.features.title}</h2>
-            <p className="lf-lede mt-3">{t.features.subtitle}</p>
+        <section id="tour" data-section className="tech-tour lf-section">
+          <div className="lf-shell">
+            <div className="tech-section-intro" data-reveal>
+              <p className="tech-eyebrow">01 / {locale === 'th' ? 'ภาพรวมระบบ' : 'THE PLATFORM'}</p>
+              <h2>{t.tour.title}</h2><p>{t.tour.subtitle}</p>
+            </div>
+            <div className="tech-tour-stage">
+              <div className="tech-tour-copy"><span className="tech-orbit" aria-hidden="true"><span className="tech-orbit-ring" /><Orbit size={44} /></span><p>{locale === 'th' ? 'จากภาพรวมทีม สู่รายละเอียดคดี และนัดศาล' : 'From your team overview to cases and court dates.'}</p><div className="tech-tour-captions" aria-hidden="true">{shots.map((shot, i) => <span className="tech-tour-caption" key={shot.label}><b>0{i + 1} / 0{shots.length}</b> {shot.label}</span>)}</div><span className="tech-tour-hint">{locale === 'th' ? 'เลื่อนเพื่อสำรวจ' : 'SCROLL TO EXPLORE'} ↓</span></div>
+              <div className="tech-tour-depth">
+              <div className="tech-shot-tilt"><div className="tech-shot-stack">
+                {shots.map((shot, i) => <figure className="tech-shot" data-shot key={shot.label}>
+                  <span className="tech-sheen" aria-hidden="true" /><div className="tech-window-bar"><span /><span /><span /><b>0{i + 1} / {shot.label}</b></div>
+                  <Image src={shot.image} alt={shot.label} sizes="(min-width: 900px) 55vw, 100vw" />
+                </figure>)}
+              </div></div>
+              <div className="tech-chip tech-chip--one" aria-hidden="true"><CalendarDays size={16} /> {locale === 'th' ? 'นัดศาลพรุ่งนี้ 09:00' : 'Court tomorrow · 09:00'}</div>
+              <div className="tech-chip tech-chip--two" aria-hidden="true"><Clock3 size={16} /> {locale === 'th' ? 'งานใกล้ครบกำหนด 1 งาน' : '1 task due soon'}</div>
+              </div>
+            </div>
           </div>
-
-          <div className="lf-bento mt-10 sm:mt-14">
-            {t.features.items.map((feature, i) => {
-              return (
-                <article key={feature.title} className={i === 0 ? 'lf-tile lf-tile--lead' : 'lf-tile'} data-motion="tile">
-                  <div>
-                    <h3
-                      className={i === 0 ? 'lf-display-s text-xl sm:text-2xl' : 'text-lg font-semibold'}
-                      style={{ color: 'var(--color-ink)' }}
-                    >
-                      {feature.title}
-                    </h3>
-                    <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-ink-2)' }}>
-                      {feature.description}
-                    </p>
-                  </div>
-                  {i === 0 ? (
-                    <ul className="space-y-2.5">
-                      {feature.highlights.map((item) => (
-                        <li
-                          key={item}
-                          className="flex items-center gap-3 rounded-lg border p-3 text-sm font-medium"
-                          style={{ borderColor: 'var(--color-accent-line)', background: 'var(--color-paper-3)', color: 'var(--color-ink)' }}
-                        >
-                          <Check className="h-4 w-4 shrink-0" style={{ color: 'var(--color-success)' }} />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <ul className="flex flex-wrap gap-2">
-                      {feature.highlights.map((item) => (
-                        <li
-                          key={item}
-                          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium"
-                          style={{ background: 'var(--color-paper-2)', color: 'var(--color-ink-2)' }}
-                        >
-                          <Check className="h-3 w-3" style={{ color: 'var(--color-success)' }} />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </article>
-              );
-            })}
-
+        </section>
+        <section id="problems" data-section className="tech-features lf-section">
+          <div className="lf-shell"><div className="tech-section-intro" data-reveal><h2>{t.problems.title}</h2><p>{t.problems.subtitle}</p></div><div className="tech-feature-grid">{t.problems.items.map((item, i) => <article className="tech-feature" key={item} data-reveal><div className="tech-feature-top"><span>0{i + 1}</span></div><h3>{item}</h3></article>)}</div></div>
+        </section>
+        <section id="features" data-section className="tech-features lf-section">
+          <div className="lf-shell">
+            <div className="tech-section-intro" data-reveal><p className="tech-eyebrow">02 / {locale === 'th' ? 'เครื่องมือของทีม' : 'YOUR TOOLKIT'}</p><h2>{t.features.title}</h2><p>{t.features.subtitle}</p></div>
+            <div className="tech-feature-grid">{t.features.items.map((feature, i) => {
+              const Icon = icons[i];
+              return <article className="tech-feature" key={feature.title} data-reveal><span className="tech-spotlight" aria-hidden="true" /><div className="tech-feature-top"><Icon size={23} aria-hidden /><span>0{i + 1} / 0{t.features.items.length}</span></div><h3>{feature.title}</h3><p>{feature.description}</p><ul>{feature.highlights.map(item => <li key={item}>{item}</li>)}</ul></article>;
+            })}</div>
           </div>
-        </div>
-      </section>
-
-      <PricingSection />
-
-      {/* CTA — one visual anchor (trial), one supporting link (demo) */}
-      <section
-        id="trial"
-        className="lf-section"
-        style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
-      >
-        <div className="lf-shell text-center">
-          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }} data-motion="cta">{t.cta.title}</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm sm:text-base" style={{ color: 'oklch(99% 0 0 / 0.85)' }}>
-            {t.cta.subtitle}
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <span className="text-xs font-semibold" style={{ color: 'oklch(99% 0 0 / 0.7)' }}>
-              {t.audience.title}
-            </span>
-            {t.audience.items.map((item) => (
-              <span key={item} className="lf-chip lf-chip--on-accent !py-1.5 !text-xs">
-                {item}
-              </span>
-            ))}
-          </div>
-          <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link href="/register" className="lf-btn lf-btn--on-accent w-full sm:w-auto">
-              {t.cta.tryFree}
-            </Link>
-            <a href={demoHref} onClick={() => fbTrack('Lead')} className="lf-btn lf-btn--ghost-on-accent w-full sm:w-auto">
-              {t.cta.demo}
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer — Ft2 inline single line */}
-      <footer className="border-t" style={{ borderColor: 'var(--color-rule)' }}>
-        <div className="lf-shell flex flex-col items-center justify-between gap-3 py-8 text-center sm:flex-row sm:text-left">
-          <Link href="/" aria-label="Samnuan" className="flex min-h-11 items-center gap-2">
-            <SamnuanLogo
-              variant="horizontal"
-              className="text-[var(--color-brand)]"
-              markClassName="h-8 w-8"
-              wordmarkClassName="text-sm"
-            />
-          </Link>
-          <p className="text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
-            {t.footer}
-          </p>
-          <nav className="flex flex-wrap justify-center gap-x-4 text-xs" aria-label={t.legal.label}>
-            <Link href="/privacy" className="lf-link inline-flex min-h-11 items-center">{t.legal.privacy}</Link>
-            <Link href="/delete-account" className="lf-link inline-flex min-h-11 items-center">{t.legal.deleteAccount}</Link>
-          </nav>
-        </div>
-      </footer>
+        </section>
+        <PricingSection />
+        <section id="trial" data-section className="tech-cta lf-section"><div className="lf-shell" data-reveal><p className="tech-eyebrow">03 / {locale === 'th' ? 'เริ่มต้นใช้งาน' : 'GET STARTED'}</p><h2>{t.cta.title}</h2><p>{t.cta.subtitle}</p><div className="tech-actions"><Link href="/register" className="lf-btn lf-btn--primary">{t.cta.tryFree}<ArrowRight size={17} aria-hidden /></Link></div><p className="tech-audience">{t.audience.title} · {t.audience.items.join(' / ')}</p></div></section>
+      </main>
+      <footer className="tech-footer"><div className="lf-shell"><Link href="/" aria-label="Samnuan"><SamnuanLogo variant="horizontal" className="text-[var(--color-brand)]" markClassName="h-8 w-8" wordmarkClassName="text-sm" /></Link><p>{t.footer}</p><nav aria-label={t.legal.label}><Link href="/privacy">{t.legal.privacy}</Link><Link href="/delete-account">{t.legal.deleteAccount}</Link></nav></div></footer>
     </div>
   );
 }
