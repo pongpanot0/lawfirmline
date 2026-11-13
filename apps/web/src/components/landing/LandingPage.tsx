@@ -80,6 +80,18 @@ export function LandingPage() {
           ))}
           <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
         </a>
+
+        {/* The product itself, peeking above the fold: the strongest proof on the page. */}
+        <figure className="lf-rise lf-tour-frame lf-hero-shot" style={{ "--i": 6 } as CSSProperties}>
+          <Image
+            src={dashboardScreenshot}
+            alt={t.tour.dashboard}
+            width={2880}
+            height={1800}
+            sizes="(min-width: 64rem) 64rem, 100vw"
+            priority
+          />
+        </figure>
       </section>
 
       {/* Problems — numbered editorial row, the "why" before the product */}
@@ -98,32 +110,22 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Product tour — a full-bleed dark act (era DNA). The real app, not a mockup;
-          GSAP converges the two supporting screens onto the main dashboard shot. */}
-      <section className="lf-section lf-section--dark lf-snap">
+      {/* Product tour — a full-bleed dark act with the two working screens, side by side
+          (stacked on phones); real screens from a sample firm account, not a mockup. */}
+      <section className="lf-section lf-section--dark">
         <div className="lf-shell">
-        <div className="lf-section-head lf-section-head--center">
-          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }} data-motion="head">{t.tour.title}</h2>
-          <p className="lf-lede mt-3">{t.tour.subtitle}</p>
-        </div>
-        <div className="lf-tour-stage">
-          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-a" data-motion="aux-a">
-            <Image src={scheduleScreenshot} alt={t.tour.schedule} width={2880} height={1800} sizes="46vw" />
-          </figure>
-          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-b" data-motion="aux-b">
-            <Image src={casesScreenshot} alt={t.tour.cases} width={2880} height={1800} sizes="46vw" />
-          </figure>
-          <figure className="lf-tour-frame lf-tour-frame--main" data-motion="tour-main">
-            <Image
-              src={dashboardScreenshot}
-              alt={t.tour.dashboard}
-              width={2880}
-              height={1800}
-              sizes="(min-width: 60rem) 56rem, 100vw"
-              priority={false}
-            />
-          </figure>
-        </div>
+          <div className="lf-section-head lf-section-head--center">
+            <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }} data-motion="head">{t.tour.title}</h2>
+            <p className="lf-lede mt-3">{t.tour.subtitle}</p>
+          </div>
+          <div className="lf-tour-stage">
+            <figure className="lf-tour-frame" data-motion="shot">
+              <Image src={scheduleScreenshot} alt={t.tour.schedule} width={2880} height={1800} sizes="(min-width: 40rem) 36rem, 100vw" />
+            </figure>
+            <figure className="lf-tour-frame" data-motion="shot">
+              <Image src={casesScreenshot} alt={t.tour.cases} width={2880} height={1800} sizes="(min-width: 40rem) 36rem, 100vw" />
+            </figure>
+          </div>
         </div>
       </section>
 
@@ -190,7 +192,7 @@ export function LandingPage() {
       {/* CTA — one visual anchor (trial), one supporting link (demo) */}
       <section
         id="trial"
-        className="lf-section lf-snap"
+        className="lf-section"
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >
         <div className="lf-shell text-center">

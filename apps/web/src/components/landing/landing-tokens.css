@@ -1,6 +1,5 @@
-/* Hallmark · pre-emit critique: P5 H5 E5 S4 R4 V5 */
-/* Hallmark · Long Document · Editorial Juris · design-system: /design.md
- * Composition: Google Stitch Samnuan Legal Operations Redesign. */
+/* Hallmark · macrostructure: Marquee Hero (product shot) · Editorial Juris · design-system: /design.md
+ * Public landing only; policy pages stay Long Document (see design.md). */
 
 .lf-landing {
   --color-paper: hsl(var(--background));
@@ -88,13 +87,6 @@
 .lf-landing ::selection {
   background: var(--color-accent);
   color: var(--color-accent-ink);
-}
-
-/* Sections follow document flow; long content remains readable at any height. */
-.lf-snap {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -238,10 +230,6 @@
 .lf-section--dark .lf-tour-frame {
   border-color: var(--color-band-rule);
   box-shadow: 0 32px 64px -24px oklch(10% 0.03 264 / 0.6);
-}
-
-.lf-section--dark .lf-tour-caption {
-  color: var(--color-band-ink-2);
 }
 
 /* ---------- buttons ---------- */
@@ -401,20 +389,21 @@
   }
 }
 
-/* ---------- product tour (real screenshots) ---------- */
+/* ---------- product shots (real screenshots, sample firm account) ---------- */
 
+/* Hero shot: the dashboard, wide, its top edge visible on the first desktop screen. */
+.lf-hero-shot {
+  max-width: 64rem;
+  margin: clamp(var(--space-xl), 5vw, var(--space-2xl)) auto 0;
+}
+
+/* Tour: the two working screens side by side, stacked on phones. */
 .lf-tour-stage {
-  position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-md);
-  margin-inline: auto;
-  max-width: 56rem;
-  /* margin, not padding — the aux frames are absolutely positioned against
-     this box's padding edge, so only margin (real document-flow spacing)
-     keeps their negative top/left offset from reaching into the heading
-     above. */
-  margin-block: clamp(3rem, 6vw, 4.5rem) var(--space-2xl);
+  max-width: 64rem;
+  margin: clamp(var(--space-xl), 5vw, var(--space-2xl)) auto 0;
 }
 
 .lf-tour-frame {
@@ -430,59 +419,17 @@
   display: block;
   width: 100%;
   height: auto;
-  transition: transform 700ms var(--ease-out);
-}
-
-.lf-tour-frame:hover img {
-  transform: scale(1.02);
-}
-
-.lf-tour-frame--main {
-  position: relative;
-  grid-column: 1 / -1;
-  grid-row: 1;
-  z-index: 3;
-}
-
-.lf-tour-frame--aux {
-  position: relative;
-  width: 100%;
-  z-index: 1;
-  box-shadow: 0 16px 32px -20px oklch(23% 0.02 40 / 0.3);
-}
-
-.lf-tour-frame--aux-a {
-  /* Fixed rem offsets, not percentages — a percentage here is relative to
-     the stage's own padding-box height, so it can grow arbitrarily large
-     (and reach above the heading) as the stage itself grows. */
-  transform: none;
-}
-
-.lf-tour-frame--aux-b {
-  z-index: 2;
-  transform: none;
-}
-
-.lf-tour-caption {
-  margin-top: var(--space-sm);
-  text-align: center;
-  font-size: var(--text-xs);
-  color: var(--color-ink-2);
 }
 
 @media (max-width: 40rem) {
-  .lf-tour-frame--aux {
-    display: none;
-  }
   .lf-tour-stage {
-    max-width: 100%;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .lf-tile:hover,
-  .lf-btn:active,
-  .lf-tour-frame:hover img {
+  .lf-btn:active {
     transform: none;
   }
 }
