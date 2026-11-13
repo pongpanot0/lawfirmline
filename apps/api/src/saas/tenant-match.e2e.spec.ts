@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import { FirmRole } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { JwtStrategy } from '../auth/jwt.strategy';
+import { SessionService } from '../auth/session.service';
 import { TenantService } from './tenant.service';
 import { TenantResolveMiddleware } from './middleware/tenant-resolve.middleware';
 
@@ -31,6 +32,7 @@ const tenant = {
   controllers: [ProbeController],
   providers: [
     JwtStrategy,
+    { provide: SessionService, useValue: { isActive: async () => true } },
     TenantResolveMiddleware,
     { provide: TenantService, useValue: tenant },
     { provide: ConfigService, useValue: { get: () => undefined } },

@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 import Stripe from 'stripe';
 import { BillingPeriod, FirmRole, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { JwtStrategy } from '../auth/jwt.strategy';
+import { SessionService } from '../auth/session.service';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.module';
@@ -70,6 +71,7 @@ describe('billing over HTTP', () => {
       controllers: [SaasController, Probe],
       providers: [
         JwtStrategy,
+        { provide: SessionService, useValue: { isActive: async () => true } },
         SubscriptionService,
         { provide: StripeService, useValue: stripe },
         { provide: ConfigService, useValue: config },
