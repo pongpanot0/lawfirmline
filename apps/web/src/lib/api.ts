@@ -1935,8 +1935,13 @@ export interface FeedbackRound {
   good: number;
   comments: number;
 }
+export interface FeedbackRecipient {
+  id: string;
+  name: string;
+  firm: string | null;
+}
 export interface FeedbackRounds {
-  recipients: { users: number; firms: number };
+  recipients: { users: number; firms: number; people: FeedbackRecipient[] };
   lastSentAt: string | null;
   rounds: FeedbackRound[];
 }
@@ -1980,10 +1985,12 @@ export const api = {
     request<FeedbackComment[]>(`/platform/feedback/pages/comments?${feedbackQuery(query)}`, { token }),
   getFeedbackLineRounds: (token: string) =>
     request<FeedbackRounds>('/platform/feedback/line-rounds', { token }),
-  sendFeedbackLineRound: (token: string) =>
+  /** `userIds` sends to chosen people only (e.g. a test round); omit to survey everyone eligible. */
+  sendFeedbackLineRound: (token: string, userIds?: string[]) =>
     request<{ id: string; recipientCount: number; delivered: number }>('/platform/feedback/line-rounds', {
       method: 'POST',
       token,
+      body: JSON.stringify(userIds ? { userIds } : {}),
     }),
   getMyMcpConnections: (token: string) => request<import('@lawfirm/shared').MyMcpConnections>('/mcp/connections/mine', { token }),
   revokeMyMcpConnection: (token: string, id: string) => request<void>(`/mcp/connections/mine/${encodeURIComponent(id)}`, { token, method: 'DELETE' }),

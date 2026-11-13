@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/misc';
 import { formatDate } from '@/lib/utils';
 import { publishActionFeedback } from '@/lib/action-feedback';
 import { State, Scores } from './FeedbackShared';
+import { RecipientPicker } from './RecipientPicker';
 import { Send, Users } from 'lucide-react';
 
 export function FeedbackLineRounds({ token }: { token: string }) {
@@ -15,11 +16,15 @@ export function FeedbackLineRounds({ token }: { token: string }) {
   const [confirm, setConfirm] = useState(false);
   const [pending, setPending] = useState(false);
   const [sendError, setSendError] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const load = useCallback(async () => {
     setLoading(true);
     setError(false);
     try {
-      setData(await api.getFeedbackLineRounds(token));
+      const next = await api.getFeedbackLineRounds(token);
+      setData(next);
+      // Every fresh load starts with everyone ticked, so an untouched page still surveys everyone.
+      setSelected(new Set(next.recipients.people.map((person) => person.id)));
     } catch {
       setError(true);
     } finally {
@@ -34,7 +39,7 @@ export function FeedbackLineRounds({ token }: { token: string }) {
     setPending(true);
     setSendError('');
     try {
-      const result = await api.sendFeedbackLineRound(token);
+      const result = await api.sendFeedbackLineRound(token, [...selected]);
       // A round is recorded even when LINE refuses some pushes; say how many actually went out.
       publishActionFeedback(
         result.delivered === result.recipientCount ? 'success' : 'error',
@@ -85,8 +90,9 @@ export function FeedbackLineRounds({ token }: { token: string }) {
                   พนักงานที่เชื่อม LINE แล้ว จาก {data.recipients.firms} สำนักงาน
                   · ไม่รวมลูกความ
                 </p>
-                <Button onClick={() => setConfirm(true)} disabled={!data.recipients.users}>
-                  <Send className="mr-2 h-4 w-4" /> ส่งแบบสอบถาม
+                <RecipientPicker people={data.recipients.people} selected={selected} onChange={setSelected} />
+                <Button onClick={() => setConfirm(true)} disabled={!selected.size}>
+                  <Send className="mr-2 h-4 w-4" /> ส่งแบบสอบถามให้ {selected.size} คน
                 </Button>
                 <p className="mt-2 text-sm text-muted-foreground">จะถามยืนยันอีกครั้งก่อนส่ง</p>
                 {data.lastSentAt && (
@@ -144,8 +150,11 @@ export function FeedbackLineRounds({ token }: { token: string }) {
             </div>
             {confirm && (
               <ConfirmRound
-                count={data.recipients.users}
-                firms={data.recipients.firms}
+                count={selected.size}
+                firms={
+                  new Set(data.recipients.people.filter((person) => selected.has(person.id)).map((person) => person.firm))
+                    .size
+                }
                 pending={pending}
                 error={sendError}
                 onClose={() => setConfirm(false)}

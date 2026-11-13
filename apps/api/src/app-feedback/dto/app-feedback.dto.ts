@@ -88,3 +88,13 @@ export class ResolveFeedbackDto {
   @IsBoolean()
   resolved!: boolean;
 }
+
+export class SendLineRoundDto {
+  /** Omit to survey every eligible recipient; pass ids to send to chosen people only. */
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(5000)
+  @IsUUID('all', { each: true })
+  userIds?: string[];
+}

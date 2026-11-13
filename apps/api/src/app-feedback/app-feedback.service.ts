@@ -147,10 +147,17 @@ export class AppFeedbackService {
   private async recipients() {
     const users = await this.prisma.user.findMany({
       where: { lineUserId: { not: null }, firmMembers: { some: { role: { not: 'EXTERNAL' } } } },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
       select: {
         id: true,
+        firstName: true,
+        lastName: true,
         lineUserId: true,
-        firmMembers: { orderBy: { createdAt: 'asc' }, take: 1, select: { firmId: true, role: true } },
+        firmMembers: {
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+          select: { firmId: true, role: true, firm: { select: { name: true } } },
+        },
       },
     });
     return users.filter((user) => user.firmMembers[0]?.role !== 'EXTERNAL');
@@ -161,7 +168,16 @@ export class AppFeedbackService {
     const rounds = await this.prisma.appFeedbackLineRound.findMany({ orderBy: [{ sentAt: 'desc' }, { id: 'desc' }], select: { id: true, sentAt: true, recipientCount: true } });
     const answers = await this.prisma.appFeedback.groupBy({ by: ['lineRoundId', 'rating'], where: { source: 'LINE', kind: 'RATING', lineRoundId: { not: null } }, _count: { _all: true, message: true } });
     return {
-      recipients: { users: recipients.length, firms: new Set(recipients.flatMap((user) => user.firmMembers.map((member) => member.firmId))).size },
+      recipients: {
+        users: recipients.length,
+        firms: new Set(recipients.flatMap((user) => user.firmMembers.map((member) => member.firmId))).size,
+        // Who a round would reach, so an admin can check or pick a few people to test with first.
+        people: recipients.map((user) => ({
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`.trim(),
+          firm: user.firmMembers[0]?.firm.name ?? null,
+        })),
+      },
       lastSentAt: rounds[0]?.sentAt ?? null,
       rounds: rounds.map((round) => {
         const rows = answers.filter((answer) => answer.lineRoundId === round.id);
@@ -171,8 +187,19 @@ export class AppFeedbackService {
     };
   }
 
-  async sendLineRound(sentById: string) {
-    const recipients = await this.recipients();
+  /**
+   * `userIds` narrows the round to chosen people (e.g. a test send to oneself). Every id must be an
+   * eligible recipient: the list comes from the browser, so it never widens who can be messaged.
+   */
+  async sendLineRound(sentById: string, userIds?: string[]) {
+    let recipients = await this.recipients();
+    if (userIds) {
+      const chosen = new Set(userIds);
+      recipients = recipients.filter((user) => chosen.has(user.id));
+      if (!recipients.length || recipients.length !== chosen.size) {
+        throw new BadRequestException('เลือกผู้รับได้เฉพาะพนักงานที่เชื่อม LINE แล้ว');
+      }
+    }
     const round = await this.prisma.appFeedbackLineRound.create({ data: { sentById, recipientCount: recipients.length } });
     const quickReply = ['😞 ใช้ยาก', '😐 พอใช้', '😊 ใช้ง่าย'].map((label, index) => ({ label, text: label, data: `fbk:${round.id}:${index + 1}` }));
     let delivered = 0;
