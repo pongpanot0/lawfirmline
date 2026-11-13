@@ -1,5 +1,6 @@
 import { TeamDigestScheduler } from './team-digest.scheduler';
 import { forwardRef, Module } from '@nestjs/common';
+import { CoachingModule } from '../coaching/coaching.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OperationsController } from './operations.controller';
 import { OperationsService } from './operations.service';
@@ -9,7 +10,7 @@ import { DailyOperationsService } from './daily-operations.service';
 import { DailyOperationsController, TeamWorkloadController } from './daily-operations.controller';
 
 @Module({
-  imports: [forwardRef(() => TasksModule), forwardRef(() => NotificationsModule)],
+  imports: [forwardRef(() => CoachingModule), forwardRef(() => TasksModule), forwardRef(() => NotificationsModule)],
   controllers: [OperationsController, DailyOperationsController, TeamWorkloadController],
   providers: [OperationsService, DailyOperationsService, FirmRoleGuard, TeamDigestScheduler],
   exports: [DailyOperationsService],

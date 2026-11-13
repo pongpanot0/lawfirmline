@@ -12,7 +12,7 @@ describe('Owner daily operations', () => {
     $transaction: jest.fn(),
   };
   const notifier = { notifyAssigned: jest.fn() };
-  const service = new DailyOperationsService(prisma as any, {} as any, notifier as any, {} as any);
+  const service = new DailyOperationsService(prisma as any, {} as any, notifier as any, {} as any, {} as any, {} as any);
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.task.findFirst.mockResolvedValue(rows[1]);
@@ -44,7 +44,7 @@ describe('Owner daily operations', () => {
     await expect(service.move(owner, 'a', 'UP')).resolves.toEqual({ changed: false });
     expect(prisma.task.update).not.toHaveBeenCalled();
   });
-  it('buckets a member\'s week by planned day with size points, hearings, leave, and reviews apart', async () => {
+  it.each([FirmRole.OWNER, FirmRole.OFFICE_MANAGER])('buckets a member\'s week with manager cues for %s', async (firmRole) => {
     const radarPrisma = {
       outlookCalendarItem: { findMany: jest.fn().mockResolvedValue([
         { userId: 'w', startAt: new Date('2026-09-27T22:00:00Z'), endAt: new Date('2026-09-28T02:00:00Z'), showAs: 'busy', isAllDay: false, subject: 'private' },
@@ -52,7 +52,7 @@ describe('Owner daily operations', () => {
         { userId: 'w', startAt: new Date('2026-09-28T05:00:00Z'), endAt: new Date('2026-09-28T06:00:00Z'), showAs: 'free', isAllDay: false },
         { userId: 'w', startAt: new Date('2026-09-28T05:00:00Z'), endAt: new Date('2026-09-28T06:00:00Z'), showAs: 'busy', isAllDay: true },
       ]) },
-      firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'w', role: 'LAWYER', user: { firstName: 'W', lastName: 'L' } }]) },
+      firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'w', role: 'LAWYER', user: { firstName: 'W', lastName: 'L' } }, { userId: 'v', role: 'LAWYER', user: { firstName: 'V', lastName: 'L' } }]) },
       task: { findMany: jest.fn().mockResolvedValue([
         { assigneeId: 'w', status: 'TODO', size: 'L', scheduledFor: new Date('2026-09-28T00:00:00Z'), dueDate: null },
         // no plan day: falls back to the deadline's Bangkok day (01:00 BKK on the 29th)
@@ -63,15 +63,47 @@ describe('Owner daily operations', () => {
       leaveRequest: { findMany: jest.fn().mockResolvedValue([{ userId: 'w', startDate: new Date('2026-09-30T00:00:00Z'), endDate: new Date('2026-09-30T00:00:00Z') }]) },
       calendarEvent: { findMany: jest.fn().mockResolvedValue([{ type: 'COURT_DATE', startAt: new Date('2026-09-28T02:00:00Z'), assigneeId: null, assignees: [], case: { leadLawyerId: 'w' } }]) },
     };
-    const radar = await new DailyOperationsService(radarPrisma as any, {} as any, {} as any, {} as any).radar(owner, '2026-09-28');
+    const standup = { statesFor: jest.fn().mockResolvedValue(new Map([['w', 'blocked'], ['v', 'checked_in']])) };
+    const coaching = { cuesFor: jest.fn().mockResolvedValue(new Map([['w', { unacknowledged: 2, lastSentAt: '2026-11-12T01:00:00.000Z' }]])) };
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-12T18:00:00Z'));
+    let radar;
+    try {
+      radar = await new DailyOperationsService(radarPrisma as any, {} as any, {} as any, {} as any, standup as any, coaching as any).radar({ ...owner, firmRole }, '2026-09-28');
+    } finally {
+      jest.useRealTimers();
+    }
+    expect(standup.statesFor).toHaveBeenCalledTimes(1);
+    expect(standup.statesFor).toHaveBeenCalledWith('firm', ['w', 'v'], '2026-11-13');
+    expect(coaching.cuesFor).toHaveBeenCalledTimes(1);
+    expect(coaching.cuesFor).toHaveBeenCalledWith('firm', ['w', 'v']);
+    expect(radar.members[1]).toMatchObject({ standup: 'checked_in', coaching: { unacknowledged: 0, lastSentAt: null } });
     const w = radar.members[0];
     expect(radar.days).toEqual(['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']);
-    expect(w).toMatchObject({ openCount: 3, openPoints: 7, reviewCount: 1, unscheduledCount: 1 });
+    expect(w).toMatchObject({ openCount: 3, openPoints: 7, reviewCount: 1, unscheduledCount: 1, standup: 'blocked', coaching: { unacknowledged: 2, lastSentAt: '2026-11-12T01:00:00.000Z' } });
     expect(w.days[0]).toEqual({ date: '2026-09-28', taskCount: 1, points: 4, eventCount: 1, courtCount: 1, onLeave: false, outlookBusyMinutes: 180 });
     expect(w.days[1]).toMatchObject({ taskCount: 1, points: 2 });
     expect(w.days[2].onLeave).toBe(true);
     expect(JSON.stringify(radar)).not.toMatch(/private|subject/);
     expect(radarPrisma.outlookCalendarItem.findMany).toHaveBeenCalledWith(expect.objectContaining({ select: { userId: true, startAt: true, endAt: true, showAs: true, isAllDay: true }, where: expect.objectContaining({ connection: { firmId: 'firm', showCalendar: true, status: 'ACTIVE' }, isAllDay: false }) }));
+  });
+  it.each([FirmRole.LAWYER, FirmRole.SENIOR_LAWYER])('hides coaching and colleagues standup states from %s viewers', async (firmRole) => {
+    const db = {
+      firmMember: { findMany: jest.fn().mockResolvedValue(['me', 'other'].map((userId) => ({ userId, role: 'LAWYER', user: { firstName: userId, lastName: '' } }))) },
+      task: { findMany: jest.fn().mockResolvedValue([]) },
+      leaveRequest: { findMany: jest.fn().mockResolvedValue([]) },
+      calendarEvent: { findMany: jest.fn().mockResolvedValue([]) },
+      outlookCalendarItem: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const standup = { statesFor: jest.fn().mockResolvedValue(new Map([['me', 'blocked'], ['other', 'checked_in']])) };
+    const coaching = { cuesFor: jest.fn().mockResolvedValue(new Map([['me', { unacknowledged: 2, lastSentAt: 'secret' }], ['other', { unacknowledged: 3, lastSentAt: 'secret' }]])) };
+    const svc = new DailyOperationsService(db as never, {} as never, {} as never, {} as never, standup as never, coaching as never);
+    const result = await svc.radar({ ...owner, id: 'me', firmRole }, '2026-11-13');
+    expect(result.members.map((m) => ({ id: m.userId, standup: m.standup, coaching: m.coaching }))).toEqual([
+      { id: 'me', standup: 'blocked', coaching: { unacknowledged: 0, lastSentAt: null } },
+      { id: 'other', standup: 'not_required', coaching: { unacknowledged: 0, lastSentAt: null } },
+    ]);
+    expect(coaching.cuesFor).not.toHaveBeenCalled();
+    expect(standup.statesFor).toHaveBeenCalledWith('firm', ['me'], expect.any(String));
   });
   it('shows a colleague\'s load to any member but hides work in cases they cannot open, and why someone is on leave', async () => {
     const lawyer = { id: 'me', firmId: 'firm', firmRole: FirmRole.LAWYER } as AuthUser;
@@ -94,7 +126,7 @@ describe('Owner daily operations', () => {
       leaveRequest: { findMany: jest.fn().mockResolvedValue([{ id: 'l', type: 'SICK', startDate: new Date('2026-09-30T00:00:00Z'), endDate: new Date('2026-09-30T00:00:00Z') }]) },
     };
     const caseAccess = { getCaseFilterForUser: jest.fn().mockReturnValue({ firmId: 'firm' }) };
-    const view = await new DailyOperationsService(p as any, {} as any, {} as any, caseAccess as any).person(lawyer, 'w', '2026-09-28');
+    const view = await new DailyOperationsService(p as any, {} as any, {} as any, caseAccess as any, {} as any, {} as any).person(lawyer, 'w', '2026-09-28');
     expect(view.tasks.map((t) => [t.title, t.case?.id ?? null, t.size])).toEqual([['งานที่คุณไม่มีสิทธิ์ดู', null, 'L'], ['ร่วมกัน', 'shared', 'M'], ['งานที่คุณไม่มีสิทธิ์ดู', null, 'S']]);
     expect(view.cases.map((c) => c.id)).toEqual(['shared']);
     expect(view.hiddenCaseCount).toBe(1);

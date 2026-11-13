@@ -23,7 +23,7 @@ describe('member-visible assignee loads', () => {
       { userId: 'B', startDate: new Date('2026-11-11'), endDate: new Date('2026-11-12') },
       { userId: 'B', startDate: new Date('2026-11-15'), endDate: new Date('2026-11-16') },
     ]);
-    const result = await (new DailyOperationsService(prisma as any, {} as any, {} as any, {} as any)).assignees(user);
+    const result = await (new DailyOperationsService(prisma as any, {} as any, {} as any, {} as any, {} as any, {} as any)).assignees(user);
     expect(result.map((r) => r.userId)).toEqual(['B', 'C', 'A', 'D']);
     expect(result[0]).toEqual({ userId: 'B', firstName: 'B', lastName: 'L', firmRole: 'LAWYER', openCaseCount: 1, overdueTaskCount: 0, leave: { startDate: '2026-11-11', endDate: '2026-11-12' } });
     expect(result[2]).toMatchObject({ overdueTaskCount: 2, leave: null });

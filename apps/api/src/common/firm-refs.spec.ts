@@ -3,8 +3,8 @@ import { assertFirmRefs } from './firm-refs';
 
 describe('assertFirmRefs', () => {
   const inFirm = new Set(['c1', 'k1', 't1', 'u1']);
-  const count = jest.fn(async ({ where }: any) => (where.id?.in ?? where.userId?.in).filter((id: string) => inFirm.has(id)).length);
-  const db = { client: { count }, clientContact: { count }, caseType: { count }, firmMember: { count } } as any;
+  const count = jest.fn(async ({ where }: any) => (where.id?.in ?? where.userId?.in ?? where.AND?.[1]?.id?.in).filter((id: string) => inFirm.has(id)).length);
+  const db = { task: { count }, client: { count }, clientContact: { count }, caseType: { count }, firmMember: { count } } as any;
   beforeEach(() => count.mockClear());
 
   it('passes when every named row is the firm\'s, ignoring blanks and duplicates', async () => {
@@ -15,6 +15,7 @@ describe('assertFirmRefs', () => {
     [{ clientIds: ['c1', 'other'] }, 'ลูกความ'],
     [{ contactIds: ['other'] }, 'ผู้ติดต่อ'],
     [{ caseTypeIds: ['other'] }, 'ประเภทคดี'],
+    [{ taskIds: ['other'] }, 'งาน'],
     [{ userIds: ['other'] }, 'ผู้ใช้'],
   ])('rejects an id from another firm (%o)', async (refs, message) => {
     await expect(assertFirmRefs(db, 'f1', refs)).rejects.toThrow(message);
@@ -74,5 +75,17 @@ describe('assertFirmRefs', () => {
     count.mockClear();
     await assertFirmRefs(db, 'f1', { userIds: ['u1'] }, { excludeRoles: [] });
     expect(count.mock.calls[0][0].where.role).toBeUndefined();
+  });
+});
+
+
+describe('task firm references', () => {
+  it('scopes and deduplicates task ids, retaining legacy tenant checks', async () => {
+    const count = jest.fn().mockResolvedValue(1);
+    await assertFirmRefs({ task: { count } } as any, 'f1', { taskIds: ['t1', 't1', null] });
+    expect(count).toHaveBeenCalledWith({ where: { AND: [expect.objectContaining({ OR: expect.arrayContaining([
+      { firmId: null, case: { firmId: 'f1', deletedAt: null } },
+      { firmId: null, caseId: null, intake: { firmId: 'f1' } },
+    ]) }), { id: { in: ['t1'] } }] } });
   });
 });

@@ -87,6 +87,7 @@ import { SecretaryModule } from '../secretary/secretary.module';
     LeaveService,
   ],
   exports: [
+    NotificationCenterService,
     PushService,
     LineMessagingService,
     AssignmentNotifierService,

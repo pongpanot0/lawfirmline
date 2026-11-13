@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowLeft, ArrowUp, X } from 'lucide-react';
-import { DailyWorkboard, DailyWorkTask, hasFirmCapability, PersonWorkload, TASK_SIZES, TASK_WORK_TYPES, TaskWorkType, taskPoints } from '@lawfirm/shared';
-import { api } from '@/lib/api';
+import { ArrowDown, ArrowLeft, ArrowUp, X, ClipboardList, ClipboardCheck, HeartHandshake, Flame, Hourglass, Gauge, Palmtree, Sun } from 'lucide-react';
+import { DailyWorkboard, DailyWorkTask, hasFirmCapability, PersonWorkload, TASK_SIZES, TASK_WORK_TYPES, TaskWorkType, taskPoints, workloadStatus, type TeamRadarMember } from '@lawfirm/shared';
+import { api, request } from '@/lib/api';
+import type { StandupEntry, CoachingNoteView } from '@lawfirm/shared';
+import { avatarColor } from './team-radar-helpers';
+import { CoachingTab } from './coaching/CoachingTab';
+import { StandupHistory } from './coaching/StandupHistory';
 import { useAuth } from '@/lib/auth';
 import { bangkokDateInputValue, bangkokTime } from '@/lib/bangkok';
 import { formatDate, formatDateTime } from '@/lib/utils';
@@ -34,11 +38,17 @@ function Section({ title, empty, emptyText = 'ไม่มี', children }: { ti
  * the owner can also reorder the queue, resize, hand work to someone else, and set work types.
  * `focusDay` (from a radar cell) puts that day's work on top; `from` sets the appointment window.
  */
-export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChanged }: {
-  userId: string | null; from?: string; focusDay?: string | null; onClose: () => void; onChanged?: () => void;
+export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChanged, member }: {
+  member?: TeamRadarMember; userId: string | null; from?: string; focusDay?: string | null; onClose: () => void; onChanged?: () => void;
 }) {
   const { token, user } = useAuth();
   const canRunOps = hasFirmCapability(user?.firmRole, 'runOperations');
+  const [tab, setTab] = useState<'work' | 'standup' | 'coaching'>('work');
+  const [entries, setEntries] = useState<StandupEntry[]>([]);
+  const [notes, setNotes] = useState<CoachingNoteView[]>([]);
+  const [tabError, setTabError] = useState('');
+  const [tabLoading, setTabLoading] = useState(false);
+  const [tabRetry, setTabRetry] = useState(0);
   const [data, setData] = useState<PersonWorkload | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -57,6 +67,25 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setEntries([]); setNotes([]); setTabError('');
+    if (!token || !userId || !canRunOps) return;
+    let active = true;
+    setTabLoading(true);
+    Promise.all([
+      request<StandupEntry[]>(`/standup/members/${encodeURIComponent(userId)}?days=6`, { token }),
+      request<CoachingNoteView[]>(`/coaching/members/${encodeURIComponent(userId)}`, { token }),
+    ]).then(([history, coaching]) => { if (active) { setEntries(history); setNotes(coaching); } })
+      .catch(e => { if (active) setTabError(e instanceof Error ? e.message : 'โหลดข้อมูลไม่สำเร็จ'); })
+      .finally(() => { if (active) setTabLoading(false); });
+    return () => { active = false; };
+  }, [token, userId, canRunOps, tabRetry]);
+  useEffect(() => { setTab('work'); }, [userId]);
+  const refreshNotes = async () => {
+    if (!token || !userId) return;
+    try { setNotes(await request<CoachingNoteView[]>(`/coaching/members/${encodeURIComponent(userId)}`, { token })); }
+    finally { onChanged?.(); }
+  };
   const changed = async () => { await load(); onChanged?.(); };
   const act = async (action: () => Promise<unknown>) => {
     if (busy) return;
@@ -80,6 +109,9 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
   const dayBusy = focusDay ? (data?.outlookBusy ?? []).filter(b => bangkokDay(b.start) === focusDay) : [];
   const dayLeave = focusDay ? data?.leaves.find((l) => l.startDate <= focusDay && l.endDate >= focusDay) : undefined;
 
+  const kind = member ? workloadStatus(member) : null;
+  const mood = kind === 'over_standard' ? { Icon: Flame, label: 'งานเยอะไปหน่อยนะ', tone: 'bg-[var(--terra-bg-fce9e6)] text-[var(--terra-text-8b302c)]' } : kind === 'has_overdue' ? { Icon: Hourglass, label: 'มีงานรอเคลียร์', tone: 'bg-[var(--terra-bg-fff0df)] text-[var(--terra-text-80500c)]' } : kind === 'near_standard' ? { Icon: Gauge, label: 'ใกล้เต็มคิวแล้ว', tone: 'bg-[var(--terra-bg-f9f0d3)] text-[var(--terra-text-70510b)]' } : kind === 'on_leave_this_week' ? { Icon: Palmtree, label: 'ไปพักผ่อนอยู่', tone: 'bg-[var(--terra-bg-e7edf6)] text-[var(--terra-text-35577c)]' } : { Icon: Sun, label: 'ว่าง พร้อมช่วยเพื่อน', tone: 'bg-[var(--terra-bg-e1f2e9)] text-[var(--terra-text-176347)]' };
+
   const sizeBadge = (t: PersonWorkload['tasks'][number]) => canRunOps
     ? <TaskSizePicker taskId={t.id} title={t.title} size={t.size} onSaved={() => void changed()} />
     : <span className="shrink-0 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">{SIZE_LABELS[t.size]}</span>;
@@ -100,6 +132,11 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
         {error && <LoadFailed message={error} onRetry={() => { setError(''); void load(); }} />}
         {!data && !error && <div role="status" aria-label="กำลังโหลด" className="space-y-3"><Skeleton className="h-16 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-24 w-full" /></div>}
         {data && <>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-gradient-to-r from-[var(--terra-peach)] to-[var(--terra-soft-mint)] p-5"><div className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-full font-bold ${avatarColor(data.userId)}`}>{data.firstName.slice(0, 1)}<span className="absolute -bottom-1 -right-1 rounded-full border-2 border-card bg-[var(--terra-note)] p-1"><mood.Icon size={12} /></span></div><div className="flex-1"><h3 className="font-bold">{data.firstName} {data.lastName}</h3><p className="text-sm text-muted-foreground">{ROLE_LABELS[data.role] ?? data.role}{member && ` · คิวงาน ${member.openPoints} / ${member.standardPoints} แต้ม`}</p></div>{member && <span className={`inline-flex items-center gap-1 rounded-full px-3 py-2 text-xs font-bold ${mood.tone}`}><mood.Icon size={14} />{mood.label}</span>}</div>
+          {canRunOps && <><div role="tablist" aria-label="รายละเอียดสมาชิก" className="grid grid-cols-3 border-b">{([['work', 'ภาระงาน', ClipboardList, data.tasks.length, 'ดูคิวงาน'], ['standup', 'เช็กอิน', ClipboardCheck, entries.length, 'ดูเช็กอิน'], ['coaching', 'คำแนะนำ', HeartHandshake, notes.length, 'ดูและร่างคำแนะนำ']] as const).map(([value, label, Icon, count, hint]) => <div key={value} className="text-center"><button role="tab" aria-selected={tab === value} onClick={() => setTab(value)} className={`flex min-h-11 w-full items-center justify-center gap-1 border-b-2 px-1 font-semibold focus-visible:outline focus-visible:outline-2 ${tab === value ? 'border-[var(--terra-border-142e43)]' : 'border-transparent text-muted-foreground'}`}><Icon size={16} />{label} <span className="rounded-full bg-[var(--terra-bg-e8edf0)] px-2 text-xs">{count}</span></button><p className="mt-1 text-xs text-muted-foreground">{hint}</p></div>)}</div>{tabError && <div role="alert" className="text-sm text-destructive">{tabError} <button onClick={() => setTabRetry(n => n + 1)} className="min-h-11 underline focus-visible:outline focus-visible:outline-2">ลองอีกครั้ง</button><p className="text-xs text-muted-foreground">โหลดประวัติอีกครั้ง</p></div>}{tabLoading && <p role="status" className="text-sm">กำลังโหลดข้อมูล…</p>}</>}
+          {canRunOps && tab === 'standup' && !tabLoading && !tabError && <StandupHistory entries={entries} name={data.firstName} />}
+          {canRunOps && tab === 'coaching' && !tabLoading && !tabError && token && userId && <CoachingTab key={userId} token={token} userId={userId} name={data.firstName} notes={notes} refresh={refreshNotes} />}
+          {tab === 'work' && <>
           <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
             {[['งานในคิว', `${data.tasks.length}`], ['แต้มภาระ', `${points}`], ['เลยกำหนด', `${overdue}`], ['คดีที่ถือ', `${data.cases.length + data.hiddenCaseCount}`]].map(([label, value]) =>
               <div key={label} className="min-w-0 bg-card px-3 py-2"><p className="text-xs text-muted-foreground">{label}</p><p className={`mt-1 text-xl font-semibold tabular-nums ${label === 'เลยกำหนด' && overdue > 0 ? 'text-destructive' : ''}`}>{value}</p></div>)}
@@ -172,6 +209,7 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
                   <Button size="sm" variant="outline" disabled={busy} onClick={() => setTypes(null)}>ยกเลิก</Button></div>
               </div>}
           </section>}
+          </>}
         </>}
       </div>}
   </SideDrawer>;

@@ -1,7 +1,7 @@
 import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
 import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AssigneeLoad, AssignmentType, AuthUser, FirmRole, hasFirmCapability, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
+import { AssigneeLoad, AssignmentType, AuthUser, FirmRole, hasFirmCapability, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts, personalStandard, STANDARD_HISTORY_WEEKS } from '@lawfirm/shared';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 import { reviewQueueOrder, reviewQueueWhere } from '../tasks/review-queue';
 import { PrismaService } from '../prisma/prisma.module';
@@ -10,6 +10,8 @@ import { bangkokDateOnly, bangkokDayKey, bangkokDayStart } from '../common/utils
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { mergeOutlookBusy, OUTLOOK_BUSY_STATUSES } from '../calendar/outlook-busy';
+import { StandupService } from '../coaching/standup.service';
+import { CoachingService } from '../coaching/coaching.service';
 import { AssignDailyTaskDto, CreateDailyTaskDto } from './dto/daily-operations.dto';
 
 const DAY_MS = 86400000;
@@ -38,7 +40,7 @@ export function dailyTaskScope(firmId: string): Prisma.TaskWhereInput {
 
 @Injectable()
 export class DailyOperationsService {
-  constructor(private prisma: PrismaService, private tasks: TasksService, private notifier: AssignmentNotifierService, private caseAccess: CaseAccessService) {}
+  constructor(private prisma: PrismaService, private tasks: TasksService, private notifier: AssignmentNotifierService, private caseAccess: CaseAccessService, private standup: StandupService, private coaching: CoachingService) {}
 
   async assignees(user: AuthUser): Promise<AssigneeLoad[]> {
     const now = new Date();
@@ -79,12 +81,26 @@ export class DailyOperationsService {
     if (!hasFirmCapability(user.firmRole, 'runOperations')) throw new ForbiddenException('ไม่มีสิทธิ์ดูภาพรวมงานประจำวัน / Insufficient permissions');
   }
 
+  /** Each member's queue standard, from the work they finished in the last STANDARD_HISTORY_WEEKS weeks. */
+  private async standards(firmId: string) {
+    const done = await this.prisma.task.findMany({
+      where: { AND: [dailyTaskScope(firmId), { status: TaskStatus.DONE, assigneeId: { not: null }, completedAt: { gte: new Date(Date.now() - STANDARD_HISTORY_WEEKS * 7 * DAY_MS) } }] },
+      select: { assigneeId: true, size: true },
+    });
+    const finished = new Map<string, { points: number; count: number }>();
+    for (const t of done) {
+      const f = finished.get(t.assigneeId!) ?? { points: 0, count: 0 };
+      finished.set(t.assigneeId!, { points: f.points + taskPoints(t.size), count: f.count + 1 });
+    }
+    return (userId: string) => personalStandard(finished.get(userId) ?? { points: 0, count: 0 });
+  }
+
   async board(user: AuthUser, date: string) {
     this.owner(user);
     const start = new Date(`${date}T00:00:00+07:00`);
     const end = new Date(start.getTime() + 86400000);
     const dateOnly = new Date(`${date}T00:00:00Z`);
-    const [members, rows, leaves, events, cases] = await Promise.all([
+    const [members, rows, leaves, events, cases, standardOf] = await Promise.all([
       this.prisma.firmMember.findMany({ where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId }, include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } }, orderBy: { user: { firstName: 'asc' } } }),
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { OR: [
         { status: { not: TaskStatus.DONE } }, { completedAt: { gte: start, lt: end } },
@@ -98,11 +114,13 @@ export class DailyOperationsService {
       this.prisma.leaveRequest.findMany({ where: { firmId: user.firmId, status: 'APPROVED', startDate: { lte: dateOnly }, endDate: { gte: dateOnly } }, select: { userId: true } }),
       this.prisma.calendarEvent.findMany({ where: { case: { firmId: user.firmId, deletedAt: null }, startAt: { lt: end }, OR: [{ endAt: { gte: start } }, { endAt: null, startAt: { gte: start } }] }, include: { assignees: true, case: { select: { leadLawyerId: true } } }, orderBy: { startAt: 'asc' } }),
       this.prisma.case.findMany({ where: { firmId: user.firmId, deletedAt: null, status: { not: 'CLOSED' } }, select: { id: true, ownRef: true, title: true }, orderBy: { ownRef: 'asc' } }),
+      this.standards(user.firmId),
     ]);
     const followUps = await this.prisma.taskComment.findMany({ where: { kind: 'FOLLOW_UP', taskId: { in: rows.map((t) => t.id) }, createdAt: { gte: start, lt: end } }, select: { taskId: true, createdAt: true }, orderBy: { createdAt: 'desc' } });
     return {
       date, fetchedAt: new Date().toISOString(), cases,
       members: members.map((m) => ({ ...m.user, userId: m.userId, role: m.role, workTypes: m.taskWorkTypes,
+        standardPoints: standardOf(m.userId),
         onLeave: leaves.some((l) => l.userId === m.userId),
         appointments: events.filter((e) => attends(e, m.userId)).map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, endAt: e.endAt })),
       })),
@@ -128,7 +146,7 @@ export class DailyOperationsService {
     const days = Array.from({ length: 7 }, (_, i) => bangkokDayKey(new Date(start.getTime() + i * DAY_MS)));
     const dateOnly = (day: string) => new Date(`${day}T00:00:00Z`);
     const now = new Date();
-    const [members, tasks, leaves, events, outlookItems] = await Promise.all([
+    const [members, tasks, leaves, events, outlookItems, standardOf] = await Promise.all([
       this.prisma.firmMember.findMany({ where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId }, include: { user: { select: { firstName: true, lastName: true } } }, orderBy: { user: { firstName: 'asc' } } }),
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { assigneeId: { not: null }, status: { not: TaskStatus.DONE } }] }, select: { assigneeId: true, status: true, size: true, dueDate: true, scheduledFor: true } }),
       this.prisma.leaveRequest.findMany({ where: { firmId: user.firmId, status: 'APPROVED', startDate: { lte: dateOnly(days[6]) }, endDate: { gte: dateOnly(days[0]) } }, select: { userId: true, startDate: true, endDate: true } }),
@@ -137,6 +155,13 @@ export class DailyOperationsService {
         where: { connection: { firmId: user.firmId, showCalendar: true, status: 'ACTIVE' }, showAs: { in: OUTLOOK_BUSY_STATUSES }, isAllDay: false, startAt: { lt: end }, endAt: { gt: start } },
         select: { userId: true, startAt: true, endAt: true, showAs: true, isAllDay: true },
       }),
+      this.standards(user.firmId),
+    ]);
+    const userIds = members.map((m) => m.userId);
+    const canRunOperations = hasFirmCapability(user.firmRole, 'runOperations');
+    const [standupStates, coachingCues] = await Promise.all([
+      this.standup.statesFor(user.firmId, canRunOperations ? userIds : [user.id], bangkokDayKey(now)),
+      canRunOperations ? this.coaching.cuesFor(user.firmId, userIds) : new Map(),
     ]);
     const outlookByUser = new Map(members.map((m) => [m.userId, mergeOutlookBusy(outlookItems.filter((i) => i.userId === m.userId), start, end)]));
     return {
@@ -150,6 +175,9 @@ export class DailyOperationsService {
           userId: m.userId, firstName: m.user.firstName, lastName: m.user.lastName, role: m.role,
           openCount: open.length,
           openPoints: open.reduce((sum, t) => sum + taskPoints(t.size), 0),
+          standardPoints: standardOf(m.userId),
+          standup: canRunOperations || m.userId === user.id ? standupStates.get(m.userId) ?? 'not_required' : 'not_required',
+          coaching: coachingCues.get(m.userId) ?? { unacknowledged: 0, lastSentAt: null },
           overdueCount: open.filter((t) => t.dueDate && t.dueDate < now).length,
           reviewCount: mine.length - open.length,
           unscheduledCount: open.filter((t) => !taskDay(t)).length,

@@ -23,7 +23,7 @@ import {
   Clock,
   GitFork,
   type LucideIcon,
-  Sparkles, BookOpen, Flag, Sunrise } from 'lucide-react';
+  Sparkles, BookOpen, Flag, Sunrise, HeartHandshake, MessageCircleHeart } from 'lucide-react';
 import { AuthUser, hasFirmCapability, type FirmCapability } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
 import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
@@ -41,6 +41,8 @@ const NAV_GROUPS = [
 
 const NAV_ITEMS = [
   { href: '/operations', labelKey: 'operations' as const, icon: Gauge, group: 'work', children: [] as const },
+  { href: '/coaching', labelKey: 'teamCoaching' as const, icon: HeartHandshake, capability: 'runOperations' as const, group: 'work', children: [] as const },
+  { href: '/coaching/mine', labelKey: 'myCoaching' as const, icon: MessageCircleHeart, group: 'work', children: [] as const },
   { href: '/brief', labelKey: 'dailyBrief' as const, icon: Sunrise, capability: 'viewAllCases' as const, group: 'work', children: [] as const },
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, group: 'work', children: [] as const },
   { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, group: 'work', children: [] as const },
@@ -215,7 +217,7 @@ function NavItemRow({
   // Office settings pages (/admin/*) are reached from Settings, so they
   // light up that entry rather than none.
   const active =
-    isRouteActive(item.href) ||
+    (item.href === '/coaching' ? pathname === item.href : isRouteActive(item.href)) ||
     (item.href === '/cases' && pathname.startsWith('/intake')) ||
     (item.href === '/settings' && pathname.startsWith('/admin/'));
   const Icon = item.icon;

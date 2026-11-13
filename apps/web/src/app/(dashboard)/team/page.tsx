@@ -389,10 +389,12 @@ export default function TeamPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="inline-flex items-center gap-2"><UserRound className="h-4 w-4" />{firmRoleLabel(m.firmRole)}</span>
-                        {canChangeRole(m) && (
-                          <Button type="button" variant="outline" size="sm" title="เลือกบทบาทและตรวจสอบสิทธิ์" disabled={changingRoleId === m.id} onClick={() => { setRoleMember(m); setChosenRole(m.firmRole as FirmRole); }}>เปลี่ยนบทบาท</Button>
-                        )}
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="inline-flex items-center gap-2 whitespace-nowrap"><UserRound className="h-4 w-4 shrink-0" aria-hidden />{firmRoleLabel(m.firmRole)}</span>
+                          {canChangeRole(m) && (
+                            <Button type="button" variant="outline" size="sm" title="เลือกบทบาทและตรวจสอบสิทธิ์" disabled={changingRoleId === m.id} onClick={() => { setRoleMember(m); setChosenRole(m.firmRole as FirmRole); }}>เปลี่ยนบทบาท</Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell><LicenseBadge expiresAt={m.lawyerLicenseExpiresAt} />{!m.lawyerLicenseNo && <span className="text-muted-foreground">ยังไม่กรอก</span>}</TableCell>
                       <TableCell>{m.monthlyBillableTargetHours == null ? "ยังไม่ตั้งเป้า" : `${m.monthlyBillableTargetHours} ชม.`}</TableCell>
