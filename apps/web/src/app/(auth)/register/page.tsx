@@ -11,11 +11,12 @@ import { AuthShell } from '@/components/auth/AuthShell';
 import { PasswordInput } from '@/components/auth/PasswordInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { useLocale, useDashboardT } from '@/components/landing/LocaleProvider';
 import { fbTrack } from '@/components/FacebookPixel';
 
 export default function RegisterPage() {
   const d = useDashboardT();
+  const { locale } = useLocale();
   const router = useRouter();
   const { applySession, user, loading } = useAuth();
   const [form, setForm] = useState({ firmName: '', firstName: '', lastName: '', email: '', password: '' });
@@ -55,7 +56,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <AuthShell title={d.auth.registerTitle} description={d.auth.registerSubtitle}>
+    <AuthShell title={locale === 'th' ? 'สร้างบัญชีสำหรับสำนักงานของคุณ' : 'Create an account for your office'} description={locale === 'th' ? 'เริ่มใช้ Samnuan เพื่อจัดการคดี นัดหมาย และงานของทีม' : 'Start using Samnuan to manage cases, appointments, and your team’s work.'}>
       {mainSite ? (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">{d.auth.mainSiteRegistration}</p>
@@ -93,7 +94,7 @@ export default function RegisterPage() {
         </form>
       )}
       <p className="mt-6 border-t pt-5 text-center text-sm text-muted-foreground">{d.auth.haveAccount} <Link href="/login" className="font-medium text-primary hover:underline">{d.auth.signIn}</Link></p>
-      <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">{d.auth.needAccess}</p>
+      <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">{locale === 'th' ? 'ต้องการเข้าร่วมสำนักงานที่ใช้ Samnuan อยู่แล้ว? ขอคำเชิญจากเจ้าของสำนักงาน' : 'Want to join an office already using Samnuan? Ask the office owner for an invitation.'}</p>
     </AuthShell>
   );
 }

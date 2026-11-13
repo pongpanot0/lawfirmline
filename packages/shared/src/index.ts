@@ -222,7 +222,7 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
   [SubscriptionPlan.TEAM]: {
     plan: SubscriptionPlan.TEAM,
     name: 'Team',
-    priceThb: 499,
+    priceThb: 299,
     maxUsers: 3,
     maxActiveCases: null,
     features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม'],
@@ -233,7 +233,7 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
   [SubscriptionPlan.FIRM]: {
     plan: SubscriptionPlan.FIRM,
     name: 'Firm',
-    priceThb: 1290,
+    priceThb: 699,
     maxUsers: 10,
     maxActiveCases: null,
     features: ['ทุกอย่างใน Team', 'รายงานภาพรวมสำนักงาน', 'Billing & ใบแจ้งหนี้'],
@@ -244,7 +244,7 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
   [SubscriptionPlan.PROFESSIONAL]: {
     plan: SubscriptionPlan.PROFESSIONAL,
     name: 'Professional',
-    priceThb: 2990,
+    priceThb: 1490,
     maxUsers: 20,
     maxActiveCases: null,
     features: ['ทุกอย่างใน Firm', 'บันทึกการตรวจสอบ (Audit Log)', 'Priority support ในเวลาทำการ'],
