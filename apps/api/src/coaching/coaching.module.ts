@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RagModule } from '../rag/rag.module';
 import { CoachingController } from './coaching.controller';
@@ -9,7 +9,7 @@ import { StandupScheduler } from './standup.scheduler';
 import { CoachingNotifierService } from './coaching-notifier.service';
 
 @Module({
-  imports: [NotificationsModule, RagModule],
+  imports: [forwardRef(() => NotificationsModule), forwardRef(() => RagModule)],
   controllers: [CoachingController, StandupController],
   providers: [CoachingService, StandupService, StandupScheduler, CoachingNotifierService],
   exports: [CoachingService, StandupService],
