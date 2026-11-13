@@ -8,6 +8,7 @@ import { AIAssistantPanel } from '@/components/ai/AIAssistantPanel';
 import { JevDocumentReviewQueue } from '@/components/documents/JevDocumentReviewQueue';
 import { PageGuide } from '@/components/guide/PageGuide';
 import { PageTour } from '@/components/onboarding/PageTour';
+import { PageFeedbackBar } from '@/components/feedback-app/PageFeedbackBar';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 
 interface AppShellProps {
@@ -17,6 +18,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ user, onLogout, children }: AppShellProps) {
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pathname = usePathname();
@@ -69,7 +71,8 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           <div className="samnuan-page"><PageGuide pathname={pathname} />{children}</div>
           {/* Room under the last row for the floating AI button. A spacer, not padding: padding would hold
               every sticky bottom bar 6rem above the screen edge with content showing beneath it. */}
-          <div aria-hidden="true" className="h-24 shrink-0" />
+          <div aria-hidden="true" className={feedbackVisible ? 'h-32 shrink-0' : 'h-24 shrink-0'} />
+          <PageFeedbackBar pathname={pathname} userId={user.id} onVisible={setFeedbackVisible} />
         </main>
       </div>
       {pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (

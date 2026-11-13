@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AppFeedbackService } from '../../app-feedback/app-feedback.service';
 import { ConfigService } from '@nestjs/config';
 import { AgendaItem, AuthUser, secretaryCardLabel, secretaryCardPath } from '@lawfirm/shared';
 import { FirmLinkService } from '../firm-link.service';
@@ -66,6 +67,7 @@ export class LineBotRouterService {
     private reviewFlow: LineTaskReviewFlowService,
     private secretary: SecretaryChatService,
     private aiWrite: LineAiWriteService,
+    private feedback: AppFeedbackService,
   ) {}
 
   async route(
@@ -124,6 +126,26 @@ export class LineBotRouterService {
       const saved = await this.aiWrite.confirm(authUser, lineUserId, aiConfirm[1].toLowerCase());
       // null: a second tap of the same button — the first one already saved it.
       if (saved) await this.reply(lineUserId, target, { text: saved }, MENU_QUICK_REPLY);
+      return;
+    }
+
+    // Only an exact survey tap is intercepted; typed text that merely starts with "fbk:" stays an answer.
+    const tap = /^fbk:([^:]+):([123])$/.exec(text);
+    if (tap) {
+      const answer = await this.feedback.lineRating(authUser, tap[1], Number(tap[2]));
+      if (!answer) return;
+      const active = this.store.get(lineUserId);
+      const privateTarget: ConversationTarget = chatKey(target) === 'user' ? target : { sourceType: 'user' };
+      if (!active?.flowType || active.flowType === FlowType.APP_FEEDBACK) {
+        this.store.start({
+          lineUserId, userId: authUser.id, firmId: authUser.firmId,
+          flowType: FlowType.APP_FEEDBACK, step: ConversationStep.APP_FEEDBACK_DETAIL,
+          data: { feedbackId: answer.id }, target: privateTarget,
+        });
+        await this.reply(lineUserId, privateTarget, { text: 'ขอบคุณครับ 🙏 อยากเล่ารายละเอียดเพิ่มไหม? พิมพ์ตอบได้เลย หรือข้ามก็ได้ครับ' });
+      } else {
+        await this.reply(lineUserId, privateTarget, { text: 'ขอบคุณครับ 🙏' });
+      }
       return;
     }
 
@@ -191,6 +213,18 @@ export class LineBotRouterService {
         return;
       }
       await this.showMainMenu(lineUserId, target);
+      return;
+    }
+
+    if (existing?.flowType === FlowType.APP_FEEDBACK && existing.step === ConversationStep.APP_FEEDBACK_DETAIL) {
+      this.store.clear(lineUserId);
+      // The prompt offers "ข้าม"; typing it means no comment, not a comment that says "skip".
+      if (text.trim() === 'ข้าม') {
+        await this.reply(lineUserId, target, { text: 'รับทราบครับ ขอบคุณครับ' });
+        return;
+      }
+      await this.feedback.lineDetail(String(existing.data.feedbackId), authUser.id, text);
+      await this.reply(lineUserId, target, { text: 'บันทึกแล้ว ขอบคุณครับ' });
       return;
     }
 
@@ -331,6 +365,8 @@ export class LineBotRouterService {
         return this.leaveFlow.start(session, command);
       case FlowType.TASK_REVIEW:
         throw new Error('TASK_REVIEW starts from a postback, not a menu command');
+      case FlowType.APP_FEEDBACK:
+        throw new Error('APP_FEEDBACK starts from a survey postback, not a menu command');
       case FlowType.AI_WRITE:
         throw new Error('AI_WRITE starts from an AI answer, not a menu command');
     }

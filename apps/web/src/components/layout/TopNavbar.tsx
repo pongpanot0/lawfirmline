@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Plus, Menu, ChevronDown, Briefcase, ListTodo, CalendarDays, Receipt, Users, HelpCircle, Settings, Moon, Sun, LogOut, type LucideIcon } from 'lucide-react';
+import { Search, Plus, Menu, ChevronDown, Briefcase, ListTodo, CalendarDays, Receipt, Users, HelpCircle, Settings, Moon, Sun, LogOut, MessageSquareText, type LucideIcon } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { restartTour } from '@/components/onboarding/use-product-tour';
 import { hasTour } from '@/components/onboarding/PageTour';
 import { LanguageSwitcher } from '@/components/landing/LanguageSwitcher';
 import { useTheme } from '@/lib/theme';
+import { ReportFeedbackDialog } from '@/components/feedback-app/ReportFeedbackDialog';
 
 interface TopNavbarProps {
   user: AuthUser;
@@ -151,6 +152,7 @@ function useDismiss(ref: React.RefObject<HTMLElement | null>, open: boolean, clo
 function AccountMenu({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
   const d = useDashboardT();
   const { theme, toggleTheme } = useTheme();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, () => setOpen(false));
@@ -183,6 +185,7 @@ function AccountMenu({ user, onLogout }: { user: AuthUser; onLogout: () => void 
       >
         <Avatar fallback={`${user.firstName[0]}${user.lastName[0]}`} />
       </button>
+      <ReportFeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       {open && (
         <div role="menu" className="absolute right-0 top-full z-40 mt-1 w-64 rounded-xl border border-border bg-card p-1 shadow-lg">
           <div className="px-3 py-2">
@@ -201,6 +204,9 @@ function AccountMenu({ user, onLogout }: { user: AuthUser; onLogout: () => void 
             <span className="text-sm">{d.nav.language}</span>
             <LanguageSwitcher />
           </div>
+          <Item icon={MessageSquareText} onClick={() => { setOpen(false); setFeedbackOpen(true); }}>
+            {d.nav.appFeedback}
+          </Item>
           <div className="my-1 border-t border-border" />
           <Item icon={LogOut} onClick={() => { setOpen(false); onLogout(); }}>
             {d.nav.signOut}

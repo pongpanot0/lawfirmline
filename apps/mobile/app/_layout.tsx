@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from '@/api/auth';
 import { registerForPush } from '@/api/push';
 import { api } from '@/api/client';
 import { invalidateNotifications, useUnreadNotifications } from '@/api/hooks';
+import { PageFeedbackHost } from '@/components/feedback/PageFeedbackHost';
 import { LockGate } from '@/components/LockGate';
 import { Loading, Button } from '@/components/ui';
 import { Text } from '@/components/AppText';
@@ -198,6 +199,7 @@ function AppStack() {
               <Stack.Screen name="task/blocker" options={{ title: 'ส่งจุดติดขัดให้คนแก้' }} />
               <Stack.Screen name="case/[id]/close" options={{ title: 'ปิด / เปิดคดี' }} />
               <Stack.Screen name="notifications" options={{ title: 'การแจ้งเตือน' }} />
+              <Stack.Screen name="app-feedback" options={{ title: 'ส่งความเห็นเกี่ยวกับแอป' }} />
               <Stack.Screen name="more" options={{ title: 'อื่น ๆ' }} />
               <Stack.Screen name="clients/index" options={{ title: 'ลูกความ' }} />
               <Stack.Screen name="clients/[id]" options={{ title: 'ลูกความ' }} />
@@ -224,6 +226,7 @@ function AppStack() {
                 options={{ title: 'วันขึ้นศาล', headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
               />
             </Stack>
+            <PageFeedbackHost />
           </LockGate>
   );
 }

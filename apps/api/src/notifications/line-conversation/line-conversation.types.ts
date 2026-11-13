@@ -8,6 +8,7 @@ export enum FlowType {
   TASK_REVIEW = 'TASK_REVIEW',
   /** A write the LINE AI proposed, waiting for the person's confirm. */
   AI_WRITE = 'AI_WRITE',
+  APP_FEEDBACK = 'APP_FEEDBACK',
 }
 
 export enum ConversationStep {
@@ -68,6 +69,7 @@ export enum ConversationStep {
   LEAVE_CANCEL_CONFIRM = 'LEAVE_CANCEL_CONFIRM',
 
   AI_WRITE_CONFIRM = 'AI_WRITE_CONFIRM',
+  APP_FEEDBACK_DETAIL = 'APP_FEEDBACK_DETAIL',
 }
 
 export interface ConversationTarget {

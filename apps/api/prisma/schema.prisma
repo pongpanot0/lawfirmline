@@ -419,6 +419,7 @@ enum ClosingEmailRecipientKind {
 }
 
 model Firm {
+  appFeedback AppFeedback[]
   mcpEnabled            Boolean            @default(false)
   mcpConnections        McpConnection[]
   id                    String             @id @default(uuid())
@@ -633,6 +634,7 @@ model Session {
 }
 
 model User {
+  appFeedback AppFeedback[]
   mcpConnections         McpConnection[]
   id                     String             @id @default(uuid())
   email                  String             @unique
@@ -3265,4 +3267,56 @@ model OutlookCalendarItem {
 
   @@unique([connectionId, graphEventId])
   @@index([userId, startAt])
+}
+
+
+enum AppFeedbackKind {
+  BUG
+  SUGGESTION
+  OTHER
+  RATING
+}
+
+enum AppFeedbackSource {
+  WEB
+  MOBILE
+  LINE
+}
+
+model AppFeedback {
+  id             String            @id @default(uuid())
+  kind           AppFeedbackKind
+  source         AppFeedbackSource
+  /// 1 ใช้ยาก · 2 พอใช้ · 3 ใช้ง่าย — RATING only
+  rating         Int?
+  message        String?           @db.Text
+  /// Route pattern, e.g. /cases/[id]; null for LINE
+  route          String?
+  /// web | ios | android
+  platform       String?
+  appVersion     String?
+  screenshotPath String?
+  screenshotMime String?
+  lineRoundId    String?
+  userId         String
+  firmId         String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firm      Firm?                 @relation(fields: [firmId], references: [id], onDelete: SetNull)
+  lineRound AppFeedbackLineRound? @relation(fields: [lineRoundId], references: [id], onDelete: Cascade)
+  @@unique([lineRoundId, userId])
+  @@index([createdAt])
+  @@index([kind, createdAt])
+  @@index([route, platform])
+}
+
+model AppFeedbackLineRound {
+  id             String        @id @default(uuid())
+  sentAt         DateTime      @default(now())
+  sentById       String
+  recipientCount Int
+  answers        AppFeedback[]
 }
