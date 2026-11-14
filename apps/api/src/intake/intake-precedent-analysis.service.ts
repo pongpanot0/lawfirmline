@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, ServiceUnavailableException,
+import { openAiChatBody } from '../common/openai-model';
+import { BadRequestException, ForbiddenException, ConflictException, Injectable, Logger, NotFoundException, ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma';
 import { ReviewResearchFactDto } from './dto/research.dto';
@@ -10,9 +11,6 @@ import { DocumentIntelligenceService } from '../intelligence/document-intelligen
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { RelevanceService } from '../rag/relevance.service';
-
-/** Precedent search only — other AI features keep `chatModel()` (OPENAI_MODEL_MAIN). */
-const PRECEDENT_AI_MODEL = 'gpt-6-luna';
 
 /**
  * Cap on extracted attachment text — applied both when storing `extractedFacts`
@@ -89,6 +87,7 @@ export class IntakePrecedentAnalysisService {
           attachmentRedaction = mergeCounts(attachmentRedaction, redacted.counts);
           files.push({ label, text: redacted.text });
         } catch (err) {
+          if (err instanceof ForbiddenException) throw err;
           this.logger.warn(`Failed to extract attachment text: ${(err as Error).message}`);
           attachmentExtractionFailed = true;
           attachmentWarnings.push(`อ่านไม่สำเร็จ: ${label}`);
@@ -180,15 +179,13 @@ export class IntakePrecedentAnalysisService {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        // No `temperature`: GPT-5+ models reject it.
-        model: PRECEDENT_AI_MODEL,
+      body: JSON.stringify(openAiChatBody(this.config, {
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
         ],
         ...(options?.json ? { response_format: { type: 'json_object' } } : {}),
-      }),
+      })),
     });
 
     if (!res.ok) {

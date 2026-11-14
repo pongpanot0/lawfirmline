@@ -37,7 +37,7 @@ describe('SubscriptionService.changePlan', () => {
     buildAuthUser: jest.fn(async () => null),
     canAccessApp: () => true,
   };
-  const service = new SubscriptionService(prisma as any, tenant as any, stripe, {} as any);
+  const service = new SubscriptionService(prisma as any, tenant as any, stripe, {} as any, {} as any);
 
   beforeEach(() => {
     jest.clearAllMocks();

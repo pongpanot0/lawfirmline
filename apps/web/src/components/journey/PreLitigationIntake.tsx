@@ -21,6 +21,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { isPending, parseDocument } from '@/lib/email-intake';
 import Link from 'next/link';
+import { useAiCreditConfirm } from '@/components/billing/useAiCreditConfirm';
 import { useAuth } from '@/lib/auth';
 import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocumentRequestItem, UserItem, ApiError, ChecklistClassificationSuggestion, CaseTypeItem } from '@/lib/api';
 import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
@@ -275,6 +276,7 @@ type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | 'details' | 
 
 export function PreLitigationIntake({ id, history = false }: { id: string; history?: boolean }) {
   const { token, user } = useAuth();
+  const credits = useAiCreditConfirm();
   const router = useRouter();
   const [intake, setIntake] = useState<IntakeItem | null>(null);
   const [journey, setJourney] = useState<Journey | null>(null);
@@ -839,6 +841,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
 
   const requestChecklistSuggestions = async (documentIds: string[]) => {
     if (!token || !intake || !documentIds.length) return;
+    try { if (!await credits.confirmCredits(documents.filter((d) => documentIds.includes(d.id)).map((d) => ({ id: d.id, name: d.filename })))) return; } catch (err) { setClassifyError(err instanceof Error ? err.message : 'ประเมินเครดิตไม่สำเร็จ'); return; }
     const labels = (
       documentRequests.length
         ? documentRequests.map((r) => ({ label: r.name }))
@@ -1104,7 +1107,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
 
 </div>,
     CONFLICT: token && <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />,
-    DOCUMENTS: <div id="intake-documents" className="min-w-0 space-y-4">
+    DOCUMENTS: <div id="intake-documents" className="min-w-0 space-y-4">{credits.dialog}
       {(intake.fieldProposals ?? []).filter((p) => p.field === 'document').map((proposal) => { const doc = parseDocument(proposal.proposedValue); if (!doc) return null; return <div key={proposal.id} className="space-y-2 rounded-lg border p-3 text-sm"><p>{doc.filename} · {doc.docTypeLabel}</p>{proposal.sourceDetail && <p className="text-muted-foreground">{proposal.sourceDetail}</p>}{isPending(proposal) ? <div className="flex gap-2"><Button size="sm" variant="outline" disabled={resolvingId === proposal.id} onClick={() => void resolveProposal(proposal.id, 'reject')}>ไม่ใช่</Button><Button size="sm" disabled={resolvingId === proposal.id} onClick={() => void resolveProposal(proposal.id, 'confirm')}>ยืนยัน</Button></div> : <p>{proposal.status === 'CONFIRMED' ? 'ยืนยันแล้ว' : 'ตัดออกแล้ว'}</p>}</div>; })}
       <Button variant="outline" onClick={() => setWorkspaceTab('research')} >
         จัดข้อเท็จจริงและค้นฎีกา

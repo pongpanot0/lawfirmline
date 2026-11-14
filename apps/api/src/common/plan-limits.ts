@@ -23,9 +23,10 @@ export async function assertCanAddCases(db: Db, firmId: string, adding = 1): Pro
   }
 }
 
-/** The plan's case cap and how many more cases fit (closed ones count); null when the plan has no cap. */
+/** The plan's case cap and how many more cases fit (closed ones count); null when there is no cap or the firm is quota-exempt. */
 export async function caseRoom(db: Db, firmId: string): Promise<{ limit: number; left: number } | null> {
-  const firm = await db.firm.findUnique({ where: { id: firmId }, select: { subscriptionPlan: true } });
+  const firm = await db.firm.findUnique({ where: { id: firmId }, select: { subscriptionPlan: true, quotaExempt: true } });
+  if (firm?.quotaExempt) return null;
   const limit = firm?.subscriptionPlan ? PLAN_CONFIG[firm.subscriptionPlan as SubscriptionPlan]?.maxCases : null;
   if (limit == null) return null;
   const total = await db.case.count({ where: { firmId } });

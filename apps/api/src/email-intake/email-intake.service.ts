@@ -1,6 +1,7 @@
+import { chatModel, openAiChatBody } from '../common/openai-model';
 import { IntakeService } from '../intake/intake.service';
 import { assertFirmRefs } from '../common/firm-refs';
-import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, forwardRef, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
 import { hasCidRefs } from '../outlook-integration/mail/inline-cid-images';
 import { extname } from 'path';
@@ -87,7 +88,6 @@ const threadInclude = {
 };
 
 const THREAD_LIST_LIMIT = 200;
-const INTAKE_AI_MODEL = 'gpt-6-luna';
 // Inbound messages read for proposals when a thread is accepted — the opening request often
 // holds the amounts while the newest reply is just "ขอบคุณค่ะ".
 const ACCEPT_MESSAGES_LIMIT = 20;
@@ -549,7 +549,7 @@ export class EmailIntakeService {
 
     // Same e-mails, files, requests and prompt as an earlier read → reuse its result: no OCR, no model call.
     const inputHash = createHash('sha256').update(JSON.stringify({
-      model: INTAKE_AI_MODEL, prompt: INTAKE_AI_SYSTEM_PROMPT, format: INTAKE_AI_RESPONSE_FORMAT,
+      model: chatModel(this.config), prompt: INTAKE_AI_SYSTEM_PROMPT, format: INTAKE_AI_RESPONSE_FORMAT,
       subject: thread.subject, messages, files: files.map((f) => [f.id, f.storagePath]), redactedRequests, caseTypes,
     })).digest('hex');
     const earlier = await this.prisma.auditLog.findFirst({
@@ -610,7 +610,8 @@ export class EmailIntakeService {
         const buffer = await this.fileStorage.getBuffer(file.storagePath);
         const text = await this.documentIntelligence.extractTextWithOcr(buffer, file.mimeType, { documentId: file.id, firmId: user.firmId });
         return { id: file.id, filename: redactForAi(file.filename).text, text: redactForAi(text.slice(0, AI_FILE_CHARS)).text };
-      } catch {
+      } catch (err) {
+        if (err instanceof ForbiddenException) throw err;
         this.logger.warn(`Email intake document extraction failed: ${file.id}`);
         return { id: file.id, filename: redactForAi(file.filename).text, text: '' };
       }
@@ -627,16 +628,14 @@ export class EmailIntakeService {
         // Up to twelve files plus the e-mails; a slow read is still stored, so a retry is served from cache.
         signal: AbortSignal.timeout(120000),
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          // Tried 2026-11-09 on a two-matter Thai e-mail: luna split and labelled every amount as
-          // well as 5.4-nano/5.4-mini at half nano's price. No `temperature` (GPT-5+ rejects it).
-          model: INTAKE_AI_MODEL,
+        body: JSON.stringify(openAiChatBody(this.config, {
+          model: chatModel(this.config),
           response_format: INTAKE_AI_RESPONSE_FORMAT,
           messages: [
             { role: 'system', content: INTAKE_AI_SYSTEM_PROMPT },
             { role: 'user', content: JSON.stringify({ subject: redactForAi(subject).text, messages, documents, documentRequests: redactedRequests, caseTypes }) },
           ],
-        }),
+        })),
       });
       if (!response.ok) throw new Error(`provider ${response.status}`);
       const data = (await response.json()) as { choices?: Array<{ finish_reason?: string; message?: { content?: string; refusal?: string } }> };

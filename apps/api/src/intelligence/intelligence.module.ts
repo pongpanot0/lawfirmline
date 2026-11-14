@@ -1,3 +1,4 @@
+import { AiCreditsController } from './ai-credits.controller';
 import { forwardRef, Module } from '@nestjs/common';
 import { DocumentIntelligenceService } from './document-intelligence.service';
 import { DateSuggestionsService } from './date-suggestions.service';
@@ -10,7 +11,7 @@ import { DocumentsModule } from '../documents/documents.module';
 @Module({
   imports: [forwardRef(() => CalendarModule), forwardRef(() => DocumentsModule)],
   providers: [DocumentIntelligenceService, DateSuggestionsService, ReceiptExtractionService],
-  controllers: [IntelligenceController, DateSuggestionsController],
+  controllers: [AiCreditsController, IntelligenceController, DateSuggestionsController],
   exports: [DocumentIntelligenceService, DateSuggestionsService, ReceiptExtractionService],
 })
 export class IntelligenceModule {}

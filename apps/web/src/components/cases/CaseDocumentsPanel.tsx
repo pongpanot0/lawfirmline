@@ -22,6 +22,7 @@ import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { documentCategoryLabel } from '@/lib/stage-labels';
 import { DocumentCategory, hasFirmCapability } from '@lawfirm/shared';
+import { useAiCreditConfirm } from '@/components/billing/useAiCreditConfirm';
 import { Select } from '@/components/ui/select';
 
 const DOCUMENT_CATEGORY_VALUES = Object.values(DocumentCategory);
@@ -33,6 +34,7 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
   useEffect(() => { if (newUpload) { setUploadOpen(true); const url = new URL(window.location.href); url.searchParams.delete('new'); window.history.replaceState(window.history.state, '', url); } }, [newUpload]);
   const id = caseId;
   const { token, user } = useAuth();
+  const credits = useAiCreditConfirm();
   const canManageContent = hasFirmCapability(user?.firmRole, 'manageFirmContent');
   const [analysisRevision, setAnalysisRevision] = useState(0);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -246,6 +248,7 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
 
   const handleAnalyzeDocument = async (doc: DocumentItem) => {
     if (!token || !id) return;
+    try { if (!await credits.confirmCredits([{ id: doc.id, name: doc.filename }])) return; } catch (e) { setError(e instanceof Error ? e.message : 'ประเมินเครดิตไม่สำเร็จ'); return; }
     setAnalyzingId(doc.id);
     setError('');
     try {
@@ -260,6 +263,7 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
 
   const handleExtractDatesFromDocument = async (doc: DocumentItem) => {
     if (!token || !id) return;
+    try { if (!await credits.confirmCredits([{ id: doc.id, name: doc.filename }])) return; } catch (e) { setError(e instanceof Error ? e.message : 'ประเมินเครดิตไม่สำเร็จ'); return; }
     setExtractingId(doc.id);
     setError('');
     try {
@@ -283,6 +287,7 @@ export function CaseDocumentsPanel({ caseId, onChanged, newFolderName }: { caseI
   const docCounts = allDocs.reduce<Record<string, number>>((acc, doc) => { const key = doc.category ?? 'OTHER'; acc[key] = (acc[key] ?? 0) + 1; return acc; }, {});
   return (
     <div>
+      {credits.dialog}
       {uploadOpen && <dialog ref={(el) => { if (el && !el.open) el.showModal(); }} aria-labelledby="upload-title" onCancel={(e) => { e.preventDefault(); if (!uploading) { setUploadOpen(false); setUploadRows([]); } }} className="m-auto w-[min(36rem,calc(100vw-2rem))] max-w-none rounded-2xl bg-[#fffdfa] p-0 text-foreground shadow-2xl backdrop:bg-[#101d2a]/45">
         <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
           <div className="flex items-start justify-between border-b border-[#e2e0d8] px-6 py-4"><h2 id="upload-title" tabIndex={-1} autoFocus className="text-xl font-bold outline-none">แนบเอกสารเข้าคดี</h2><button type="button" aria-label="ปิดหน้าต่างแนบเอกสาร" disabled={uploading} onClick={() => { setUploadOpen(false); setUploadRows([]); }} className={`${v2.btn} ${v2.ghost}`}><X aria-hidden="true" className="h-[1.1em] w-[1.1em]" /></button></div>

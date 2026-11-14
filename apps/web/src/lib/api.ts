@@ -1,3 +1,5 @@
+import type { BillingUsage, AiCreditsEstimate, AddOnKind } from '@lawfirm/shared';
+import { PLAN_LIMIT_AI } from '@lawfirm/shared';
 import { withFirmSlugHeaders } from './firm-slug';
 import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { taskUpdatePath } from './task-detail';
@@ -169,9 +171,13 @@ async function send<T>(path: string, options: RequestOptions): Promise<T> {
     const body = await res.json().catch(() => ({}));
     if (res.status === 401 && refreshAuth) clearSession();
     const serverMessage = rawApiErrorMessage(body, res.statusText);
-    const message = displayApiErrorMessage(serverMessage, res.status);
-    // A 409 CONFLICT_FOUND is a prompt for the user, not a failure.
-    if (isAction && (body as { code?: string })?.code !== 'CONFLICT_FOUND') publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
+    const message = (body as { code?: string }).code === PLAN_LIMIT_AI ? serverMessage : displayApiErrorMessage(serverMessage, res.status);
+    // A 409 CONFLICT_FOUND is a prompt for the user, not a failure. Sign-in forms (/auth/*) show
+    // their own error; a toast there would add a wrong "session expired" on a mistyped password.
+    if (isAction && !path.startsWith('/auth/') && (body as { code?: string })?.code !== 'CONFLICT_FOUND') {
+      if ((body as { code?: string })?.code === PLAN_LIMIT_AI && typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('lawfirm:ai-limit', { detail: serverMessage }));
+      else publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
+    }
     throw new ApiError(res.status, message, body, serverMessage);
   }
 
@@ -1968,6 +1974,9 @@ function feedbackQuery(data: object): string {
 }
 
 export const api = {
+  getBillingUsage: (token: string) => request<BillingUsage>('/billing/usage', { token }),
+  checkoutAddOn: (token: string, addOn: AddOnKind, paymentMethod: 'card' | 'promptpay') => request<{ url: string }>('/billing/add-ons/checkout', { method: 'POST', token, silent: true, body: JSON.stringify({ addOn, paymentMethod }) }),
+  estimateAiCredits: (token: string, documentIds: string[]) => request<AiCreditsEstimate>('/ai/credits/estimate', { method: 'POST', token, silent: true, body: JSON.stringify({ documentIds }) }),
   createAppFeedback: (token: string, form: FormData) =>
     request<{ id: string }>('/app-feedback', { method: 'POST', token, body: form, silent: true }),
   getFeedback: (token: string, query: FeedbackListQuery) =>

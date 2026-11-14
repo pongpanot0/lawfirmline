@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { chatModel } from '../common/openai-model';
+import { chatModel, openAiChatBody } from '../common/openai-model';
 
 /**
  * Reads a receipt photo with a vision model and returns the grand total and a
@@ -26,7 +26,7 @@ export class ReceiptExtractionService {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+        body: JSON.stringify(openAiChatBody(this.config, {
           model: chatModel(this.config),
           messages: [
             {
@@ -40,7 +40,7 @@ export class ReceiptExtractionService {
             },
           ],
           temperature: 0,
-        }),
+        })),
       });
       if (!res.ok) {
         this.logger.warn(`Receipt extraction API failed: ${res.status}`);

@@ -25,6 +25,7 @@ export class RagController {
   }
 
   @Post('cases/:caseId/rag/reindex')
+  @AiAction('rag-cases-caseid-rag-reindex')
   @UseGuards(CaseAccessGuard)
   reindex(@Param('caseId') caseId: string) {
     return this.ragService.reindexCase(caseId);

@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 import { RelevanceService } from '../rag/relevance.service';
@@ -63,6 +63,14 @@ describe('IntakePrecedentAnalysisService', () => {
   });
 
   describe('analyze', () => {
+    it('propagates OCR quota refusal before any analysis call', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue({ ...baseIntake, attachments: [{ id: 'a', filename: 'scan.pdf', storagePath: 'scan.pdf', mimeType: 'application/pdf' }] });
+      mockFileStorage.getBuffer.mockResolvedValue(Buffer.from('scan'));
+      mockDocIntel.extractTextWithOcr.mockRejectedValueOnce(new ForbiddenException({ code: 'PLAN_LIMIT_AI' }));
+      await expect(service.analyze(user, 'intake-1')).rejects.toThrow(ForbiddenException);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
     it('throws BadRequestException when the intake has no description and no attachments', async () => {
       mockPrisma.intake.findFirst.mockResolvedValue({ ...baseIntake, description: null, attachments: [] });
       await expect(service.analyze(user, 'intake-1')).rejects.toThrow(BadRequestException);

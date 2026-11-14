@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
  * alongside the OPENAI_MODEL_* envs when models change.
  */
 const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
+  'gpt-6-luna': { input: 0.10, output: 0.50 },
   'gpt-4o': { input: 2.5, output: 10 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
   'text-embedding-3-small': { input: 0.02, output: 0 },

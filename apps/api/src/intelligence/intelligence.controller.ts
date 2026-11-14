@@ -88,7 +88,6 @@ export class IntelligenceController {
   }
 
   @Post('cases/:caseId/documents/classify-checklist')
-  @AiAction('intelligence-cases-caseid-documents-classify-checklist')
   @UseGuards(CaseAccessGuard)
   async classifyCaseChecklist(
     @CurrentUser() user: AuthUser,
@@ -121,7 +120,6 @@ export class IntelligenceController {
   }
 
   @Post('intake/:intakeId/documents/classify-checklist')
-  @AiAction('intelligence-intake-intakeid-documents-classify-checklist')
   async classifyIntakeChecklist(
     @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,

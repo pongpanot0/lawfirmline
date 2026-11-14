@@ -44,7 +44,9 @@ describe('SecretaryChatService', () => {
     const b = body(0);
     expect(b.tools.map((t: any) => t.function.name)).toEqual(NAMES);
     expect(b.tool_choice).toBe('auto');
-    expect(b.model).toBe('gpt-4o-mini');
+    expect(b).toMatchObject({ model: 'gpt-6-luna', reasoning_effort: 'low', max_completion_tokens: 8000 });
+    expect(b).not.toHaveProperty('temperature');
+    expect(b).not.toHaveProperty('max_tokens');
     const sys = b.messages[0].content;
     for (const s of ['ตอบจากข้อมูลที่เครื่องมือส่งกลับเท่านั้น', 'ถ้าไม่มีข้อมูลให้บอกว่าไม่มีข้อมูล', 'อ่านอย่างเดียว', 'สมชาย', new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date())])
       expect(sys).toContain(s);

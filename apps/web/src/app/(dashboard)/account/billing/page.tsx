@@ -12,6 +12,7 @@ import { LoadFailed } from '@/components/ui/LoadFailed';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowUpRight, Check } from 'lucide-react';
+import { BillingUsageSection } from '@/components/billing/BillingUsageSection';
 import { BillingPeriodToggle } from '@/components/billing/BillingPeriodToggle';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
@@ -50,15 +51,10 @@ function BillingPageContent() {
   const [reload, setReload] = useState(0);
   const loc = dateLocale(locale);
 
-  useEffect(() => {
-    if (user && !hasFirmCapability(user.firmRole, 'manageSubscription')) {
-      router.replace('/dashboard');
-    }
-  }, [user, router]);
 
   useEffect(() => {
     const t = token ?? getStoredToken();
-    if (!t) return;
+    if (!t || !user || !hasFirmCapability(user.firmRole, 'manageSubscription')) return;
     setLoadError('');
     setLoading(true);
     Promise.all([api.getPlans(t), api.getBillingHistory(t), api.getSubscription(t)])
@@ -72,7 +68,7 @@ function BillingPageContent() {
       // payments" — an owner would read that as the truth about their account.
       .catch((err) => setLoadError(err instanceof Error ? err.message : d.billing.loadFailed))
       .finally(() => setLoading(false));
-  }, [token, d.billing.loadFailed, reload]);
+  }, [token, user, d.billing.loadFailed, reload]);
 
   useEffect(() => {
     const planParam = searchParams.get('plan') as SubscriptionPlan | null;
@@ -135,7 +131,9 @@ function BillingPageContent() {
   }
   const authToken = () => token ?? getStoredToken() ?? '';
 
-  if (!user || !hasFirmCapability(user.firmRole, 'manageSubscription')) return null;
+  if (!user) return null;
+  const owner = hasFirmCapability(user.firmRole, 'manageSubscription');
+  if (!owner) return <div className="space-y-6"><PageHeader title={d.billing.title} /><BillingUsageSection token={token ?? getStoredToken() ?? ''} owner={false} initialTopup={false} returned={false} /></div>;
 
   const statusBadge = () => {
     switch (user.subscriptionStatus) {
@@ -162,7 +160,8 @@ function BillingPageContent() {
         description={`ตรวจแพ็กเกจและการชำระเงินของ ${user.firmName}`}
         actions={canManagePayment ? (
           <Button
-            className="whitespace-normal text-left"
+            className="whitespace-nowrap text-left"
+            title="จัดการการชำระเงิน"
             disabled={redirecting}
             onClick={() => goToStripe(() => api.billingPortal(authToken()))}
           >
@@ -210,6 +209,8 @@ function BillingPageContent() {
           <p className="mt-0.5 text-sm text-muted-foreground">{d.billing.seatsHint}</p>
         </div>
       </section>
+
+      <BillingUsageSection token={authToken()} owner={owner} initialTopup={searchParams.get('topup') === 'ai'} returned={searchParams.get('addon') === '1'} />
 
       <details className="rounded-xl border bg-card p-4">
         <summary className="disclosure cursor-pointer font-semibold">เปรียบเทียบแพ็กเกจ</summary>
@@ -269,7 +270,8 @@ function BillingPageContent() {
                   ) : autoRenew ? (
                     <div className="space-y-1.5">
                       <Button
-                        className="w-full"
+                        className="w-full whitespace-nowrap"
+                        title="เปลี่ยนแพ็กเกจ"
                         variant="outline"
                         disabled={!!changingPlan}
                         aria-describedby={`change-plan-hint-${plan.plan}`}
@@ -282,7 +284,8 @@ function BillingPageContent() {
                   ) : (
                     <div className="space-y-2">
                       <Button
-                        className="w-full"
+                        className="w-full whitespace-nowrap"
+                        title="สมัครแพ็กเกจ"
                         variant="outline"
                         disabled={redirecting}
                         onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod))}
@@ -290,7 +293,8 @@ function BillingPageContent() {
                         {redirecting ? d.billing.redirecting : d.billing.subscribe}
                       </Button>
                       <Button
-                        className="w-full whitespace-normal leading-snug"
+                        className="w-full whitespace-nowrap"
+                        title="ชำระด้วยพร้อมเพย์"
                         variant="outline"
                         disabled={redirecting}
                         onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod, 'promptpay'))}
@@ -347,7 +351,8 @@ function BillingPageContent() {
         <div className="flex justify-end border-t pt-6">
           <Button
             variant="outline"
-            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            title="ยกเลิกแพ็กเกจ"
+            className="whitespace-nowrap border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
             disabled={cancelling}
             onClick={handleCancel}
           >
