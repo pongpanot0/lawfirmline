@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPettyCashCsv, receiptPathFor, buildPettyCashPackage, buildPrintableClaim } from './petty-cash-csv.ts';
 import { buildZip } from './zip.ts';
+import * as mod from './petty-cash-csv.ts';
 import type { ExpenseItem } from './api.ts';
 
 const expense = (over: Partial<ExpenseItem> = {}): ExpenseItem =>
@@ -106,4 +107,30 @@ test('printable sheet escapes user HTML and CSV neutralizes formulas', () => {
   assert.doesNotMatch(html, /<script>|<img/);
   assert.match(html, /&lt;img/);
   assert.match(buildPettyCashCsv({ firmName: 'f', requesterName: 'r', expenses: [expense({ description: '=1+1' })] }), /'=1\+1/);
+});
+
+test('csvCell neutralises formulas and quotes separators', () => {
+  const { csvCell } = mod;
+  assert.equal(csvCell('=HYPERLINK("x")'), `"'=HYPERLINK(""x"")"`);
+  assert.equal(csvCell('+1'), "'+1");
+  assert.equal(csvCell('@SUM(A1)'), "'@SUM(A1)");
+  assert.equal(csvCell('a,b'), '"a,b"');
+  assert.equal(csvCell('ปกติ'), 'ปกติ');
+});
+
+test('buildClaimsLedgerCsv: one row per expense, ISO dates, plain amounts, flags', () => {
+  const claim = {
+    id: 'claim-123456789', status: 'PAID', submittedAt: '2026-11-01T03:00:00.000Z', paidAt: '2026-11-03T18:30:00.000Z',
+    submittedBy: { id: 'u1', firstName: 'สมชาย', lastName: 'ทดสอบ' }, totalAmount: 1534.5, itemCount: 2, receiptCount: 1, cases: [],
+    expenses: [
+      expense({ id: 'e2', date: '2026-10-20T00:00:00.000Z', amount: 1234.5, description: '=cmd', billable: false, invoiceId: 'inv1', officialReceiptNo: 'R-9', case: { id: 'c1', ownRef: 'LIT-1', title: 'คดี, หนึ่ง' } }),
+      expense({ id: 'e1', date: '2026-10-10T00:00:00.000Z', amount: 300, description: 'ค่าส่งไปรษณีย์', case: null, receiptFilename: null }),
+    ],
+  } as unknown as Parameters<typeof mod.buildClaimsLedgerCsv>[0][number];
+  const lines = mod.buildClaimsLedgerCsv([claim]).replace(/^﻿/, '').trim().split('\r\n');
+  assert.equal(lines.length, 3);
+  assert.match(lines[1], /^claim-12,สมชาย ทดสอบ,2026-11-01,จ่ายแล้ว,2026-11-04,2026-10-10,ค่าส่งไปรษณีย์,/);
+  assert.match(lines[1], /,งานทั่วไป,,300\.00,ใช่,ไม่,,/);
+  assert.match(lines[2], /,'=cmd,/);
+  assert.match(lines[2], /,LIT-1,"คดี, หนึ่ง",1234\.50,ไม่,ใช่,R-9,/);
 });

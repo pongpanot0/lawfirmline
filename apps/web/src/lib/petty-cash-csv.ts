@@ -1,5 +1,6 @@
 import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
-import type { ExpenseItem } from '@/lib/api';
+import type { ExpenseClaimSummary, ExpenseItem } from '@/lib/api';
+import { bangkokDateInputValue } from './bangkok.ts';
 import { buildZip, safeFileName, type ZipEntry } from './zip.ts';
 
 const RECEIPT_DIR = 'ใบเสร็จ';
@@ -16,9 +17,37 @@ function money(n: number): string {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function cell(v: string): string {
+/** One CSV cell: neutralises Excel formulas (= + - @ tab CR) and quotes when needed. */
+export function csvCell(v: string): string {
   v = /^[=+@\-\t\r]/.test(v) ? `'${v}` : v;
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+const cell = csvCell;
+
+const CLAIM_STATUS_TH: Record<string, string> = { PENDING: 'รออนุมัติ', APPROVED: 'อนุมัติแล้ว รอจ่าย', PAID: 'จ่ายแล้ว', REJECTED: 'ไม่อนุมัติ' };
+
+/**
+ * Accounting ledger for approvers: one row per expense across the given claims.
+ * Dates are ISO (Bangkok) and amounts plain numbers so Excel can sort and SUM.
+ */
+export function buildClaimsLedgerCsv(claims: ExpenseClaimSummary[]): string {
+  const day = (iso?: string | null) => (iso ? bangkokDateInputValue(iso) : '');
+  const rows: string[][] = [[
+    'เลขชุดเบิก', 'ผู้เบิก', 'วันที่ส่งเบิก', 'สถานะชุดเบิก', 'วันที่จ่าย',
+    'วันที่รายการ', 'รายการ', 'หมวด', 'วัตถุประสงค์', 'เลขคดี', 'ชื่อคดี',
+    'จำนวนเงิน', 'เรียกเก็บลูกความ', 'ออกใบแจ้งหนี้แล้ว', 'เลขใบเสร็จ', 'ไฟล์ใบเสร็จ',
+  ]];
+  for (const c of claims) {
+    const requester = `${c.submittedBy.firstName} ${c.submittedBy.lastName}`.trim();
+    for (const e of [...c.expenses].sort((a, b) => a.date.localeCompare(b.date))) {
+      rows.push([
+        c.id.slice(0, 8), requester, day(c.submittedAt), CLAIM_STATUS_TH[c.status] ?? String(c.status), day(c.paidAt ?? e.paidAt),
+        day(e.date), e.description, e.category ?? '', e.expensePurpose ?? '', e.case?.ownRef ?? 'งานทั่วไป', e.case?.title ?? '',
+        e.amount.toFixed(2), e.billable === false ? 'ไม่' : 'ใช่', e.invoiceId ? 'ใช่' : 'ไม่', e.officialReceiptNo ?? '', e.receiptFilename ?? '',
+      ]);
+    }
+  }
+  return '﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }
 
 /**
@@ -99,7 +128,7 @@ export function receiptPathFor(expense: ExpenseItem): string {
   return `${RECEIPT_DIR}/${base}.${ext}`;
 }
 
-function triggerDownload(blob: Blob, filename: string) {
+export function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

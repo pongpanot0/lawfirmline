@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { csvCell } from '@/lib/petty-cash-csv';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { FilterChips } from '@/components/process/FilterChips';
 import { StepTracker } from '@/components/process/StepTracker';
@@ -229,7 +230,7 @@ function CasesPageContent() {
   };
 
   const exportCsv = () => {
-    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const escape = csvCell;
     const header = [
       'Own Ref',
       'Customer Ref',

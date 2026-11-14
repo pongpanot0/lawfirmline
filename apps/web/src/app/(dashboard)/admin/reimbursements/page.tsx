@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, Paperclip } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Paperclip } from 'lucide-react';
+import { buildClaimsLedgerCsv, triggerDownload } from '@/lib/petty-cash-csv';
+import { bangkokDateInputValue } from '@/lib/bangkok';
 import type { ExpenseClaimStatus } from '@lawfirm/shared';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
@@ -285,12 +287,31 @@ export default function ReimbursementsPage() {
       {tab === 'advances' && canIssueAdvances ? (
         <CashAdvanceReconciliation token={token ?? getStoredToken() ?? ''} onBusyChange={setAdvanceBusy} />
       ) : <>
-      <WhoActsTabs value={filter} onChange={setFilter} tabs={[
-        { key: 'PENDING', label: 'รออนุมัติ', count: claims.filter(c => c.status === 'PENDING').length },
-        { key: 'APPROVED', label: 'รอจ่าย', count: claims.filter(c => c.status === 'APPROVED').length },
-        { key: 'PAID', label: 'จ่ายแล้ว', count: claims.filter(c => c.status === 'PAID').length },
-        { key: 'REJECTED', label: 'ไม่อนุมัติ', count: claims.filter(c => c.status === 'REJECTED').length },
-      ]} />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="min-w-0 flex-1">
+          <WhoActsTabs value={filter} onChange={setFilter} tabs={[
+            { key: 'PENDING', label: 'รออนุมัติ', count: claims.filter(c => c.status === 'PENDING').length },
+            { key: 'APPROVED', label: 'รอจ่าย', count: claims.filter(c => c.status === 'APPROVED').length },
+            { key: 'PAID', label: 'จ่ายแล้ว', count: claims.filter(c => c.status === 'PAID').length },
+            { key: 'REJECTED', label: 'ไม่อนุมัติ', count: claims.filter(c => c.status === 'REJECTED').length },
+          ]} />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0 self-end whitespace-nowrap sm:self-auto"
+          title="ดาวน์โหลดรายการในแท็บนี้เป็นไฟล์ CSV สำหรับลงบัญชี"
+          disabled={loading || !claims.some(c => c.status === filter)}
+          onClick={() => triggerDownload(
+            new Blob([buildClaimsLedgerCsv(claims.filter(c => c.status === filter))], { type: 'text/csv;charset=utf-8' }),
+            `ชุดเบิก-${({ PENDING: 'รออนุมัติ', APPROVED: 'รอจ่าย', PAID: 'จ่ายแล้ว', REJECTED: 'ไม่อนุมัติ' } as Record<string, string>)[filter] ?? 'ทั้งหมด'}-${bangkokDateInputValue(new Date())}.csv`,
+          )}
+        >
+          <Download className="h-4 w-4" aria-hidden />
+          ดาวน์โหลด CSV
+        </Button>
+      </div>
       <details className="my-4 rounded-lg border bg-card p-4"><summary className="cursor-pointer">ตัวกรองเพิ่ม</summary>
         <SelectField label={d.reimbursements.filterRequester} containerClassName="mt-3 w-full sm:w-56" value={requesterFilter} onChange={(e) => setRequesterFilter(e.target.value)}>
           <option value="">{d.reimbursements.allRequesters}</option>
