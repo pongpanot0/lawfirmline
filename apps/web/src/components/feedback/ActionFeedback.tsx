@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { hasFirmCapability } from '@lawfirm/shared';
+import { canBuyAddOns, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { AlertCircle, CheckCircle2, X } from 'lucide-react';
 
@@ -46,7 +46,7 @@ export function ActionFeedback() {
       {isError
         ? <AlertCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
         : <CheckCircle2 aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />}
-      <p className="flex-1 text-sm font-medium">{feedback.message} {feedback.aiLimit && hasFirmCapability(user?.firmRole, 'manageSubscription') && <Link className="whitespace-nowrap underline" title="ไปเติมเครดิต AI" href="/account/billing?topup=ai">เติมเครดิต AI</Link>}</p>
+      <p className="flex-1 text-sm font-medium">{feedback.message} {feedback.aiLimit && hasFirmCapability(user?.firmRole, 'manageSubscription') && (canBuyAddOns(user?.subscriptionPlan) ? <Link className="whitespace-nowrap underline" title="ไปเติมเครดิต AI" href="/account/billing?topup=ai">เติมเครดิต AI</Link> : <Link className="whitespace-nowrap underline" title="ดูแพ็กเกจที่ใช้ AI ได้มากขึ้น" href="/account/billing#plans">อัปเกรดแพ็กเกจ</Link>)}</p>
       <button
         aria-label="ปิดข้อความแจ้งผล"
         className="-mr-2 -mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded text-current/80 hover:bg-black/10 hover:text-current focus:outline-none focus-visible:ring-2 focus-visible:ring-current"

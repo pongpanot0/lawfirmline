@@ -212,7 +212,7 @@ function BillingPageContent() {
 
       <BillingUsageSection token={authToken()} owner={owner} initialTopup={searchParams.get('topup') === 'ai'} returned={searchParams.get('addon') === '1'} />
 
-      <details className="rounded-xl border bg-card p-4">
+      <details id="plans" className="scroll-mt-24 rounded-xl border bg-card p-4">
         <summary className="disclosure cursor-pointer font-semibold">เปรียบเทียบแพ็กเกจ</summary>
       <section className="mt-4" aria-labelledby="billing-plans-heading">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
