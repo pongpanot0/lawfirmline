@@ -33,11 +33,18 @@ export function missingCaseInfo(
     const value = field.key === 'chargeSection' ? (legalCase.chargeSection ?? customFields.chargeSection) : customFields[field.key];
     if (typeof value !== 'string' || !value.trim()) missing.push(field.label);
   }
-  for (const def of definitions) {
-    if (def.visibility !== 'FIRM' || def.entityKind !== 'CASE' || !def.required || def.archivedAt) continue;
-    if (def.caseTypeIds.length && (!legalCase.caseTypeId || !def.caseTypeIds.includes(legalCase.caseTypeId))) continue;
-    if (!isFilled(def, customFields[def.key])) missing.push(def.label);
-  }
+  missing.push(...missingRequiredCustomFields(legalCase.caseTypeId, customFields, definitions));
   if (journeyStage(legalCase.stage) !== CaseStage.PRE_LITIGATION && !legalCase.courtName?.trim()) missing.push('ศาล');
   return missing;
+}
+
+/** Labels of required firm case fields (for this case type) that are still empty. */
+export function missingRequiredCustomFields(
+  caseTypeId: string | null | undefined,
+  customFields: Record<string, unknown>,
+  definitions: Pick<CustomFieldDefinitionDto, 'key' | 'label' | 'required' | 'caseTypeIds' | 'archivedAt' | 'visibility' | 'entityKind' | 'type'>[],
+): string[] {
+  return definitions.filter((def) => def.visibility === 'FIRM' && def.entityKind === 'CASE' && def.required && !def.archivedAt
+    && (!def.caseTypeIds.length || (!!caseTypeId && def.caseTypeIds.includes(caseTypeId)))
+    && !isFilled(def, customFields[def.key])).map((def) => def.label);
 }

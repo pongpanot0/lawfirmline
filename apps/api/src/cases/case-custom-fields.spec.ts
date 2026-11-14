@@ -120,6 +120,19 @@ describe('custom field overview and PATCH boundaries', () => {
     await expect(fixture.cases.update(user, 'record', { title: 'changed', customFields: { [key]: 'bad' } })).rejects.toThrow(BadRequestException);
     expect(fixture.prisma.case.update).not.toHaveBeenCalled();
   });
+  it.each(['cf_foreign', 'cf_archived', 'cf_personal'])('create rejects %s before any write', async key => {
+    const fixture = cases();
+    fixture.prisma.$transaction.mockClear();
+    await expect(fixture.cases.create(user, { title: 't', leadLawyerId: 'B', customFields: { [key]: 'x' } } as any)).rejects.toThrow(BadRequestException);
+    expect(fixture.prisma.$transaction).not.toHaveBeenCalled();
+  });
+  it('create at a filed stage requires required firm fields', async () => {
+    const fixture = cases();
+    fixture.fields.listAllForFirm.mockResolvedValue([def('cf_amount', { label: 'ทุนประกัน', type: 'NUMBER', required: true })]);
+    const dto = { title: 't', leadLawyerId: 'B', stage: 'FILING', courtName: 'ศาลแพ่ง', blackCaseNumberUnknown: true } as any;
+    await expect(fixture.cases.create(user, dto)).rejects.toThrow(/ทุนประกัน/);
+    await expect(fixture.cases.create(user, { ...dto, customFields: { cf_amount: 'abc' } })).rejects.toThrow(BadRequestException);
+  });
   it.each(['CASE', 'CLIENT'] as const)('%s PATCH delegates to the common writer and returns a redacted result', async entity => {
     const fixture = setup(entity);
     const controller = entity === 'CASE'

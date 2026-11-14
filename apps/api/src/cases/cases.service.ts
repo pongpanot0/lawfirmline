@@ -1,10 +1,10 @@
 import { customFieldFilter } from '../custom-fields/custom-field-filter';
-import { redactCustomFields } from '../custom-fields/custom-field-rules';
+import { mergeCustomFieldPatch, redactCustomFields } from '../custom-fields/custom-field-rules';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
 import { Journey } from '../intake/intake-journey';
 import { assertJourneyAdvance, caseJourney, journeyStage, nextJourneyStage, preLitChecklist, MAIN_JOURNEY_STAGES } from './case-journey';
-import { missingCaseInfo } from './case-info';
+import { missingCaseInfo, missingRequiredCustomFields } from './case-info';
 import { caseProgress, CaseProgress } from './case-progress';
 import { AdvanceJourneyDto } from './dto/advance-journey.dto';
 import { assertFirmRefs } from '../common/firm-refs';
@@ -694,6 +694,13 @@ export class CasesService {
       if (!dto.courtName?.trim()) throw new BadRequestException('ระบุศาลเมื่อคดียื่นฟ้องแล้ว');
       if (!dto.blackCaseNumber?.trim() && !dto.blackCaseNumberUnknown) throw new BadRequestException('ระบุหมายเลขคดีดำ หรือเลือก "ยังไม่ทราบเลขคดี"');
     }
+    // Same rules as every other value write: only visible, active fields, typed values; system keys pass through.
+    const fieldDefs = await this.customFields.listAllForFirm(user.firmId, 'CASE');
+    const createFields = dto.customFields === undefined ? undefined : mergeCustomFieldPatch({}, dto.customFields as Record<string, unknown>, fieldDefs, user.id).values;
+    if (stage !== CaseStage.PRE_LITIGATION) {
+      const missing = missingRequiredCustomFields(dto.caseTypeId, createFields ?? {}, fieldDefs);
+      if (missing.length) throw new BadRequestException(`กรอก ${missing.join(', ')} ให้ครบก่อนเปิดคดีที่ขั้นนี้`);
+    }
     await assertFirmRefs(this.prisma, user.firmId, {
       clientIds: [...(dto.customers ?? []).map((c) => c.customerId), ...(dto.clients ?? []).map((c) => c.clientId)],
       contactIds: (dto.customers ?? []).map((c) => c.contactId),
@@ -775,7 +782,7 @@ export class CasesService {
       courtLevel: dto.courtLevel,
       blackCaseNumber: dto.blackCaseNumber || null,
       redCaseNumber: dto.redCaseNumber || null,
-      customFields: dto.customFields as Prisma.InputJsonValue,
+      customFields: createFields as Prisma.InputJsonValue | undefined,
       estimatedFee: dto.estimatedFee,
       claimedAmount: dto.claimedAmount,
       limitationDeadline: dto.limitationDeadline ? new Date(dto.limitationDeadline) : undefined,
