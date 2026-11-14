@@ -30,14 +30,14 @@ describe('DataImportService cases plan limit and writes', () => {
     prisma = { $transaction: jest.fn((callback: (db: unknown) => unknown) => callback(tx)) };
     cases = { createForImport: jest.fn(async () => { order.push('create'); return { id: 'case-id', ownRef: 'REF' }; }) };
     service = new DataImportService(prisma, cases, { getCaseFilterForUser: () => ({ firmId: user.firmId }) } as never, {} as never, {} as never, {} as never, {} as never);
-    plan = jest.spyOn(limits, 'assertCanOpenCases').mockImplementation(async (_db, _firm, count) => { order.push(`plan:${count}`); });
+    plan = jest.spyOn(limits, 'assertCanAddCases').mockImplementation(async (_db, _firm, count) => { order.push(`plan:${count}`); });
   });
   afterEach(() => plan.mockRestore());
 
   it('runs one aggregate preflight before shared case writers; every row uses the outer transaction', async () => {
     await expect(service.commit(user, 'b1')).resolves.toEqual({ batchId: 'b1', kind: 'cases', created: 3 });
-    expect(plan).toHaveBeenCalledTimes(1); expect(plan).toHaveBeenCalledWith(tx, user.firmId, 2);
-    expect(order).toEqual(['plan:2', 'create', 'create', 'create']);
+    expect(plan).toHaveBeenCalledTimes(1); expect(plan).toHaveBeenCalledWith(tx, user.firmId, 3);
+    expect(order).toEqual(['plan:3', 'create', 'create', 'create']);
     expect(cases.createForImport).toHaveBeenCalledTimes(3);
     for (const call of cases.createForImport.mock.calls) { expect(call[0]).toBe(tx); expect(call[1]).toBe(user); }
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);

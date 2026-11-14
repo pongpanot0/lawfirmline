@@ -5,7 +5,7 @@ import { resolveCaseRows, ExcelCaseDraft, ImportLookups } from '../../case-impor
 import { caseImportTemplateSpec } from '../../case-import/case-import-template';
 import { splitList } from '../../common/excel-import/reader';
 import type { RawImportRow } from '../../common/excel-import/types';
-import { assertCanOpenCases } from '../../common/plan-limits';
+import { assertCanAddCases } from '../../common/plan-limits';
 import { bangkokDayKey } from '../../common/utils/bangkok-time';
 import type { ImportDraft, ImportKindDef, ImportKindDeps } from '../import-kind';
 import { checkDuplicate, draftFor, lawyerCanImport, maxLength, memberHelp, ownValue, signature, staffMembers, ImportMember } from '../kind-helpers';
@@ -75,8 +75,8 @@ export function casesKind(deps: ImportKindDeps): ImportKindDef<CaseDraft, CaseLo
     },
     resolve: resolveImportCaseRows,
     async commit(tx, user, drafts) {
-      const openCount = drafts.filter((draft) => !draft.closed).length;
-      if (openCount) await assertCanOpenCases(tx, user.firmId, openCount);
+      // Closed cases count toward the plan too: check every row once, before the first write.
+      await assertCanAddCases(tx, user.firmId, drafts.length);
       const day = (value?: string) => value ? new Date(`${value.slice(0, 10)}T00:00:00Z`) : undefined;
       for (const row of drafts) await deps.cases.createForImport(tx, user, {
         title: row.title, leadLawyerId: row.leadLawyerId, buddyIds: row.buddyIds, courtLevel: row.courtLevel,

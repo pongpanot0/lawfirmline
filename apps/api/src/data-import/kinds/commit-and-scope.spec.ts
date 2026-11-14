@@ -67,20 +67,22 @@ describe('kind transaction writes and tenant scopes', () => {
     await expect(result.after!()).rejects.toThrow('1 นัดหมาย');
     expect(syncEventSoon.mock.calls).toEqual([['future1'], ['future2']]);
   });
-  it('checks the aggregate open-case quota before the first case write and skips it for closed-only batches', async () => {
+  it('checks the aggregate case quota (closed cases included) before the first case write', async () => {
     const createForImport = jest.fn();
     const deps = depsAs({ cases: { createForImport } });
-    const plan = Object.values(SubscriptionPlan).find((value) => PLAN_CONFIG[value].maxActiveCases != null)!;
-    const tx = { firm: { findUnique: jest.fn().mockResolvedValue({ subscriptionPlan: plan }) }, case: { count: jest.fn().mockResolvedValue(PLAN_CONFIG[plan].maxActiveCases) } };
+    const plan = Object.values(SubscriptionPlan).find((value) => PLAN_CONFIG[value].maxCases != null)!;
+    const tx = { firm: { findUnique: jest.fn().mockResolvedValue({ subscriptionPlan: plan }) }, case: { count: jest.fn().mockResolvedValue(PLAN_CONFIG[plan].maxCases) } };
     const draft = { title: 'คดี', leadLawyerId: 'lawyer', buddyIds: [], opponents: [], closed: false } as unknown as CaseDraft;
     await expect(casesKind(deps).commit(dbAs(tx), importUser, [draft])).rejects.toThrow('จำนวนคดี');
     expect(createForImport).not.toHaveBeenCalled();
     tx.case.count.mockResolvedValue(0);
     await casesKind(deps).commit(dbAs(tx), importUser, [draft]);
     expect(createForImport).toHaveBeenCalledWith(tx, importUser, expect.objectContaining({ title: 'คดี', closed: null }));
-    tx.firm.findUnique.mockClear();
-    await casesKind(deps).commit(dbAs(tx), importUser, [{ ...draft, closed: true, outcome: 'WON', closingSummary: 'สรุปคดีที่ปิดแล้ว', closedAt: '2026-01-01' } as CaseDraft]);
-    expect(tx.firm.findUnique).not.toHaveBeenCalled();
+    tx.firm.findUnique.mockClear(); createForImport.mockClear();
+    tx.case.count.mockResolvedValue(PLAN_CONFIG[plan].maxCases);
+    await expect(casesKind(deps).commit(dbAs(tx), importUser, [{ ...draft, closed: true, outcome: 'WON', closingSummary: 'สรุปคดีที่ปิดแล้ว', closedAt: '2026-01-01' } as CaseDraft])).rejects.toThrow('จำนวนคดี');
+    expect(tx.firm.findUnique).toHaveBeenCalledTimes(1);
+    expect(createForImport).not.toHaveBeenCalled();
   });
   it('checks all seat reservations before any invitation write and shares invitation sending afterward', async () => {
     const createForImport = jest.fn().mockImplementation(async (_tx, _user, email) => ({ id: email, email }));

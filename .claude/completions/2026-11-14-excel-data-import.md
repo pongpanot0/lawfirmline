@@ -7,5 +7,5 @@ Branch `claude/eager-perlman-de8c02`. Commits 620634db, 196f2a04, 01a9514f.
 - Shared reader and template builder in `common/excel-import/`; `/case-import` keeps its behaviour.
 - Migration `20261114120000_data_import_kind` (applied locally via psql + migrate resolve).
 - Web `/import` page, sidebar entry, link from `/cases/import`.
-- Plan-limit coordination: the `cases` kind calls `assertCanOpenCases` once for all open rows before writing; rename that call when `assertCanAddCases` lands.
+- Plan limit: the `cases` kind calls `assertCanAddCases` once for every row (closed included) before writing — merged with the plan lock (#230).
 - Known ceilings: zip-bomb check trusts declared zip sizes (same as case-import). Imported court dates don't fire deadline rules (on purpose, for history).
