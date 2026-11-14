@@ -17,6 +17,7 @@ import {
 } from '@/api/hooks';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { CaseEmailTab } from '@/components/CaseEmailTab';
+import { CustomFieldsSection } from '@/components/CustomFieldsSection';
 import { CaseBriefCard } from '@/components/CaseBriefCard';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
@@ -181,6 +182,7 @@ export default function CaseDetailScreen() {
         {tab === 'ภาพรวม' ? (
           <>
           <CaseBriefCard caseId={id} />
+          <CustomFieldsSection entityKind="CASE" id={id} values={detail.customFields} caseTypeId={detail.caseTypeId} onSaved={() => void caseQuery.refetch()} />
           <Card>
             <InfoRow
               first

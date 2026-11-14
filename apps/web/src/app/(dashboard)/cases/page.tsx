@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Download, ArrowUpDown, Columns3, ClipboardList, Briefcase, Upload } from 'lucide-react';
 import { FirmRole, Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CaseListItem, CaseProgress, CaseTypeItem, UserItem } from '@/lib/api';
+import { api, CaseListItem, CaseProgress, CaseTypeItem, UserItem, type CustomFieldDefinition } from '@/lib/api';
 import { CaseViewToggle } from '@/components/cases/CaseViewToggle';
 import { CaseSummaryBars } from '@/components/cases/CaseSummaryBars';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -30,6 +30,8 @@ import { dueLabel } from '@/components/process/helpers';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { SearchHint } from '@/components/guide/SearchHint';
 import { Select } from '@/components/ui/select';
+import { CustomFieldInput } from '@/components/custom-fields/CustomFieldInput';
+import type { CustomFieldValue } from '@lawfirm/shared';
 
 const PAGE_SIZE = 10;
 
@@ -70,6 +72,13 @@ function CasesPageContent() {
   const [progress, setProgress] = useState<CaseProgress[]>([]);
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [typeFilter, setTypeFilter] = useState('');
+  const [fieldDefs, setFieldDefs] = useState<CustomFieldDefinition[]>([]);
+  const [fieldError, setFieldError] = useState('');
+  const [fieldKey, setFieldKey] = useState('');
+  const [fieldValue, setFieldValue] = useState<CustomFieldValue>(null);
+  const [fieldEmpty, setFieldEmpty] = useState(false);
+  const [cf, setCf] = useState('');
+  useEffect(() => { if (token) api.customFields(token, 'CASE').then(setFieldDefs).catch(() => setFieldError('โหลดช่องข้อมูลไม่สำเร็จ')); }, [token]);
   const [phase, setPhase] = useState('ALL');
   const tab = ['TODO', 'WAITING_CLIENT', 'WAITING_COURT', 'CLOSED'].includes(searchParams.get('tab') ?? '') ? searchParams.get('tab')! : 'TODO';
   const [cases, setCases] = useState<CaseListItem[]>([]);
@@ -106,6 +115,7 @@ function CasesPageContent() {
         stage: stageFilter || undefined,
         userId: lawyerFilter || undefined,
         caseTypeId: typeFilter || undefined,
+        cf: cf || undefined,
       })])
       .then(([progressRows, result]) => {
         setProgress(progressRows);
@@ -114,7 +124,7 @@ function CasesPageContent() {
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [token, search, statusFilter, stageFilter, lawyerFilter, typeFilter, reloadKey]);
+  }, [token, search, statusFilter, stageFilter, lawyerFilter, typeFilter, cf, reloadKey]);
 
   useEffect(() => {
     if (!token) return;
@@ -286,6 +296,7 @@ function CasesPageContent() {
       />
 
       <CaseViewToggle current={view} />
+      <details className="my-3 rounded-lg border bg-card p-3"><summary title="กรองตามช่องข้อมูลเพิ่มเติม" className="cursor-pointer whitespace-nowrap text-sm font-semibold">ช่องข้อมูลเพิ่มเติม{cf ? ' · ใช้ตัวกรอง' : ''}</summary><div className="mt-3 flex flex-wrap items-end gap-2"><label className="text-sm">เลือกช่อง<Select className="mt-1 block min-h-11" value={fieldKey} onChange={e => { setFieldKey(e.target.value); setFieldValue(null); setFieldEmpty(false); }}><option value="">เลือกช่อง</option>{fieldDefs.map(d => <option key={d.id} value={d.key}>{d.label}</option>)}</Select></label>{fieldKey && <><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={fieldEmpty} onChange={e => setFieldEmpty(e.target.checked)} />ยังไม่ได้กรอก</label>{!fieldEmpty && <div className="min-w-40">{fieldDefs.filter(d => d.key === fieldKey).map(d => <CustomFieldInput key={d.key} def={d} value={fieldValue} onChange={setFieldValue} />)}</div>}</>}<Button title="ใช้ตัวกรองช่องข้อมูล" disabled={!fieldKey || (!fieldEmpty && fieldValue === null)} onClick={() => { setCf(JSON.stringify({ [fieldKey]: fieldEmpty ? '__empty' : fieldValue })); setPage(0); }}>กรอง</Button>{cf && <Button title="ล้างตัวกรองช่องข้อมูล" variant="outline" onClick={() => { setCf(''); setFieldKey(''); setFieldValue(null); setFieldEmpty(false); }}>ล้าง</Button>}</div>{fieldError && <p role="alert" className="text-sm text-destructive">{fieldError}</p>}</details>
       {view === 'queue' ? <>
       <WhoActsTabs tabs={tabs} value={tab} onChange={() => { setPhase('ALL'); setPage(0); }} />
       <div className="my-4 flex flex-wrap items-center justify-between gap-3"><FilterChips items={chips} value={phase} onChange={setPhase} /><Input aria-label="ค้นหาคดี" placeholder={d.cases.searchPlaceholder} value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-full sm:w-64" /></div>

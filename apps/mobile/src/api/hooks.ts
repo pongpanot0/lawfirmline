@@ -46,7 +46,7 @@ export function useSecretaryChat() {
   const queryClient = useQueryClient();
   return useMutation({
     retry: false,
-    mutationFn: (messages: SecretaryMessage[]) => api<{ reply: string; cards: SecretaryCard[] }>('/ai/secretary', {
+    mutationFn: (messages: SecretaryMessage[]) => api<{ reply: string; cards: SecretaryCard[]; proposal?: { tool: string; labels: { customFields?: string[] } }; proposalId?: string }>('/ai/secretary', {
       method: 'POST', body: { messages: secretaryMessages(messages) },
     }),
     // Mirror what the server just saved, so the cache matches without a refetch.
@@ -367,6 +367,7 @@ export function usePersonWorkload(id: string, from: string) {
 }
 
 export interface ClientListItem {
+  customFields?: Record<string, unknown> | null;
   id: string;
   name: string;
   type: string | null;

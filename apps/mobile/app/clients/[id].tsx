@@ -3,6 +3,7 @@ import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronRight, Mail, Phone } from 'lucide-react-native';
+import { CustomFieldsSection } from '@/components/CustomFieldsSection';
 import { useClient } from '@/api/hooks';
 import { Card, EmptyState, ErrorState, LoadingState, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { initials } from '@/format';
@@ -55,6 +56,7 @@ export default function ClientDetailScreen() {
       >
         <PageIntro title={detail.name} detailOnly detail={typeLabel} />
 
+        <CustomFieldsSection entityKind="CLIENT" id={id} values={detail.customFields} onSaved={() => void client.refetch()} />
         <SectionLabel style={{ marginTop: spacing.md }}>ผู้ติดต่อ</SectionLabel>
         {contacts.length === 0 ? (
           <Card flat><EmptyState compact>ยังไม่มีผู้ติดต่อ</EmptyState></Card>

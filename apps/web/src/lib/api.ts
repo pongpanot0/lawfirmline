@@ -1,3 +1,4 @@
+import type { CustomFieldDefinitionDto, CustomFieldEntity, CustomFieldValue } from '@lawfirm/shared';
 import type { BillingUsage, AiCreditsEstimate, AddOnKind } from '@lawfirm/shared';
 import { PLAN_LIMIT_AI } from '@lawfirm/shared';
 import { withFirmSlugHeaders } from './firm-slug';
@@ -628,7 +629,7 @@ export interface ClientItem {
 }
 
 export interface Client360Overview {
-  client: Pick<ClientItem, 'id' | 'name' | 'type' | 'contacts'>;
+  client: Pick<ClientItem, 'id' | 'name' | 'type' | 'contacts'> & { customFields?: Record<string, unknown> | null };
   cases: Array<{
     id: string; ownRef: string; customerRef: string | null; title: string;
     status: string; stage: string; outcome: string; openedAt: string;
@@ -1973,7 +1974,16 @@ function feedbackQuery(data: object): string {
   ).toString();
 }
 
+export type CustomFieldDefinition = CustomFieldDefinitionDto & { source?: 'WEB' | 'MCP' | 'AI' };
+export type SecretaryProposal = { tool: string; labels: { customFields?: string[] } };
 export const api = {
+  customFields: (token: string, entityKind: CustomFieldEntity, includeArchived = false) => request<CustomFieldDefinition[]>(`/custom-fields?entityKind=${entityKind}&includeArchived=${includeArchived}`, { token }),
+  createCustomField: (token: string, body: object) => request<CustomFieldDefinition>('/custom-fields', { token, method: 'POST', body: JSON.stringify(body) }),
+  updateCustomField: (token: string, id: string, body: object) => request<CustomFieldDefinition>(`/custom-fields/${id}`, { token, method: 'PATCH', body: JSON.stringify(body) }),
+  archiveCustomField: (token: string, id: string, restore = false) => request<CustomFieldDefinition>(`/custom-fields/${id}/${restore ? 'restore' : 'archive'}`, { token, method: 'POST' }),
+  orderCustomFields: (token: string, ids: string[]) => request('/custom-fields/order', { token, method: 'PUT', body: JSON.stringify({ ids }) }),
+  setCustomFieldValues: (token: string, entityKind: CustomFieldEntity, id: string, values: Record<string, CustomFieldValue>) => request(`/${entityKind === 'CASE' ? 'cases' : 'clients'}/${id}/custom-fields`, { token, method: 'PATCH', body: JSON.stringify({ values }) }),
+  confirmSecretary: (token: string, proposalId: string) => request<Record<string, unknown>>('/ai/secretary/confirm', { token, method: 'POST', body: JSON.stringify({ proposalId }) }),
   getBillingUsage: (token: string) => request<BillingUsage>('/billing/usage', { token }),
   checkoutAddOn: (token: string, addOn: AddOnKind, paymentMethod: 'card' | 'promptpay') => request<{ url: string }>('/billing/add-ons/checkout', { method: 'POST', token, silent: true, body: JSON.stringify({ addOn, paymentMethod }) }),
   estimateAiCredits: (token: string, documentIds: string[]) => request<AiCreditsEstimate>('/ai/credits/estimate', { method: 'POST', token, silent: true, body: JSON.stringify({ documentIds }) }),
@@ -2259,6 +2269,7 @@ export const api = {
       party?: string;
       caseTypeId?: string;
       userId?: string;
+      cf?: string;
     },
   ) => {
     const query = new URLSearchParams();
@@ -2268,6 +2279,7 @@ export const api = {
     if (params?.search) query.set('search', params.search);
     if (params?.caseTypeId) query.set('caseTypeId', params.caseTypeId);
     if (params?.userId) query.set('userId', params.userId);
+    if (params?.cf) query.set('cf', params.cf);
     const qs = query.toString();
     return request<CaseListItem[]>(`/cases${qs ? `?${qs}` : ''}`, { token });
   },
@@ -3351,7 +3363,7 @@ export const api = {
     }),
 
   secretaryChat: (token: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>
-    request<{ reply: string; cards: SecretaryCard[] }>('/ai/secretary', {
+    request<{ reply: string; cards: SecretaryCard[]; proposal?: SecretaryProposal; proposalId?: string }>('/ai/secretary', {
       method: 'POST',
       token,
       body: JSON.stringify({ messages }),

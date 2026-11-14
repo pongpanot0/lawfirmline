@@ -7,13 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronRight, Mic, Square, SquarePen } from 'lucide-react-native';
 import type { SecretaryCard } from '@lawfirm/shared';
 import { useClearSecretaryHistory, useSecretaryChat, useSecretaryHistory, useTranscribe } from '@/api/hooks';
+import { api } from '@/api/client';
 import { openCaseDocument } from '@/api/files';
 import { Text, TextInput } from '@/components/AppText';
 import { Button, Card, EmptyState, InlineError, LoadingState } from '@/components/ui';
 import { secretaryCardPath, type SecretaryMessage } from '@/lib/secretary';
 import { colors, pageContent, radius, spacing, typeScale } from '@/theme';
 
-type ChatMessage = SecretaryMessage & { cards?: SecretaryCard[] };
+type ChatMessage = SecretaryMessage & { cards?: SecretaryCard[]; proposal?: { tool: string; labels: { customFields?: string[] } }; proposalId?: string };
 type VoiceState = 'idle' | 'starting' | 'recording' | 'stopping' | 'transcribing';
 
 export default function SecretaryScreen() {
@@ -36,6 +37,7 @@ export default function SecretaryScreen() {
   const [error, setError] = useState('');
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [openingDocument, setOpeningDocument] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, status => {
     if ((status.hasError || status.isFinished) && recording.current) {
       recording.current = false;
@@ -47,7 +49,7 @@ export default function SecretaryScreen() {
     }
   });
   const recorderState = useAudioRecorderState(recorder);
-  const busy = chat.isPending || openingDocument || voice !== 'idle';
+  const busy = chat.isPending || openingDocument || confirming || voice !== 'idle';
 
   const discardRecording = useCallback(async () => {
     voiceSession.current += 1;
@@ -104,7 +106,7 @@ export default function SecretaryScreen() {
     setInput('');
     try {
       const result = await chat.mutateAsync(next);
-      setMessages([...next, { role: 'assistant', content: result.reply, cards: result.cards }]);
+      setMessages([...next, { role: 'assistant', content: result.reply, cards: result.cards, proposal: result.proposal, proposalId: result.proposalId }]);
     } catch (cause) {
       setMessages(history);
       setInput(text);
@@ -190,6 +192,7 @@ export default function SecretaryScreen() {
       {messages.map((message, index) => <View key={index} style={[styles.message, message.role === 'user' && styles.userMessage]}>
         <Text style={styles.speaker}>{message.role === 'user' ? 'คุณ' : 'เลขา'}</Text>
         <Text selectable style={styles.body} accessibilityLiveRegion={message.role === 'assistant' ? 'polite' : undefined}>{message.content}</Text>
+        {message.proposal && message.proposalId && <Card flat style={{ gap: spacing.sm }}><Text style={styles.speaker}>ตรวจสอบก่อนบันทึก</Text>{message.proposal.labels.customFields?.map((line, n) => <Text key={n}>{line}</Text>)}<Button title="ยืนยันบันทึก" accessibilityHint="บันทึกตามรายการที่แสดง" disabled={busy} onPress={() => { const proposalId = message.proposalId!; setConfirming(true); setError(''); void api<Record<string, unknown>>('/ai/secretary/confirm', { method: 'POST', body: { proposalId } }).then(result => setMessages(prev => [...prev.map(item => item.proposalId === proposalId ? { ...item, proposal: undefined, proposalId: undefined } : item), { role: 'assistant', content: String(result.message ?? 'บันทึกแล้ว') }])).catch(cause => { setMessages(prev => prev.map(item => item.proposalId === proposalId ? { ...item, proposal: undefined, proposalId: undefined } : item)); setError(cause instanceof Error ? cause.message : 'บันทึกไม่สำเร็จ'); }).finally(() => setConfirming(false)); }} /><Button title="ยกเลิก" accessibilityHint="ยกเลิกรายการนี้" variant="secondary" disabled={busy} onPress={() => setMessages(prev => prev.map(item => item.proposalId === message.proposalId ? { ...item, proposal: undefined, proposalId: undefined } : item))} /></Card>}
         {message.cards?.map(card => {
           const linked = card.type !== 'document' || !!card.caseId;
           const title = card.type === 'document' ? card.filename : card.title;

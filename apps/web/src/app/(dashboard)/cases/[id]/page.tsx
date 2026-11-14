@@ -1,5 +1,7 @@
 'use client';
 
+import { CustomFieldsSection } from '@/components/custom-fields/CustomFieldsSection';
+
 import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import dynamic from 'next/dynamic';
 const CaseMessagesPanel = dynamic(() => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
@@ -1119,6 +1121,7 @@ export default function CaseDetailPage() {
               </>;
             })()}
           </section>
+          {token && <CustomFieldsSection entityKind="CASE" recordId={id} token={token} values={legalCase.customFields} caseTypeId={legalCase.caseType?.id} missing={journeyState?.infoMissing} onSaved={loadCase} />}
           <section className={`${v2.card} p-5`}>
             <div className="flex items-center justify-between"><h3 className="text-lg font-bold">ความเคลื่อนไหวล่าสุด</h3><button type="button" className={`${v2.btn} ${v2.ghost}`} onClick={openActivityForm}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />เพิ่มกิจกรรม</button></div>
               {showActivityForm && (
@@ -1289,7 +1292,7 @@ export default function CaseDetailPage() {
                 <p className="text-xs text-muted-foreground">ค่าใช้จ่ายที่อนุมัติ</p>
                 <p className="font-medium tabular-nums">{formatCurrency(totalSpent)}</p>
               </div>
-              {customFields && Object.entries(customFields).filter(([key, value]) => key !== CASE_COSTS_KEY && key !== 'chargeSection' && key !== 'opposingParty' && value !== '').map(([k, v]) => (
+              {customFields && Object.entries(customFields).filter(([key, value]) => !key.startsWith('cf_') && key !== CASE_COSTS_KEY && key !== 'chargeSection' && key !== 'opposingParty' && value !== '').map(([k, v]) => (
                 <div key={k}>
                   <p className="text-xs text-muted-foreground">{{ incidentDate: 'วันเกิดเหตุ', estimatedDamage: 'ความเสียหายโดยประมาณ' }[k] ?? k}</p>
                   <p className="font-medium">{k === 'incidentDate' ? formatDate(v) : k === 'estimatedDamage' ? formatCurrency(Number(v)) : v}</p>
