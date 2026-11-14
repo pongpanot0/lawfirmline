@@ -1,12 +1,13 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { RequireCapability } from '../saas/decorators/saas.decorators';
+import { RequireCapability, RequirePlanFeature } from '../saas/decorators/saas.decorators';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '@lawfirm/shared';
 import { AuditLogService } from './audit-log.service';
 
 @Controller('admin/audit-logs')
+@RequirePlanFeature('auditLogs')
 @UseGuards(JwtAuthGuard, FirmRoleGuard)
 @RequireCapability('viewFirmReports')
 export class AuditLogController {

@@ -3,7 +3,7 @@ import { AuthUser } from '@lawfirm/shared';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { RequireCapability } from '../saas/decorators/saas.decorators';
+import { RequireCapability, RequirePlanFeature } from '../saas/decorators/saas.decorators';
 import { METRICS_PERIODS, MetricsPeriod } from '../operations/firm-metrics';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -20,6 +20,7 @@ export class ReportsController {
   @Get('firm-metrics')
   @UseGuards(FirmRoleGuard)
   @RequireCapability('viewFirmReports')
+  @RequirePlanFeature('reporting')
   getFirmMetrics(@CurrentUser() user: AuthUser, @Query('period') period: string = 'this_month') {
     if (!METRICS_PERIODS.includes(period as MetricsPeriod)) throw new BadRequestException('Invalid period');
     return this.reportsService.getFirmMetrics(user, period as MetricsPeriod);

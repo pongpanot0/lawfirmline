@@ -38,7 +38,7 @@ describe('DriveCaseImportService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    planCheck = jest.spyOn(planLimits, 'assertCanOpenCases').mockResolvedValue(undefined);
+    planCheck = jest.spyOn(planLimits, 'assertCanAddCases').mockResolvedValue(undefined);
     prisma.firmMember.count.mockResolvedValue(1);
     prisma.caseExternalLink.findFirst.mockResolvedValue(null);
     prisma.caseExternalLink.create.mockImplementation(({ data }: any) => ({ id: `link-${data.externalId}`, ...data }));
@@ -117,11 +117,11 @@ describe('DriveCaseImportService', () => {
     expect(cases.createForImport).not.toHaveBeenCalled();
   });
 
-  it('checks the plan once for the open rows only', async () => {
+  it('checks the plan once for every row, closed ones included', async () => {
     const closed = { closed: true, outcome: CaseOutcome.WON, closingSummary: 'ชนะคดีแล้วเรียบร้อย' };
     await service.importCases(user, { driveId: 'b!d', rows: [row('F1'), row('F2'), row('F3', closed)] } as any);
     expect(planCheck).toHaveBeenCalledTimes(1);
-    expect(planCheck).toHaveBeenCalledWith(prisma, 'f1', 2);
+    expect(planCheck).toHaveBeenCalledWith(prisma, 'f1', 3);
 
     planCheck.mockRejectedValueOnce(new Error('limit'));
     cases.createForImport.mockClear();

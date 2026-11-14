@@ -7,12 +7,14 @@ import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { CoachingService } from './coaching.service';
 import { AcknowledgeCoachingDto, CoachingDraftDto, CoachingQueryDto, SaveCoachingDto } from './dto/coaching.dto';
+import { AiAction } from '../common/decorators/ai-action.decorator';
 
 @Controller('coaching')
 @UseGuards(JwtAuthGuard, FirmRoleGuard)
 export class CoachingController {
   constructor(private coaching: CoachingService) {}
-  @Post('draft') @RequireCapability('runOperations')
+  @Post('draft')
+  @AiAction('coaching-draft') @RequireCapability('runOperations')
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   draft(@CurrentUser() user: AuthUser, @Body() dto: CoachingDraftDto) { return this.coaching.draft(user, dto.userId); }
   @Post() @RequireCapability('runOperations')

@@ -364,8 +364,8 @@ describe('OutlookSyncService', () => {
       firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: { ...htmlMessage, hasAttachments: true } as any,
       direction: 'INBOUND', createThreadIfMissing: true,
     });
-    expect(mockFileStorage.put).toHaveBeenCalledWith('outlook/f1/m-existing/x', expect.any(Buffer), 'text/plain');
-    expect(mockFileStorage.put).toHaveBeenCalledWith('outlook/f1/m-existing/attachment', expect.any(Buffer), 'text/plain');
+    expect(mockFileStorage.put).toHaveBeenCalledWith('outlook/f1/m-existing/x', expect.any(Buffer), 'text/plain', { firmId: 'f1', enforce: false });
+    expect(mockFileStorage.put).toHaveBeenCalledWith('outlook/f1/m-existing/attachment', expect.any(Buffer), 'text/plain', { firmId: 'f1', enforce: false });
   });
 
   it('re-syncs attachments of an already stored message that has none saved', async () => {

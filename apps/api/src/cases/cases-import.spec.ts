@@ -98,13 +98,13 @@ describe('CasesService.createForImport', () => {
     );
   });
 
-  it('does not count a closed import against the plan', async () => {
+  it('a closed import counts against the plan too (the limit is every case)', async () => {
     tx.firm.findUnique.mockResolvedValue({ subscriptionPlan: 'FREE', ownRefPrefix: 'TSB' });
     tx.case.count.mockResolvedValue(15);
 
     await expect(
       service.createForImport(tx, user, { ...base, closed: { outcome: CaseOutcome.WON, closingSummary: 'ชนะคดีแล้วนะครับ' } }),
-    ).resolves.toBeDefined();
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: PLAN_LIMIT_CASES }) });
     await expect(service.createForImport(tx, user, base)).rejects.toMatchObject({
       response: expect.objectContaining({ code: PLAN_LIMIT_CASES }),
     });

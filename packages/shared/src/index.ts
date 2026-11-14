@@ -183,15 +183,22 @@ export const SELLABLE_PLANS: readonly SubscriptionPlan[] = [
   SubscriptionPlan.PROFESSIONAL,
 ];
 
+export type PlanFeature = 'reporting' | 'auditLogs';
+
 export interface PlanConfig {
   plan: SubscriptionPlan;
   name: string;
   priceThb: number;
   maxUsers: number;
-  /** Cases not CLOSED/ARCHIVED; null = no limit. */
-  maxActiveCases: number | null;
+  /** Every case the firm holds, closed and archived included; null = no limit. */
+  maxCases: number | null;
+  /** Files the firm may keep, in GB. */
+  storageGb: number;
+  /** User-invoked AI actions included: per calendar month, or once ever when aiQuotaLifetime. */
+  aiQuota: number;
+  aiQuotaLifetime: boolean;
   features: string[];
-  hasTeamManagement: boolean;
+  /** Office reports and invoices (billing documents). */
   hasAdvancedReporting: boolean;
   hasAuditLogs: boolean;
 }
@@ -202,9 +209,11 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
     name: 'Free',
     priceThb: 0,
     maxUsers: 1,
-    maxActiveCases: 15,
-    features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ'],
-    hasTeamManagement: false,
+    maxCases: 15,
+    storageGb: 1,
+    aiQuota: 20,
+    aiQuotaLifetime: true,
+    features: ['จัดการคดี & เอกสาร (สูงสุด 15 คดี)', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'พื้นที่เก็บไฟล์ 1 GB', 'ทดลองใช้ AI ฟรี 20 ครั้ง'],
     hasAdvancedReporting: false,
     hasAuditLogs: false,
   },
@@ -213,9 +222,11 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
     name: 'Solo',
     priceThb: 149,
     maxUsers: 1,
-    maxActiveCases: null,
-    features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'แจ้งเตือนลูกความผ่าน LINE'],
-    hasTeamManagement: false,
+    maxCases: null,
+    storageGb: 5,
+    aiQuota: 100,
+    aiQuotaLifetime: false,
+    features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'แจ้งเตือนลูกความผ่าน LINE', 'พื้นที่เก็บไฟล์ 5 GB', 'ใช้ AI ได้ 100 ครั้ง/เดือน'],
     hasAdvancedReporting: false,
     hasAuditLogs: false,
   },
@@ -224,9 +235,11 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
     name: 'Team',
     priceThb: 299,
     maxUsers: 3,
-    maxActiveCases: null,
-    features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม'],
-    hasTeamManagement: true,
+    maxCases: null,
+    storageGb: 10,
+    aiQuota: 200,
+    aiQuotaLifetime: false,
+    features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม', 'พื้นที่เก็บไฟล์ 10 GB', 'ใช้ AI ได้ 200 ครั้ง/เดือน'],
     hasAdvancedReporting: false,
     hasAuditLogs: false,
   },
@@ -235,9 +248,11 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
     name: 'Firm',
     priceThb: 699,
     maxUsers: 10,
-    maxActiveCases: null,
-    features: ['ทุกอย่างใน Team', 'รายงานภาพรวมสำนักงาน', 'Billing & ใบแจ้งหนี้'],
-    hasTeamManagement: true,
+    maxCases: null,
+    storageGb: 50,
+    aiQuota: 1000,
+    aiQuotaLifetime: false,
+    features: ['ทุกอย่างใน Team', 'รายงานภาพรวมสำนักงาน', 'Billing & ใบแจ้งหนี้', 'พื้นที่เก็บไฟล์ 50 GB', 'ใช้ AI ได้ 1,000 ครั้ง/เดือน'],
     hasAdvancedReporting: true,
     hasAuditLogs: false,
   },
@@ -246,18 +261,42 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
     name: 'Professional',
     priceThb: 1490,
     maxUsers: 20,
-    maxActiveCases: null,
-    features: ['ทุกอย่างใน Firm', 'บันทึกการตรวจสอบ (Audit Log)', 'Priority support ในเวลาทำการ'],
-    hasTeamManagement: true,
+    maxCases: null,
+    storageGb: 200,
+    aiQuota: 3000,
+    aiQuotaLifetime: false,
+    features: ['ทุกอย่างใน Firm', 'บันทึกการตรวจสอบ (Audit Log)', 'Priority support ในเวลาทำการ', 'พื้นที่เก็บไฟล์ 200 GB', 'ใช้ AI ได้ 3,000 ครั้ง/เดือน'],
     hasAdvancedReporting: true,
     hasAuditLogs: true,
   },
 };
 
+/**
+ * Firms created before this keep reports, invoices, audit logs, storage and AI as they had
+ * them (their price never promised the limits). Free firms are never exempt.
+ */
+export const PLAN_GATES_START = new Date('2026-11-15T00:00:00+07:00');
+
+export function planGrandfathered(plan: SubscriptionPlan | null, firmCreatedAt: Date): boolean {
+  return plan !== SubscriptionPlan.FREE && firmCreatedAt < PLAN_GATES_START;
+}
+
+export function planHasFeature(plan: SubscriptionPlan | null, feature: PlanFeature): boolean {
+  if (!plan) return true; // no plan on record (internal firms): nothing to gate
+  const cfg = PLAN_CONFIG[plan];
+  return feature === 'reporting' ? cfg.hasAdvancedReporting : cfg.hasAuditLogs;
+}
+
 export const TRIAL_DAYS = 30;
 
-/** Error `code` on the 403 for opening a case past the plan's maxActiveCases. */
+/** Error `code` on the 403 for adding a case past the plan's maxCases. */
 export const PLAN_LIMIT_CASES = 'PLAN_LIMIT_CASES';
+/** Error `code` on the 403 for a feature the firm's plan does not include. */
+export const PLAN_FEATURE_LOCKED = 'PLAN_FEATURE_LOCKED';
+/** Error `code` on the 403 when the plan's AI actions are used up. */
+export const PLAN_LIMIT_AI = 'PLAN_LIMIT_AI';
+/** Error `code` on the 403 when an upload would pass the plan's storage. */
+export const PLAN_LIMIT_STORAGE = 'PLAN_LIMIT_STORAGE';
 
 /** Placeholder client name when creating a case before client details are known. */
 export const TMP_CLIENT_PLACEHOLDER = 'tmp';
@@ -1057,6 +1096,8 @@ export interface AuthUser {
   trialEndAt: string | null;
   currentPeriodEnd: string | null;
   maxUsers: number;
+  /** Firm predates the plan gates (see planGrandfathered): reports, invoices, audit logs, storage and AI stay open. */
+  planGrandfathered?: boolean;
   mfaEnabled: boolean;
   /** The operator's own account (PLATFORM_ADMIN_EMAILS) — sees /superadmin. */
   isPlatformAdmin?: boolean;
