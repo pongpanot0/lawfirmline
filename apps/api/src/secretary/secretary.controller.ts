@@ -13,6 +13,7 @@ import { DailyBriefService } from './daily-brief.service';
 import { MatterBriefService } from './matter-brief.service';
 import { SecretaryChatService } from './secretary-chat.service';
 import { SecretaryChatDto } from './dto/secretary-chat.dto';
+import { AiAction } from '../common/decorators/ai-action.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller()
@@ -32,12 +33,14 @@ export class SecretaryController {
   }
 
   @Post('ai/secretary')
+  @AiAction('secretary-ai-secretary')
   secretary(@CurrentUser() u: AuthUser, @Body() dto: SecretaryChatDto) {
     if (dto.messages[dto.messages.length - 1].role !== 'user') throw new BadRequestException('ข้อความสุดท้ายต้องเป็นของผู้ใช้');
     return this.chat.chat(u, dto.messages);
   }
 
   @Post('ai/secretary/transcribe')
+  @AiAction('secretary-ai-secretary-transcribe')
   @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: 10 * 1024 * 1024 } }))
   transcribe(@CurrentUser() u: AuthUser, @UploadedFile() audio: Express.Multer.File) {
     return this.chat.transcribe(u, audio);

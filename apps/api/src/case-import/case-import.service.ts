@@ -1,6 +1,6 @@
 import { BadRequestException, HttpException, Injectable, Logger } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
-import { assertCanOpenCases } from '../common/plan-limits';
+import { assertCanAddCases } from '../common/plan-limits';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { PrismaService } from '../prisma/prisma.module';
 import { CasesService } from '../cases/cases.service';
@@ -116,8 +116,7 @@ export class CaseImportService {
         throw new BadRequestException('ลูกความหรือประเภทคดีไม่อยู่ในสำนักงานนี้');
       }
     }
-    const openRows = dto.rows.filter((r) => !r.closed).length;
-    if (openRows > 0) await assertCanOpenCases(this.prisma, user.firmId, openRows);
+    await assertCanAddCases(this.prisma, user.firmId, dto.rows.length);
 
     const results: ExcelCaseResult[] = [];
     for (const row of dto.rows) {

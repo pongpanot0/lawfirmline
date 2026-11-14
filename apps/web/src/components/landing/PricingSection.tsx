@@ -46,7 +46,23 @@ export function PricingSection() {
       cta: p.tryFree,
     };
   });
+  const freeCfg = PLAN_CONFIG[SubscriptionPlan.FREE];
   const plans = [
+    {
+      key: 'free' as const,
+      name: freeCfg.name,
+      tagline: p.plans.free.tagline,
+      users: p.users.replace('{count}', num(freeCfg.maxUsers)),
+      features: p.plans.free.features as readonly string[],
+      price: 0 as number | null,
+      yearlyTotal: null,
+      priceLabel: num(0),
+      perUser: null,
+      maxUsers: freeCfg.maxUsers,
+      popular: false,
+      href: '/register',
+      cta: p.plans.free.cta,
+    },
     ...paid,
     {
       key: 'enterprise' as const,
@@ -145,7 +161,9 @@ export function PricingSection() {
                 )}
               </div>
               <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-2)' }}>
-                {plan.perUser === null
+                {plan.key === 'free'
+                  ? p.plans.free.note
+                  : plan.perUser === null
                   ? (locale === 'th' ? 'ประเมินตามการใช้งาน' : 'Priced to your usage')
                   : <><span className="whitespace-nowrap">{locale === 'th' ? `≈ ${num(plan.perUser)} บาท/คน/เดือน` : `≈ ${num(plan.perUser)} THB/person/month`}</span>{' · '}<span className="whitespace-nowrap">{locale === 'th' ? `ครบ ${num(plan.maxUsers)} คน` : `${num(plan.maxUsers)} seats used`}</span></>}
               </p>

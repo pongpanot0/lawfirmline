@@ -441,7 +441,7 @@ export class TaskDetailService {
       taskId,
       `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`,
     );
-    const storagePath = await this.fileStorage.put(key, file.buffer, file.mimetype);
+    const storagePath = await this.fileStorage.put(key, file.buffer, file.mimetype, { firmId: user.firmId });
     try {
       return await this.prisma.taskAttachment.create({
         data: {

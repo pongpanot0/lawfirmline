@@ -5,6 +5,7 @@ import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PleadingDraftService } from './pleading-draft.service';
 import { CreatePleadingDraftDto, UpdatePleadingDraftDto } from './dto/pleading-draft.dto';
+import { AiAction } from '../common/decorators/ai-action.decorator';
 
 @Controller('cases/:caseId/pleading-drafts')
 @UseGuards(JwtAuthGuard, CaseAccessGuard)
@@ -12,6 +13,7 @@ export class PleadingDraftController {
   constructor(private pleadingDrafts: PleadingDraftService) {}
 
   @Post()
+  @AiAction('rag')
   generate(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: CreatePleadingDraftDto) {
     return this.pleadingDrafts.generate(user, caseId, dto);
   }

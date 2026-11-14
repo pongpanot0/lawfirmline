@@ -66,7 +66,7 @@ export const landingCopy = {
       billingYearly: 'รายปี',
       yearlySave: 'ฟรี 2 เดือน',
       yearlyNote: 'เรียกเก็บ {amount} บาท/ปี',
-      tryFree: 'เริ่มทดลองใช้ฟรี 30 วัน',
+      tryFree: 'เริ่มทดลองใช้\u200bฟรี\u00a030\u00a0วัน',
       contactSales: 'สอบถามแพ็กเกจสำหรับองค์กร',
       tablePackage: 'แพ็กเกจ',
       tableUsers: 'ผู้ใช้',
@@ -74,17 +74,23 @@ export const landingCopy = {
       users: '{count} คน',
       upToUsers: 'รองรับสมาชิกในสำนักงานสูงสุด {count} คน',
       plans: {
+        free: {
+          tagline: 'สำหรับทนายที่ทำงานคนเดียว เริ่มใช้ได้ทันที',
+          features: ['จัดการคดี & เอกสาร (สูงสุด 15 คดี)', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'พื้นที่เก็บไฟล์ 1 GB', 'ทดลองใช้ AI ฟรี 20 ครั้ง'],
+          note: 'ไม่ต้องใช้บัตรเครดิต',
+          cta: 'เริ่มใช้ฟรี',
+        },
         team: {
           tagline: 'สำหรับสำนักงานเล็กที่เริ่มจัดการงานร่วมกัน',
-          features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'แจ้งเตือนลูกความผ่าน LINE', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม'],
+          features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดศาล', 'พอร์ทัลลูกความ', 'แจ้งเตือนลูกความผ่าน LINE', 'มอบหมายงานในทีม', 'สิทธิ์ตามบทบาท', 'ปฏิทินว่าง/ติดศาลของทีม', 'พื้นที่เก็บไฟล์ 10 GB', 'ใช้ AI ได้ 200 ครั้ง/เดือน'],
         },
         firm: {
           tagline: 'สำหรับทีมที่ต้องการรายงานและการออกใบแจ้งหนี้',
-          features: ['ทุกอย่างใน Team', 'รายงานภาพรวมสำนักงาน', 'เรียกเก็บเงินและใบแจ้งหนี้'],
+          features: ['ทุกอย่างใน Team', 'รายงานภาพรวมสำนักงาน', 'เรียกเก็บเงินและใบแจ้งหนี้', 'พื้นที่เก็บไฟล์ 50 GB', 'ใช้ AI ได้ 1,000 ครั้ง/เดือน'],
         },
         professional: {
           tagline: 'สำหรับทีมที่ต้องการบันทึกกิจกรรมและบริการช่วยเหลือเพิ่มเติม',
-          features: ['ทุกอย่างใน Firm', 'บันทึกกิจกรรมการใช้งาน (Audit Log)', 'บริการช่วยเหลือในเวลาทำการ'],
+          features: ['ทุกอย่างใน Firm', 'บันทึกกิจกรรมการใช้งาน (Audit Log)', 'บริการช่วยเหลือในเวลาทำการ', 'พื้นที่เก็บไฟล์ 200 GB', 'ใช้ AI ได้ 3,000 ครั้ง/เดือน'],
         },
         enterprise: {
           tagline: 'องค์กรขนาดใหญ่',
@@ -105,7 +111,7 @@ export const landingCopy = {
     cta: {
       title: 'เริ่มใช้ Samnuan ฟรี 30 วัน',
       subtitle: 'ไม่ต้องใช้บัตรเครดิต — ถูกใจค่อยเลือกแพ็กเกจ',
-      tryFree: 'เริ่มทดลองใช้ฟรี 30 วัน',
+      tryFree: 'เริ่มทดลองใช้\u200bฟรี\u00a030\u00a0วัน',
     },
     footer: '© 2026 Samnuan — ระบบจัดการสำนักงานกฎหมาย',
     legal: { label: 'ข้อมูลบัญชี', privacy: 'ความเป็นส่วนตัว', deleteAccount: 'ขอลบบัญชี' },
@@ -183,17 +189,23 @@ export const landingCopy = {
       users: '{count} user',
       upToUsers: 'Supports up to {count} office members',
       plans: {
+        free: {
+          tagline: 'For a lawyer working alone, ready right away',
+          features: ['Case & document management (up to 15 cases)', 'Court calendar', 'Client portal', '1 GB file storage', '20 free AI actions to try'],
+          note: 'No credit card needed',
+          cta: 'Start free',
+        },
         team: {
           tagline: 'For small offices starting to work together',
-          features: ['Case & document management', 'Court calendar', 'Client portal', 'LINE client notifications', 'Team task assignment', 'Role-based permissions', 'Team availability calendar'],
+          features: ['Case & document management', 'Court calendar', 'Client portal', 'LINE client notifications', 'Team task assignment', 'Role-based permissions', 'Team availability calendar', '10 GB file storage', '200 AI actions a month'],
         },
         firm: {
           tagline: 'For teams that need reports and invoicing',
-          features: ['Everything in Team', 'Firm-wide reporting', 'Billing & invoicing'],
+          features: ['Everything in Team', 'Firm-wide reporting', 'Billing & invoicing', '50 GB file storage', '1,000 AI actions a month'],
         },
         professional: {
           tagline: 'For teams that need activity logs and additional support',
-          features: ['Everything in Firm', 'Usage activity log (Audit Log)', 'Support during business hours'],
+          features: ['Everything in Firm', 'Usage activity log (Audit Log)', 'Support during business hours', '200 GB file storage', '3,000 AI actions a month'],
         },
         enterprise: {
           tagline: 'Large organisations',

@@ -39,6 +39,7 @@ describe('DocumentsService', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
+    assertRoom: jest.fn(),
     delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
@@ -84,7 +85,7 @@ describe('DocumentsService', () => {
       expect(tx.document.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ caseId: 'case-1', uploadedByContactId: 'contact-1', uploadedById: null, category: 'OTHER' }),
       });
-      expect(mockFileStorage.put).toHaveBeenCalledWith('cases/case-1/doc-1_v1.pdf', expect.any(Buffer), 'application/pdf');
+      expect(mockFileStorage.put).toHaveBeenCalledWith('cases/case-1/doc-1_v1.pdf', expect.any(Buffer), 'application/pdf', { firmId: 'firm-1', enforce: false });
       expect(tx.documentVersion.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ documentId: 'doc-1', version: 1, createdById: null }),
       });
@@ -202,6 +203,7 @@ describe('DocumentsService — intake-scoped methods', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
+    assertRoom: jest.fn(),
     delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
@@ -305,6 +307,7 @@ describe('DocumentsService.adoptIntakeAttachments', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
+    assertRoom: jest.fn(),
     delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
@@ -399,6 +402,7 @@ describe('DocumentsService.removeFromIntake', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
+    assertRoom: jest.fn(),
     delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),

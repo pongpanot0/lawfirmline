@@ -56,7 +56,7 @@ import { syncLimitationReminder } from '../common/limitation-reminder';
 import { addOpponents, ensureOurClientParticipant } from '../cases/party-sync';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { formatIntakeNotificationReference } from '../notifications/reference-label';
-import { assertCanOpenCases } from '../common/plan-limits';
+import { assertCanAddCases } from '../common/plan-limits';
 import { buildDocx } from '../templates/docx-builder';
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -1069,7 +1069,7 @@ export class IntakeService {
     }
 
     const key = path.posix.join('intake', intake.id, `${Date.now()}-notice.docx`);
-    const storagePath = await this.fileStorage.put(key, buffer, DOCX_MIME);
+    const storagePath = await this.fileStorage.put(key, buffer, DOCX_MIME, { firmId: user.firmId });
     const attachment = await this.prisma.intakeAttachment.create({
       data: { intakeId: intake.id, filename, storagePath, mimeType: DOCX_MIME, uploadedById: user.id },
     });
@@ -1236,7 +1236,7 @@ export class IntakeService {
         ? `${intake.clientName} - ${intake.matterType}`
         : intake.clientName || 'คดีจาก Intake');
 
-    await assertCanOpenCases(this.prisma, user.firmId);
+    await assertCanAddCases(this.prisma, user.firmId);
     let newCase: LegalCase;
     try {
       newCase = await this.prisma.case.create({
@@ -1691,7 +1691,7 @@ export class IntakeService {
 
     const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const key = path.posix.join('intake', intakeId, `${fileId}.pdf`);
-    const storagePath = await this.fileStorage.put(key, file.buffer, file.mimetype);
+    const storagePath = await this.fileStorage.put(key, file.buffer, file.mimetype, { firmId: user.firmId });
 
     return this.prisma.intakeAttachment.create({
       data: {

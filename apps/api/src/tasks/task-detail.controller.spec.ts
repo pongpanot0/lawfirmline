@@ -1,3 +1,4 @@
+import { PlanQuotaService } from '../common/services/plan-quota.service';
 import { Test } from '@nestjs/testing';
 import { Readable } from 'stream';
 import { TaskDetailController } from './task-detail.controller';
@@ -22,6 +23,7 @@ describe('TaskDetailController download', () => {
         { provide: TaskDetailService, useValue: detail },
         { provide: PrismaService, useValue: {} },
         { provide: FileStorageService, useValue: storage },
+        { provide: PlanQuotaService, useValue: {} },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
       ],
     }).compile();
@@ -49,6 +51,7 @@ describe('TaskDetailController download', () => {
         { provide: TaskDetailService, useValue: detail },
         { provide: PrismaService, useValue: {} },
         { provide: FileStorageService, useValue: storage },
+        { provide: PlanQuotaService, useValue: {} },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
       ],
     }).compile();

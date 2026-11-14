@@ -53,7 +53,7 @@ import {
   saveCaseNumbers,
   snapshotCurrentLevel,
 } from './proceeding-mirror';
-import { assertCanOpenCases } from '../common/plan-limits';
+import { assertCanAddCases } from '../common/plan-limits';
 import { unbilledExpenseWhere, unbilledTimeWhere } from '../billing/unbilled';
 import { CalendarService } from '../calendar/calendar.service';
 
@@ -532,8 +532,7 @@ export class CasesService {
     data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId'>,
     suggestedOwnRef?: string,
   ) {
-    // A case created already closed (old work brought in) never occupies an open slot.
-    if (data.status !== CaseStatus.CLOSED && data.status !== CaseStatus.ARCHIVED) await assertCanOpenCases(db, firmId);
+    await assertCanAddCases(db, firmId);
     const requested = requestedOwnRef?.trim();
     const isManual = !!requested && requested !== suggestedOwnRef?.trim();
     let ownRef = requested || (await this.generateOwnRef(firmId, db));
@@ -1303,7 +1302,6 @@ export class CasesService {
     if (legalCase.status !== CaseStatus.CLOSED && legalCase.status !== CaseStatus.ARCHIVED) {
       throw new BadRequestException('คดีนี้ยังไม่ได้ปิด');
     }
-    await assertCanOpenCases(this.prisma, user.firmId);
 
     // The stage the case was in before it was closed; cases closed before stage logs existed
     // (or closed from CLOSING itself) have none: keep the stage the case sits at, or PRE_LITIGATION if that is CLOSING.

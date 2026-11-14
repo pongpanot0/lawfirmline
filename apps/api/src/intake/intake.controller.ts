@@ -39,6 +39,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '@lawfirm/shared';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
+import { AiAction } from '../common/decorators/ai-action.decorator';
 
 @Controller('intake')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -57,6 +58,7 @@ export class IntakeController {
   listResearch(@CurrentUser() user: AuthUser) { return this.precedentAnalysisService.listResearch(user); }
 
   @Post('research')
+  @AiAction('intake-research')
   research(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
     return this.precedentAnalysisService.research(user, dto.text, dto.intakeId, dto.attachmentIds, false, dto.caseId);
   }
@@ -74,16 +76,19 @@ export class IntakeController {
   }
 
   @Post('research/facts')
+  @AiAction('intake-research-facts')
   extractResearchFacts(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
     return this.precedentAnalysisService.research(user, dto.text, dto.intakeId, dto.attachmentIds, true, dto.caseId);
   }
 
   @Post('research/summary')
+  @AiAction('intake-research-summary')
   summarizeResearchDocuments(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
     return this.precedentAnalysisService.summarizeDocuments(user, dto.intakeId, dto.caseId, dto.attachmentIds);
   }
 
   @Post('research/cases/:caseId/summary')
+  @AiAction('intake-research-cases-caseid-summary')
   summarizeCase(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
     return this.precedentAnalysisService.summarizeCase(user, caseId);
   }
@@ -238,6 +243,7 @@ export class IntakeController {
   }
 
   @Post(':id/notice/draft')
+  @AiAction('intake-id-notice-draft')
   draftNotice(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -275,6 +281,7 @@ export class IntakeController {
   }
 
   @Post(':id/precedent-analysis')
+  @AiAction('intake-id-precedent-analysis')
   runPrecedentAnalysis(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SelectedAttachmentsDto) {
     return this.precedentAnalysisService.analyze(user, id, dto?.attachmentIds);
   }

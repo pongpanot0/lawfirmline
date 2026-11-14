@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
@@ -9,6 +9,10 @@ import {
 import { createReadStream, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { Readable } from 'stream';
+import { PlanQuotaService } from './plan-quota.service';
+
+/** Whose storage the bytes count against. `enforce: false` for automatic copies (mail sync) that must not be dropped. */
+export type StorageOwner = { firmId: string; enforce?: boolean };
 
 @Injectable()
 export class FileStorageService {
@@ -17,7 +21,10 @@ export class FileStorageService {
   private readonly bucket?: string;
   private readonly s3?: S3Client;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() private readonly quota?: PlanQuotaService,
+  ) {
     this.uploadDir = this.config.get<string>('UPLOAD_DIR') ?? './uploads';
     this.bucket = this.config.get<string>('S3_BUCKET')?.trim() || undefined;
     if (this.bucket) {
@@ -41,8 +48,23 @@ export class FileStorageService {
    * Always an object key / relative key (e.g. `intake/<id>/documents/<file>`),
    * never a doubled `uploads/uploads/...` filesystem path.
    */
-  async put(relativeKey: string, body: Buffer, contentType?: string): Promise<string> {
+  async put(relativeKey: string, body: Buffer, contentType?: string, owner?: StorageOwner): Promise<string> {
     const key = this.normalizeKey(relativeKey);
+    if (owner && owner.enforce !== false) await this.assertRoom(owner.firmId, body.length);
+    await this.write(key, body, contentType);
+    if (owner) {
+      // Accounting never fails an upload that already landed.
+      await this.quota?.recordStored(key, owner.firmId, body.length).catch((err) => this.logger.warn(`StoredObject record failed for ${key}: ${err}`));
+    }
+    return key;
+  }
+
+  /** Throws PLAN_LIMIT_STORAGE when `bytes` more would pass the firm's plan. Call before creating DB rows for the file. */
+  async assertRoom(firmId: string, bytes: number): Promise<void> {
+    await this.quota?.assertStorageAvailable(firmId, bytes);
+  }
+
+  private async write(key: string, body: Buffer, contentType?: string): Promise<void> {
     if (this.isS3) {
       await this.s3!.send(
         new PutObjectCommand({
@@ -53,13 +75,12 @@ export class FileStorageService {
           ServerSideEncryption: 'AES256',
         }),
       );
-      return key;
+      return;
     }
 
     const fullPath = this.toLocalPath(key);
     mkdirSync(path.dirname(fullPath), { recursive: true });
     writeFileSync(fullPath, body);
-    return key;
   }
 
   async getBuffer(storagePath: string): Promise<Buffer> {
@@ -118,6 +139,7 @@ export class FileStorageService {
 
   async delete(storagePath: string): Promise<void> {
     if (!storagePath) return;
+    await this.quota?.forgetStored(this.toObjectKey(storagePath)).catch(() => undefined);
 
     if (!this.isS3 || this.looksLikeLocalPath(storagePath)) {
       const localPath = this.toLocalPath(storagePath);

@@ -154,7 +154,7 @@ export class ExternalController {
     const ext = path.extname(filename).toLowerCase().slice(0, 10);
     // The storage key never contains the user's filename.
     const key = path.posix.join('tasks', task.id, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
-    const storagePath = await this.fileStorage.put(key, file.buffer, file.mimetype);
+    const storagePath = await this.fileStorage.put(key, file.buffer, file.mimetype, { firmId: user.firmId });
     try {
       const attachment = await this.prisma.taskAttachment.create({
         data: { taskId: task.id, filename, storagePath, size: file.size, mimeType: file.mimetype, uploadedById: user.id },

@@ -10,6 +10,7 @@ import { FileStorageService } from '../common/services/file-storage.service';
 import { AcceptIntakeFromThreadDto, AttachThreadToIntakeDto, LinkIntakeClientDto, ResolveFieldProposalDto, SeedMockReplyDto } from './dto/email-intake.dto';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { AiAction } from '../common/decorators/ai-action.decorator';
 
 @Controller('email-intake')
 @UseGuards(JwtAuthGuard)
@@ -45,6 +46,7 @@ export class EmailIntakeController {
 
   /** Run when a thread is accepted as an intake, or by the button; adds proposals the lawyer still confirms one by one. */
   @Post('threads/:threadId/ai-extract')
+  @AiAction('email-intake-threads-threadid-ai-extract')
   aiExtract(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string) {
     return this.service.aiExtract(user, threadId);
   }
