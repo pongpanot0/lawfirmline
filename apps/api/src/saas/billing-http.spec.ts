@@ -39,13 +39,14 @@ describe('billing over HTTP', () => {
   let base: string;
   let status = SubscriptionStatus.EXPIRED;
   let firmRole = FirmRole.OWNER;
+  let plan: SubscriptionPlan | null = SubscriptionPlan.TEAM;
   const config = { get: (k: string) => env[k] } as unknown as ConfigService;
   const stripe = new StripeService(config);
   const jwt = new JwtService({ secret: JWT_SECRET });
   const token = jwt.sign({ sub: 'u1', email: 'owner@firm.test', firmId: 'firm-1', firmRole: FirmRole.OWNER });
 
   const tenant = {
-    buildAuthUser: jest.fn(async () => ({ id: 'u1', email: 'owner@firm.test', firmId: 'firm-1', firmRole, subscriptionStatus: status })),
+    buildAuthUser: jest.fn(async () => ({ id: 'u1', email: 'owner@firm.test', firmId: 'firm-1', firmRole, subscriptionStatus: status, subscriptionPlan: plan })),
     isOwner: (user: { firmRole: FirmRole }) => user.firmRole === FirmRole.OWNER,
   };
   const tx = { firm: { update: jest.fn() }, subscription: { upsert: jest.fn() }, auditLog: { create: jest.fn() } };
@@ -128,7 +129,7 @@ describe('billing over HTTP', () => {
 
   it.each(Object.entries(ADD_ONS).flatMap(([addOn, pack]) =>
     ['card', 'promptpay'].map((paymentMethod) => ({ addOn, pack, paymentMethod })),
-  ))('add-on $addOn/$paymentMethod checkout is a one-time payment, including on Free', async ({ addOn, pack, paymentMethod }) => {
+  ))('add-on $addOn/$paymentMethod checkout is a one-time payment (Team owner)', async ({ addOn, pack, paymentMethod }) => {
     const res = await call('/billing/add-ons/checkout', { method: 'POST', body: JSON.stringify({ addOn, paymentMethod }) });
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ url: 'https://checkout.stripe.com/c/pay/cs_test_1' });
@@ -137,6 +138,16 @@ describe('billing over HTTP', () => {
       success_url: 'https://app.samnuan.test/account/billing?addon=1',
       line_items: [{ quantity: 1, price_data: { currency: 'thb', unit_amount: pack.priceThb * 100, product_data: { name: `Samnuan ${addOn}` } } }],
     }));
+  });
+
+  it('a Free owner is refused add-on checkout with a Thai message, before Stripe', async () => {
+    plan = SubscriptionPlan.FREE;
+    try {
+      const res = await call('/billing/add-ons/checkout', { method: 'POST', body: JSON.stringify({ addOn: 'AI_100' }) });
+      expect(res.status).toBe(403);
+      expect((await res.json()).message).toContain('Team');
+      expect(createSession).not.toHaveBeenCalled();
+    } finally { plan = SubscriptionPlan.TEAM; }
   });
 
   it.each([{ addOn: 'unknown' }, { addOn: 'AI_100', paymentMethod: 'bitcoin' }, {}])('invalid add-on checkout %j is rejected before Stripe', async (body) => {
