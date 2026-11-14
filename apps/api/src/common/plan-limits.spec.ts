@@ -9,6 +9,13 @@ describe('assertCanAddCases', () => {
       case: { count: jest.fn().mockResolvedValue(open) },
     }) as any;
 
+  it('an exempt Free firm skips case counting', async () => {
+    const d = db(SubscriptionPlan.FREE, 999);
+    d.firm.findUnique.mockResolvedValue({ subscriptionPlan: SubscriptionPlan.FREE, quotaExempt: true });
+    await expect(assertCanAddCases(d, 'f1')).resolves.toBeUndefined();
+    expect(d.case.count).not.toHaveBeenCalled();
+  });
+
   it('a Free firm may add its 15th case but not a 16th', async () => {
     await expect(assertCanAddCases(db(SubscriptionPlan.FREE, 14), 'f1')).resolves.toBeUndefined();
     await expect(assertCanAddCases(db(SubscriptionPlan.FREE, 15), 'f1')).rejects.toMatchObject({

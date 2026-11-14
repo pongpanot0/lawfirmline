@@ -1,6 +1,7 @@
-import { BadRequestException, ServiceUnavailableException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, ServiceUnavailableException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { aiCreditContext, assertFileCredits } from '../common/ai-credit-context';
 import { ConfigService } from '@nestjs/config';
-import { chatModel } from '../common/openai-model';
+import { chatModel, openAiChatBody } from '../common/openai-model';
 import { KnowledgeCategory, EventType, redactForAi, isUnusableAnalysis } from '@lawfirm/shared';
 import { PDFParse } from 'pdf-parse';
 import { Prisma } from '../generated/prisma';
@@ -147,7 +148,7 @@ export class DocumentIntelligenceService {
   async ocrPdf(fileBuffer: Buffer, ctx?: { caseId?: string; documentId?: string; firmId?: string }): Promise<string> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) return '';
-    const model = this.config.get<string>('OPENAI_OCR_MODEL') ?? 'gpt-4o-mini';
+    const model = chatModel(this.config, 'OPENAI_OCR_MODEL');
     const maxPages = Number(this.config.get<string>('OCR_MAX_PAGES') ?? 30);
 
     const parser = new PDFParse({ data: fileBuffer });
@@ -160,6 +161,7 @@ export class DocumentIntelligenceService {
       await parser.destroy();
     }
 
+    await assertFileCredits([[fileBuffer, Math.max(1, Math.ceil(pages.length / 2))]]);
     const started = Date.now();
     let inputTokens = 0;
     let outputTokens = 0;
@@ -168,7 +170,7 @@ export class DocumentIntelligenceService {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(openAiChatBody(this.config, {
           model,
           temperature: 0,
           messages: [
@@ -182,7 +184,7 @@ export class DocumentIntelligenceService {
               content: [{ type: 'image_url', image_url: { url: page.dataUrl, detail: 'high' } }],
             },
           ],
-        }),
+        })),
       });
       if (!res.ok) {
         this.logger.error(`OpenAI OCR error (page ${page.pageNumber}): ${res.status}`);
@@ -203,7 +205,7 @@ export class DocumentIntelligenceService {
         data: {
           model,
           operation: 'ocr',
-          firmId: ctx?.firmId ?? null,
+          firmId: ctx?.firmId ?? aiCreditContext.getStore()?.user.firmId ?? null,
           caseId: ctx?.caseId ?? null,
           documentId: ctx?.documentId ?? null,
           inputTokens,
@@ -229,11 +231,29 @@ export class DocumentIntelligenceService {
     ctx?: { caseId?: string; documentId?: string; firmId?: string },
   ): Promise<string> {
     const text = await this.extractText(fileBuffer, mimeType);
-    if (mimeType !== 'application/pdf' || text.replace(/\[หน้า \d+\]/g, '').trim().length >= 100) {
+    if (!this.isScannedPdf(mimeType, text)) {
       return text;
     }
     const ocrText = await this.ocrPdf(fileBuffer, ctx);
     return ocrText || text;
+  }
+
+  private isScannedPdf(mimeType: string, text: string): boolean {
+    return mimeType === 'application/pdf' && text.replace(/\[หน้า \d+\]/g, '').trim().length < 100;
+  }
+
+  async estimateFileCredits(fileBuffer: Buffer, mimeType: string): Promise<{ pages: number; scanned: boolean; credits: number }> {
+    const text = await this.extractText(fileBuffer, mimeType);
+    const scanned = this.isScannedPdf(mimeType, text);
+    let pages = 1;
+    if (mimeType === 'application/pdf') {
+      const parser = new PDFParse({ data: fileBuffer });
+      try { pages = (await parser.getInfo()).total; }
+      finally { await parser.destroy(); }
+    }
+    const maxPages = Number(this.config.get<string>('OCR_MAX_PAGES') ?? 30);
+    if (scanned && pages > maxPages) throw new BadRequestException(`ไฟล์สแกนมี ${pages} หน้า เกิน ${maxPages} หน้าต่อครั้ง กรุณาแบ่งไฟล์`);
+    return { pages, scanned, credits: scanned ? Math.max(1, Math.ceil(pages / 2)) : 1 };
   }
 
   async summarizeWithAI(rawText: string): Promise<string> {
@@ -254,7 +274,7 @@ export class DocumentIntelligenceService {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: JSON.stringify(openAiChatBody(this.config, {
         model: chatModel(this.config),
         messages: [
           {
@@ -265,7 +285,7 @@ export class DocumentIntelligenceService {
           { role: 'user', content: text.slice(0, 12000) },
         ],
         temperature: 0.3,
-      }),
+      })),
     });
 
     if (!res.ok) {
@@ -295,7 +315,7 @@ export class DocumentIntelligenceService {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+        body: JSON.stringify(openAiChatBody(this.config, {
           model: chatModel(this.config),
           response_format: { type: 'json_object' },
           messages: [
@@ -307,7 +327,7 @@ export class DocumentIntelligenceService {
             { role: 'user', content: text.slice(0, 12000) },
           ],
           temperature: 0.1,
-        }),
+        })),
       });
 
       if (!res.ok) {
@@ -405,7 +425,7 @@ export class DocumentIntelligenceService {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+        body: JSON.stringify(openAiChatBody(this.config, {
           model: chatModel(this.config),
           response_format: { type: 'json_object' },
           messages: [
@@ -423,7 +443,7 @@ export class DocumentIntelligenceService {
             { role: 'user', content: text.slice(0, options?.strict ? 26000 : 12000) },
           ],
           temperature: 0.1,
-        }),
+        })),
       });
 
       if (!res.ok) {
@@ -519,7 +539,7 @@ export class DocumentIntelligenceService {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+        body: JSON.stringify(openAiChatBody(this.config, {
           model: chatModel(this.config),
           response_format: { type: 'json_object' },
           messages: [
@@ -549,7 +569,7 @@ export class DocumentIntelligenceService {
             { role: 'user', content: text.slice(0, 12000) },
           ],
           temperature: 0.1,
-        }),
+        })),
       });
 
       if (!res.ok) {
@@ -681,14 +701,20 @@ export class DocumentIntelligenceService {
     if (files.some((file) => file.buffer.length > 30 * 1024 * 1024) || files.reduce((sum, file) => sum + file.buffer.length, 0) > 100 * 1024 * 1024) {
       throw new BadRequestException('ไม่เกิน 30MB ต่อไฟล์ และ 100MB รวมต่อครั้ง');
     }
+    // Price every file before the first paid model call, including later scans in a batch.
+    if (aiCreditContext.getStore()) {
+      const costs: Array<[Buffer, number]> = [];
+      for (const file of files) costs.push([file.buffer, (await this.estimateFileCredits(file.buffer, file.mimeType)).credits]);
+      await assertFileCredits(costs);
+    }
     const excerpts: string[] = [];
     const truncatedFiles: string[] = [];
     const budget = Math.floor(10000 / files.length);
     for (const file of files) {
       if (!['application/pdf', 'text/plain'].includes(file.mimeType)) throw new BadRequestException(`ไฟล์ ${file.filename}: รองรับ PDF และ TXT`);
       let text: string;
-      try { text = await this.extractTextWithOcr(file.buffer, file.mimeType, { caseId }); }
-      catch { throw new BadRequestException(`อ่านไฟล์ ${file.filename} ไม่สำเร็จ กรุณาตรวจไฟล์หรือยกเลิกเลือกไฟล์นี้`); }
+      try { text = await this.extractTextWithOcr(file.buffer, file.mimeType, { caseId, firmId: aiCreditContext.getStore()?.user.firmId }); }
+      catch (err) { if (err instanceof ForbiddenException) throw err; throw new BadRequestException(`อ่านไฟล์ ${file.filename} ไม่สำเร็จ กรุณาตรวจไฟล์หรือยกเลิกเลือกไฟล์นี้`); }
       if (!text.trim()) throw new BadRequestException(`ไฟล์ ${file.filename} ไม่มีข้อความที่อ่านได้ แม้หลังพยายาม OCR แล้ว กรุณาตรวจไฟล์`);
       if (text.length > budget) truncatedFiles.push(file.filename);
       excerpts.push(`[ไฟล์ ${excerpts.length + 1}: ${file.filename.slice(0, 100)}]\n${text.slice(0, budget)}`);
@@ -872,7 +898,7 @@ export class DocumentIntelligenceService {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+        body: JSON.stringify(openAiChatBody(this.config, {
           model: chatModel(this.config),
           response_format: { type: 'json_object' },
           messages: [
@@ -889,7 +915,7 @@ export class DocumentIntelligenceService {
             { role: 'user', content: redacted.slice(0, 14000) },
           ],
           temperature: 0.1,
-        }),
+        })),
       });
 
       if (!res.ok) {

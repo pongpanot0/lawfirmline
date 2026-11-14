@@ -13,7 +13,8 @@ type Db = Pick<PrismaService, 'firm' | 'case'>;
  * names no price or link, because the iOS app may show it (App Store 3.1.1).
  */
 export async function assertCanAddCases(db: Db, firmId: string, adding = 1): Promise<void> {
-  const firm = await db.firm.findUnique({ where: { id: firmId }, select: { subscriptionPlan: true } });
+  const firm = await db.firm.findUnique({ where: { id: firmId }, select: { subscriptionPlan: true, quotaExempt: true } });
+  if (firm?.quotaExempt) return;
   const limit = firm?.subscriptionPlan ? PLAN_CONFIG[firm.subscriptionPlan as SubscriptionPlan]?.maxCases : null;
   if (limit == null) return;
   const total = await db.case.count({ where: { firmId } });

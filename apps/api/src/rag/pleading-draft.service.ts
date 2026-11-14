@@ -1,3 +1,4 @@
+import { openAiChatBody } from '../common/openai-model';
 import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser, redactForAi } from '@lawfirm/shared';
@@ -76,7 +77,7 @@ export class PleadingDraftService {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(openAiChatBody(this.config, {
           model,
           temperature: 0.2,
           messages: [
@@ -94,7 +95,7 @@ export class PleadingDraftService {
               content: `แหล่งข้อมูลจากสำนวนคดี:\n\n${sourcesText}\n\nคำสั่งเพิ่มเติม: ${instructions || '-'}`,
             },
           ],
-        }),
+        })),
       });
       if (!res.ok) throw new Error(`OpenAI chat error: ${res.status}`);
       data = await res.json();

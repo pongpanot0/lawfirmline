@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { CalendarCheck, CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, type AiTrayCard } from '@/lib/api';
+import { useAiCreditConfirm } from '@/components/billing/useAiCreditConfirm';
 import { Button, buttonVariants } from '@/components/ui/button';
 
 type DocStatus = 'running' | 'done' | 'failed';
@@ -53,6 +54,7 @@ export function AiTrayCards({ caseId, compact = false, onChanged }: { caseId?: s
 
 function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; showCase: boolean; onDone: () => void }) {
   const { token } = useAuth();
+  const credits = useAiCreditConfirm();
   const [deselected, setDeselected] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<Record<string, DocStatus>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -69,7 +71,7 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
 
   const run = async () => {
     if (!token || !chosen.length) return;
-    if (!confirm(`ให้ AI อ่าน ${chosen.length} ไฟล์ (สรุป + จับวันสำคัญ)?`)) return;
+    try { if (!await credits.confirmCredits(card.documents.filter((d) => chosen.includes(d.id)).map((d) => ({ id: d.id, name: d.filename })))) return; } catch (err) { setSkipError(err instanceof Error ? err.message : 'ประเมินเครดิตไม่สำเร็จ'); return; }
     setBusy(true);
     // ทีละไฟล์: ไฟล์ไหนพังเห็นชัด ไฟล์ที่เหลือยังทำต่อ และไฟล์ที่พังยังอยู่ในถาดให้ลองใหม่
     // สรุปก่อน (สร้าง CaseKnowledge ให้ไฟล์หลุดจากถาด) แล้วค่อยจับวัน กันจับวันซ้ำเมื่อ retry
@@ -77,6 +79,8 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
       setStatus((s) => ({ ...s, [id]: 'running' }));
       try {
         await api.analyzeExistingDocument(token, card.caseId, id);
+        const doc = card.documents.find((item) => item.id === id)!;
+        if (!await credits.confirmCredits([{ id, name: doc.filename }])) { await api.markAiTrayHandled(token, [id]); setStatus((s) => ({ ...s, [id]: 'done' })); continue; }
         await api.extractDatesFromDocument(token, card.caseId, id);
         await api.markAiTrayHandled(token, [id]);
         setStatus((s) => ({ ...s, [id]: 'done' }));
@@ -111,6 +115,7 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
 
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+      {credits.dialog}
       <p className="flex items-center gap-2 font-medium">
         <Sparkles className="h-4 w-4 shrink-0 text-primary" aria-hidden />
         {showCase && (

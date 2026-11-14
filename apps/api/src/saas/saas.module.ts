@@ -1,3 +1,4 @@
+import { BillingAddOnsController } from './billing-add-ons.controller';
 import { Module, forwardRef } from '@nestjs/common';
 import { FirmMembersController } from './firm-members.controller';
 import { SaasController, PublicInviteController } from './saas.controller';
@@ -18,7 +19,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [forwardRef(() => AuthModule), CaseTypesModule, forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule)],
-  controllers: [SaasController, FirmMembersController, PublicInviteController, PlatformAdminController],
+  controllers: [BillingAddOnsController, SaasController, FirmMembersController, PublicInviteController, PlatformAdminController],
   providers: [
     TenantService,
     PlatformAdminService,

@@ -214,3 +214,18 @@ describe('TenantService.syncTrialExpiry', () => {
     expect(prisma.firm.update).not.toHaveBeenCalled();
   });
 });
+
+
+describe('TenantService quota exemption', () => {
+  it.each([true, false])('new Free firm quotaExempt=%s reaches planGrandfathered', async (quotaExempt) => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ id: 'u', email: 'u@example.test', role: 'LAWYER' }) },
+      firmMember: { findFirst: jest.fn().mockResolvedValue({ role: FirmRole.OWNER, firm: {
+        id: 'f', slug: 'test', name: 'Test', subscriptionPlan: 'FREE', subscriptionStatus: 'ACTIVE', quotaExempt,
+        trialEndAt: new Date('2026-12-31'), createdAt: new Date('2026-12-01'), currentPeriodEnd: null, stripeSubscriptionId: null,
+      } }) },
+    };
+    const user = await new TenantService(prisma as any).buildAuthUser('u', 'f');
+    expect(user?.planGrandfathered).toBe(quotaExempt);
+  });
+});

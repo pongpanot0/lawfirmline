@@ -2,6 +2,11 @@ import { Injectable, BadRequestException, ForbiddenException, Logger } from '@ne
 import Stripe from 'stripe';
 import {
   AuthUser,
+  ADD_ONS,
+  AddOnKind,
+  AddOnCheckoutResponse,
+  BillingUsage,
+  hasFirmCapability,
   BillingPeriod,
   PLAN_CONFIG,
   SELLABLE_PLANS,
@@ -11,6 +16,8 @@ import {
   SubscriptionSummary,
   PlanOption,
 } from '@lawfirm/shared';
+import { Prisma } from '../generated/prisma';
+import { PlanQuotaService } from '../common/services/plan-quota.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
 import { StripeService } from './stripe.service';
@@ -25,6 +32,7 @@ export class SubscriptionService {
     private tenant: TenantService,
     private stripe: StripeService,
     private email: EmailService,
+    private quota: PlanQuotaService,
   ) {}
 
   async getSummary(user: AuthUser): Promise<SubscriptionSummary> {
@@ -139,6 +147,40 @@ export class SubscriptionService {
     return { url: session.url };
   }
 
+  async getUsage(user: AuthUser): Promise<BillingUsage> {
+    const [ai, storage, addOns] = await Promise.all([
+      this.quota.aiBalance(user),
+      this.quota.storageUsage(user.firmId),
+      this.prisma.planAddOn.findMany({ where: { firmId: user.firmId }, orderBy: { createdAt: 'desc' } }),
+    ]);
+    return {
+      ai, storage,
+      addOns: addOns.map((row) => ({
+        kind: row.kind as AddOnKind, credits: row.credits, storageGb: row.storageGb, amountThb: row.amountThb,
+        createdAt: row.createdAt.toISOString(), expiresAt: row.expiresAt?.toISOString() ?? null,
+      })),
+      prices: Object.entries(ADD_ONS).map(([kind, pack]) => ({ kind: kind as AddOnKind, ...pack })),
+    };
+  }
+
+  async createAddOnCheckout(user: AuthUser, addOn: AddOnKind, paymentMethod: CheckoutPaymentMethod = 'card'): Promise<AddOnCheckoutResponse> {
+    if (!this.tenant.isOwner(user) || !hasFirmCapability(user.firmRole, 'manageSubscription')) throw new ForbiddenException('Only owners can manage billing');
+    if (!Object.prototype.hasOwnProperty.call(ADD_ONS, addOn)) throw new BadRequestException('Unknown add-on');
+    const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId } });
+    if (!firm) throw new BadRequestException('Firm not found');
+    const customer = await this.ensureCustomer(firm.id, firm.name, firm.stripeCustomerId, user.email);
+    const metadata = { firmId: firm.id, addOn };
+    const session = await this.stripe.client.checkout.sessions.create({
+      mode: 'payment', customer, client_reference_id: firm.id, locale: 'th',
+      payment_method_types: [paymentMethod], metadata, payment_intent_data: { metadata },
+      success_url: `${this.email.getAppUrl()}/account/billing?addon=1`,
+      cancel_url: `${this.email.getAppUrl()}/account/billing`,
+      line_items: [{ quantity: 1, price_data: { currency: 'thb', unit_amount: ADD_ONS[addOn].priceThb * 100, product_data: { name: `Samnuan ${addOn}` } } }],
+    });
+    if (!session.url) throw new BadRequestException('Checkout URL unavailable');
+    return { url: session.url };
+  }
+
   /** Stripe Customer Portal: change card, switch plan, cancel, download invoices. */
   async createPortalSession(user: AuthUser) {
     if (!this.tenant.isOwner(user)) throw new ForbiddenException('Only owners can manage billing');
@@ -249,7 +291,10 @@ export class SubscriptionService {
       case 'checkout.session.async_payment_succeeded': {
         const session = event.data.object;
         if (session.mode === 'payment') {
-          if (session.payment_status === 'paid') await this.activatePrepaid(session);
+          if (session.payment_status === 'paid') {
+            if (session.metadata?.addOn) await this.activateAddOn(session, new Date(event.created * 1000));
+            else await this.activatePrepaid(session);
+          }
           break;
         }
         if (session.mode !== 'subscription' || !session.subscription) break;
@@ -323,6 +368,34 @@ export class SubscriptionService {
         await tx.auditLog.create({ data: { firmId: firm.id, action: `SUBSCRIPTION_${status}`, metadata: { plan, billingPeriod, stripeSubscriptionId: sub.id } } });
       }
     });
+  }
+
+  private async activateAddOn(session: Stripe.Checkout.Session, paidAt: Date): Promise<void> {
+    const firmId = session.client_reference_id;
+    const kind = session.metadata?.addOn;
+    if (!firmId || !kind || !Object.prototype.hasOwnProperty.call(ADD_ONS, kind)) return;
+    const addOn = ADD_ONS[kind as AddOnKind];
+    if (session.amount_total !== addOn.priceThb * 100 || session.currency !== 'thb') {
+      this.logger.error(`Add-on session ${session.id} amount/currency does not match ${kind}`);
+      return;
+    }
+    if (await this.prisma.planAddOn.findUnique({ where: { stripeSessionId: session.id }, select: { id: true } })) return;
+    if (!await this.prisma.firm.findUnique({ where: { id: firmId }, select: { id: true } })) return;
+    const createdAt = paidAt;
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.planAddOn.create({ data: {
+          firmId, kind, amountThb: addOn.priceThb, stripeSessionId: session.id, createdAt,
+          credits: addOn.credits,
+          storageGb: addOn.storageGb,
+          expiresAt: addOn.days === null ? null : new Date(createdAt.getTime() + addOn.days * 86_400_000),
+        } });
+        await tx.auditLog.create({ data: { firmId, action: 'ADDON_PURCHASED', metadata: { kind, stripeSessionId: session.id, amountThb: addOn.priceThb } } });
+      });
+    } catch (err) {
+      // The unique session key also handles simultaneous deliveries of the same payment.
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
+    }
   }
 
   /**

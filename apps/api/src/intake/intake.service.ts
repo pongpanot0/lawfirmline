@@ -4,7 +4,7 @@ import { assertFirmRefs } from '../common/firm-refs';
 import { BadRequestException, Injectable, Logger, NotFoundException, Optional, Inject, forwardRef } from '@nestjs/common';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ConfigService } from '@nestjs/config';
-import { chatModel } from '../common/openai-model';
+import { chatModel, openAiChatBody } from '../common/openai-model';
 import {
   ActivityType,
   AuthUser,
@@ -1135,7 +1135,7 @@ export class IntakeService {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: JSON.stringify(openAiChatBody(this.config, {
         model: chatModel(this.config),
         messages: [
           {
@@ -1146,7 +1146,7 @@ export class IntakeService {
           { role: 'user', content: facts },
         ],
         temperature: 0.3,
-      }),
+      })),
     });
 
     if (!res.ok) {
