@@ -1,6 +1,10 @@
+import { customFieldFilter } from '../custom-fields/custom-field-filter';
+import { mergeCustomFieldPatch, redactCustomFields } from '../custom-fields/custom-field-rules';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
 import { Journey } from '../intake/intake-journey';
 import { assertJourneyAdvance, caseJourney, journeyStage, nextJourneyStage, preLitChecklist, MAIN_JOURNEY_STAGES } from './case-journey';
-import { missingCaseInfo } from './case-info';
+import { missingCaseInfo, missingRequiredCustomFields } from './case-info';
 import { caseProgress, CaseProgress } from './case-progress';
 import { AdvanceJourneyDto } from './dto/advance-journey.dto';
 import { assertFirmRefs } from '../common/firm-refs';
@@ -130,6 +134,8 @@ export class CasesService {
     private conflictCheck: ConflictCheckService,
     @Inject(forwardRef(() => CalendarService)) private calendar: CalendarService,
     @Optional() private cargoClaims?: CargoClaimsService,
+    private customFields: CustomFieldsService = new CustomFieldsService(prisma),
+    private customFieldValues: CustomFieldValuesService = new CustomFieldValuesService(prisma, customFields, caseAccess),
   ) {}
 
   private caseInclude = {
@@ -194,7 +200,10 @@ export class CasesService {
 
   async findAll(user: AuthUser, query: CaseQueryDto) {
     const accessFilter = this.caseAccess.getCaseFilterForUser(user);
+    const definitions = await this.customFields.listAllForFirm(user.firmId, 'CASE');
+    const filters = customFieldFilter(query.cf, definitions, user.id);
     const where: Prisma.CaseWhereInput = { ...accessFilter };
+    if (filters.length) where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), ...filters];
 
     if (query.status) {
       where.status = query.status;
@@ -241,7 +250,7 @@ export class CasesService {
     // The list (board, mobile caches) gets party names only — contact data and ID numbers stay
     // on the detail response (PDPA). Proceedings are a detail-page concern too.
     const { proceedings: _proceedings, ...listInclude } = this.caseInclude;
-    return this.prisma.case.findMany({
+    const cases = await this.prisma.case.findMany({
       where,
       include: {
         ...listInclude,
@@ -252,6 +261,7 @@ export class CasesService {
       },
       orderBy: { updatedAt: 'desc' },
     });
+    return cases.map(c => ({ ...c, customFields: redactCustomFields(c.customFields, definitions, user.id, 'app') }));
   }
 
   async progress(user: AuthUser): Promise<CaseProgress[]> {
@@ -271,7 +281,7 @@ export class CasesService {
     const intakeIds = cases.flatMap((c) => c.intakeId ? [c.intakeId] : []);
     const preLitCases = cases.filter((c) => journeyStage(c.stage) === CaseStage.PRE_LITIGATION);
     const links = [{ caseId: { in: caseIds } }, { intakeId: { in: intakeIds } }];
-    const [tasks, applied, conflicts, requests, courtDates, caseTypes] = await Promise.all([
+    const [tasks, applied, conflicts, requests, courtDates, caseTypes, definitions] = await Promise.all([
       this.prisma.task.findMany({
         where: { caseId: { in: caseIds } },
         select: { ...JOURNEY_TASK_SELECT, caseId: true },
@@ -300,6 +310,7 @@ export class CasesService {
         where: { firmId: user.firmId, id: { in: [...new Set(cases.flatMap((c) => c.caseTypeId ? [c.caseTypeId] : []))] } },
         select: { id: true, fieldSchema: true },
       }),
+      this.customFields.listAllForFirm(user.firmId, 'CASE'),
     ]);
     const tasksByCase = groupBy(tasks, (t) => t.caseId);
     const appliedByCase = groupBy(applied, (a) => a.caseId);
@@ -324,7 +335,7 @@ export class CasesService {
         }, latestConflicts.get(legalCase.id) ?? null, docs);
       }
       const journey = caseJourney(legalCase, tasksByCase.get(legalCase.id) ?? [], appliedByCase.get(legalCase.id) ?? [], preLit,
-        missingCaseInfo(legalCase, schemas.get(legalCase.caseTypeId ?? '')));
+        missingCaseInfo(legalCase, schemas.get(legalCase.caseTypeId ?? ''), definitions));
       return caseProgress(legalCase, journey, docs, dates.get(legalCase.id) ?? null);
     });
   }
@@ -382,7 +393,8 @@ export class CasesService {
         },
       },
     });
-    return { ...legalCase, originThread: origin ? {
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CASE');
+    return { ...legalCase, customFields: redactCustomFields(legalCase.customFields, defs, user.id, 'app'), originThread: origin ? {
       id: origin.id, subject: origin.subject, receivedAt: origin.messages[0]?.receivedAt ?? origin.createdAt,
       attachmentCount: origin.messages.reduce((sum, m) => sum + m._count.attachments, 0),
     } : null };
@@ -393,18 +405,22 @@ export class CasesService {
     return (await this.journeyState(user, id)).journey;
   }
 
-  private async journeyState(user: AuthUser, id: string, db: Prisma.TransactionClient = this.prisma) {
+  private async journeyState(user: AuthUser, id: string, db: Prisma.TransactionClient = this.prisma, caseTypeId?: string) {
     const legalCase = await db.case.findFirst({
       where: { id, firmId: user.firmId, deletedAt: null },
       select: {
         stage: true, openedAtStage: true, partyRole: true, intakeId: true, title: true, clientId: true, clientName: true,
-        courtName: true, customFields: true,
+        courtName: true, customFields: true, caseTypeId: true,
         caseType: { select: { fieldSchema: true } },
         participants: { select: { name: true, side: true, role: true } },
       },
     });
     if (!legalCase) throw new NotFoundException('Case not found');
-    const [tasks, applied] = await Promise.all([
+    if (caseTypeId !== undefined && caseTypeId !== legalCase.caseTypeId) {
+      legalCase.caseTypeId = caseTypeId;
+      legalCase.caseType = caseTypeId ? await db.caseType.findFirst({ where: { id: caseTypeId, firmId: user.firmId }, select: { fieldSchema: true } }) : null;
+    }
+    const [tasks, applied, definitions] = await Promise.all([
       db.task.findMany({
         where: { caseId: id },
         select: JOURNEY_TASK_SELECT,
@@ -415,6 +431,7 @@ export class CasesService {
         where: { caseId: id, release: { firmId: user.firmId } },
         select: { taskIds: true, release: { select: { steps: true } } },
       }),
+      this.customFields.listAllForFirm(user.firmId, 'CASE'),
     ]);
     let preLit: Journey | undefined;
     if (journeyStage(legalCase.stage) === CaseStage.PRE_LITIGATION) {
@@ -433,7 +450,7 @@ export class CasesService {
         clientName: intake?.clientName?.trim() || legalCase.clientName,
       }, conflict, requests);
     }
-    return { legalCase, journey: caseJourney(legalCase, tasks, applied, preLit, missingCaseInfo(legalCase, legalCase.caseType?.fieldSchema)) };
+    return { legalCase, journey: caseJourney(legalCase, tasks, applied, preLit, missingCaseInfo(legalCase, legalCase.caseType?.fieldSchema, definitions)) };
   }
 
   async advanceJourney(user: AuthUser, id: string, dto: AdvanceJourneyDto) {
@@ -677,6 +694,13 @@ export class CasesService {
       if (!dto.courtName?.trim()) throw new BadRequestException('ระบุศาลเมื่อคดียื่นฟ้องแล้ว');
       if (!dto.blackCaseNumber?.trim() && !dto.blackCaseNumberUnknown) throw new BadRequestException('ระบุหมายเลขคดีดำ หรือเลือก "ยังไม่ทราบเลขคดี"');
     }
+    // Same rules as every other value write: only visible, active fields, typed values; system keys pass through.
+    const fieldDefs = await this.customFields.listAllForFirm(user.firmId, 'CASE');
+    const createFields = dto.customFields === undefined ? undefined : mergeCustomFieldPatch({}, dto.customFields as Record<string, unknown>, fieldDefs, user.id).values;
+    if (stage !== CaseStage.PRE_LITIGATION) {
+      const missing = missingRequiredCustomFields(dto.caseTypeId, createFields ?? {}, fieldDefs);
+      if (missing.length) throw new BadRequestException(`กรอก ${missing.join(', ')} ให้ครบก่อนเปิดคดีที่ขั้นนี้`);
+    }
     await assertFirmRefs(this.prisma, user.firmId, {
       clientIds: [...(dto.customers ?? []).map((c) => c.customerId), ...(dto.clients ?? []).map((c) => c.clientId)],
       contactIds: (dto.customers ?? []).map((c) => c.contactId),
@@ -758,7 +782,7 @@ export class CasesService {
       courtLevel: dto.courtLevel,
       blackCaseNumber: dto.blackCaseNumber || null,
       redCaseNumber: dto.redCaseNumber || null,
-      customFields: dto.customFields as Prisma.InputJsonValue,
+      customFields: createFields as Prisma.InputJsonValue | undefined,
       estimatedFee: dto.estimatedFee,
       claimedAmount: dto.claimedAmount,
       limitationDeadline: dto.limitationDeadline ? new Date(dto.limitationDeadline) : undefined,
@@ -892,7 +916,11 @@ export class CasesService {
     }
 
     const { customFields, customers, clients, stageNote: _stageNote, ...rest } = dto;
+    let fieldResult: { customFields: Record<string, unknown> } | undefined;
     const write = async (db: Prisma.TransactionClient) => {
+      if (customFields !== undefined && fieldResult === undefined) {
+        fieldResult = await this.customFieldValues.setValues(user, 'CASE', id, customFields, undefined, db);
+      }
       if (leadChanged) {
         const receiver = before.intake?.receivedById;
         if (receiver && receiver !== dto.leadLawyerId) {
@@ -900,7 +928,7 @@ export class CasesService {
         }
         await db.caseAssignment.deleteMany({ where: { caseId: id, userId: dto.leadLawyerId, assignmentType: AssignmentType.BUDDY } });
       }
-      return db.case.update({
+      const saved = await db.case.update({
         where: { id },
         data: {
           ...rest,
@@ -911,7 +939,6 @@ export class CasesService {
                 ? new Date(dto.limitationDeadline)
                 : null,
           ownRef: dto.ownRef?.trim() || undefined,
-          customFields: customFields as Prisma.InputJsonValue | undefined,
           customers:
             customers === undefined
               ? undefined
@@ -923,9 +950,13 @@ export class CasesService {
         },
         include: this.caseInclude,
       });
+      return fieldResult ? { ...saved, customFields: fieldResult.customFields } : saved;
     };
     const updated = dto.stage !== undefined ? await this.prisma.$transaction(async (tx) => {
-      const { legalCase, journey } = await this.journeyState(user, id, tx);
+      // The same lock as definition/value writes keeps the gate valid until the stage is saved.
+      await tx.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
+      if (customFields !== undefined) fieldResult = await this.customFieldValues.setValues(user, 'CASE', id, customFields, undefined, tx);
+      const { legalCase, journey } = await this.journeyState(user, id, tx, dto.caseTypeId);
       if (legalCase.stage !== before.stage) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง');
       if (stageChanged && !isBackwardStage(before.stage, dto.stage!) && journeyStage(before.stage) !== journeyStage(dto.stage!)) {
         assertJourneyAdvance(before.stage, dto.stage!, journey);
@@ -937,7 +968,7 @@ export class CasesService {
       });
       if (result.count === 0) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง');
       return write(tx);
-    }) : leadChanged ? await this.prisma.$transaction(write) : await write(this.prisma);
+    }) : leadChanged || customFields !== undefined ? await this.prisma.$transaction(write) : await write(this.prisma);
     // The overview form always sends both, so only an actual change re-syncs our client's row.
     const clientChanged = dto.clientId !== undefined && (dto.clientId || null) !== (before.clientId ?? null);
     const partyRoleChanged = dto.partyRole !== undefined && (dto.partyRole || null) !== (before.partyRole ?? null);
@@ -1013,7 +1044,8 @@ export class CasesService {
       // Re-read so the response carries the level, mirrored numbers, proceedings and parties.
       return this.findOne(user, id);
     }
-    return updated;
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CASE');
+    return { ...updated, customFields: redactCustomFields(updated.customFields, defs, user.id, 'app') };
   }
 
   /**
@@ -1144,7 +1176,9 @@ export class CasesService {
       });
     }
 
-    return result;
+    if (!result) return result;
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CASE');
+    return { ...result, customFields: redactCustomFields(result.customFields, defs, user.id, 'app') };
   }
 
   /**
@@ -1269,7 +1303,8 @@ export class CasesService {
     });
 
     await this.syncLimitation(id);
-    return closed;
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CASE');
+    return { ...closed, customFields: redactCustomFields(closed.customFields, defs, user.id, 'app') };
   }
 
   /**
@@ -1294,7 +1329,8 @@ export class CasesService {
       statusTransition: { from: CaseStatus.CLOSED, to: CaseStatus.ARCHIVED },
     });
     await this.syncLimitation(id);
-    return archived;
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CASE');
+    return { ...archived, customFields: redactCustomFields(archived.customFields, defs, user.id, 'app') };
   }
 
   async reopen(user: AuthUser, id: string) {
@@ -1334,7 +1370,8 @@ export class CasesService {
       stageTransition: { from: legalCase.stage, to: stage },
     });
     await this.syncLimitation(id);
-    return reopened;
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CASE');
+    return { ...reopened, customFields: redactCustomFields(reopened.customFields, defs, user.id, 'app') };
   }
 
   /**

@@ -89,6 +89,11 @@ export function savedText(proposal: AiWriteProposal, saved: Record<string, unkno
   const [line, path]: [string, string | null] = (() => {
     const a = proposal.args;
     switch (proposal.tool) {
+      case 'create_custom_field':
+      case 'update_custom_field':
+      case 'archive_custom_field':
+      case 'restore_custom_field': return ['✅ บันทึกช่องข้อมูลเพิ่มเติมแล้วครับ', '/settings/custom-fields'];
+      case 'set_custom_field_values': return ['✅ บันทึกข้อมูลเพิ่มเติมแล้วครับ', a.entity === 'CASE' ? `/cases/${encodeURIComponent(String(a.id))}` : '/clients'];
       case 'create_task': return [`✅ บันทึกแล้วครับ: สร้างงาน "${a.title}"`, taskPath];
       case 'complete_task': return [`✅ ปิดงาน "${proposal.labels.task}" แล้วครับ`, taskPath];
       case 'add_case_note': return ['✅ เพิ่มบันทึกในคดีแล้วครับ', casePath];

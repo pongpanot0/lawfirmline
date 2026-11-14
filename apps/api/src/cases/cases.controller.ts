@@ -1,3 +1,5 @@
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
+import { SetCustomFieldValuesDto } from '../custom-fields/dto/custom-field-values.dto';
 import { AdvanceJourneyDto } from './dto/advance-journey.dto';
 import {
   Controller,
@@ -33,6 +35,7 @@ export class CasesController {
     private casesService: CasesService,
     private precedentAnalysisService: IntakePrecedentAnalysisService,
     private caseCommentsService: CaseCommentsService,
+    private customFieldValues: CustomFieldValuesService,
   ) {}
 
   @Get()
@@ -76,6 +79,11 @@ export class CasesController {
   @Roles(Role.ADMIN, Role.LAWYER)
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateCaseDto) {
     return this.casesService.create(user, dto);
+  }
+
+  @Patch(':id/custom-fields')
+  setCustomFields(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetCustomFieldValuesDto) {
+    return this.customFieldValues.setValues(user, 'CASE', id, dto.values);
   }
 
   @Patch(':id')

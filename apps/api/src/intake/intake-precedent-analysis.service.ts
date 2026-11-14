@@ -1,3 +1,5 @@
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { redactCustomFields } from '../custom-fields/custom-field-rules';
 import { openAiChatBody } from '../common/openai-model';
 import { BadRequestException, ForbiddenException, ConflictException, Injectable, Logger, NotFoundException, ServiceUnavailableException,
 } from '@nestjs/common';
@@ -55,6 +57,7 @@ export class IntakePrecedentAnalysisService {
     private fileStorage: FileStorageService,
     private relevance: RelevanceService,
     private caseAccess: CaseAccessService,
+    private customFields: CustomFieldsService = new CustomFieldsService(prisma),
   ) {}
 
   private async gatherFacts(intake: {
@@ -529,7 +532,8 @@ export class IntakePrecedentAnalysisService {
     });
     if (!legalCase) throw new NotFoundException('ไม่พบคดี');
     const warnings: string[] = [];
-    const sections = Object.entries(legalCase).map(([name, value]) => {
+    const defs = legalCase.customFields ? await this.customFields.listAllForFirm(user.firmId, 'CASE') : [];
+    const sections = Object.entries({ ...legalCase, customFields: redactCustomFields(legalCase.customFields, defs, user.id, 'ai') }).map(([name, value]) => {
       const content = JSON.stringify(value);
       if (content.length > 6000) warnings.push(`ข้อมูลคดีอ่านเฉพาะบางส่วน: ${name}`);
       return `[ข้อมูลคดี: ${name}]\n${content.slice(0, 6000)}`;

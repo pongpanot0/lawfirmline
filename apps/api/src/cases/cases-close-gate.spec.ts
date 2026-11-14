@@ -1,3 +1,5 @@
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { CasesService } from './cases.service';
@@ -41,6 +43,8 @@ describe('CasesService.close — ด่านของค้าง', () => {
     };
     const module = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
+        { provide: CustomFieldValuesService, useValue: {} },
         CasesService,
         { provide: CalendarService, useValue: calendar },
         { provide: PrismaService, useValue: prisma },

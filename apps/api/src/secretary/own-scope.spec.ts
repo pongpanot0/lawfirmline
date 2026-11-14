@@ -32,7 +32,7 @@ describe('MCP own scope', () => {
     const brief = { getCaseBrief: jest.fn().mockResolvedValue(null), getIntakeBrief: jest.fn().mockResolvedValue(null) };
     const rag = { searchDocumentsByContent: jest.fn().mockResolvedValue([]), retrieve: jest.fn(), ensureCaseIndexed: jest.fn() };
     const collections = { getReceivables: jest.fn().mockResolvedValue({ buckets: {}, rows: [] }) };
-    return { prisma, brief, rag, collections, svc: new SecretaryToolsService(prisma as any, access, brief as any, rag as any, collections as any, {} as any, {} as any) };
+    return { prisma, brief, rag, collections, svc: new SecretaryToolsService(prisma as any, access, brief as any, rag as any, collections as any, {} as any, {} as any, {} as any) };
   }
 
   it.each([FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.LAWYER])('scopes every document path before reading for %s', async role => {

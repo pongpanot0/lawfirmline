@@ -51,3 +51,25 @@ describe('missingCaseInfo', () => {
     expect(missingCaseInfo({ ...legalCase, customFields: { claim: 5 } }, [null, {}, ...schema])).toEqual(['คำขอ']);
   });
 });
+
+
+describe('required custom field definitions', () => {
+  const definition = { key: 'cf_required', label: 'Required amount', required: true, caseTypeIds: [], archivedAt: null, visibility: 'FIRM' as const, entityKind: 'CASE' as const, type: 'NUMBER' as const };
+  const record = { ...legalCase, caseTypeId: 'civil' };
+  it.each([['NUMBER', 0], ['BOOLEAN', false]] as const)('%s value %p counts as filled', (type, value) => {
+    expect(missingCaseInfo({ ...record, customFields: { cf_required: value } }, [], [{ ...definition, type }])).toEqual([]);
+  });
+  it.each([null, undefined, '', '  '])('empty value %p blocks the stage with the field label', value => {
+    expect(missingCaseInfo({ ...record, customFields: { cf_required: value } }, [], [definition])).toEqual(['Required amount']);
+  });
+  it.each([
+    { archivedAt: '2026-11-01' }, { caseTypeIds: ['criminal'] }, { visibility: 'PERSONAL' as const },
+    { entityKind: 'CLIENT' as const }, { required: false },
+  ])('ignores a definition outside required active firm CASE scope: %p', overrides => {
+    expect(missingCaseInfo(record, [], [{ ...definition, ...overrides }])).toEqual([]);
+  });
+  it('requires matching case types and preserves legacy missing labels', () => {
+    expect(missingCaseInfo({ ...record, chargeSection: null, customFields: {} }, schema, [{ ...definition, caseTypeIds: ['civil'] }])).toEqual(['ข้อหา', 'คำขอ', 'Required amount']);
+    expect(missingCaseInfo({ ...record, caseTypeId: null }, [], [{ ...definition, caseTypeIds: ['civil'] }])).toEqual([]);
+  });
+});

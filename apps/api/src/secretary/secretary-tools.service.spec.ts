@@ -31,7 +31,7 @@ describe('SecretaryToolsService', () => {
       retrieve: jest.fn().mockResolvedValue([]),
       ensureCaseIndexed: jest.fn().mockResolvedValue(undefined),
     };
-    const svc = new SecretaryToolsService(prisma as any, access as any, brief as any, rag as any, collections as any, agenda as any, {} as any);
+    const svc = new SecretaryToolsService(prisma as any, access as any, brief as any, rag as any, collections as any, agenda as any, {} as any, {} as any);
     return { svc, prisma, brief, rag, collections, agenda };
   }
 
@@ -125,7 +125,7 @@ describe('SecretaryToolsService', () => {
 
   it('definitions gives office managers every tool', () => {
     expect(build().svc.definitions(user).map((d) => d.function.name)).toEqual([
-      'find_matters', 'case_overview', 'search_documents', 'read_document', 'list_events',
+      'list_custom_fields', 'find_matters', 'case_overview', 'search_documents', 'read_document', 'list_events',
       'list_leaves', 'search_sops', 'lawyer_licenses', 'receivables', 'petty_cash_balance', 'my_work', 'team_workload',
     ]);
   });
@@ -214,7 +214,7 @@ describe('SecretaryToolsService', () => {
     const radar = { start: '2026-11-12', days: ['2026-11-12'], members: [{ userId: 'u-a', firstName: 'A', lastName: 'One', role: 'LAWYER', openCount: 6, openPoints: 12, standardPoints: 10, overdueCount: 0, reviewCount: 0, unscheduledCount: 0, standup: 'not_yet' as const, coaching: { unacknowledged: 0, lastSentAt: null }, days: [{ date: '2026-11-12', taskCount: 2, points: 4, eventCount: 1, courtCount: 0, onLeave: false, outlookBusyMinutes: 0 }] }] };
     const make = () => {
       const operations = { radar: jest.fn().mockResolvedValue(radar) };
-      return { operations, svc: new SecretaryToolsService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, operations as any) };
+      return { operations, svc: new SecretaryToolsService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, operations as any, {} as any) };
     };
     it('only owners / office managers get it, counts only with no user ids', async () => {
       const { svc, operations } = make();

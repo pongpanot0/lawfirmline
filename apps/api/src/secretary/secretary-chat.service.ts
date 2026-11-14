@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BadGatewayException, BadRequestException, HttpException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { redactForAi, type AuthUser, type SecretaryCard } from '@lawfirm/shared';
@@ -6,10 +7,10 @@ import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { RagService } from '../rag/rag.service';
 import { SecretaryToolsService } from './secretary-tools.service';
-import { aiWriteDefinitions, AiWriteProposal, AiWriteTool, AiWriteToolsService, describeAiWrite, isAiWriteTool } from './ai-write-tools.service';
+import { AI_WRITE_TOOLS, aiWriteDefinitions, customFieldTool, AiWriteProposal, AiWriteTool, AiWriteToolsService, describeAiWrite, isAiWriteTool } from './ai-write-tools.service';
 
 export interface SecretaryMessage { role: 'user' | 'assistant'; content: string }
-export interface SecretaryReply { reply: string; cards: SecretaryCard[]; proposal?: AiWriteProposal }
+export interface SecretaryReply { reply: string; cards: SecretaryCard[]; proposal?: AiWriteProposal; proposalId?: string }
 
 const MAX_HISTORY = 10;
 /** Past turns shown when the panel opens. */
@@ -27,6 +28,8 @@ interface OaiResponse {
 
 @Injectable()
 export class SecretaryChatService {
+  // shortcut: proposals live in this process like LINE sessions; use shared storage when API replicas are introduced.
+  private readonly pending = new Map<string, { id: string; proposal: AiWriteProposal; expiresAt: number }>();
   private readonly logger = new Logger(SecretaryChatService.name);
 
   constructor(
@@ -36,6 +39,26 @@ export class SecretaryChatService {
     private readonly prisma: PrismaService,
     private readonly writes: AiWriteToolsService,
   ) {}
+
+  async propose(user: AuthUser, messages: SecretaryMessage[]): Promise<SecretaryReply> {
+    // In-app AI writes are limited to custom fields (owner request 2026-11-14); other writes stay LINE/MCP-only until asked.
+    const reply = await this.chat(user, messages, { writeTools: AI_WRITE_TOOLS.filter(customFieldTool) });
+    if (!reply.proposal) return reply;
+    for (const [key, held] of this.pending) if (held.expiresAt <= Date.now()) this.pending.delete(key);
+    const id = randomUUID();
+    this.pending.set(`${user.firmId}:${user.id}`, { id, proposal: reply.proposal, expiresAt: Date.now() + 10 * 60 * 1000 });
+    return { ...reply, proposal: { ...reply.proposal, args: {} }, proposalId: id };
+  }
+
+  async confirm(user: AuthUser, proposalId: string): Promise<Record<string, unknown>> {
+    const key = `${user.firmId}:${user.id}`;
+    const held = this.pending.get(key);
+    if (!held || held.id !== proposalId || held.expiresAt <= Date.now()) throw new BadRequestException('รายการนี้หมดอายุหรือเป็นรายการเก่า กรุณาเสนอบันทึกใหม่');
+    this.pending.delete(key);
+    return this.writes.run(user, held.proposal.tool, held.proposal.args, {
+      auditPrefix: 'secretary_ai', auditMetadata: { channel: 'secretary' }, clientName: 'ผู้ช่วย AI',
+    });
+  }
 
   /** The caller's own saved chat in this firm, oldest first, so web and mobile reopen where they left off. */
   async history(user: AuthUser, since?: Date): Promise<Array<SecretaryMessage & { cards: SecretaryCard[] }>> {
@@ -91,7 +114,7 @@ export class SecretaryChatService {
       '- คุณคุยกับเจ้าหน้าที่สำนักงานเท่านั้น ห้ามร่างข้อความถึงลูกความ',
       '- คำถามกว้างๆ ให้ตอบทันทีด้วยค่าที่สมเหตุสมผล ห้ามถามกลับเพื่อขอรายละเอียดก่อน เช่น "มีงานอะไรบ้าง" ให้ใช้ my_work, "สัปดาห์นี้" หมายถึงวันนี้ถึงอีก 7 วัน ถ้ายังไม่ชัดให้ตอบก่อนแล้วค่อยเสนอว่าเจาะจงต่อได้',
       canWrite
-        ? '- ถ้าผู้ใช้ขอให้สร้างงาน ปิดงาน บันทึกในคดี ลงเวลา เสนอวันนัดศาล ร่างเบิกค่าใช้จ่าย ร่างหนังสือทวงถาม ยื่นลา สร้าง SOP หรือสร้างชุดขั้นตอนงาน ให้หา id จากเครื่องมืออ่านก่อน แล้วเรียกเครื่องมือบันทึกครั้งละหนึ่งรายการ รายการที่ไม่มีเครื่องมือ ให้ทำผ่านเมนู (พิมพ์ "เมนู")'
+        ? '- ถ้าผู้ใช้ขอให้สร้างงาน ปิดงาน บันทึกในคดี ลงเวลา เสนอวันนัดศาล ร่างเบิกค่าใช้จ่าย ร่างหนังสือทวงถาม ยื่นลา สร้าง SOP สร้างชุดขั้นตอนงาน จัดการช่องข้อมูลเพิ่มเติม หรือกรอกข้อมูลเพิ่มเติม ให้หา id จากเครื่องมืออ่านก่อน แล้วเรียกเครื่องมือบันทึกครั้งละหนึ่งรายการ รายการที่ไม่มีเครื่องมือ ให้ทำผ่านเมนู (พิมพ์ "เมนู")'
         : '- ถ้าผู้ใช้ขอให้ทำรายการ เช่น ยื่นลา สร้างงาน เบิกเงิน ให้บอกว่าคุณทำรายการเองไม่ได้ และให้ทำผ่านเมนูของระบบ (ใน LINE พิมพ์ "เมนู") ห้ามตอบว่าทำให้แล้ว',
       '- คำถามงานสำนักงาน (วันลา, SOP/ขั้นตอนสำนักงาน, ใบอนุญาตทนาย, ลูกหนี้ค้างชำระ, เงินสดย่อย) ให้ใช้เครื่องมือที่มี ถ้าไม่มีเครื่องมือสำหรับเรื่องนั้นให้บอกว่าบัญชีนี้ไม่มีสิทธิ์ดูข้อมูลนั้น',
       `ผู้ใช้คือ ${user.firstName} ${user.lastName} วันนี้คือ ${today} (เขตเวลา Asia/Bangkok)`,
@@ -104,12 +127,13 @@ export class SecretaryChatService {
       headers: { Authorization: `Bearer ${this.config.get<string>('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(openAiChatBody(this.config, { model: chatModel(this.config), temperature: 0, messages, tools: [...this.tools.definitions(user), ...aiWriteDefinitions(writeTools)], tool_choice: toolChoice })),
     });
-    if (!res.ok) throw new Error(`OpenAI chat ${res.status}`);
+    // OpenAI's error text names the bad field/schema; it is logged server-side only, never shown to the user.
+    if (!res.ok) throw new Error(`OpenAI chat ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
     return (await res.json()) as OaiResponse;
   }
 
   /**
-   * One answer. With `writeTools` (LINE only) the model may also propose one of those writes: the loop stops at the
+   * One answer. With `writeTools` (in-app or LINE) the model may also propose one of those writes: the loop stops at the
    * first valid one and returns it as `proposal` — nothing is saved here; the caller asks the person to confirm.
    */
   async chat(user: AuthUser, history: SecretaryMessage[], { writeTools = [] }: { writeTools?: AiWriteTool[] } = {}): Promise<SecretaryReply> {

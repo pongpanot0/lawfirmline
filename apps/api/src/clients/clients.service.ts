@@ -1,3 +1,6 @@
+import { customFieldFilter } from '../custom-fields/custom-field-filter';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { redactCustomFields } from '../custom-fields/custom-field-rules';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, FirmRole, InvoiceStatus } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
@@ -10,6 +13,7 @@ export class ClientsService {
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
+    private customFields: CustomFieldsService,
   ) {}
 
   private include = {
@@ -27,10 +31,12 @@ export class ClientsService {
     };
   }
 
-  async findAll(user: AuthUser, search?: string) {
+  async findAll(user: AuthUser, search?: string, cf?: string) {
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CLIENT');
+    const filters = customFieldFilter(cf, defs, user.id);
     const clients = await this.prisma.client.findMany({
       where: {
-        ...this.caseAccess.getClientFilterForUser(user),
+        AND: [this.caseAccess.getClientFilterForUser(user), ...filters],
         ...(search
           ? { name: { contains: search, mode: 'insensitive' as const } }
           : {}),
@@ -70,6 +76,7 @@ export class ClientsService {
       const own = openCases.filter((c) => c.clientId === client.id);
       return {
         ...client,
+        customFields: redactCustomFields(client.customFields, defs, user.id, 'app'),
         openCaseCount: own.length,
         openTaskCount: own.reduce((sum, c) => sum + (tasksByCase.get(c.id) ?? 0), 0),
       };
@@ -95,7 +102,8 @@ export class ClientsService {
       },
     });
     if (!client) throw new NotFoundException('Client not found');
-    return client;
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CLIENT');
+    return { ...client, customFields: redactCustomFields(client.customFields, defs, user.id, 'app') };
   }
 
   async create(user: AuthUser, dto: CreateClientDto) {
@@ -157,7 +165,7 @@ export class ClientsService {
   async update(user: AuthUser, id: string, dto: UpdateClientDto) {
     await this.findOne(user, id);
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       if (dto.contacts) {
         const existing = await tx.clientContact.findMany({ where: { clientId: id } });
         const incomingIds = new Set(dto.contacts.filter((c) => c.id).map((c) => c.id!));
@@ -201,6 +209,8 @@ export class ClientsService {
         include: this.includeForUser(user),
       });
     });
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CLIENT');
+    return { ...updated, customFields: redactCustomFields(updated.customFields, defs, user.id, 'app') };
   }
 
   /**

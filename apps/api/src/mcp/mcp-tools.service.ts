@@ -9,6 +9,7 @@ import { AI_WRITE_DESCRIPTIONS, AI_WRITE_SCHEMAS, AI_WRITE_TOOLS, AiWriteToolsSe
 import { FirmLinkService } from '../notifications/firm-link.service';
 
 const readSchemas = {
+  list_custom_fields: { entityKind: z.enum(['CASE', 'CLIENT']).optional() },
   find_matters: { query: text },
   case_overview: { caseId: text.optional(), intakeId: text.optional() },
   search_documents: { query: text, caseId: text.optional() },
@@ -57,7 +58,9 @@ export class McpToolsService {
         // Expected refusals are HttpExceptions; anything else is a bug the AI app can only see as a generic error.
         if (!(e instanceof HttpException)) this.logger.error(`MCP tool failed (${connection.clientName})`, e instanceof Error ? e.stack : String(e));
         const message = e instanceof HttpException && /[ก-๙]/.test(e.message) ? e.message : 'ทำรายการไม่สำเร็จ กรุณาเปิดงานในแอปแล้วลองใหม่';
-        return { ...result({ error: message }), isError: true };
+        const body = e instanceof HttpException ? e.getResponse() : undefined;
+        const code = body && typeof body === 'object' && 'code' in body && typeof body.code === 'string' ? body.code : undefined;
+        return { ...result({ error: message, ...(code ? { code } : {}) }), isError: true };
       }
     };
     for (const definition of this.secretary.definitions(user)) {
@@ -81,7 +84,7 @@ export class McpToolsService {
     }
     const via = { auditPrefix: 'mcp' as const, auditMetadata: { connectionId: connection.id, clientName: connection.clientName }, clientName: connection.clientName };
     for (const name of AI_WRITE_TOOLS) {
-      server.registerTool(name, { description: AI_WRITE_DESCRIPTIONS[name], inputSchema: AI_WRITE_SCHEMAS[name] },
+      server.registerTool(name, { description: AI_WRITE_DESCRIPTIONS[name], inputSchema: name.includes('custom_field') ? z.strictObject(AI_WRITE_SCHEMAS[name]) : AI_WRITE_SCHEMAS[name] },
         (args: Record<string, unknown>) => handle(() => this.writes.run(user, name, args, via)));
     }
     return server;

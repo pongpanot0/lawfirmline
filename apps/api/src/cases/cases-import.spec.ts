@@ -1,3 +1,5 @@
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test } from '@nestjs/testing';
 import { CaseOutcome, CaseStage, CourtLevel, PartyRole, PLAN_LIMIT_CASES } from '@lawfirm/shared';
 import { ConflictException } from '@nestjs/common';
@@ -48,6 +50,8 @@ describe('CasesService.createForImport', () => {
     };
     const module = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
+        { provide: CustomFieldValuesService, useValue: {} },
         CasesService,
         { provide: PrismaService, useValue: {} },
         { provide: CaseFeedService, useValue: feed },

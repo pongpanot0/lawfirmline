@@ -17,6 +17,11 @@ describe('OpenAI chat body', () => {
     expect(body.max_tokens).toBe(4000);
   });
 
+  it("sends reasoning_effort 'none' when function tools are present (Chat Completions rejects tools otherwise)", () => {
+    const tools = [{ type: 'function', function: { name: 'x', parameters: { type: 'object', properties: {} } } }];
+    expect(openAiChatBody(config(), { tools, tool_choice: 'auto' })).toMatchObject({ model: 'gpt-6-luna', reasoning_effort: 'none', tools });
+  });
+
   it('uses 8,000 completion tokens when no visible-output budget was set', () => {
     expect(openAiChatBody(config(), {})).toEqual({ model: 'gpt-6-luna', reasoning_effort: 'low', max_completion_tokens: 8000 });
   });

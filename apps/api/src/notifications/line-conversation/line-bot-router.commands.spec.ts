@@ -1,3 +1,4 @@
+import { AI_WRITE_TOOLS } from '../../secretary/ai-write-tools.service';
 import { FirmLinkService } from '../firm-link.service';
 import { LineBotRouterService } from './line-bot-router.service';
 import { ConversationSession, ConversationStep, FlowType } from './line-conversation.types';
@@ -110,7 +111,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
       expect(secretary.chat).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'u1' }),
         [expect.objectContaining({ content: 'ก่อนหน้า' }), expect.objectContaining({ content: 'ตอบก่อนหน้า' }), { role: 'user', content: 'พรุ่งนี้มีนัดอะไร' }],
-        { writeTools: ['create_task', 'complete_task', 'add_case_note', 'log_time', 'draft_expense', 'propose_court_date', 'request_leave', 'draft_notice', 'create_sop', 'create_workflow'] },
+        { writeTools: AI_WRITE_TOOLS },
       );
       const text = line.replyWithQuickReply.mock.calls[0][1] as string;
       expect(text).toContain('พรุ่งนี้มีนัด 1 นัดครับ');

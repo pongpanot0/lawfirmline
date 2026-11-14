@@ -87,6 +87,7 @@ export interface CaseOutstandingResult {
 }
 
 export interface CaseDetail extends CaseListItem {
+  customFields?: Record<string, unknown> | null;
   clientName: string | null;
   courtLevel: string | null;
   caseTypeId?: string | null;

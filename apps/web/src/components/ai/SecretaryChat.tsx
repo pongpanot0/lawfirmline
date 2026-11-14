@@ -4,15 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Loader2, SquarePen } from 'lucide-react';
 import { hasFirmCapability, secretaryCardLabel as cardLabel, secretaryCardPath as cardHref, type SecretaryCard } from '@lawfirm/shared';
-import { api } from '@/lib/api';
+import { api, type SecretaryProposal } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
 /**
  * เลขา AI — ถามข้ามทุกคดีที่ผู้ใช้เห็นได้ (คดี เอกสาร นัด งานค้าง)
- * อ่านอย่างเดียว: ตอบจากข้อมูลในระบบ ไม่สร้าง/แก้อะไร
+ * การเปลี่ยนข้อมูลต้องให้ผู้ใช้ยืนยันก่อน
  */
 
-type Msg = { role: 'user' | 'assistant'; content: string; cards?: SecretaryCard[] };
+type Msg = { role: 'user' | 'assistant'; content: string; cards?: SecretaryCard[]; proposal?: SecretaryProposal; proposalId?: string };
 
 /** Server accepts up to 20; the last 10 are what it actually uses. */
 const HISTORY_SENT = 10;
@@ -84,7 +84,7 @@ export function SecretaryChat() {
         token,
         next.slice(-HISTORY_SENT).map(({ role, content }) => ({ role, content })),
       );
-      setMessages((prev) => [...prev, { role: 'assistant', content: res.reply, cards: res.cards }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: res.reply, cards: res.cards, proposal: res.proposal, proposalId: res.proposalId }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เลขาตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง');
     } finally {
@@ -139,6 +139,7 @@ export function SecretaryChat() {
           ) : (
             <div key={i} className="mr-auto max-w-[95%] space-y-2 rounded-2xl rounded-bl-sm border border-border bg-muted/40 px-3.5 py-2.5">
               <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>
+              {m.proposal && m.proposalId && <div className="space-y-2 rounded-lg border bg-card p-3"><p className="font-semibold">ตรวจสอบก่อนบันทึก</p>{m.proposal.labels.customFields?.map((line, n) => <p key={n} className="text-sm">{line}</p>)}<div className="flex flex-wrap gap-2"><button type="button" title="ยืนยันบันทึกตามรายการนี้" disabled={busy} className="whitespace-nowrap rounded bg-primary px-3 py-2 text-sm text-primary-foreground" onClick={() => { const proposalId = m.proposalId!; setBusy(true); setError(null); void api.confirmSecretary(token!, proposalId).then(result => { setMessages(prev => [...prev.map(item => item.proposalId === proposalId ? { ...item, proposal: undefined, proposalId: undefined } : item), { role: 'assistant', content: String(result.message ?? 'บันทึกแล้ว') }]); }).catch(err => { setMessages(prev => prev.map(item => item.proposalId === proposalId ? { ...item, proposal: undefined, proposalId: undefined } : item)); setError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ'); }).finally(() => setBusy(false)); }}>ยืนยันบันทึก</button><button type="button" title="ยกเลิกรายการนี้" disabled={busy} className="whitespace-nowrap rounded border px-3 py-2 text-sm" onClick={() => setMessages(prev => prev.map(item => item.proposalId === m.proposalId ? { ...item, proposal: undefined, proposalId: undefined } : item))}>ยกเลิก</button></div></div>}
               {!!m.cards?.length && (
                 <div className="flex flex-col gap-1.5 pt-0.5">
                   {m.cards.map((c) => (

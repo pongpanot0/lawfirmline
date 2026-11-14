@@ -9,6 +9,8 @@ const assessment = 'ประเมินและตัดสินใจแน
 
 describe('Case workflow round 1', () => {
   const prisma = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
+    customFieldDefinition: { findMany: jest.fn().mockResolvedValue([]) },
     firm: { findUnique: jest.fn() }, firmMember: { count: jest.fn() },
     case: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     caseAssignment: { deleteMany: jest.fn(), createMany: jest.fn() },
@@ -22,6 +24,7 @@ describe('Case workflow round 1', () => {
   let service: CasesService;
   beforeEach(() => {
     jest.resetAllMocks();
+    prisma.customFieldDefinition.findMany.mockResolvedValue([]);
     jest.useFakeTimers().setSystemTime(new Date('2026-11-10T08:00:00Z'));
     prisma.firm.findUnique.mockResolvedValue(null);
     prisma.firmMember.count.mockResolvedValue(1);

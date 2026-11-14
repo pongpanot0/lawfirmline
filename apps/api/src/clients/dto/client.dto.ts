@@ -167,3 +167,14 @@ export class UpdateClientDto {
   @Type(() => ClientContactDto)
   contacts?: ClientContactDto[];
 }
+
+
+export class ClientQueryDto {
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  cf?: string;
+}

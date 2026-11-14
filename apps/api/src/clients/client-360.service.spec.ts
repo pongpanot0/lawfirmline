@@ -27,7 +27,7 @@ function setup() {
     getTaskFilterForUser: jest.fn(() => ({ assigneeId: 'staff-1' })),
   };
   const notifier = { notifyAssigned: jest.fn().mockResolvedValue(undefined) };
-  return { service: new Client360Service(prisma, access as any, notifier as any), prisma, notifier };
+  return { service: new Client360Service(prisma, access as any, notifier as any, { listAllForFirm: jest.fn().mockResolvedValue([]) } as any), prisma, notifier };
 }
 
 it('records an unanswered client call and creates one callback task for the requested lawyer', async () => {
@@ -91,4 +91,20 @@ it('shows a case once with both customer roles and includes tasks created by the
   expect(prisma.task.findMany.mock.calls[0][0].where.AND[1]).toEqual({
     OR: [{ assigneeId: 'staff-1' }, { createdById: 'staff-1' }],
   });
+});
+
+
+it('includes only visible custom fields in the Client360 client projection', async () => {
+  const { service, prisma } = setup();
+  prisma.client.findFirst.mockResolvedValue({ id: 'client-1', customFields: { cf_private: 'A only', cf_shared: 'firm' }, contacts: [] });
+  const fields = { listAllForFirm: jest.fn(async () => [
+    { key: 'cf_private', visibility: 'PERSONAL', ownerUserId: 'A' },
+    { key: 'cf_shared', visibility: 'FIRM' },
+  ]) };
+  prisma.case.findMany.mockResolvedValue([]);
+  prisma.firmMember.findMany.mockResolvedValue([]);
+  const withFields = new Client360Service(prisma as any, (service as any).caseAccess, {} as any, fields as any);
+  const out = await withFields.overview(user, 'client-1');
+  expect(out.client.customFields).toEqual({ cf_shared: 'firm' });
+  expect(prisma.client.findFirst).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ customFields: true }) }));
 });

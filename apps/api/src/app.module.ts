@@ -26,6 +26,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { CaseTypesModule } from './case-types/case-types.module';
+import { CustomFieldsModule } from './custom-fields/custom-fields.module';
 import { InsuranceClaimsModule } from './insurance-claims/insurance-claims.module';
 import { ClientsModule } from './clients/clients.module';
 import { ClientPortalModule } from './client-portal/client-portal.module';
@@ -83,6 +84,7 @@ import { McpModule } from './mcp/mcp.module';
     ReportsModule,
     AuditLogModule,
     CaseTypesModule,
+    CustomFieldsModule,
     InsuranceClaimsModule,
     ClientsModule,
     ClientPortalModule,

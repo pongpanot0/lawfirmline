@@ -317,6 +317,7 @@ function SettingsContent() {
         </TabsList>
       </Tabs>
 
+      {view === 'profile' && <Link href="/settings/custom-fields" title="จัดการช่องข้อมูลเพิ่มเติม" className="mb-4 flex min-h-11 items-center gap-3 rounded-lg border bg-card px-4 py-3 text-sm font-medium hover:bg-muted"><Tags className="h-4 w-4" aria-hidden />ช่องข้อมูลเพิ่มเติม<ChevronRight className="ml-auto h-4 w-4" aria-hidden /></Link>}
       {view === 'profile' && (
         <Card>
           <CardContent className="space-y-4 p-6">
