@@ -287,23 +287,20 @@ export default function ReimbursementsPage() {
       {tab === 'advances' && canIssueAdvances ? (
         <CashAdvanceReconciliation token={token ?? getStoredToken() ?? ''} onBusyChange={setAdvanceBusy} />
       ) : <>
-      <WhoActsTabs value={filter} onChange={setFilter} tabs={[
-        { key: 'PENDING', label: 'รออนุมัติ', count: claims.filter(c => c.status === 'PENDING').length },
-        { key: 'APPROVED', label: 'รอจ่าย', count: claims.filter(c => c.status === 'APPROVED').length },
-        { key: 'PAID', label: 'จ่ายแล้ว', count: claims.filter(c => c.status === 'PAID').length },
-        { key: 'REJECTED', label: 'ไม่อนุมัติ', count: claims.filter(c => c.status === 'REJECTED').length },
-      ]} />
-      <details className="my-4 rounded-lg border bg-card p-4"><summary className="cursor-pointer">ตัวกรองเพิ่ม</summary>
-        <SelectField label={d.reimbursements.filterRequester} containerClassName="mt-3 w-full sm:w-56" value={requesterFilter} onChange={(e) => setRequesterFilter(e.target.value)}>
-          <option value="">{d.reimbursements.allRequesters}</option>
-          {members.map((m) => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}
-        </SelectField>
-      </details>
-      <div className="mb-4 flex justify-end">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="min-w-0 flex-1">
+          <WhoActsTabs value={filter} onChange={setFilter} tabs={[
+            { key: 'PENDING', label: 'รออนุมัติ', count: claims.filter(c => c.status === 'PENDING').length },
+            { key: 'APPROVED', label: 'รอจ่าย', count: claims.filter(c => c.status === 'APPROVED').length },
+            { key: 'PAID', label: 'จ่ายแล้ว', count: claims.filter(c => c.status === 'PAID').length },
+            { key: 'REJECTED', label: 'ไม่อนุมัติ', count: claims.filter(c => c.status === 'REJECTED').length },
+          ]} />
+        </div>
         <Button
           type="button"
           variant="outline"
           size="sm"
+          className="shrink-0 self-end whitespace-nowrap sm:self-auto"
           title="ดาวน์โหลดรายการในแท็บนี้เป็นไฟล์ CSV สำหรับลงบัญชี"
           disabled={loading || !claims.some(c => c.status === filter)}
           onClick={() => triggerDownload(
@@ -315,6 +312,12 @@ export default function ReimbursementsPage() {
           ดาวน์โหลด CSV
         </Button>
       </div>
+      <details className="my-4 rounded-lg border bg-card p-4"><summary className="cursor-pointer">ตัวกรองเพิ่ม</summary>
+        <SelectField label={d.reimbursements.filterRequester} containerClassName="mt-3 w-full sm:w-56" value={requesterFilter} onChange={(e) => setRequesterFilter(e.target.value)}>
+          <option value="">{d.reimbursements.allRequesters}</option>
+          {members.map((m) => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}
+        </SelectField>
+      </details>
       {actionError && <p role="alert" className="mb-3 text-sm text-destructive">{actionError}</p>}
 
       {loading ? (
