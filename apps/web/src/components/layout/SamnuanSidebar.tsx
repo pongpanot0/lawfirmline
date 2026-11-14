@@ -13,6 +13,7 @@ import {
   UsersRound,
   Gauge,
   Settings,
+  FileSpreadsheet,
   PanelLeftClose,
   PanelLeftOpen,
   X,
@@ -77,6 +78,7 @@ const NAV_ITEMS = [
   { href: '/ai-usage', labelKey: 'aiUsage' as const, icon: Sparkles, capability: 'viewFirmReports' as const, group: 'firm', children: [] as const },
   { href: '/sops', labelKey: 'sops' as const, icon: BookOpen, group: 'firm', children: [] as const },
   { href: '/team', labelKey: 'team' as const, icon: UsersRound, capability: 'inviteMembers' as const, group: 'firm', children: [] as const },
+  { href: '/import', labelKey: 'settings' as const, icon: FileSpreadsheet, group: 'firm', children: [] as const },
   { href: '/settings', labelKey: 'settings' as const, icon: Settings, group: 'firm', children: [] as const },
 ] as const;
 
@@ -101,7 +103,8 @@ export function SamnuanSidebar({ user, mobileOpen = false, onMobileClose }: Samn
     ...item.children.map(child => ({ ...child, group: item.group, children: [], isChild: true })),
   ]);
   const filtered = links.filter(
-    (item) => (!item.capability || hasFirmCapability(user.firmRole, item.capability))
+    (item) => (item.href !== '/import' || user.firmRole !== 'EXTERNAL')
+      && (!item.capability || hasFirmCapability(user.firmRole, item.capability))
       && !(item.href === '/dashboard' && hasFirmCapability(user.firmRole, 'runOperations')),
   );
 
@@ -221,7 +224,7 @@ function NavItemRow({
     (item.href === '/cases' && pathname.startsWith('/intake')) ||
     (item.href === '/settings' && pathname.startsWith('/admin/'));
   const Icon = item.icon;
-  const label = labels[item.labelKey];
+  const label = item.href === '/import' ? 'นำเข้าข้อมูล' : labels[item.labelKey];
 
   const linkClass = (isActive: boolean) =>
     cn(

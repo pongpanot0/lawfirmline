@@ -81,7 +81,7 @@ export class PracticeSetupService {
     const [members, clients, cases, invites, batches] = await Promise.all([
       this.prisma.firmMember.count({ where: { firmId: user.firmId } }), this.prisma.client.count({ where: { firmId: user.firmId } }), this.prisma.case.count({ where: { firmId: user.firmId } }),
       this.prisma.invitation.count({ where: { firmId: user.firmId, acceptedAt: null, expiresAt: { gt: new Date() } } }),
-      this.prisma.dataImportBatch.findMany({ where: { firmId: user.firmId }, select: { id: true, status: true, createdAt: true, committedAt: true, undoneAt: true }, orderBy: { createdAt: 'desc' }, take: 30 }),
+      this.prisma.dataImportBatch.findMany({ where: { firmId: user.firmId, kind: 'SETUP' }, select: { id: true, status: true, createdAt: true, committedAt: true, undoneAt: true }, orderBy: { createdAt: 'desc' }, take: 30 }),
     ]);
     return { members, clients, cases, invites, batches };
   }
@@ -110,7 +110,7 @@ export class PracticeSetupService {
     this.owner(user);
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
-      const batch = await db.dataImportBatch.findFirst({ where: { id, firmId: user.firmId } });
+      const batch = await db.dataImportBatch.findFirst({ where: { id, firmId: user.firmId, kind: 'SETUP' } });
       if (!batch) throw new NotFoundException('Batch unavailable');
       if (batch.status === 'COMMITTED') return { id, status: batch.status, ledger: batch.ledger };
       if (batch.status !== 'PREVIEW') throw new ConflictException('Batch is no longer a preview');
@@ -135,7 +135,7 @@ export class PracticeSetupService {
     this.owner(user);
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
-      const batch = await db.dataImportBatch.findFirst({ where: { id, firmId: user.firmId } });
+      const batch = await db.dataImportBatch.findFirst({ where: { id, firmId: user.firmId, kind: 'SETUP' } });
       if (!batch) throw new NotFoundException('Batch unavailable');
       if (batch.status === 'UNDONE') return { undone: true };
       if (batch.status !== 'COMMITTED' || !batch.ledger) throw new BadRequestException('Only a committed batch can be undone');

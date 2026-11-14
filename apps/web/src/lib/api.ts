@@ -101,6 +101,11 @@ export interface OutlookChanges {
   myCopyRemovedInOutlook: boolean;
 }
 
+export type ImportKind = 'clients' | 'cases' | 'tasks' | 'events' | 'expenses' | 'time-entries' | 'members';
+export type ImportRow = { rowNumber: number; problems: string[]; cells: Record<string, string> };
+export type ImportPreview = { batchId: string; kind: ImportKind; columns: { key: string; label: string }[]; rows: ImportRow[]; total: number; problemRows: number; canCommit: boolean };
+export type ImportBatch = { id: string; kind: ImportKind; total: number; created: number; committedAt: string; createdBy: { firstName: string; lastName: string } };
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -3701,6 +3706,16 @@ export const api = {
       `/outlook/drive/folder-suggestions?driveId=${encodeURIComponent(driveId)}&itemId=${encodeURIComponent(itemId)}`,
       { token },
     ),
+
+  getDataImportKinds: (token: string) => request<{ kinds: { kind: ImportKind; label: string; allowed: boolean }[] }>('/data-import/kinds', { token }),
+  downloadDataImportTemplate: (token: string, kind: ImportKind) => fetchBlob(`/data-import/${kind}/template`, { token }),
+  previewDataImport: (token: string, kind: ImportKind, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<ImportPreview>(`/data-import/${kind}/preview`, { method: 'POST', token, body: form });
+  },
+  commitDataImport: (token: string, id: string) => request<{ batchId: string; kind: ImportKind; created: number }>(`/data-import/batches/${encodeURIComponent(id)}/commit`, { method: 'POST', token }),
+  getDataImportBatches: (token: string) => request<{ batches: ImportBatch[] }>('/data-import/batches', { token }),
 
   downloadCaseImportTemplate: (token: string) => fetchBlob('/case-import/template', { token }),
 
