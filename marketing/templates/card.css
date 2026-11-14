@@ -1,0 +1,19 @@
+:root { --paper:#f7f4ed; --ink:#142e43; --brass:#8b6d32; }
+* { box-sizing:border-box; }
+body { margin:0; color:var(--ink); background:var(--paper); font-family:'Noto Sans Thai',sans-serif; }
+#card { width:1080px; height:1350px; padding:64px 72px; display:flex; flex-direction:column; }
+header { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--ink); padding-bottom:28px; font-size:24px; }
+.wordmark { font:500 52px 'Trirong',serif; }
+.brand-dot { color:var(--brass); }
+section { flex:1; min-height:0; padding:44px 0 32px; display:flex; flex-direction:column; justify-content:center; }
+.eyebrow { margin:0 0 32px; color:var(--brass); font-size:32px; font-weight:600; }
+h1 { font:500 84px/1.45 'Trirong',serif; margin:0 0 48px; overflow-wrap:anywhere; }
+ol { list-style:none; padding:0; margin:0; counter-reset:items; display:grid; gap:28px; }
+li { counter-increment:items; display:flex; gap:24px; font-size:46px; line-height:1.5; overflow-wrap:anywhere; }
+li::before { content:'—'; flex:0 0 38px; color:var(--brass); }
+li span { min-width:0; }
+.checklist li::before { content:counter(items,decimal-leading-zero); font-size:28px; padding-top:8px; }
+.checklist li { border-bottom:1px solid var(--ink); padding-bottom:12px; }
+.question h1 { border-left:6px solid var(--brass); padding-left:28px; }
+.question li::before { content:'·'; }
+footer { border-top:2px solid var(--ink); padding-top:28px; font-size:26px; line-height:1.6; display:flex; justify-content:space-between; gap:20px; }
