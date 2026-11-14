@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "marketing/templates/card-promo.html"
+        ],
+        "createdAt": "2026-11-14T13:35:16.089Z",
+        "reason": "Brand palette: design.md locks 'Paper cream, navy ink' for Samnuan (redesign confirmed 2026-10-05)"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "marketing/templates/card-promo.html"
+        ],
+        "createdAt": "2026-11-14T13:35:16.104Z",
+        "reason": "False positive: only bordered rule is '.promo footer { border-top:0 }' (removes the border); no accent border exists on a rounded element"
+      }
+    ]
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "posts"
+  ],
+  "properties": {
+    "posts": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "topicId",
+          "cardType",
+          "hook",
+          "body",
+          "cta",
+          "hashtags",
+          "card",
+          "alt",
+          "scene"
+        ],
+        "properties": {
+          "topicId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "cardType": {
+            "type": "string",
+            "enum": [
+              "tip",
+              "checklist",
+              "question"
+            ]
+          },
+          "hook": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 600
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 600
+          },
+          "cta": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "hashtags": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "pattern": "^#[^\\s#]+$",
+              "maxLength": 60
+            }
+          },
+          "card": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "headline",
+              "bullets"
+            ],
+            "properties": {
+              "headline": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "bullets": {
+                "type": "array",
+                "minItems": 0,
+                "maxItems": 4,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 45
+                }
+              }
+            }
+          },
+          "alt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "scene": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        }
+      }
+    }
+  }
+}
