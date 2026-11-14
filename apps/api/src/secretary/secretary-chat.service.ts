@@ -127,7 +127,8 @@ export class SecretaryChatService {
       headers: { Authorization: `Bearer ${this.config.get<string>('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(openAiChatBody(this.config, { model: chatModel(this.config), temperature: 0, messages, tools: [...this.tools.definitions(user), ...aiWriteDefinitions(writeTools)], tool_choice: toolChoice })),
     });
-    if (!res.ok) throw new Error(`OpenAI chat ${res.status}`);
+    // OpenAI's error text names the bad field/schema; it is logged server-side only, never shown to the user.
+    if (!res.ok) throw new Error(`OpenAI chat ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
     return (await res.json()) as OaiResponse;
   }
 

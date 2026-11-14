@@ -24,7 +24,8 @@ export function openAiChatBody(config: ConfigService, body: ChatBody): ChatBody 
     // Completion tokens include reasoning; leave 2,000 beyond the visible-output budget.
     request.max_completion_tokens = Math.max(body.max_completion_tokens ?? 0, (body.max_tokens ?? 6000) + 2000);
     delete request.max_tokens;
-    request.reasoning_effort = 'low';
+    // Chat Completions rejects function tools with any reasoning effort above 'none' on gpt-6 models.
+    request.reasoning_effort = Array.isArray(body.tools) && body.tools.length ? 'none' : 'low';
   }
   return request;
 }

@@ -44,7 +44,7 @@ describe('SecretaryChatService', () => {
     const b = body(0);
     expect(b.tools.map((t: any) => t.function.name)).toEqual(NAMES);
     expect(b.tool_choice).toBe('auto');
-    expect(b).toMatchObject({ model: 'gpt-6-luna', reasoning_effort: 'low', max_completion_tokens: 8000 });
+    expect(b).toMatchObject({ model: 'gpt-6-luna', reasoning_effort: 'none', max_completion_tokens: 8000 });
     expect(b).not.toHaveProperty('temperature');
     expect(b).not.toHaveProperty('max_tokens');
     const sys = b.messages[0].content;
