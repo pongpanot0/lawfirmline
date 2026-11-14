@@ -352,6 +352,7 @@ export const TRIAL_DAYS = 30;
 
 /** Error `code` on the 403 for adding a case past the plan's maxCases. */
 export const PLAN_LIMIT_CASES = 'PLAN_LIMIT_CASES';
+export const PLAN_LIMIT_CUSTOM_FIELDS = 'PLAN_LIMIT_CUSTOM_FIELDS';
 /** Error `code` on the 403 for a feature the firm's plan does not include. */
 export const PLAN_FEATURE_LOCKED = 'PLAN_FEATURE_LOCKED';
 /** Error `code` on the 403 when the plan's AI actions are used up. */
@@ -1108,6 +1109,30 @@ export interface CaseFieldSchema {
   required?: boolean;
   options?: string[];
 }
+
+export type CustomFieldEntity = 'CASE' | 'CLIENT';
+export type CustomFieldVisibility = 'FIRM' | 'PERSONAL';
+export type CustomFieldType = 'TEXT' | 'LONG_TEXT' | 'NUMBER' | 'DATE' | 'SELECT' | 'BOOLEAN';
+export interface CustomFieldOption { id: string; label: string; archived?: boolean }
+export interface CustomFieldDefinitionDto {
+  id: string;
+  entityKind: CustomFieldEntity;
+  visibility: CustomFieldVisibility;
+  ownerUserId: string | null;
+  key: string;
+  label: string;
+  type: CustomFieldType;
+  options: CustomFieldOption[];
+  required: boolean;
+  caseTypeIds: string[];
+  section: string | null;
+  sortOrder: number;
+  helpText: string | null;
+  isSensitive: boolean;
+  archivedAt: string | null;
+}
+export type CustomFieldValue = string | number | boolean | null;
+export const RESERVED_CUSTOM_FIELD_KEYS = ['incidentDate', 'estimatedDamage', 'chargeSection', 'prosecutor'] as const;
 
 export interface DefaultCaseTypeDefinition {
   name: string;

@@ -22,6 +22,25 @@ enum FirmRole {
   EXTERNAL
 }
 
+enum CustomFieldEntity {
+  CASE
+  CLIENT
+}
+
+enum CustomFieldVisibility {
+  FIRM
+  PERSONAL
+}
+
+enum CustomFieldType {
+  TEXT
+  LONG_TEXT
+  NUMBER
+  DATE
+  SELECT
+  BOOLEAN
+}
+
 enum WorkflowRunStatus {
   ACTIVE
   DONE
@@ -447,6 +466,7 @@ model Firm {
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
 
+  customFieldDefinitions CustomFieldDefinition[]
   members            FirmMember[]
   invitations        Invitation[]
   subscriptions      Subscription[]
@@ -671,6 +691,8 @@ model User {
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
+  ownedCustomFieldDefinitions CustomFieldDefinition[] @relation("CustomFieldOwner")
+  createdCustomFieldDefinitions CustomFieldDefinition[] @relation("CustomFieldCreator")
   mfaCodes                   MfaCode[]
   sessions                   Session[]
   firmMembers                FirmMember[]
@@ -890,7 +912,37 @@ model CaseType {
   @@unique([firmId, name])
 }
 
+model CustomFieldDefinition {
+  id          String                @id @default(uuid())
+  firmId      String
+  entityKind  CustomFieldEntity
+  visibility  CustomFieldVisibility
+  ownerUserId String?
+  key         String
+  label       String
+  type        CustomFieldType
+  options     Json?
+  required    Boolean               @default(false)
+  caseTypeIds String[]
+  section     String?
+  sortOrder   Int                   @default(0)
+  helpText    String?
+  isSensitive Boolean               @default(false)
+  archivedAt  DateTime?
+  createdById String
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  firm      Firm  @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  owner     User? @relation("CustomFieldOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("CustomFieldCreator", fields: [createdById], references: [id])
+
+  @@unique([firmId, key])
+  @@index([firmId, entityKind])
+}
+
 model Client {
+  customFields Json?
   id           String   @id @default(uuid())
   firmId       String
   name         String

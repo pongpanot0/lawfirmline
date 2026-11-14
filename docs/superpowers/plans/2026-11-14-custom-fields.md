@@ -182,6 +182,59 @@ export const RESERVED_CUSTOM_FIELD_KEYS = ['incidentDate', 'estimatedDamage', 'c
 - [ ] **Step 2–4:** fail → implement → pass. Manual check against local DB: `GET /cases?cf={"cf_x":"opt1"}` returns only matching cases.
 - [ ] **Step 5:** Commit `feat(custom-fields): filter cases and clients by custom field`.
 
+### Tasks 7b–7d apply to every AI surface (owner request 2026-11-14: "in-app AI does what MCP does")
+
+- Write tools (`create_custom_field`, `update_custom_field`, `archive_custom_field`, `restore_custom_field`, `set_custom_field_values`) go into `AI_WRITE_SCHEMAS` in `apps/api/src/secretary/ai-write-tools.service.ts`, which MCP, the in-app AI drawer (secretary) and LINE AI already share — one definition, no per-surface copy.
+- In-app AI and LINE: these remain proposals — nothing saves until the person taps confirm (project rule: AI is user-invoked, confirm before save). Add each tool's confirm wording to the describe/preview function near `ai-write-tools.service.ts:252` (one heading + one line per changed field, in Thai; sensitive values shown as `[ข้อมูลส่วนบุคคล]`). MCP keeps the client's tool approval as its confirmation.
+- `source` = `MCP` for MCP, `AI` for in-app drawer and LINE.
+- Read tool `list_custom_fields` is added to the secretary read tools (`apps/api/src/secretary/secretary-tools.service.ts`) and to MCP `readSchemas`, so both surfaces list fields the same way.
+- Tests: for each write tool also assert the in-app path returns a proposal (no DB write) and the confirm executes it.
+
+### Task 7b: MCP — list and create fields [Sol] (owner request 2026-11-14)
+
+**Files:**
+- Modify: `apps/api/src/secretary/ai-write-tools.service.ts` (add `create_custom_field` to `AI_WRITE_TOOLS` / `AI_WRITE_SCHEMAS` / `AI_WRITE_DESCRIPTIONS` and its runner), `apps/api/src/mcp/mcp-tools.service.ts` (register read tool `list_custom_fields`), `apps/api/prisma/schema.prisma` + new migration `20261115010000_custom_field_source` (`CustomFieldDefinition.source` reusing the existing `TaskSource`-style enum or a new `CustomFieldSource { WEB MCP AI }`, default `WEB`)
+- Test: extend `apps/api/src/mcp/mcp-tools.spec.ts` and the ai-write-tools spec
+
+**Interfaces:**
+- Consumes: Task 3 `CustomFieldsService.create(user, dto)` and `listVisible(user, entityKind)` — no second code path; same permission (PERSONAL anyone, FIRM needs `manageFirmContent`), same caps and `PLAN_LIMIT_CUSTOM_FIELDS`.
+- `list_custom_fields` input `{ entityKind?: 'CASE' | 'CLIENT' }` → visible non-archived definitions (key, label, type, options labels, visibility, required, caseTypes by name, section). Output carries `structuredContent`.
+- `create_custom_field` input = Task 3 create DTO with `caseTypeNames?: string[]` resolved to ids within the firm (unknown name → Thai error listing valid names); `visibility` defaults to `PERSONAL` when omitted. Writes `source: MCP` (or `AI` from the in-app secretary), an `auditLog` row via the existing `via.auditPrefix`, and returns the created definition + app URL `/settings/custom-fields`.
+- Editing/archiving definitions: Task 7d. Value writes: Task 7c.
+
+- [ ] **Step 1: Failing tests:** member creates PERSONAL via MCP → row with `source: MCP`, audit row; member without `manageFirmContent` asks for FIRM → tool error (Thai), nothing written; FREE firm at 5 → tool error; `list_custom_fields` omits another user's PERSONAL; result has `structuredContent`.
+- [ ] **Step 2–4:** fail → implement → pass (`jest --runInBand src/mcp src/secretary src/custom-fields`).
+- [ ] **Step 5:** Commit `feat(custom-fields): MCP list and create tools`.
+- [ ] Web (Task 9): field list rows created through MCP/AI show the existing "ผ่าน AI" badge.
+
+### Task 7c: MCP — fill field values [Sol] (owner request 2026-11-14; widens MCP v1 "no case edits" for custom-field values only)
+
+**Files:** same as 7b (`ai-write-tools.service.ts`, `mcp-tools.service.ts`), tests in the same specs.
+
+**Interfaces:**
+- Consumes: Task 4 value-write service method (the same one behind `PATCH /cases/:id/custom-fields` and `PATCH /clients/:id/custom-fields`) — no second write path, so merge, validation, invisible-key refusal and audit all apply.
+- Tool `set_custom_field_values` input `{ entity: 'CASE' | 'CLIENT', id: string, values: Record<string, string | number | boolean | null> }` where keys may be the field `key` or its exact `label` (resolved among the user's visible, non-archived defs; ambiguous or unknown label → Thai error listing valid labels). SELECT accepts the option label and stores its option id.
+- Scope = MCP own-work-only: CASE must pass the existing MCP case scope (`mcpCaseScope` / staffed-or-assigned); CLIENT only when linked to at least one case in that scope; otherwise "ไม่พบข้อมูลนี้ในงานของคุณ".
+- Audit metadata carries `via: 'mcp'` + connection/client name (existing `via` object). The tool result lists changed labels; values of `isSensitive` fields are not echoed back.
+- Reads: values in other MCP read tools still follow Task 5 ctx `mcp` (sensitive and PERSONAL dropped) — writing does not widen reading.
+
+- [ ] **Step 1: Failing tests:** set value by label on own case → stored under key, audit row with via mcp; case outside scope → refusal, nothing written; another user's PERSONAL key → refusal; SELECT by option label stores id; sensitive value not in result; invalid NUMBER → Thai validation error.
+- [ ] **Step 2–4:** fail → implement → pass.
+- [ ] **Step 5:** Commit `feat(custom-fields): MCP fills field values`.
+
+### Task 7d: MCP — edit, archive, restore fields [Sol] (owner request 2026-11-14)
+
+**Files:** same as 7b; tests in the same specs.
+
+**Interfaces:**
+- Consumes: Task 3 `CustomFieldsService.update / archive / restore` — same permission (own PERSONAL only; FIRM needs `manageFirmContent`), same immutables (`entityKind`, `visibility`, `type`, `key`), same option-id rules, same caps on restore (FREE limit counts a restored field).
+- Tools: `update_custom_field { field: key | exact label, label?, options?: string[] (full desired list by label; missing labels become archived options, new labels get ids), required?, caseTypeNames?, section?, helpText?, isSensitive? }`; `archive_custom_field { field }`; `restore_custom_field { field }`. Field lookup among the user's visible defs (archived included for restore); ambiguous label → Thai error.
+- Each call writes an audit row with `via` mcp and returns the definition + `/settings/custom-fields` URL. Archive never deletes values. No hard delete tool.
+
+- [ ] **Step 1: Failing tests:** rename via MCP keeps stored values; options list drops one label → that option archived, existing values still display; member archives another user's PERSONAL → refusal; non-manager edits FIRM → refusal; restore at FREE limit → `PLAN_LIMIT_CUSTOM_FIELDS` error; attempt to pass `type` → schema rejects.
+- [ ] **Step 2–4:** fail → implement → pass.
+- [ ] **Step 5:** Commit `feat(custom-fields): MCP edit, archive, restore fields`.
+
 ### Task 8: Stitch mockups — approval gate [Claude]
 
 - [ ] Run better-* skills + thai-translate on: (a) `/settings/custom-fields` (tabs สำนวน/ลูกความ; sections "ของฉัน" and "ของสำนักงาน"; create/edit drawer with type picker, options, required, case types, sensitive toggle; archive/restore; drag order), (b) case detail "ข้อมูลเพิ่มเติม" section with inline edit + missing-required badge, (c) Client360 panel section, (d) case list filter chip, (e) mobile case + client detail section.
@@ -207,4 +260,4 @@ export const RESERVED_CUSTOM_FIELD_KEYS = ['incidentDate', 'estimatedDamage', 'c
 - [ ] Terra Playwright click-through on local web: member creates PERSONAL field, owner creates FIRM required NUMBER field for one case type, fill `0`, advance stage succeeds; second user cannot see first user's personal value; archive field → value hidden, advance not blocked. ≤12 screenshots + report in scratchpad.
 - [ ] Cursor review (`auto`), route real findings back, re-run tests.
 
-**Later phase (separate plan):** CSV export/import, document-template merge variables, MCP field discovery, number/date range filters, conditional visibility, multi-select, money/currency, sort by custom field.
+**Later phase (separate plan):** CSV export/import, document-template merge variables, MCP edit/archive fields, number/date range filters, conditional visibility, multi-select, money/currency, sort by custom field.
