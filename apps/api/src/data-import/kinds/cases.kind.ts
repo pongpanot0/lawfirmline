@@ -5,12 +5,12 @@ import { resolveCaseRows, ExcelCaseDraft, ImportLookups } from '../../case-impor
 import { caseImportTemplateSpec } from '../../case-import/case-import-template';
 import { splitList } from '../../common/excel-import/reader';
 import type { RawImportRow } from '../../common/excel-import/types';
-import { assertCanAddCases } from '../../common/plan-limits';
+import { assertCanAddCases, caseRoom } from '../../common/plan-limits';
 import { bangkokDayKey } from '../../common/utils/bangkok-time';
 import type { ImportDraft, ImportKindDef, ImportKindDeps } from '../import-kind';
 import { checkDuplicate, draftFor, lawyerCanImport, maxLength, memberHelp, ownValue, signature, staffMembers, ImportMember } from '../kind-helpers';
 
-export interface CaseLookups extends ImportLookups { members: ImportMember[]; lawyers: { id: string; name: string; email: string }[]; types: { id: string; name: string }[]; clients: { id: string; name: string }[]; existingNatural: Set<string>; today: Date }
+export interface CaseLookups extends ImportLookups { members: ImportMember[]; lawyers: { id: string; name: string; email: string }[]; types: { id: string; name: string }[]; clients: { id: string; name: string }[]; existingNatural: Set<string>; today: Date; room?: { limit: number; left: number } | null }
 export interface CaseDraft extends ExcelCaseDraft, ImportDraft {}
 const lower = (value: string) => value.trim().toLowerCase();
 /** Cases without either supplied identifier use title, lead, court level/name and client identity. */
@@ -19,6 +19,7 @@ export function resolveImportCaseRows(rows: RawImportRow[], lookups: CaseLookups
   const today = lookups.today;
   const seenNatural = new Map<string, number>();
   const seenNoKey = new Set<string>();
+  let left = lookups.room?.left ?? Infinity;
   return resolveCaseRows(rows, lookups, today).map((resolved, index) => {
     const base = draftFor(rows[index], user, lawyerCanImport(user));
     const draft: CaseDraft = { ...resolved, cells: base.cells, problems: [...base.problems, ...resolved.problems], refs: { userIds: [resolved.leadLawyerId, ...resolved.buddyIds], clientIds: [resolved.clientId], caseTypeIds: [resolved.caseTypeId] } };
@@ -46,6 +47,8 @@ export function resolveImportCaseRows(rows: RawImportRow[], lookups: CaseLookups
       seenNatural.set(key, draft.rowNumber);
       if (noKey) seenNoKey.add(key);
     }
+    // Same count as assertCanAddCases (closed cases included): show it in the preview, not only at save.
+    if (!draft.problems.length && left-- <= 0) draft.problems.push(`เกินจำนวนคดีของแพ็กเกจ (${lookups.room!.limit} คดี รวมคดีที่ปิดแล้ว) — ลดจำนวนแถวหรืออัปเกรดแพ็กเกจ`);
     return draft;
   });
 }
@@ -54,7 +57,7 @@ export function casesKind(deps: ImportKindDeps): ImportKindDef<CaseDraft, CaseLo
     kind: 'cases', label: 'คดี', sheet: 'คดี', headers: CASE_IMPORT_HEADERS, required: REQUIRED_HEADERS, help: HEADER_HELP, canImport: lawyerCanImport,
     template: (lookups) => { const extras = caseImportTemplateSpec({ caseTypes: lookups.types.map((type) => type.name), lawyers: lookups.lawyers }); return { ...extras, extraHelp: [...(extras.extraHelp ?? []), ...memberHelp(lookups.members)] }; },
     async lookups(db, user) {
-      const [lawyers, members, clients, types, cases, proceedings, visible] = await Promise.all([
+      const [lawyers, members, clients, types, cases, proceedings, visible, room] = await Promise.all([
         db.user.findMany({ where: { role: { in: [Role.ADMIN, Role.LAWYER] }, firmMembers: { some: { firmId: user.firmId, role: { not: FirmRole.EXTERNAL } } } }, select: { id: true, email: true, firstName: true, lastName: true }, orderBy: { lastName: 'asc' } }),
         staffMembers(db, user),
         db.client.findMany({ where: { firmId: user.firmId }, select: { id: true, name: true } }),
@@ -62,9 +65,10 @@ export function casesKind(deps: ImportKindDeps): ImportKindDef<CaseDraft, CaseLo
         db.case.findMany({ where: { firmId: user.firmId }, select: { ownRef: true, blackCaseNumber: true, courtName: true, deletedAt: true, title: true, leadLawyerId: true, courtLevel: true, clientId: true, clientName: true } }),
         db.caseProceeding.findMany({ where: { case: { firmId: user.firmId, deletedAt: null }, blackCaseNumber: { not: null } }, select: { blackCaseNumber: true, courtName: true, case: { select: { ownRef: true } } } }),
         db.case.findMany({ where: deps.caseAccess.getCaseFilterForUser(user), select: { ownRef: true } }),
+        caseRoom(db, user.firmId),
       ]);
       return {
-        today: new Date(`${bangkokDayKey(new Date())}T00:00:00Z`),
+        room, today: new Date(`${bangkokDayKey(new Date())}T00:00:00Z`),
         members, lawyers: lawyers.map((lawyer) => ({ id: lawyer.id, name: `${lawyer.firstName} ${lawyer.lastName}`.trim(), email: lawyer.email })), clients, types,
         lawyersByEmail: new Map(lawyers.map((lawyer) => [lower(lawyer.email), lawyer.id])), membersByEmail: new Map(members.map((member) => [lower(member.email), member.id])),
         clientsByName: new Map(clients.map((client) => [lower(client.name), client.id])), caseTypesByName: new Map(types.map((type) => [lower(type.name), type.id])),

@@ -105,6 +105,12 @@ describe('parseImportDate', () => {
     expect(day(parseImportDate(new Date(Date.UTC(2569, 2, 15))))).toBe('2026-03-15');
   });
 
+  it('reads a date pasted into a text-formatted cell as its Excel serial number', () => {
+    expect(day(parseImportDate(46096))).toBe('2026-03-15');
+    expect(parseImportDate(46096.5)).toBe('INVALID');
+    expect(parseImportDate(0)).toBe('INVALID');
+  });
+
   it('rejects impossible or malformed dates and treats blank as none', () => {
     expect(parseImportDate('31/02/2569')).toBe('INVALID');
     expect(parseImportDate('2569-03-15')).toBe('INVALID');

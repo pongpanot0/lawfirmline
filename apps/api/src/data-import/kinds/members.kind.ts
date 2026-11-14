@@ -7,11 +7,12 @@ import { checkDuplicate, draftFor, emailProblem, memberHelp, normalized, ownValu
 
 export const MEMBER_HEADERS = ['อีเมล *', 'ตำแหน่ง *'] as const;
 const ROLES = Object.fromEntries(Object.entries(FIRM_ROLE_LABELS).filter(([role]) => role !== FirmRole.OWNER).map(([role, labels]) => [labels.th, role as FirmRole]));
-export interface MemberLookups { members: ImportMember[]; memberEmails: Set<string>; pendingEmails: Set<string> }
+export interface MemberLookups { members: ImportMember[]; memberEmails: Set<string>; pendingEmails: Set<string>; maxUsers: number; seatsLeft: number }
 export interface MemberDraft extends ImportDraft { email: string; role: FirmRole }
 export const canImportMembers = (user: AuthUser) => staffCanImport(user) && hasFirmCapability(user.firmRole, 'inviteMembers');
 export function resolveMemberRows(rows: RawImportRow[], lookups: MemberLookups, user: AuthUser): MemberDraft[] {
   const seen = new Map<string, number>();
+  let seats = lookups.seatsLeft;
   return rows.map((row) => {
     const draft = draftFor(row, user, canImportMembers(user));
     const email = emailProblem(draft, MEMBER_HEADERS[0], true);
@@ -25,6 +26,8 @@ export function resolveMemberRows(rows: RawImportRow[], lookups: MemberLookups, 
       if (lookups.pendingEmails.has(normalized(email))) draft.problems.push(`${MEMBER_HEADERS[0]}: ${email} มีคำเชิญที่ยังไม่หมดอายุแล้ว`);
       checkDuplicate(draft, normalized(email), new Set(), seen, MEMBER_HEADERS[0]);
     }
+    // Same count as TenantService.seatsUsed (members + pending invitations): say so in the preview, not only at save.
+    if (!draft.problems.length && seats-- <= 0) draft.problems.push(`${MEMBER_HEADERS[0]}: ครบจำนวนผู้ใช้ตามแพ็กเกจแล้ว (${lookups.maxUsers} ที่นั่ง รวมคำเชิญที่ยังไม่ตอบ) — อัปเกรดแพ็กเกจหรือลดจำนวนแถว`);
     return { ...draft, email, role: role ?? FirmRole.ASSISTANT };
   });
 }
@@ -34,12 +37,14 @@ export function membersKind(deps: ImportKindDeps): ImportKindDef<MemberDraft, Me
     help: { 'อีเมล *': 'อีเมลผู้รับคำเชิญ ห้ามซ้ำกับสมาชิกหรือคำเชิญที่ยังไม่หมดอายุในสำนักงาน', 'ตำแหน่ง *': 'เลือกตำแหน่งที่คุณเชิญได้ ไม่อนุญาตเจ้าของสำนักงาน; ส่งอีเมลคำเชิญหลังบันทึกสำเร็จ คำเชิญมีอายุ 7 วัน' },
     template: (lookups, user) => ({ dropdowns: [[MEMBER_HEADERS[1], Object.entries(ROLES).filter(([, role]) => canInviteFirmRole(user.firmRole, role)).map(([label]) => label)]], examples: [['new.member@example.com', FIRM_ROLE_LABELS[FirmRole.ASSISTANT].th]], extraHelp: memberHelp(lookups.members) }),
     async lookups(db, user) {
-      const [members, allMembers, invitations] = await Promise.all([
+      const [members, allMembers, invitations, firm] = await Promise.all([
         staffMembers(db, user),
         db.firmMember.findMany({ where: { firmId: user.firmId }, select: { user: { select: { email: true } } } }),
         db.invitation.findMany({ where: { firmId: user.firmId, acceptedAt: null, expiresAt: { gt: new Date() } }, select: { email: true } }),
+        db.firm.findUnique({ where: { id: user.firmId }, select: { maxUsers: true } }),
       ]);
-      return { members, memberEmails: new Set(allMembers.map((member) => normalized(member.user.email))), pendingEmails: new Set(invitations.map((invitation) => normalized(invitation.email))) };
+      const maxUsers = firm?.maxUsers ?? 0;
+      return { members, memberEmails: new Set(allMembers.map((member) => normalized(member.user.email))), pendingEmails: new Set(invitations.map((invitation) => normalized(invitation.email))), maxUsers, seatsLeft: Math.max(0, maxUsers - allMembers.length - invitations.length) };
     },
     resolve: resolveMemberRows,
     async commit(tx, user, drafts) {

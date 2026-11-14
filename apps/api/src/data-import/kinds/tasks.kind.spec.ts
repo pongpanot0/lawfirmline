@@ -7,7 +7,7 @@ const base = { 'ชื่องาน *': 'ตรวจเอกสาร' };
 const one = (values: Record<string, string> = {}, user = importUser) => resolveTaskRows([row({ ...base, ...values })], staffLookups(), user)[0];
 describe('tasks import resolver and shared assignment rule', () => {
   it('uses service defaults, resolves staff/case refs and preserves completed status', () => {
-    expect(one()).toMatchObject({ problems: [], priority: TaskPriority.MEDIUM, status: TaskStatus.TODO, assigneeId: undefined });
+    expect(one()).toMatchObject({ problems: [], priority: TaskPriority.MEDIUM, status: TaskStatus.TODO, assigneeId: importUser.id });
     const draft = one({ เลขอ้างอิงคดี: 'REF001', 'ผู้รับผิดชอบ (อีเมล)': ' LAWYER@EXAMPLE.COM ', กำหนดเสร็จ: '15/12/2569', ความสำคัญ: 'สูง', สถานะ: 'เสร็จแล้ว' });
     expect(draft).toMatchObject({ problems: [], caseId: 'case-a', assigneeId: 'lawyer', priority: TaskPriority.HIGH, status: TaskStatus.DONE, refs: { userIds: ['lawyer'] } });
     expect(draft.cells['ผู้รับผิดชอบ (อีเมล)']).toContain('ทนาย หนึ่ง');
@@ -35,5 +35,9 @@ describe('tasks import resolver and shared assignment rule', () => {
     expect(todoAssignmentProblem({ ...importUser, id: 'senior', firmRole: FirmRole.SENIOR_LAWYER }, 'owner', FirmRole.OWNER)?.message).toContain('บทบาทต่ำกว่า');
     expect(todoAssignmentProblem(assistant, assistant.id)).toBeNull();
     expect(one({}, { ...importUser, firmRole: FirmRole.EXTERNAL }).problems.join(' ')).toContain('ไม่มีสิทธิ์');
+  });
+  it('gives a standalone task with no assignee to the importer, and leaves a case task unassigned', () => {
+    expect(one({ 'ชื่องาน *': 'งานทั่วไป' }).assigneeId).toBe(importUser.id);
+    expect(one({ 'ชื่องาน *': 'งานในคดี', เลขอ้างอิงคดี: 'REF001' }).assigneeId).toBeUndefined();
   });
 });

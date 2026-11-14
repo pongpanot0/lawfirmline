@@ -24,7 +24,7 @@ describe('DataImportService cases plan limit and writes', () => {
       user: { findMany: jest.fn().mockResolvedValue([{ id: 'u1', email: 'lawyer@firm.co', firstName: 'ทนาย', lastName: 'หนึ่ง' }]) },
       firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'u1', role: FirmRole.OWNER, defaultHourlyRate: null, user: { email: 'lawyer@firm.co', firstName: 'ทนาย', lastName: 'หนึ่ง' } }]), count: jest.fn().mockResolvedValue(1) },
       client: { findMany: jest.fn().mockResolvedValue([]) }, caseType: { findMany: jest.fn().mockResolvedValue([]) },
-      case: { findMany: jest.fn().mockResolvedValue([]) }, caseProceeding: { findMany: jest.fn().mockResolvedValue([]) },
+      firm: { findUnique: jest.fn().mockResolvedValue({ subscriptionPlan: null }) }, case: { findMany: jest.fn().mockResolvedValue([]) }, caseProceeding: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn() },
     };
     prisma = { $transaction: jest.fn((callback: (db: unknown) => unknown) => callback(tx)) };

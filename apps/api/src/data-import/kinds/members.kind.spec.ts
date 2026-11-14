@@ -3,7 +3,7 @@ import { canImportMembers, membersKind, MemberLookups, resolveMemberRows } from 
 import { emptyDeps, importUser, row, staffLookups } from './import-kind.fixtures';
 
 const base = { 'อีเมล *': 'new@example.com', 'ตำแหน่ง *': FIRM_ROLE_LABELS[FirmRole.ASSISTANT].th };
-const lookups = (): MemberLookups => ({ members: staffLookups().members, memberEmails: new Set(['owner@example.com']), pendingEmails: new Set(['pending@example.com']) });
+const lookups = (): MemberLookups => ({ members: staffLookups().members, memberEmails: new Set(['owner@example.com']), pendingEmails: new Set(['pending@example.com']), maxUsers: 10, seatsLeft: 10 });
 const one = (values: Record<string, string> = {}, user = importUser) => resolveMemberRows([row({ ...base, ...values })], lookups(), user)[0];
 describe('members import resolver', () => {
   it('normalizes invitation emails and resolves Thai roles, including external invite targets', () => {
@@ -34,5 +34,11 @@ describe('members import resolver', () => {
     const dropdown = membersKind(emptyDeps).template(lookups(), manager).dropdowns![0][1];
     expect(dropdown).not.toContain(FIRM_ROLE_LABELS[FirmRole.OWNER].th);
     expect(dropdown).not.toContain(FIRM_ROLE_LABELS[FirmRole.OFFICE_MANAGER].th);
+  });
+  it('flags rows beyond the seats left in the preview, counting only otherwise-valid rows', () => {
+    const rows = ['a', 'b', 'c'].map((name, i) => row({ 'อีเมล *': `${name}@example.com`, 'ตำแหน่ง *': 'ผู้ช่วย' }, i + 2));
+    const drafts = resolveMemberRows([row({ 'อีเมล *': 'owner@example.com', 'ตำแหน่ง *': 'ผู้ช่วย' }, 1), ...rows], { ...lookups(), maxUsers: 3, seatsLeft: 1 }, importUser);
+    expect(drafts.map((d) => d.problems.some((p) => p.includes('ครบจำนวนผู้ใช้')))).toEqual([false, false, true, true]);
+    expect(drafts[0].problems.join(' ')).toContain('เป็นสมาชิก');
   });
 });
