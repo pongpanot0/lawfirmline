@@ -11,6 +11,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { AuthProvider, useAuth } from '@/api/auth';
 import { registerForPush } from '@/api/push';
+import { useScreenTracking } from '@/lib/analytics';
 import { api } from '@/api/client';
 import { invalidateNotifications, useUnreadNotifications } from '@/api/hooks';
 import { PageFeedbackHost } from '@/components/feedback/PageFeedbackHost';
@@ -171,6 +172,7 @@ function AppStack() {
   const { scale } = useDisplayPreferences();
   const insets = useSafeAreaInsets();
   useReadOnlyCreateGuard();
+  useScreenTracking();
   return (
           <LockGate>
             <StatusBar style="dark" />
