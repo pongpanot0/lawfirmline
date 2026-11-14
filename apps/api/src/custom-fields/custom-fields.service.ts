@@ -4,10 +4,15 @@ import {
   AuthUser, CustomFieldDefinitionDto, CustomFieldEntity, CustomFieldOption, CustomFieldType,
   CustomFieldVisibility, hasFirmCapability, PLAN_LIMIT_CUSTOM_FIELDS, SubscriptionPlan,
 } from '@lawfirm/shared';
-import { CustomFieldDefinition, Prisma } from '../generated/prisma';
+import { CustomFieldDefinition, CustomFieldSource, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { canSee, generateFieldKey } from './custom-field-rules';
 import { CreateCustomFieldDto, UpdateCustomFieldDto, UpdateCustomFieldOptionDto } from './dto/custom-field.dto';
+
+export interface CustomFieldWriteVia {
+  source?: CustomFieldSource;
+  audit?: (id: string) => Prisma.AuditLogUncheckedCreateInput;
+}
 
 @Injectable()
 export class CustomFieldsService {
@@ -33,7 +38,7 @@ export class CustomFieldsService {
     return defs.map((def) => this.toDto(def));
   }
 
-  async create(user: AuthUser, dto: CreateCustomFieldDto): Promise<CustomFieldDefinitionDto> {
+  async create(user: AuthUser, dto: CreateCustomFieldDto, via?: CustomFieldWriteVia): Promise<CustomFieldDefinitionDto> {
     this.assertCapability(user, dto.visibility);
     return this.write(user, async (db) => {
       await this.validateScope(db, user, dto.entityKind, dto.visibility, dto.required ?? false, dto.caseTypeIds ?? []);
@@ -44,7 +49,7 @@ export class CustomFieldsService {
       while (await db.customFieldDefinition.findFirst({ where: { firmId: user.firmId, key } })) key = generateFieldKey();
       const saved = await db.customFieldDefinition.create({
         data: {
-          firmId: user.firmId, createdById: user.id,
+          firmId: user.firmId, createdById: user.id, source: via?.source ?? 'WEB',
           entityKind: dto.entityKind, visibility: dto.visibility,
           ownerUserId: dto.visibility === 'PERSONAL' ? user.id : null,
           key, label: dto.label, type: dto.type,
@@ -54,10 +59,10 @@ export class CustomFieldsService {
         },
       });
       return this.toDto(saved);
-    });
+    }, via);
   }
 
-  async update(user: AuthUser, id: string, dto: UpdateCustomFieldDto): Promise<CustomFieldDefinitionDto> {
+  async update(user: AuthUser, id: string, dto: UpdateCustomFieldDto, via?: CustomFieldWriteVia): Promise<CustomFieldDefinitionDto> {
     return this.write(user, async (db) => {
       const def = await this.findWritable(db, user, id);
       if (dto.isSensitive !== undefined && dto.isSensitive !== def.isSensitive && def.createdById !== user.id) {
@@ -73,24 +78,24 @@ export class CustomFieldsService {
           ...(options === undefined ? {} : { options: options.map((opt) => ({ ...opt })) }),
         },
       }));
-    });
+    }, via);
   }
 
-  async archive(user: AuthUser, id: string): Promise<CustomFieldDefinitionDto> {
+  async archive(user: AuthUser, id: string, via?: CustomFieldWriteVia): Promise<CustomFieldDefinitionDto> {
     return this.write(user, async (db) => {
       const def = await this.findWritable(db, user, id);
       if (def.archivedAt) return this.toDto(def);
       return this.toDto(await db.customFieldDefinition.update({ where: { id, firmId: user.firmId }, data: { archivedAt: new Date() } }));
-    });
+    }, via);
   }
 
-  async restore(user: AuthUser, id: string): Promise<CustomFieldDefinitionDto> {
+  async restore(user: AuthUser, id: string, via?: CustomFieldWriteVia): Promise<CustomFieldDefinitionDto> {
     return this.write(user, async (db) => {
       const def = await this.findWritable(db, user, id);
       if (!def.archivedAt) return this.toDto(def);
       await this.assertQuota(db, user, def.entityKind, def.visibility);
       return this.toDto(await db.customFieldDefinition.update({ where: { id, firmId: user.firmId }, data: { archivedAt: null } }));
-    });
+    }, via);
   }
 
   async order(user: AuthUser, ids: string[]): Promise<{ ordered: true }> {
@@ -167,11 +172,13 @@ export class CustomFieldsService {
     return { ...dto, options: (def.options ?? []) as unknown as CustomFieldOption[], archivedAt: def.archivedAt?.toISOString() ?? null };
   }
 
-  private write<T>(user: AuthUser, fn: (db: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  private write<T>(user: AuthUser, fn: (db: Prisma.TransactionClient) => Promise<T>, via?: CustomFieldWriteVia): Promise<T> {
     return this.prisma.$transaction(async (db) => {
       // Serialize quota checks and definition edits across this firm's requests.
       await db.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
-      return fn(db);
+      const saved = await fn(db);
+      if (via?.audit) await db.auditLog.create({ data: via.audit((saved as CustomFieldDefinitionDto).id) });
+      return saved;
     });
   }
 }

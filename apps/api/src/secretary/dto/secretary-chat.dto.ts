@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
 
 export class SecretaryMessageDto {
   @IsIn(['user', 'assistant'])
@@ -17,4 +17,9 @@ export class SecretaryChatDto {
   @ValidateNested({ each: true })
   @Type(() => SecretaryMessageDto)
   messages!: SecretaryMessageDto[];
+}
+
+export class SecretaryConfirmDto {
+  @IsUUID()
+  proposalId!: string;
 }

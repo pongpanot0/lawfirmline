@@ -12,7 +12,7 @@ import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { DailyBriefService } from './daily-brief.service';
 import { MatterBriefService } from './matter-brief.service';
 import { SecretaryChatService } from './secretary-chat.service';
-import { SecretaryChatDto } from './dto/secretary-chat.dto';
+import { SecretaryChatDto, SecretaryConfirmDto } from './dto/secretary-chat.dto';
 import { AiAction } from '../common/decorators/ai-action.decorator';
 
 @UseGuards(JwtAuthGuard)
@@ -36,7 +36,12 @@ export class SecretaryController {
   @AiAction('secretary-ai-secretary')
   secretary(@CurrentUser() u: AuthUser, @Body() dto: SecretaryChatDto) {
     if (dto.messages[dto.messages.length - 1].role !== 'user') throw new BadRequestException('ข้อความสุดท้ายต้องเป็นของผู้ใช้');
-    return this.chat.chat(u, dto.messages);
+    return this.chat.propose(u, dto.messages);
+  }
+
+  @Post('ai/secretary/confirm')
+  confirmSecretary(@CurrentUser() u: AuthUser, @Body() dto: SecretaryConfirmDto) {
+    return this.chat.confirm(u, dto.proposalId);
   }
 
   @Post('ai/secretary/transcribe')

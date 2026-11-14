@@ -22,6 +22,12 @@ enum FirmRole {
   EXTERNAL
 }
 
+enum CustomFieldSource {
+  WEB
+  MCP
+  AI
+}
+
 enum CustomFieldEntity {
   CASE
   CLIENT
@@ -921,6 +927,7 @@ model CustomFieldDefinition {
   key         String
   label       String
   type        CustomFieldType
+  source      CustomFieldSource      @default(WEB)
   options     Json?
   required    Boolean               @default(false)
   caseTypeIds String[]

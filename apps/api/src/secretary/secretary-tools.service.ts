@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { LeaveStatus } from '../generated/prisma';
 import { hasFirmCapability, redactForAi, workloadStatus } from '@lawfirm/shared';
 import type { AgendaItem, AuthUser, FirmCapability, SecretaryCard, TeamRadar } from '@lawfirm/shared';
@@ -60,11 +61,14 @@ export class SecretaryToolsService {
     private readonly collections: CollectionsService,
     private readonly agenda: AgendaService,
     private readonly operations: DailyOperationsService,
+    private readonly customFields: CustomFieldsService,
   ) {}
 
   /** Only the tools this user may run — the model never sees an office tool it would be refused. */
   definitions(user: AuthUser): OpenAiToolDef[] {
     return [
+      tool('list_custom_fields', 'List your visible active CASE or CLIENT custom field definitions, keys, labels, types, option labels, required flags, sections and case type names. Omit entityKind for both.',
+        { entityKind: { type: 'string', enum: ['CASE', 'CLIENT'] } }, []),
       tool('find_matters', 'Find cases and intakes by title, reference, client, case number or participant name. Max 8.',
         { query: { type: 'string' } }, ['query']),
       tool('case_overview', 'Get the brief of one case or intake: parties, stage, next event, open tasks. Pass caseId or intakeId.',
@@ -95,6 +99,7 @@ export class SecretaryToolsService {
     if (!canUse(user, name)) return bad('forbidden');
     let result: ToolResult;
     switch (name) {
+      case 'list_custom_fields': result = await this.listCustomFields(user, a); break;
       case 'find_matters': result = await this.findMatters(user, a, scope); break;
       case 'case_overview': result = await this.caseOverview(user, a, scope); break;
       case 'search_documents': result = await this.searchDocuments(user, a, scope); break;
@@ -115,6 +120,19 @@ export class SecretaryToolsService {
       default: return bad('unknown_tool');
     }
     return { ...result, content: redactContent(result.content) };
+  }
+
+  private async listCustomFields(user: AuthUser, a: Record<string, unknown>): Promise<ToolResult> {
+    if (a.entityKind !== undefined && a.entityKind !== 'CASE' && a.entityKind !== 'CLIENT') return bad('ระบุชนิดข้อมูลเป็น CASE หรือ CLIENT');
+    const entities = a.entityKind ? [a.entityKind as 'CASE' | 'CLIENT'] : ['CASE', 'CLIENT'] as const;
+    const defs = (await Promise.all(entities.map(entity => this.customFields.listVisible(user, entity)))).flat();
+    const types = await this.prisma.caseType.findMany({ where: { firmId: user.firmId }, select: { id: true, name: true } });
+    return { content: { fields: defs.map(def => ({
+      key: def.key, label: def.label, entityKind: def.entityKind, type: def.type, visibility: def.visibility,
+      options: def.options.filter(o => !o.archived).map(o => ({ id: o.id, label: o.label })),
+      required: def.required, caseTypes: def.caseTypeIds.map(id => types.find(t => t.id === id)?.name).filter(Boolean),
+      section: def.section, isSensitive: def.isSensitive,
+    })) }, cards: [] };
   }
 
   /** Same visibility as GET /leaves (leave-visibility.ts): others' leave is name and dates only unless you approve leave. */

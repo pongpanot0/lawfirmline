@@ -21,7 +21,7 @@ const decode = (r: any) => JSON.parse(r.content[0].text);
 
 describe('MCP tools', () => {
   let prisma: any, secretary: any, tasks: any, comments: any, billing: any, operations: any, leaves: any, workflows: any;
-  const make = (who: AuthUser) => { tools.clear(); const links = { originForSlug: () => 'https://firm.samnuan.com' } as any; new McpToolsService(secretary, links, operations, new AiWriteToolsService(prisma, { getOwnCaseFilterForUser: () => own, getCaseFilterForUser: () => appFilter, getOwnIntakeFilterForUser: () => ownIntake, getIntakeFilterForUser: async () => appFilter } as any, tasks, comments, billing, links, leaves, workflows)).createServer(who, connection); };
+  const make = (who: AuthUser) => { tools.clear(); const links = { originForSlug: () => 'https://firm.samnuan.com' } as any; new McpToolsService(secretary, links, operations, new AiWriteToolsService(prisma, { getOwnCaseFilterForUser: () => own, getCaseFilterForUser: () => appFilter, getOwnIntakeFilterForUser: () => ownIntake, getIntakeFilterForUser: async () => appFilter } as any, tasks, comments, billing, links, leaves, workflows, {} as any, {} as any)).createServer(who, connection); };
   beforeEach(() => {
     tools.clear();
     prisma = { case: { findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }) }, intake: { findFirst: jest.fn().mockResolvedValue({ id: 'intake-1' }), update: jest.fn() }, task: { findFirst: jest.fn() }, auditLog: { create: jest.fn() }, documentDateSuggestion: { create: jest.fn().mockResolvedValue({ id: 'suggestion' }) } };

@@ -12,7 +12,7 @@ describe('AiWriteToolsService.check — validates and scopes without saving', ()
     };
     tasks = { create: jest.fn(), update: jest.fn() };
     const access = { getOwnCaseFilterForUser: () => own, getCaseFilterForUser: () => ({ app: true }), getOwnIntakeFilterForUser: () => ({}) };
-    svc = new AiWriteToolsService(prisma, access as any, tasks, {} as any, {} as any, { originForSlug: () => 'https://firm.samnuan.com' } as any, {} as any, {} as any);
+    svc = new AiWriteToolsService(prisma, access as any, tasks, {} as any, {} as any, { originForSlug: () => 'https://firm.samnuan.com' } as any, {} as any, {} as any, {} as any, {} as any);
   });
 
   it('returns the parsed args and the case label, saving nothing', async () => {
