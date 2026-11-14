@@ -154,7 +154,7 @@ export default function LoginPage() {
                 <PasswordInput id="password" name="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1" required />
               </div>
               <div className="text-right">
-                <Link href="/forgot-password" className="text-xs text-primary hover:underline">{d.auth.forgotPassword}</Link>
+                <Link href="/forgot-password" className="inline-flex min-h-6 items-center text-xs text-primary hover:underline">{d.auth.forgotPassword}</Link>
               </div>
               {error && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
               <Button type="submit" className="h-11 w-full" disabled={submitting || loading}>
@@ -164,7 +164,7 @@ export default function LoginPage() {
 
             <p className="mt-6 border-t pt-5 text-center text-sm text-muted-foreground">
               {d.auth.newFirm}{' '}
-              <Link href="/register" className="font-medium text-primary hover:underline">{d.auth.registerLink}</Link>
+              <Link href="/register" className="inline-flex min-h-6 items-center font-medium text-primary hover:underline">{d.auth.registerLink}</Link>
             </p>
             <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">
               {d.auth.needAccess}

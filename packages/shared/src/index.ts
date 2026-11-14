@@ -303,9 +303,19 @@ export interface StorageUsage {
   limitBytes: number | null;
 }
 
+/**
+ * Add-on packs are sold to Team and up only: a one-person firm counts as an individual, and
+ * Apple 3.1.3(c) allows selling outside In-App Purchase to organisations only (same reason Solo is not sold).
+ */
+export function canBuyAddOns(plan: SubscriptionPlan | null | undefined): boolean {
+  return !!plan && SELLABLE_PLANS.includes(plan);
+}
+
 export interface BillingUsage {
   ai: AiBalance;
   storage: StorageUsage;
+  /** Owner of this firm's plan may buy packs (see canBuyAddOns). */
+  canBuyAddOns: boolean;
   addOns: Array<{
     kind: AddOnKind;
     credits: number;
@@ -1222,6 +1232,8 @@ export interface SubscriptionSummary {
   daysRemaining: number | null;
   maxUsers: number;
   memberCount: number;
+  /** The plan's case cap and how many more fit (closed cases count); null when there is no cap. */
+  cases: { limit: number; left: number } | null;
   canAccessApp: boolean;
   /** Paid by card through a Stripe subscription that renews on its own (plan changes go through changePlan, not checkout). */
   autoRenew: boolean;

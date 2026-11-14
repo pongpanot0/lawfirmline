@@ -14,10 +14,10 @@ import {
   SubscriptionPlan,
   SubscriptionStatus,
   SubscriptionSummary,
-  PlanOption,
-} from '@lawfirm/shared';
+  PlanOption, canBuyAddOns } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
 import { PlanQuotaService } from '../common/services/plan-quota.service';
+import { caseRoom } from '../common/plan-limits';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
 import { StripeService } from './stripe.service';
@@ -69,6 +69,7 @@ export class SubscriptionService {
       daysRemaining,
       maxUsers: firm.maxUsers,
       memberCount,
+      cases: await caseRoom(this.prisma, user.firmId),
       canAccessApp: authUser ? this.tenant.canAccessApp(authUser) : false,
       autoRenew,
       billingPeriod: (stripeSub?.billingPeriod as BillingPeriod | undefined) ?? null,
@@ -155,6 +156,7 @@ export class SubscriptionService {
     ]);
     return {
       ai, storage,
+      canBuyAddOns: canBuyAddOns(user.subscriptionPlan),
       addOns: addOns.map((row) => ({
         kind: row.kind as AddOnKind, credits: row.credits, storageGb: row.storageGb, amountThb: row.amountThb,
         createdAt: row.createdAt.toISOString(), expiresAt: row.expiresAt?.toISOString() ?? null,
@@ -166,6 +168,7 @@ export class SubscriptionService {
   async createAddOnCheckout(user: AuthUser, addOn: AddOnKind, paymentMethod: CheckoutPaymentMethod = 'card'): Promise<AddOnCheckoutResponse> {
     if (!this.tenant.isOwner(user) || !hasFirmCapability(user.firmRole, 'manageSubscription')) throw new ForbiddenException('Only owners can manage billing');
     if (!Object.prototype.hasOwnProperty.call(ADD_ONS, addOn)) throw new BadRequestException('Unknown add-on');
+    if (!canBuyAddOns(user.subscriptionPlan)) throw new ForbiddenException('ซื้อแพ็กเพิ่มได้ตั้งแต่แพ็กเกจ Team ขึ้นไป อัปเกรดแพ็กเกจก่อนแล้วลองอีกครั้ง');
     const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId } });
     if (!firm) throw new BadRequestException('Firm not found');
     const customer = await this.ensureCustomer(firm.id, firm.name, firm.stripeCustomerId, user.email);

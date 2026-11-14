@@ -58,7 +58,7 @@ export default function ForgotPasswordPage() {
         </form>
       )}
       <p className="mt-6 border-t pt-5 text-center text-sm">
-        <Link href="/login" className="font-medium text-primary hover:underline">{d.auth.backToSignIn}</Link>
+        <Link href="/login" className="inline-flex min-h-6 items-center font-medium text-primary hover:underline">{d.auth.backToSignIn}</Link>
       </p>
     </AuthShell>
   );

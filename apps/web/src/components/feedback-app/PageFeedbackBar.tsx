@@ -115,7 +115,7 @@ export function PageFeedbackBar({
   }
   if (!visible || dialogOpen) return null;
   return (
-    <div className="sticky bottom-4 z-20 mx-auto w-full max-w-[640px] rounded-xl border border-border bg-card p-4 shadow-lg">
+    <div className="sticky bottom-[5.5rem] z-20 mx-auto lg:bottom-4 w-full max-w-[640px] rounded-xl border border-border bg-card p-4 shadow-lg">
       <div className="flex justify-between gap-2">
         <h2 className="flex items-center gap-2 font-semibold">
           <MessageCircleQuestion className="h-5 w-5" />

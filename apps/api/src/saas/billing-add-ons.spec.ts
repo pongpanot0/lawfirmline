@@ -11,6 +11,7 @@ import { FirmRoleGuard } from './guards/firm-role.guard';
 const GB = 1024 ** 3;
 describe('billing add-ons and usage', () => {
   const owner = { id: 'u', firmId: 'f', email: 'u@test', firmRole: FirmRole.OWNER, subscriptionPlan: SubscriptionPlan.FREE } as any;
+  const teamOwner = { ...owner, subscriptionPlan: SubscriptionPlan.TEAM };
   const create = jest.fn();
   const prisma = {
     firm: { findUnique: jest.fn() },
@@ -32,7 +33,7 @@ describe('billing add-ons and usage', () => {
   });
 
   it.each(['card', 'promptpay'] as const)('Free owners can buy one-time %s credit packs', async (paymentMethod) => {
-    await expect(service.createAddOnCheckout(owner, 'AI_100', paymentMethod)).resolves.toEqual({ url: 'https://checkout.stripe.com/c/test' });
+    await expect(service.createAddOnCheckout(teamOwner, 'AI_100', paymentMethod)).resolves.toEqual({ url: 'https://checkout.stripe.com/c/test' });
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       mode: 'payment', client_reference_id: 'f', payment_method_types: [paymentMethod],
       metadata: { firmId: 'f', addOn: 'AI_100' }, success_url: 'https://app.test/account/billing?addon=1',
@@ -41,15 +42,32 @@ describe('billing add-ons and usage', () => {
   });
 
   it.each(Object.entries(ADD_ONS))('checks out %s at its own price', async (kind, pack) => {
-    await service.createAddOnCheckout(owner, kind as keyof typeof ADD_ONS);
+    await service.createAddOnCheckout(teamOwner, kind as keyof typeof ADD_ONS);
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       mode: 'payment', metadata: { firmId: 'f', addOn: kind },
       line_items: [{ quantity: 1, price_data: { currency: 'thb', unit_amount: pack.priceThb * 100, product_data: { name: `Samnuan ${kind}` } } }],
     }));
   });
 
+  it('packs are sold to Team and up only: Free and Solo owners are refused before Stripe', async () => {
+    for (const plan of [SubscriptionPlan.FREE, SubscriptionPlan.SOLO, null]) {
+      const err = await service.createAddOnCheckout({ ...owner, subscriptionPlan: plan }, 'AI_100').catch((e) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect(err.message).toContain('Team');
+    }
+    expect(stripe.client.checkout.sessions.create).not.toHaveBeenCalled();
+    for (const plan of [SubscriptionPlan.TEAM, SubscriptionPlan.FIRM, SubscriptionPlan.PROFESSIONAL]) {
+      await expect(service.createAddOnCheckout({ ...owner, subscriptionPlan: plan }, 'STORAGE_10GB')).resolves.toHaveProperty('url');
+    }
+  });
+
+  it('usage says whether this firm may buy packs', async () => {
+    expect((await service.getUsage(owner)).canBuyAddOns).toBe(false);
+    expect((await service.getUsage(teamOwner)).canBuyAddOns).toBe(true);
+  });
+
   it('only owners can create an add-on checkout', async () => {
-    await expect(service.createAddOnCheckout({ ...owner, firmRole: FirmRole.LAWYER }, 'AI_100')).rejects.toThrow(ForbiddenException);
+    await expect(service.createAddOnCheckout({ ...teamOwner, firmRole: FirmRole.LAWYER }, 'AI_100')).rejects.toThrow(ForbiddenException);
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -68,6 +86,7 @@ describe('billing add-ons and usage', () => {
     expect(usage).toEqual({
       ai: { unlimited: false, period: 'LIFETIME', planQuota: 20, planUsed: 19, planRemaining: 1, packRemaining: 100, remaining: 101 },
       storage: { unlimited: false, usedBytes: 1024, planGb: 1, addOnGb: 10, limitBytes: 11 * GB },
+      canBuyAddOns: false,
       addOns: [{ kind: 'AI_100', credits: 100, storageGb: 0, amountThb: 99, createdAt: '2026-11-14T00:00:00.000Z', expiresAt: null }], prices: [
         { kind: 'AI_100', priceThb: 99, credits: 100, storageGb: 0, days: null },
         { kind: 'AI_500', priceThb: 399, credits: 500, storageGb: 0, days: null },

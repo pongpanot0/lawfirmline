@@ -1,6 +1,20 @@
 import { ForbiddenException } from '@nestjs/common';
 import { PLAN_LIMIT_CASES, SubscriptionPlan } from '@lawfirm/shared';
-import { assertCanAddCases } from './plan-limits';
+import { assertCanAddCases, caseRoom } from './plan-limits';
+
+describe('caseRoom', () => {
+  const db = (plan: SubscriptionPlan | null, total: number) =>
+    ({ firm: { findUnique: jest.fn().mockResolvedValue({ subscriptionPlan: plan }) }, case: { count: jest.fn().mockResolvedValue(total) } }) as any;
+
+  it('tells a Free firm how many cases are left, never below zero', async () => {
+    await expect(caseRoom(db(SubscriptionPlan.FREE, 12), 'f1')).resolves.toEqual({ limit: 15, left: 3 });
+    await expect(caseRoom(db(SubscriptionPlan.FREE, 20), 'f1')).resolves.toEqual({ limit: 15, left: 0 });
+  });
+
+  it('is null for plans without a cap', async () => {
+    await expect(caseRoom(db(SubscriptionPlan.TEAM, 500), 'f1')).resolves.toBeNull();
+  });
+});
 
 describe('assertCanAddCases', () => {
   const db = (plan: SubscriptionPlan | null, open: number) =>

@@ -1,5 +1,6 @@
 'use client';
 
+import { caseClientName } from '@/lib/case-party-display';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { MatterBrief } from '@lawfirm/shared';
@@ -63,7 +64,7 @@ export function CaseBriefCard({ caseId }: { caseId: string }) {
       </CardHeader>
       <CardContent className="grid gap-4 lg:grid-cols-2">
         <dl className="space-y-1.5">
-          <Row label="ลูกความ" value={brief.clientName} />
+          <Row label="ลูกความ" value={caseClientName(brief.clientName) ?? 'ยังไม่ระบุ'} />
           <Row label="ฝ่ายเรา" value={brief.ourParties.join(', ') || null} />
           <Row label="คู่กรณี" value={brief.opponents.map((o) => o.name).join(', ') || null} />
           <Row label="ทนายฝั่งตรงข้าม" value={brief.opposingCounsel.join(', ') || null} />

@@ -1,7 +1,7 @@
 'use client';
 
 import { CustomFieldsSection } from '@/components/custom-fields/CustomFieldsSection';
-
+import { caseClientName } from '@/lib/case-party-display';
 import { ThaiDateField } from '@/components/ui/ThaiDateField';
 import dynamic from 'next/dynamic';
 const CaseMessagesPanel = dynamic(() => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> });
@@ -666,7 +666,7 @@ export default function CaseDetailPage() {
       limitationDeadline: legalCase.limitationDeadline ? bangkokDateInputValue(legalCase.limitationDeadline) : '',
       additionalClientIds: (legalCase.additionalClients ?? []).map((ac) => ac.clientId),
       clientId: legalCase.clientId ?? '',
-      clientName: legalCase.client?.name ?? legalCase.clientName ?? '',
+      clientName: legalCase.client?.name ?? caseClientName(legalCase.clientName) ?? '',
       customFields: Object.fromEntries(caseOverviewCustomFields(legalCase.caseType?.fieldSchema).map((field) => [field.key, String(legalCase.customFields?.[field.key] ?? '')])),
       customers: legalCase.customers?.length
         ? legalCase.customers.map((customer) => ({
@@ -824,7 +824,7 @@ export default function CaseDetailPage() {
   const customFields = legalCase.customFields as Record<string, string> | null;
   const chargeSection = typeof legalCase.customFields?.chargeSection === 'string' ? legalCase.customFields.chargeSection.trim() : '';
   const policyRef = legalCase.insuranceClaim?.policyNumber?.trim() || '—';
-  const clientDisplay = legalCase.client?.name ?? legalCase.clientName ?? '—';
+  const clientDisplay = legalCase.client?.name ?? caseClientName(legalCase.clientName);
   // ลูกความ = คนที่เราว่าความให้ / ลูกค้า = ผู้ว่าจ้างที่เราวางบิล — คนละคนกันในงานประกัน
   const customerDisplay = formatCustomers(legalCase.customers);
   const customerIsClient = customersSameAsClient(legalCase.customers, legalCase.clientId);
@@ -953,7 +953,7 @@ export default function CaseDetailPage() {
             </div>
             <h1 className="mt-2 font-[family-name:var(--case-font-display)] text-[32px] font-semibold leading-snug">{legalCase.title}</h1>
             <div className="mt-3 flex flex-wrap gap-2">
-              {clientDisplay !== '—' && <span className={v2.chip}><User aria-hidden="true" size="1.1em" /> ลูกความ <b>{clientDisplay}</b></span>}
+              <span className={v2.chip}><User aria-hidden="true" size="1.1em" /> ลูกความ <b>{clientDisplay ?? 'ยังไม่ระบุ'}</b></span>
               <span className={v2.chip}><Scale aria-hidden="true" size="1.1em" /> {legalCase.courtName || legalCase.blackCaseNumber ? <>{legalCase.courtName ?? 'ศาล'}{legalCase.blackCaseNumber && <> · <b>{legalCase.blackCaseNumber}</b></>}</> : <>ศาล <b>ยังไม่ระบุ</b></>}</span>
               {legalCase.leadLawyer && <span className={v2.chip}><Briefcase aria-hidden="true" size="1.1em" /> เจ้าของคดี <b>{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</b>{legalCase.assignments.some(a => a.user.id !== legalCase.leadLawyer.id) && ` · ทีมอีก ${legalCase.assignments.filter(a => a.user.id !== legalCase.leadLawyer.id).length} คน`}</span>}
               <span className={v2.chip}><CalendarDays aria-hidden="true" size="1.1em" /> นัดถัดไป <b>{upcomingEvents[0] ? `${upcomingEvents[0].title} ${new Date(upcomingEvents[0].startAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })} ${new Date(upcomingEvents[0].startAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}` : 'ยังไม่มี'}</b></span>
@@ -1021,7 +1021,7 @@ export default function CaseDetailPage() {
 
       {stageTaskError && !menuPanel && <p role="alert" className="my-3 text-sm text-destructive">{stageTaskError}</p>}
       {token && <div className="mb-6 min-w-0 space-y-4">
-        <CaseJourneyPanel compact={activeTab !== 'overview'} openTaskCount={pendingTasks.length} onCloseCase={openCloseCase} onReopenCase={() => void handleReopenCase()} reopening={reopeningCase} closed={legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED' ? { at: legalCase.closedAt ?? null, summary: legalCase.closingSummary ?? null } : null} idleDays={timeline[0] ? Math.max(0, Math.floor((Date.now() - Date.parse(timeline[0].date)) / 86400000)) : null} token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} stage={legalCase.stage ?? null} taskCount={tasks.length} tasksVersion={tasks} onChanged={loadCase} onJourney={setJourneyState} onAdvance={(target, explicit) => void confirmJourneyAdvance(target, explicit)} onEdit={(missing) => { selectTab('overview'); void startEditOverview(); if (missing?.length) setFocusMissing(missing[0]); }} onOpenTask={(taskId) => router.push(`/cases/${id}?task=${encodeURIComponent(taskId)}`)} />
+        <CaseJourneyPanel compact={activeTab !== 'overview'} openTaskCount={pendingTasks.length} onCloseCase={openCloseCase} onReopenCase={() => void handleReopenCase()} reopening={reopeningCase} closed={legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED' ? { at: legalCase.closedAt ?? null, summary: legalCase.closingSummary ?? null } : null} idleDays={timeline[0] ? Math.max(0, Math.floor((Date.now() - Date.parse(timeline[0].date)) / 86400000)) : null} token={token} caseId={id} intakeId={legalCase.intake?.id} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n): n is string => !!n && n !== '—')} stage={legalCase.stage ?? null} taskCount={tasks.length} tasksVersion={tasks} onChanged={loadCase} onJourney={setJourneyState} onAdvance={(target, explicit) => void confirmJourneyAdvance(target, explicit)} onEdit={(missing) => { selectTab('overview'); void startEditOverview(); if (missing?.length) setFocusMissing(missing[0]); }} onOpenTask={(taskId) => router.push(`/cases/${id}?task=${encodeURIComponent(taskId)}`)} />
 
 
       </div>}
@@ -1260,7 +1260,7 @@ export default function CaseDetailPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">ชื่อลูกความ</p>
-                    <p className="font-medium">{clientDisplay}</p>
+                    <p className="font-medium">{clientDisplay ?? 'ยังไม่ระบุ'}</p>
                     {legalCase.client?.contacts && legalCase.client.contacts.length > 0 && (
                       <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                         {legalCase.client.contacts.slice(0, 2).map((c, i) => (
@@ -1742,9 +1742,9 @@ export default function CaseDetailPage() {
       </details>
       </div>
       )}
-        {activeTab === 'parties' && <div role="tabpanel" id="case-tabpanel-parties" aria-labelledby="case-tab-parties"><CaseParticipantsSection caseId={legalCase.id} client={clientDisplay !== '—' ? { name: clientDisplay, role: legalCase.partyRole ? PARTY_ROLE_LABELS[legalCase.partyRole as PartyRole] : null } : undefined} initialParticipants={legalCase.participants} onChanged={(participants) => setCase(current => current ? { ...current, participants } : current)} /></div>}
+        {activeTab === 'parties' && <div role="tabpanel" id="case-tabpanel-parties" aria-labelledby="case-tab-parties"><CaseParticipantsSection caseId={legalCase.id} client={clientDisplay ? { name: clientDisplay, role: legalCase.partyRole ? PARTY_ROLE_LABELS[legalCase.partyRole as PartyRole] : null } : undefined} initialParticipants={legalCase.participants} onChanged={(participants) => setCase(current => current ? { ...current, participants } : current)} /></div>}
         {activeTab !== 'overview' && activeTab !== 'parties' && (activeTab !== 'cargo-claim' || !!legalCase.cargoClaim) && (activeTab !== 'closing-report' || legalCase.stage === 'CLOSING' || legalCase.status === CaseStatus.CLOSED || legalCase.status === 'ARCHIVED' || searchParams.has('draftId')) && <CaseSectionContent tab={activeTab} caseId={id} legalCase={legalCase} thread={searchParams.get('thread')} showAiAnalysis={showAiAnalysis} setShowAiAnalysis={setShowAiAnalysis} onChanged={loadCase} onTasksChanged={setTasks} onOpenSuggestions={() => selectTab('documents')} />}
-        {activeTab === 'tasks' && token && <details className={`${v2.card} mt-5`}><summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">ข้ามงานที่ไม่จำเป็น <span className={v2.label}>· ระบุเหตุผลแล้วข้ามงานในขั้นนี้ · รายการตรวจก่อนฟ้อง</span></summary><div className="border-t border-[#e2e0d8] p-5"><CaseJourneyPanel tasksOnly token={token} caseId={id} intakeId={legalCase.intake?.id} stage={legalCase.stage ?? null} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n) => n && n !== '—')} tasksVersion={tasks} onChanged={loadCase} onAdvance={() => {}} onEdit={() => { selectTab('overview'); void startEditOverview(); }} onOpenTask={() => {}} /></div></details>}
+        {activeTab === 'tasks' && token && <details className={`${v2.card} mt-5`}><summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 py-3 font-semibold">ข้ามงานที่ไม่จำเป็น <span className={v2.label}>· ระบุเหตุผลแล้วข้ามงานในขั้นนี้ · รายการตรวจก่อนฟ้อง</span></summary><div className="border-t border-[#e2e0d8] p-5"><CaseJourneyPanel tasksOnly token={token} caseId={id} intakeId={legalCase.intake?.id} stage={legalCase.stage ?? null} partyNames={[clientDisplay, ...(legalCase.participants ?? []).map((p) => p.name)].filter((n): n is string => !!n && n !== '—')} tasksVersion={tasks} onChanged={loadCase} onAdvance={() => {}} onEdit={() => { selectTab('overview'); void startEditOverview(); }} onOpenTask={() => {}} /></div></details>}
       </div>
 
       {legalCase.intake && preFiling && <>

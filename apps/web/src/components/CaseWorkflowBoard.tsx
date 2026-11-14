@@ -1,5 +1,6 @@
 'use client';
 
+import { caseClientName } from '@/lib/case-party-display';
 import { getCaseStatusDisplay } from '@/lib/case-status';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
@@ -68,7 +69,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                     <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Landmark aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />{c.courtName}</p>
                   )}
                   {c.clientName && (
-                    <p className="text-xs text-muted-foreground">ลูกความ: {c.clientName}</p>
+                    <p className="text-xs text-muted-foreground">ลูกความ: {caseClientName(c.clientName) ?? 'ยังไม่ระบุ'}</p>
                   )}
                 </Link>
                 {canDrag && onStatusChange && (

@@ -131,10 +131,10 @@ function SopsContent() {
         <SearchHint id="sops-search-hint">{getPageGuide('/sops')?.searchHint}</SearchHint>
         </div>
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
-          <TabsList className="grid h-auto w-full grid-cols-3 gap-1">
-            <TabsTrigger className="min-w-0 whitespace-normal" value="manual"><BookOpen className="mr-1 h-4 w-4 shrink-0" />คู่มือให้อ่าน {manualItems.length}</TabsTrigger>
-            <TabsTrigger className="min-w-0 whitespace-normal" value="auto"><Zap className="mr-1 h-4 w-4 shrink-0" />ชุดงานอัตโนมัติ {autoItems.length}</TabsTrigger>
-            <TabsTrigger className="min-w-0 whitespace-normal" value="handoff"><ArrowRightLeft className="mr-1 h-4 w-4 shrink-0" />สายงานส่งต่อ {flowCount}</TabsTrigger>
+          <TabsList className="h-auto w-full gap-1">
+            <TabsTrigger className="flex-1 whitespace-nowrap" value="manual"><BookOpen className="mr-1 h-4 w-4 shrink-0" />คู่มือให้อ่าน {manualItems.length}</TabsTrigger>
+            <TabsTrigger className="flex-1 whitespace-nowrap" value="auto"><Zap className="mr-1 h-4 w-4 shrink-0" />ชุดงานอัตโนมัติ {autoItems.length}</TabsTrigger>
+            <TabsTrigger className="flex-1 whitespace-nowrap" value="handoff"><ArrowRightLeft className="mr-1 h-4 w-4 shrink-0" />สายงานส่งต่อ {flowCount}</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>

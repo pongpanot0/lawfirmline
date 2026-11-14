@@ -90,10 +90,10 @@ export default function RegisterPage() {
           {error && <p ref={errorRef} role="alert" tabIndex={-1} className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
           <Button type="submit" className="h-11 w-full" disabled={loading || submitting}>{submitting ? d.auth.creatingFirm : d.auth.createFirm}</Button>
           <p className="text-center text-xs text-muted-foreground">{d.auth.trialNote}</p>
-          <p className="text-center text-xs text-muted-foreground"><Link href="/privacy" className="underline underline-offset-4">นโยบายความเป็นส่วนตัวของ Samnuan</Link></p>
+          <p className="text-center text-xs text-muted-foreground"><Link href="/privacy" className="inline-flex min-h-6 items-center underline underline-offset-4">นโยบายความเป็นส่วนตัวของ Samnuan</Link></p>
         </form>
       )}
-      <p className="mt-6 border-t pt-5 text-center text-sm text-muted-foreground">{d.auth.haveAccount} <Link href="/login" className="font-medium text-primary hover:underline">{d.auth.signIn}</Link></p>
+      <p className="mt-6 border-t pt-5 text-center text-sm text-muted-foreground">{d.auth.haveAccount} <Link href="/login" className="inline-flex min-h-6 items-center font-medium text-primary hover:underline">{d.auth.signIn}</Link></p>
       <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">{locale === 'th' ? 'ต้องการเข้าร่วมสำนักงานที่ใช้ Samnuan อยู่แล้ว? ขอคำเชิญจากเจ้าของสำนักงาน' : 'Want to join an office already using Samnuan? Ask the office owner for an invitation.'}</p>
     </AuthShell>
   );
