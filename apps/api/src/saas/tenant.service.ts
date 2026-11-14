@@ -64,7 +64,7 @@ export class TenantService {
       trialEndAt: firm.trialEndAt.toISOString(),
       currentPeriodEnd: firm.currentPeriodEnd?.toISOString() ?? null,
       maxUsers: firm.maxUsers,
-      planGrandfathered: planGrandfathered(firm.subscriptionPlan as SubscriptionPlan | null, firm.createdAt),
+      planGrandfathered: planGrandfathered(firm.subscriptionPlan as SubscriptionPlan | null, firm.createdAt) || firm.quotaExempt,
       mfaEnabled: user.mfaEnabled,
       isPlatformAdmin: platformAdminEmails().has(user.email.toLowerCase()),
       role: user.role as AuthUser['role'],

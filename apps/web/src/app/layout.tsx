@@ -58,9 +58,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans">
         <ThemeProvider>
           <LocaleProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <AuthProvider>{children}<ActionFeedback /></AuthProvider>
           </LocaleProvider>
-          <ActionFeedback />
           <AiWorkingIndicator />
           <ThaiValidity />
           <ConfirmHost />

@@ -1,7 +1,7 @@
 import { IntakeService } from '../intake/intake.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EmailIntakeService } from './email-intake.service';
 import { OutlookSyncService } from '../outlook-integration/outlook-sync.service';
 import { PrismaService } from '../prisma/prisma.module';
@@ -83,6 +83,16 @@ describe('EmailIntakeService', () => {
       ],
     }).compile();
     service = module.get(EmailIntakeService);
+  });
+
+  it('does not turn OCR quota refusal into an empty document and continue AI reading', async () => {
+    mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 'thread', subject: 'subject', intake: { id: 'intake' }, messages: [{ id: 'message', direction: 'INBOUND', bodyText: '', attachments: [{ id: 'attachment' }] }] });
+    mockPrisma.document.findMany.mockResolvedValue([{ id: 'doc', filename: 'scan.pdf', mimeType: 'application/pdf', storagePath: 'scan.pdf' }]);
+    mockConfig.get.mockImplementation((key: string) => key === 'OPENAI_API_KEY' ? 'key' : undefined);
+    mockStorage.getBuffer.mockResolvedValue(Buffer.from('scan'));
+    mockIntelligence.extractTextWithOcr.mockRejectedValueOnce(new ForbiddenException({ code: 'PLAN_LIMIT_AI' }));
+    await expect(service.aiExtract(user, 'thread')).rejects.toThrow(ForbiddenException);
+    expect(mockPrisma.intakeFieldProposal.createMany).not.toHaveBeenCalled();
   });
 
   it('getAttachmentForDownload checks the parent thread against the access filter', async () => {
@@ -623,7 +633,7 @@ describe('EmailIntakeService', () => {
 
     it('reads up to twelve files three at a time, never inline pictures, caps and redacts all text, creates only pending proposals', async () => {
       const files = Array.from({ length: 13 }, (_, i) => ({ id: `d${i}`, filename: `patient@example.com-${i}.pdf`, mimeType: 'application/pdf', storagePath: `email/${i}.pdf`, category: 'OTHER' }));
-      mockConfig.get.mockReturnValue('fake-key');
+      mockConfig.get.mockImplementation((key: string) => key === 'OPENAI_API_KEY' ? 'fake-key' : undefined);
       mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', subject: 'patient@example.com', intake: { id: 'intake-1', case: { id: 'case-1' } }, messages: [
         { id: 'm1', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: 'กรุณาตรวจ patient@example.com 0812345678', attachments: [{ id: 'a' }] },
         { id: 'out', direction: 'OUTBOUND', toAddresses: [], ccAddresses: [], bodyText: 'private outbound', attachments: [] },
@@ -654,7 +664,7 @@ describe('EmailIntakeService', () => {
       expect(peak).toBe(3);
       expect(mockIntelligence.extractTextWithOcr).toHaveBeenCalledWith(Buffer.from('file'), 'application/pdf', { documentId: 'd0', firmId: 'firm-1' });
       const request = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
-      expect(request.model).toBe('gpt-6-luna');
+      expect(request).toMatchObject({ model: 'gpt-6-luna', reasoning_effort: 'low', max_completion_tokens: 8000 });
       expect(request).not.toHaveProperty('temperature');
       expect(request.response_format.json_schema.strict).toBe(true);
       const payload = JSON.parse(request.messages[1].content);
@@ -683,7 +693,7 @@ describe('EmailIntakeService', () => {
     });
 
     it('can classify a file-only thread when OCR fails without inventing field values', async () => {
-      mockConfig.get.mockReturnValue('fake-key');
+      mockConfig.get.mockImplementation((key: string) => key === 'OPENAI_API_KEY' ? 'fake-key' : undefined);
       mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't', subject: 'file only', intake: { id: 'intake-1' }, messages: [{ id: 'm', direction: 'INBOUND', toAddresses: [], ccAddresses: [], bodyText: null, attachments: [{ id: 'a' }] }] });
       mockPrisma.document.findMany.mockResolvedValue([{ id: 'd', filename: 'scan.pdf', mimeType: 'application/pdf', storagePath: 'email/a.pdf' }]);
       mockStorage.getBuffer.mockRejectedValue(new Error('unavailable'));

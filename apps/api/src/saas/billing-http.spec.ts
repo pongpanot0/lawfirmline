@@ -4,14 +4,16 @@ import { JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
 import Stripe from 'stripe';
-import { BillingPeriod, FirmRole, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
+import { ADD_ONS, BillingPeriod, FirmRole, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { SessionService } from '../auth/session.service';
 import { AuthService } from '../auth/auth.service';
+import { PlanQuotaService } from '../common/services/plan-quota.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.module';
 import { EmailService } from '../notifications/email.service';
 import { InvitationService } from './invitation.service';
+import { BillingAddOnsController } from './billing-add-ons.controller';
 import { SaasController } from './saas.controller';
 import { StripeService } from './stripe.service';
 import { SubscriptionService } from './subscription.service';
@@ -36,14 +38,15 @@ describe('billing over HTTP', () => {
   let app: INestApplication;
   let base: string;
   let status = SubscriptionStatus.EXPIRED;
+  let firmRole = FirmRole.OWNER;
   const config = { get: (k: string) => env[k] } as unknown as ConfigService;
   const stripe = new StripeService(config);
   const jwt = new JwtService({ secret: JWT_SECRET });
   const token = jwt.sign({ sub: 'u1', email: 'owner@firm.test', firmId: 'firm-1', firmRole: FirmRole.OWNER });
 
   const tenant = {
-    buildAuthUser: jest.fn(async () => ({ id: 'u1', email: 'owner@firm.test', firmId: 'firm-1', firmRole: FirmRole.OWNER, subscriptionStatus: status })),
-    isOwner: () => true,
+    buildAuthUser: jest.fn(async () => ({ id: 'u1', email: 'owner@firm.test', firmId: 'firm-1', firmRole, subscriptionStatus: status })),
+    isOwner: (user: { firmRole: FirmRole }) => user.firmRole === FirmRole.OWNER,
   };
   const tx = { firm: { update: jest.fn() }, subscription: { upsert: jest.fn() }, auditLog: { create: jest.fn() } };
   const prisma = {
@@ -68,11 +71,12 @@ describe('billing over HTTP', () => {
   beforeAll(async () => {
     const mod = await Test.createTestingModule({
       imports: [PassportModule],
-      controllers: [SaasController, Probe],
+      controllers: [SaasController, BillingAddOnsController, Probe],
       providers: [
         JwtStrategy,
         { provide: SessionService, useValue: { isActive: async () => true } },
         SubscriptionService,
+        { provide: PlanQuotaService, useValue: new PlanQuotaService(prisma as any) },
         { provide: StripeService, useValue: stripe },
         { provide: ConfigService, useValue: config },
         { provide: TenantService, useValue: tenant },
@@ -91,7 +95,7 @@ describe('billing over HTTP', () => {
     await app.close();
     [createCustomer, createSession, retrieve].forEach((s) => s.mockRestore());
   });
-  beforeEach(() => { status = SubscriptionStatus.EXPIRED; jest.clearAllMocks(); });
+  beforeEach(() => { firmRole = FirmRole.OWNER; status = SubscriptionStatus.EXPIRED; jest.clearAllMocks(); });
 
   it('expired firm: reads pass, writes get 402 SUBSCRIPTION_INACTIVE', async () => {
     expect((await call('/probe')).status).toBe(200);
@@ -120,6 +124,32 @@ describe('billing over HTTP', () => {
     });
     expect(params.line_items![0].price_data).toMatchObject({ currency: 'thb', recurring: { interval: 'year' } });
     expect(params.line_items![0].price_data!.unit_amount).toBeGreaterThan(0);
+  });
+
+  it.each(Object.entries(ADD_ONS).flatMap(([addOn, pack]) =>
+    ['card', 'promptpay'].map((paymentMethod) => ({ addOn, pack, paymentMethod })),
+  ))('add-on $addOn/$paymentMethod checkout is a one-time payment, including on Free', async ({ addOn, pack, paymentMethod }) => {
+    const res = await call('/billing/add-ons/checkout', { method: 'POST', body: JSON.stringify({ addOn, paymentMethod }) });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ url: 'https://checkout.stripe.com/c/pay/cs_test_1' });
+    expect(createSession).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'payment', payment_method_types: [paymentMethod], metadata: { firmId: 'firm-1', addOn },
+      success_url: 'https://app.samnuan.test/account/billing?addon=1',
+      line_items: [{ quantity: 1, price_data: { currency: 'thb', unit_amount: pack.priceThb * 100, product_data: { name: `Samnuan ${addOn}` } } }],
+    }));
+  });
+
+  it.each([{ addOn: 'unknown' }, { addOn: 'AI_100', paymentMethod: 'bitcoin' }, {}])('invalid add-on checkout %j is rejected before Stripe', async (body) => {
+    const res = await call('/billing/add-ons/checkout', { method: 'POST', body: JSON.stringify(body) });
+    expect(res.status).toBe(400);
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it('non-owner is refused add-on checkout', async () => {
+    firmRole = FirmRole.LAWYER;
+    const res = await call('/billing/add-ons/checkout', { method: 'POST', body: JSON.stringify({ addOn: 'AI_100' }) });
+    expect(res.status).toBe(403);
+    expect(createSession).not.toHaveBeenCalled();
   });
 
   it('PromptPay checkout is a one-time payment (no subscription)', async () => {

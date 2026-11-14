@@ -271,6 +271,67 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
   },
 };
 
+export const ADD_ONS = {
+  AI_100: { priceThb: 99, credits: 100, storageGb: 0, days: null },
+  AI_500: { priceThb: 399, credits: 500, storageGb: 0, days: null },
+  AI_1500: { priceThb: 990, credits: 1500, storageGb: 0, days: null },
+  AI_5000: { priceThb: 2490, credits: 5000, storageGb: 0, days: null },
+  STORAGE_10GB: { priceThb: 99, credits: 0, storageGb: 10, days: 30 },
+  STORAGE_50GB: { priceThb: 349, credits: 0, storageGb: 50, days: 30 },
+  STORAGE_100GB: { priceThb: 590, credits: 0, storageGb: 100, days: 30 },
+} as const;
+
+export type AddOnKind = keyof typeof ADD_ONS;
+
+export interface AiBalance {
+  unlimited: boolean;
+  period: 'LIFETIME' | 'MONTH';
+  /** null for unlimited firms. */
+  planQuota: number | null;
+  planUsed: number;
+  planRemaining: number | null;
+  packRemaining: number;
+  remaining: number | null;
+}
+
+export interface StorageUsage {
+  unlimited: boolean;
+  usedBytes: number;
+  planGb: number;
+  addOnGb: number;
+  /** null for unlimited firms. */
+  limitBytes: number | null;
+}
+
+export interface BillingUsage {
+  ai: AiBalance;
+  storage: StorageUsage;
+  addOns: Array<{
+    kind: AddOnKind;
+    credits: number;
+    storageGb: number;
+    amountThb: number;
+    createdAt: string;
+    expiresAt: string | null;
+  }>;
+  prices: Array<{ kind: AddOnKind; priceThb: number; credits: number; storageGb: number; days: number | null }>;
+}
+
+export interface AiCreditsEstimate {
+  items: Array<{ documentId: string; pages: number; scanned: boolean; credits: number }>;
+  total: number;
+  balance: AiBalance;
+}
+
+export interface AddOnCheckoutRequest {
+  addOn: AddOnKind;
+  paymentMethod?: 'card' | 'promptpay';
+}
+
+export interface AddOnCheckoutResponse {
+  url: string;
+}
+
 /**
  * Firms created before this keep reports, invoices, audit logs, storage and AI as they had
  * them (their price never promised the limits). Free firms are never exempt.

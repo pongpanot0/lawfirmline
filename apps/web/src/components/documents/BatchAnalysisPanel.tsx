@@ -7,6 +7,7 @@ import { api, ApiError, DocumentItem, FieldSuggestion } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CaseKnowledgePanel } from './CaseKnowledgePanel';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { useAiCreditConfirm } from '@/components/billing/useAiCreditConfirm';
 import { Button } from '@/components/ui/button';
 
 export function BatchAnalysisPanel({
@@ -31,6 +32,7 @@ export function BatchAnalysisPanel({
   entityLabel?: string;
 }) {
   const { token } = useAuth();
+  const credits = useAiCreditConfirm();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selected, setSelected] = useState<string[]>(() => files.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
   const [busy, setBusy] = useState(false);
@@ -135,6 +137,7 @@ export function BatchAnalysisPanel({
 
   const analyze = async () => {
     if (!token || !selected.length || lock.current) return;
+    if (caseId) { try { if (!await credits.confirmCredits(rows.filter((r) => selected.includes(r.id)))) return; } catch (err) { setError(err instanceof Error ? err.message : 'ประเมินเครดิตไม่สำเร็จ'); return; } }
     lock.current = true;
     setBusy(true);
     setError('');
@@ -169,6 +172,7 @@ export function BatchAnalysisPanel({
       className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5"
       aria-label="เอกสารสำหรับวิเคราะห์รวม"
     >
+      {credits.dialog}
       <h2 className="font-semibold">วิเคราะห์เนื้อหาไฟล์ด้วย AI</h2>
       <p className="text-sm text-muted-foreground">
         สรุปเหตุการณ์จากเอกสารที่เลือก พร้อมแหล่งที่มา

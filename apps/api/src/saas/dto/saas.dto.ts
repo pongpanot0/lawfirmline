@@ -1,5 +1,5 @@
 import { IsEmail, IsNumber, IsEnum, IsIn, IsOptional, IsString, MinLength, Matches, Length } from 'class-validator';
-import { FirmRole } from '@lawfirm/shared';
+import { ADD_ONS, AddOnKind, FirmRole } from '@lawfirm/shared';
 import { BillingPeriod, SubscriptionPlan } from '../../generated/prisma';
 import { Transform } from 'class-transformer';
 
@@ -73,4 +73,14 @@ export class UpdateWorkSettingsDto {
   @IsOptional()
   @IsNumber()
   defaultHourlyRate?: number | null;
+}
+
+
+export class AddOnCheckoutDto {
+  @IsIn(Object.keys(ADD_ONS))
+  addOn!: AddOnKind;
+
+  @IsOptional()
+  @IsIn(['card', 'promptpay'])
+  paymentMethod?: 'card' | 'promptpay';
 }

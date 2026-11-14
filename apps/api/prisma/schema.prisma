@@ -430,6 +430,7 @@ model Firm {
   slug                  String             @unique
   subscriptionStatus    SubscriptionStatus @default(TRIAL)
   subscriptionPlan      SubscriptionPlan?
+  quotaExempt           Boolean            @default(false)
   trialStartAt          DateTime           @default(now())
   trialEndAt            DateTime
   currentPeriodEnd      DateTime?
@@ -478,6 +479,7 @@ model Firm {
   deadlineRules      DeadlineRule[]
   dailyBriefs        DailyBrief[]
   secretaryMessages  SecretaryMessage[]
+  planAddOns         PlanAddOn[]
   aiQuotaUses        AiQuotaUse[]
   storedObjects      StoredObject[]
 }
@@ -3394,6 +3396,8 @@ model AiQuotaUse {
   firmId    String
   userId    String?
   action    String
+  credits   Int      @default(1)
+  packCredits Int    @default(0)
   createdAt DateTime @default(now())
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
@@ -3408,6 +3412,24 @@ model StoredObject {
   firmId    String
   bytes     Int
   createdAt DateTime @default(now())
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
+}
+
+
+/// One paid block: AI credits never expire; storage blocks expire independently.
+model PlanAddOn {
+  id              String   @id @default(uuid())
+  firmId          String
+  kind            String
+  credits         Int      @default(0)
+  storageGb       Int      @default(0)
+  amountThb       Int
+  stripeSessionId String   @unique
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
 

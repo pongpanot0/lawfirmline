@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { BadRequestException } from '@nestjs/common';
-import { BillingPeriod, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
+import { ADD_ONS, BillingPeriod, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { StripeService } from './stripe.service';
 import { stripeStatus, SubscriptionService } from './subscription.service';
 
@@ -24,18 +24,21 @@ describe('Stripe webhook', () => {
     items: { data: [{ current_period_start: 1_700_000_000, current_period_end: 1_731_536_000 }] },
   };
   const retrieve = jest.spyOn(stripe.client.subscriptions, 'retrieve');
+  const planAddOn = { create: jest.fn(), findUnique: jest.fn() };
   const tx = {
+    planAddOn,
     firm: { update: jest.fn() },
     subscription: { upsert: jest.fn() },
     auditLog: { create: jest.fn() },
     billingInvoice: { create: jest.fn() },
   };
   const prisma = {
+    planAddOn,
     firm: { findFirst: jest.fn(), findUnique: jest.fn() },
     billingInvoice: { upsert: jest.fn(), findUnique: jest.fn() },
     $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
   };
-  const service = new SubscriptionService(prisma as any, {} as any, stripe, {} as any);
+  const service = new SubscriptionService(prisma as any, {} as any, stripe, {} as any, {} as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -167,6 +170,81 @@ describe('Stripe webhook', () => {
       const { body, header } = signed(payload);
       await service.handleWebhook(body, header);
       expect(tx.firm.update).toHaveBeenCalled();
+    });
+  });
+
+  describe('add-on purchases', () => {
+    const paid = (over: Record<string, unknown> = {}, type = 'checkout.session.completed') => signed({
+      id: 'evt_addon', type, created: 1800000000,
+      data: { object: { id: 'cs_addon', mode: 'payment', payment_status: 'paid', currency: 'thb', client_reference_id: 'firm-1', amount_total: 9900, metadata: { firmId: 'firm-1', addOn: 'AI_100' }, ...over } },
+    });
+    beforeEach(() => {
+      planAddOn.findUnique.mockResolvedValue(null);
+      planAddOn.create.mockResolvedValue({ id: 'addon' });
+      prisma.firm.findUnique.mockResolvedValue({ id: 'firm-1' });
+    });
+
+    it.each(['checkout.session.completed', 'checkout.session.async_payment_succeeded'])('%s creates a credit pack and audit exactly once across repeat delivery', async (type) => {
+      const { body, header } = paid({}, type);
+      await service.handleWebhook(body, header);
+      planAddOn.findUnique.mockResolvedValue({ id: 'addon' });
+      await service.handleWebhook(body, header);
+      expect(planAddOn.create).toHaveBeenCalledTimes(1);
+      expect(planAddOn.create).toHaveBeenCalledWith({ data: {
+        firmId: 'firm-1', kind: 'AI_100', amountThb: 99, stripeSessionId: 'cs_addon', credits: 100, storageGb: 0, expiresAt: null, createdAt: new Date(1800000000000),
+      } });
+      expect(tx.auditLog.create).toHaveBeenCalledTimes(1);
+      expect(tx.auditLog.create).toHaveBeenCalledWith({ data: { firmId: 'firm-1', action: 'ADDON_PURCHASED', metadata: { kind: 'AI_100', amountThb: 99, stripeSessionId: 'cs_addon' } } });
+      expect(tx.firm.update).not.toHaveBeenCalled();
+      expect(tx.billingInvoice.create).not.toHaveBeenCalled();
+    });
+
+    it.each([{ amount_total: 100 }, { currency: 'usd' }, { payment_status: 'unpaid' }, { metadata: { addOn: 'UNKNOWN' } }])('ignores invalid or unpaid add-on %j', async (over) => {
+      const { body, header } = paid(over);
+      await service.handleWebhook(body, header);
+      expect(planAddOn.create).not.toHaveBeenCalled();
+      expect(tx.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('storage purchases each expire 30 days from their own payment, even when delivered late', async () => {
+      const { body, header } = paid({ amount_total: 34900, metadata: { addOn: 'STORAGE_50GB' } });
+      await service.handleWebhook(body, header);
+      expect(planAddOn.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+        kind: 'STORAGE_50GB', amountThb: 349, credits: 0, storageGb: 50, expiresAt: new Date(1800000000000 + 30 * 86400000),
+      }) });
+      expect(prisma.firm.findUnique).toHaveBeenCalledWith({ where: { id: 'firm-1' }, select: { id: true } });
+    });
+
+    it.each(Object.entries(ADD_ONS))('grants %s using its stored pack values', async (kind, pack) => {
+      const { body, header } = paid({ amount_total: pack.priceThb * 100, metadata: { addOn: kind } });
+      await service.handleWebhook(body, header);
+      expect(planAddOn.create).toHaveBeenCalledWith({ data: {
+        firmId: 'firm-1', kind, amountThb: pack.priceThb, stripeSessionId: 'cs_addon',
+        credits: pack.credits, storageGb: pack.storageGb, createdAt: new Date(1800000000000),
+        expiresAt: pack.days === null ? null : new Date(1800000000000 + pack.days * 86400000),
+      } });
+      expect(planAddOn.create).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(Object.entries(ADD_ONS))('refuses an amount mismatch for %s', async (kind, pack) => {
+      const { body, header } = paid({ amount_total: pack.priceThb * 100 - 1, metadata: { addOn: kind } });
+      await service.handleWebhook(body, header);
+      expect(planAddOn.create).not.toHaveBeenCalled();
+      expect(tx.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('concurrent duplicate unique-key errors are acknowledged without a second grant', async () => {
+      const { Prisma } = await import('../generated/prisma');
+      planAddOn.create.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('duplicate', { code: 'P2002', clientVersion: '6' }));
+      const { body, header } = paid();
+      await expect(service.handleWebhook(body, header)).resolves.toEqual({ received: true });
+      expect(tx.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('database failures propagate for Stripe to retry', async () => {
+      planAddOn.create.mockRejectedValueOnce(new Error('database unavailable'));
+      const { body, header } = paid();
+      await expect(service.handleWebhook(body, header)).rejects.toThrow('database unavailable');
     });
   });
 

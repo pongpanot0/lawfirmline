@@ -1,7 +1,7 @@
 import { BadGatewayException, BadRequestException, HttpException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { redactForAi, type AuthUser, type SecretaryCard } from '@lawfirm/shared';
-import { chatModel } from '../common/openai-model';
+import { chatModel, openAiChatBody } from '../common/openai-model';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { RagService } from '../rag/rag.service';
@@ -102,7 +102,7 @@ export class SecretaryChatService {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST', signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
       headers: { Authorization: `Bearer ${this.config.get<string>('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: chatModel(this.config), temperature: 0, messages, tools: [...this.tools.definitions(user), ...aiWriteDefinitions(writeTools)], tool_choice: toolChoice }),
+      body: JSON.stringify(openAiChatBody(this.config, { model: chatModel(this.config), temperature: 0, messages, tools: [...this.tools.definitions(user), ...aiWriteDefinitions(writeTools)], tool_choice: toolChoice })),
     });
     if (!res.ok) throw new Error(`OpenAI chat ${res.status}`);
     return (await res.json()) as OaiResponse;

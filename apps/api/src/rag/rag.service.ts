@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { chatModel } from '../common/openai-model';
+import { chatModel, openAiChatBody } from '../common/openai-model';
 import { randomUUID } from 'crypto';
 import { AuthUser, redactForAi } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
@@ -102,6 +102,7 @@ export class RagService {
       try {
         await this.indexDocument(caseId, doc, firmId);
       } catch (err) {
+        if (err instanceof ForbiddenException) throw err;
         // One unreadable document (e.g. scanned PDF with no text layer) must
         // not block Q&A over the rest of the case file.
         this.logger.warn(`Indexing ${doc.id} (${doc.filename}) failed: ${err}`);
@@ -324,7 +325,7 @@ export class RagService {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: JSON.stringify(openAiChatBody(this.config, {
         model: this.chatModel(),
         temperature: 0.2,
         messages: [
@@ -335,7 +336,7 @@ export class RagService {
           },
           { role: 'user', content: `คำถาม: ${redactedQuestion}\n\nแหล่งข้อมูลจากสำนวนคดี:\n\n${context}` },
         ],
-      }),
+      })),
     });
     if (!res.ok) {
       this.logger.error(`OpenAI chat error: ${res.status}`);

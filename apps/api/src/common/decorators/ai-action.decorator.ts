@@ -1,11 +1,12 @@
 import { applyDecorators, CallHandler, ExecutionContext, Injectable, NestInterceptor, SetMetadata, UseInterceptors } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { from, Observable, switchMap, tap } from 'rxjs';
+import { from, Observable, switchMap, concatMap, map } from 'rxjs';
+import { aiCreditContext, requestAiCredits } from '../ai-credit-context';
 import { PlanQuotaService } from '../services/plan-quota.service';
 
 const AI_ACTION_KEY = 'aiAction';
 
-/** Refuses the request when the plan's AI actions are used up; counts one use when it succeeds. */
+/** Refuses the request when the plan's AI actions are used up; records the request's credits when it succeeds. */
 @Injectable()
 export class AiQuotaInterceptor implements NestInterceptor {
   constructor(private reflector: Reflector, private quota: PlanQuotaService) {}
@@ -15,8 +16,12 @@ export class AiQuotaInterceptor implements NestInterceptor {
     const user = context.switchToHttp().getRequest().user;
     if (!action || !user?.firmId) return next.handle();
     return from(this.quota.assertAiAvailable(user)).pipe(
-      switchMap(() => next.handle()),
-      tap({ complete: () => void this.quota.recordAi(user, action).catch(() => undefined) }),
+      switchMap(() => new Observable((subscriber) => aiCreditContext.run(
+        { user, quota: this.quota, files: new Map() },
+        () => next.handle().pipe(
+          concatMap((result) => from(this.quota.recordAi(user, action, requestAiCredits())).pipe(map(() => result))),
+        ).subscribe(subscriber),
+      ))),
     );
   }
 }
