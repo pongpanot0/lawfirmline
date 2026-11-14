@@ -17,6 +17,8 @@ export interface ImportLookups {
   existingOwnRefs: Set<string>;
   /** Black numbers of the firm's cases and of their proceedings. */
   existingNumbers: { number: string; court: string | null; ownRef: string }[];
+  /** When set, a clash with a case outside this set is reported without naming that case's ref. */
+  visibleOwnRefs?: Set<string>;
 }
 
 /** One sheet row after checking: the create payload plus what the review table shows. */
@@ -75,14 +77,17 @@ export function resolveCaseRows(rows: RawCaseRow[], lookups: ImportLookups, toda
 /** Already in the firm: same own ref, or same black number + court (a missing court on either side matches any). */
 export function existingDuplicate(
   d: { ownRef?: string; blackCaseNumber?: string; courtName?: string },
-  lookups: Pick<ImportLookups, 'existingOwnRefs' | 'existingNumbers'>,
+  lookups: Pick<ImportLookups, 'existingOwnRefs' | 'existingNumbers' | 'visibleOwnRefs'>,
 ): string | null {
   if (d.ownRef && lookups.existingOwnRefs.has(d.ownRef)) return `มีคดีนี้ในระบบแล้ว (${d.ownRef})`;
   const court = norm(d.courtName);
   const hit = d.blackCaseNumber
     ? lookups.existingNumbers.find((n) => numberKey(n.number) === numberKey(d.blackCaseNumber!) && (!court || !n.court || norm(n.court) === court))
     : undefined;
-  return hit ? `มีคดีนี้ในระบบแล้ว (${hit.ownRef})` : null;
+  if (!hit) return null;
+  return !lookups.visibleOwnRefs || lookups.visibleOwnRefs.has(hit.ownRef)
+    ? `มีคดีนี้ในระบบแล้ว (${hit.ownRef})`
+    : 'มีคดีเลขนี้ในระบบแล้ว (เป็นคดีที่คุณไม่มีสิทธิ์เปิดดู)';
 }
 
 /** Same black number + court (a missing court matches any), or the same own ref — in the firm or earlier in the file. */

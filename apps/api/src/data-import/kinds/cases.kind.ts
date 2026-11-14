@@ -54,20 +54,21 @@ export function casesKind(deps: ImportKindDeps): ImportKindDef<CaseDraft, CaseLo
     kind: 'cases', label: 'คดี', sheet: 'คดี', headers: CASE_IMPORT_HEADERS, required: REQUIRED_HEADERS, help: HEADER_HELP, canImport: lawyerCanImport,
     template: (lookups) => { const extras = caseImportTemplateSpec({ caseTypes: lookups.types.map((type) => type.name), lawyers: lookups.lawyers }); return { ...extras, extraHelp: [...(extras.extraHelp ?? []), ...memberHelp(lookups.members)] }; },
     async lookups(db, user) {
-      const [lawyers, members, clients, types, cases, proceedings] = await Promise.all([
+      const [lawyers, members, clients, types, cases, proceedings, visible] = await Promise.all([
         db.user.findMany({ where: { role: { in: [Role.ADMIN, Role.LAWYER] }, firmMembers: { some: { firmId: user.firmId, role: { not: FirmRole.EXTERNAL } } } }, select: { id: true, email: true, firstName: true, lastName: true }, orderBy: { lastName: 'asc' } }),
         staffMembers(db, user),
         db.client.findMany({ where: { firmId: user.firmId }, select: { id: true, name: true } }),
         db.caseType.findMany({ where: { firmId: user.firmId, isActive: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
         db.case.findMany({ where: { firmId: user.firmId }, select: { ownRef: true, blackCaseNumber: true, courtName: true, deletedAt: true, title: true, leadLawyerId: true, courtLevel: true, clientId: true, clientName: true } }),
         db.caseProceeding.findMany({ where: { case: { firmId: user.firmId, deletedAt: null }, blackCaseNumber: { not: null } }, select: { blackCaseNumber: true, courtName: true, case: { select: { ownRef: true } } } }),
+        db.case.findMany({ where: deps.caseAccess.getCaseFilterForUser(user), select: { ownRef: true } }),
       ]);
       return {
         today: new Date(`${bangkokDayKey(new Date())}T00:00:00Z`),
         members, lawyers: lawyers.map((lawyer) => ({ id: lawyer.id, name: `${lawyer.firstName} ${lawyer.lastName}`.trim(), email: lawyer.email })), clients, types,
         lawyersByEmail: new Map(lawyers.map((lawyer) => [lower(lawyer.email), lawyer.id])), membersByEmail: new Map(members.map((member) => [lower(member.email), member.id])),
         clientsByName: new Map(clients.map((client) => [lower(client.name), client.id])), caseTypesByName: new Map(types.map((type) => [lower(type.name), type.id])),
-        existingOwnRefs: new Set(cases.map((item) => item.ownRef)),
+        existingOwnRefs: new Set(cases.map((item) => item.ownRef)), visibleOwnRefs: new Set(visible.map((item) => item.ownRef)),
         existingNumbers: [...cases.filter((item) => !item.deletedAt && item.blackCaseNumber).map((item) => ({ number: item.blackCaseNumber!, court: item.courtName, ownRef: item.ownRef })), ...proceedings.map((item) => ({ number: item.blackCaseNumber!, court: item.courtName, ownRef: item.case.ownRef }))],
         existingNatural: new Set(cases.filter((item) => !item.deletedAt).map(caseNaturalSignature)),
       };

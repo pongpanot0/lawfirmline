@@ -29,7 +29,7 @@ describe('DataImportService cases plan limit and writes', () => {
     };
     prisma = { $transaction: jest.fn((callback: (db: unknown) => unknown) => callback(tx)) };
     cases = { createForImport: jest.fn(async () => { order.push('create'); return { id: 'case-id', ownRef: 'REF' }; }) };
-    service = new DataImportService(prisma, cases, {} as never, {} as never, {} as never, {} as never, {} as never);
+    service = new DataImportService(prisma, cases, { getCaseFilterForUser: () => ({ firmId: user.firmId }) } as never, {} as never, {} as never, {} as never, {} as never);
     plan = jest.spyOn(limits, 'assertCanOpenCases').mockImplementation(async (_db, _firm, count) => { order.push(`plan:${count}`); });
   });
   afterEach(() => plan.mockRestore());
