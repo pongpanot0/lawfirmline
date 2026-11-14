@@ -1,9 +1,9 @@
 import { ExecutionContext, ForbiddenException, HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
-import { FirmRole, SUBSCRIPTION_INACTIVE, subscriptionAllowsWrites } from '@lawfirm/shared';
+import { FirmRole, PLAN_FEATURE_LOCKED, PlanFeature, planHasFeature, SUBSCRIPTION_INACTIVE, subscriptionAllowsWrites } from '@lawfirm/shared';
 import { ALLOW_EXTERNAL_KEY } from '../decorators/allow-external.decorator';
-import { SKIP_SUBSCRIPTION_KEY } from '../../saas/decorators/saas.decorators';
+import { REQUIRE_PLAN_FEATURE_KEY, SKIP_SUBSCRIPTION_KEY } from '../../saas/decorators/saas.decorators';
 import { assertTenantMatch } from '../../saas/tenant-match';
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -40,6 +40,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           { statusCode: HttpStatus.PAYMENT_REQUIRED, code: SUBSCRIPTION_INACTIVE, message: 'สำนักงานอยู่ในโหมดดูอย่างเดียว · การใช้งานหมดอายุแล้ว' },
           HttpStatus.PAYMENT_REQUIRED,
         );
+      }
+    }
+    if (authenticated && user && !user.planGrandfathered) {
+      const gate = this.reflector.getAllAndOverride<{ feature: PlanFeature; writesOnly: boolean } | undefined>(REQUIRE_PLAN_FEATURE_KEY, [context.getHandler(), context.getClass()]);
+      if (gate && !(gate.writesOnly && READ_METHODS.has(req.method)) && !planHasFeature(user.subscriptionPlan, gate.feature)) {
+        // No price or link: the iOS app may show this (App Store 3.1.1).
+        throw new ForbiddenException({ code: PLAN_FEATURE_LOCKED, feature: gate.feature, message: 'แพ็กเกจของสำนักงานยังไม่มีฟีเจอร์นี้ ติดต่อเจ้าของสำนักงาน' });
       }
     }
     return authenticated;

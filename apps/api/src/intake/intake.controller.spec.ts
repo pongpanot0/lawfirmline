@@ -1,3 +1,4 @@
+import { PlanQuotaService } from '../common/services/plan-quota.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IntakeController } from './intake.controller';
 import { IntakeService } from './intake.service';
@@ -23,6 +24,7 @@ describe('IntakeController precedent analysis', () => {
       providers: [
         { provide: IntakeService, useValue: mockIntakeService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: PlanQuotaService, useValue: {} },
       ],
     })
       .overrideGuard(JwtAuthGuard)

@@ -3,7 +3,7 @@ import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../../prisma/prisma.module';
 import { CaseExternalLinkKind } from '../../generated/prisma';
 import { CasesService } from '../../cases/cases.service';
-import { assertCanOpenCases } from '../../common/plan-limits';
+import { assertCanAddCases } from '../../common/plan-limits';
 import { GraphDriveClient } from '../graph/graph-drive.client';
 import { CaseDriveService, driveDisplayPath } from './case-drive.service';
 import { driveErrorMessage } from './drive-errors';
@@ -50,8 +50,7 @@ export class DriveCaseImportService {
       where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: { in: teamIds } },
     });
     if (members !== teamIds.length) throw new BadRequestException('ทนายและทีมทุกคนต้องเป็นสมาชิกของสำนักงาน');
-    const openRows = dto.rows.filter((r) => !r.closed).length;
-    if (openRows > 0) await assertCanOpenCases(this.prisma, user.firmId, openRows);
+    await assertCanAddCases(this.prisma, user.firmId, dto.rows.length);
 
     const results: DriveCaseImportResult[] = [];
     // ponytail: sequential Graph + DB per row (~100 rows × 2 calls); parallelise if imports get slow.

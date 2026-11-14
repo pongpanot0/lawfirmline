@@ -25,6 +25,7 @@ import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '@lawfirm/shared';
+import { AiAction } from '../common/decorators/ai-action.decorator';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -64,6 +65,7 @@ export class IntelligenceController {
   }
 
   @Post('documents/analyze-batch')
+  @AiAction('intelligence-documents-analyze-batch')
   @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 30 * 1024 * 1024, files: 10 } }))
   analyzeDraftBatch(@CurrentUser() user: AuthUser, @UploadedFiles() files: Express.Multer.File[]) {
     return this.intelligenceService.analyzeBatch((files ?? []).map((file) => ({ buffer: file.buffer, mimeType: file.mimetype, filename: decodeUploadFilename(file.originalname) })), user.id);
@@ -76,6 +78,7 @@ export class IntelligenceController {
   }
 
   @Post('cases/:caseId/documents/analyze-batch')
+  @AiAction('intelligence-cases-caseid-documents-analyze-batch')
   @UseGuards(CaseAccessGuard)
   async analyzeExistingBatch(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: BatchAnalysisDto) {
     // Resolve all files within this authorized case before reading any content.
@@ -85,6 +88,7 @@ export class IntelligenceController {
   }
 
   @Post('cases/:caseId/documents/classify-checklist')
+  @AiAction('intelligence-cases-caseid-documents-classify-checklist')
   @UseGuards(CaseAccessGuard)
   async classifyCaseChecklist(
     @CurrentUser() user: AuthUser,
@@ -106,6 +110,7 @@ export class IntelligenceController {
   }
 
   @Post('intake/:intakeId/documents/analyze-batch')
+  @AiAction('intelligence-intake-intakeid-documents-analyze-batch')
   async analyzeIntakeBatch(@CurrentUser() user: AuthUser, @Param('intakeId') intakeId: string, @Body() dto: BatchAnalysisDto) {
     // Resolve every file within this authorized intake before reading content.
     const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePathForIntake(user, intakeId, id)));
@@ -116,6 +121,7 @@ export class IntelligenceController {
   }
 
   @Post('intake/:intakeId/documents/classify-checklist')
+  @AiAction('intelligence-intake-intakeid-documents-classify-checklist')
   async classifyIntakeChecklist(
     @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,
@@ -136,6 +142,7 @@ export class IntelligenceController {
   }
 
   @Post('cases/:caseId/documents/analyze')
+  @AiAction('intelligence-cases-caseid-documents-analyze')
   @UseGuards(CaseAccessGuard)
   @UseInterceptors(FileInterceptor('file'))
   analyze(
@@ -156,6 +163,7 @@ export class IntelligenceController {
   }
 
   @Post('cases/:caseId/documents/extract-dates')
+  @AiAction('intelligence-cases-caseid-documents-extract-dates')
   @UseGuards(CaseAccessGuard)
   @UseInterceptors(FileInterceptor('file'))
   extractDates(
@@ -174,6 +182,7 @@ export class IntelligenceController {
   }
 
   @Post('cases/:caseId/documents/:documentId/analyze')
+  @AiAction('intelligence-cases-caseid-documents-documentid-analyze')
   @UseGuards(CaseAccessGuard)
   async analyzeExisting(
     @CurrentUser() user: AuthUser,
@@ -193,6 +202,7 @@ export class IntelligenceController {
   }
 
   @Post('cases/:caseId/documents/:documentId/extract-dates')
+  @AiAction('intelligence-cases-caseid-documents-documentid-extract-dates')
   @UseGuards(CaseAccessGuard)
   async extractDatesExisting(
     @CurrentUser() user: AuthUser,

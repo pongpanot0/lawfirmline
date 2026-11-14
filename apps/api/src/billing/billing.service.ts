@@ -62,12 +62,12 @@ export class BillingService {
     }
   }
 
-  private async attachReceipt(expenseId: string, file: Express.Multer.File) {
+  private async attachReceipt(expenseId: string, file: Express.Multer.File, firmId: string) {
     this.assertReceiptFile(file);
     const filename = this.decodeOriginalFilename(file.originalname);
     const ext = path.extname(filename);
     const key = path.posix.join('expenses', expenseId, `receipt${ext || ''}`);
-    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype, { firmId, enforce: false });
     await this.prisma.expense.update({
       where: { id: expenseId },
       data: {
@@ -413,7 +413,7 @@ export class BillingService {
       include: this.expenseInclude,
     });
     if (receipt) {
-      await this.attachReceipt(expense.id, receipt);
+      await this.attachReceipt(expense.id, receipt, user.firmId);
       return this.prisma.expense.findUniqueOrThrow({
         where: { id: expense.id },
         include: this.expenseInclude,
@@ -510,7 +510,7 @@ export class BillingService {
           include: this.expenseInclude,
         });
     if (receipt) {
-      await this.attachReceipt(expense.id, receipt);
+      await this.attachReceipt(expense.id, receipt, user.firmId);
       return this.prisma.expense.findUniqueOrThrow({
         where: { id: expense.id },
         include: this.expenseInclude,

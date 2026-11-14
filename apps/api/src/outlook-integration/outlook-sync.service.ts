@@ -234,6 +234,7 @@ export class OutlookSyncService {
         key,
         Buffer.from(attachment.contentBytes, 'base64'),
         attachment.contentType,
+        { firmId, enforce: false },
       );
       await this.prisma.emailAttachment.create({
         data: {

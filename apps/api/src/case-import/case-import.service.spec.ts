@@ -44,7 +44,7 @@ describe('CaseImportService', () => {
     prisma.firmMember.count.mockResolvedValue(1);
     prisma.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb('TX'));
     cases.createForImport.mockImplementation((_tx: unknown, _u: unknown, p: any) => ({ id: `case-${p.title}`, ownRef: `REF-${p.title}` }));
-    planCheck = jest.spyOn(planLimits, 'assertCanOpenCases').mockResolvedValue(undefined);
+    planCheck = jest.spyOn(planLimits, 'assertCanAddCases').mockResolvedValue(undefined);
     const module = await Test.createTestingModule({
       providers: [
         CaseImportService,
@@ -155,10 +155,10 @@ describe('CaseImportService', () => {
       expect(cases.createForImport).not.toHaveBeenCalled();
     });
 
-    it('checks the plan once for open rows', async () => {
+    it('checks the plan once for every row, closed ones included', async () => {
       await service.createCases(user, { rows: [row('A'), row('B', { closed: true, outcome: 'WON', closingSummary: 'ชนะคดีเรียบร้อยแล้ว' })] } as any);
       expect(planCheck).toHaveBeenCalledTimes(1);
-      expect(planCheck).toHaveBeenCalledWith(prisma, 'f1', 1);
+      expect(planCheck).toHaveBeenCalledWith(prisma, 'f1', 2);
     });
 
     it('re-checks duplicates at create time and keeps going', async () => {

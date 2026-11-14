@@ -23,6 +23,7 @@ import { TaskDetailService, TASK_ATTACHMENT_MAX_BYTES } from './task-detail.serv
 import { CreateSubtaskDto, CreateTaskCommentDto, CreateAiFollowUpDto } from './dto/task-detail.dto';
 import { ConfirmTaskPlanDto, DailyTaskUpdateDto } from './dto/task-daily-update.dto';
 import { TaskRoutineProgressDto } from './dto/task-routine.dto';
+import { AiAction } from '../common/decorators/ai-action.decorator';
 
 /**
  * One address for a task whichever board it came from. Access is decided per
@@ -44,6 +45,7 @@ export class TaskDetailController {
   }
 
   @Post('ai-analysis')
+  @AiAction('tasks-ai-analysis')
   analyze(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string) {
     return this.detail.analyze(taskId, user);
   }

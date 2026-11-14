@@ -48,7 +48,7 @@ import { buildContentDispositionHeader } from '../common/utils/sanitize-filename
 import { safeMimeType } from '../common/utils/safe-mime-type';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { RequireCapability } from '../saas/decorators/saas.decorators';
+import { RequireCapability, RequirePlanFeature } from '../saas/decorators/saas.decorators';
 
 const RECEIPT_UPLOAD = FileInterceptor('receipt', { limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -373,6 +373,7 @@ export class BillingController {
   }
 
   @Post('cases/:caseId/billing/invoices')
+  @RequirePlanFeature('reporting', { writesOnly: true })
   @UseGuards(CaseAccessGuard)
   createInvoice(
     @CurrentUser() user: AuthUser,
@@ -389,6 +390,7 @@ export class BillingController {
   }
 
   @Post('intakes/:intakeId/billing/invoices')
+  @RequirePlanFeature('reporting', { writesOnly: true })
   async createIntakeInvoice(
     @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,
@@ -407,6 +409,7 @@ export class BillingController {
   }
 
   @Post('invoices')
+  @RequirePlanFeature('reporting', { writesOnly: true })
   createStandaloneInvoice(@CurrentUser() user: AuthUser, @Body() dto: CreateInvoiceDto) {
     return this.billingService.createInvoice(user, {}, dto);
   }
@@ -426,6 +429,7 @@ export class BillingController {
   }
 
   @Patch('invoices/:invoiceId/send')
+  @RequirePlanFeature('reporting', { writesOnly: true })
   @UseGuards(FirmRoleGuard)
   @RequireCapability('manageInvoices')
   markInvoiceSent(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
@@ -433,6 +437,7 @@ export class BillingController {
   }
 
   @Post('invoices/:invoiceId/payments')
+  @RequirePlanFeature('reporting', { writesOnly: true })
   @UseGuards(FirmRoleGuard)
   @RequireCapability('manageInvoices')
   recordInvoicePayment(
@@ -451,6 +456,7 @@ export class BillingController {
   }
 
   @Post('invoices/:invoiceId/remind')
+  @RequirePlanFeature('reporting', { writesOnly: true })
   @UseGuards(FirmRoleGuard)
   @RequireCapability('manageInvoices')
   sendInvoiceReminder(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
@@ -458,6 +464,7 @@ export class BillingController {
   }
 
   @Patch('invoices/:invoiceId/discount')
+  @RequirePlanFeature('reporting', { writesOnly: true })
   @UseGuards(FirmRoleGuard)
   @RequireCapability('manageInvoices')
   setInvoiceDiscount(
@@ -483,6 +490,7 @@ export class BillingController {
   }
 
   @Patch('invoices/:invoiceId/follow-up')
+  @RequirePlanFeature('reporting', { writesOnly: true })
   @UseGuards(FirmRoleGuard)
   @RequireCapability('manageInvoices')
   collectionFollowUp(@CurrentUser() user: AuthUser, @Param('invoiceId', ParseUUIDPipe) invoiceId: string, @Body() dto: CollectionFollowUpDto) {

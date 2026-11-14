@@ -1,6 +1,6 @@
 import { ForbiddenException, HttpException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { FirmRole, SubscriptionStatus } from '@lawfirm/shared';
+import { FirmRole, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 /** Runs the real canActivate with passport's own check stubbed to "token valid". */
@@ -30,9 +30,9 @@ describe('JwtAuthGuard', () => {
     await expect(guard.canActivate(context({ firmRole: FirmRole.EXTERNAL }))).resolves.toBe(true);
   });
 
-  it('staff pass without any metadata lookup', async () => {
+  it('staff pass without the freelancer lookup', async () => {
     await expect(guard.canActivate(context({ firmRole: FirmRole.LAWYER }))).resolves.toBe(true);
-    expect(reflector.getAllAndOverride).not.toHaveBeenCalled();
+    expect(reflector.getAllAndOverride).not.toHaveBeenCalledWith('allowExternal', expect.anything());
   });
 
   describe('subscription gate', () => {
@@ -63,7 +63,7 @@ describe('JwtAuthGuard', () => {
 
     it.each([SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE])('%s firms write freely', async status => {
       await expect(guard.canActivate(context({ firmRole: FirmRole.LAWYER, subscriptionStatus: status }, 'PATCH'))).resolves.toBe(true);
-      expect(reflector.getAllAndOverride).not.toHaveBeenCalled();
+      expect(reflector.getAllAndOverride).not.toHaveBeenCalledWith('skipSubscription', expect.anything());
     });
   });
 
@@ -79,6 +79,47 @@ describe('JwtAuthGuard', () => {
   it('an invalid token still fails as before', async () => {
     passport.mockRejectedValue(new Error('Unauthorized'));
     await expect(guard.canActivate(context(undefined))).rejects.toThrow('Unauthorized');
+  });
+
+  describe('plan feature gate', () => {
+    const user = (plan: SubscriptionPlan | null, planGrandfathered = false) =>
+      ({ firmRole: FirmRole.OWNER, subscriptionStatus: SubscriptionStatus.ACTIVE, subscriptionPlan: plan, planGrandfathered });
+    const gate = (feature: string, writesOnly = false) =>
+      reflector.getAllAndOverride.mockImplementation((key: string) => (key === 'requirePlanFeature' ? { feature, writesOnly } : undefined));
+
+    it.each([
+      // plan, office reports + invoices, audit log
+      [SubscriptionPlan.FREE, false, false],
+      [SubscriptionPlan.SOLO, false, false],
+      [SubscriptionPlan.TEAM, false, false],
+      [SubscriptionPlan.FIRM, true, false],
+      [SubscriptionPlan.PROFESSIONAL, true, true],
+    ])('%s: reporting=%s auditLogs=%s', async (plan, reporting, auditLogs) => {
+      for (const [feature, allowed] of [['reporting', reporting], ['auditLogs', auditLogs]] as const) {
+        gate(feature);
+        const result = guard.canActivate(context(user(plan), 'GET'));
+        if (allowed) await expect(result).resolves.toBe(true);
+        else await expect(result).rejects.toMatchObject({ response: { code: 'PLAN_FEATURE_LOCKED', feature } });
+      }
+    });
+
+    it('writesOnly: a Team firm still reads its old invoices but cannot create one', async () => {
+      gate('reporting', true);
+      await expect(guard.canActivate(context(user(SubscriptionPlan.TEAM), 'GET'))).resolves.toBe(true);
+      await expect(guard.canActivate(context(user(SubscriptionPlan.TEAM), 'POST'))).rejects.toMatchObject({ response: { code: 'PLAN_FEATURE_LOCKED' } });
+    });
+
+    it('a grandfathered firm keeps every feature', async () => {
+      gate('auditLogs');
+      await expect(guard.canActivate(context(user(SubscriptionPlan.TEAM, true), 'GET'))).resolves.toBe(true);
+    });
+
+    it('the message names no price or link', async () => {
+      gate('reporting');
+      const err = await guard.canActivate(context(user(SubscriptionPlan.FREE), 'GET')).catch(e => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect(err.getResponse().message).not.toMatch(/บาท|฿|http|อัปเกรด/);
+    });
   });
 });
 

@@ -324,6 +324,7 @@ export class DocumentsService {
       tags?: string[];
     },
   ) {
+    await this.fileStorage.assertRoom(user.firmId, args.buffer.length);
     const document = await this.prisma.document.create({
       data: {
         caseId,
@@ -342,7 +343,7 @@ export class DocumentsService {
 
     const ext = path.extname(args.filename);
     const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
-    const storagePath = await this.fileStorage.put(key, args.buffer, args.mimeType);
+    const storagePath = await this.fileStorage.put(key, args.buffer, args.mimeType, { firmId: user.firmId, enforce: false });
 
     const updated = await this.prisma.document.update({
       where: { id: document.id },
@@ -415,7 +416,7 @@ export class DocumentsService {
 
     const ext = path.extname(args.filename);
     const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
-    const storagePath = await this.fileStorage.put(key, args.buffer, args.mimeType);
+    const storagePath = await this.fileStorage.put(key, args.buffer, args.mimeType, { firmId: args.firmId, enforce: false });
 
     try {
       const updated = await tx.document.update({
@@ -459,6 +460,7 @@ export class DocumentsService {
     file: Express.Multer.File,
   ) {
     await this.verifyIntake(user, intakeId);
+    await this.fileStorage.assertRoom(user.firmId, this.getFileBuffer(file).length);
 
     const document = await this.prisma.document.create({
       data: {
@@ -474,7 +476,7 @@ export class DocumentsService {
 
     const ext = path.extname(decodeUploadFilename(file.originalname));
     const key = path.posix.join('intake', intakeId, 'documents', `${document.id}_v1${ext}`);
-    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype, { firmId: user.firmId, enforce: false });
 
     const updated = await this.prisma.document.update({
       where: { id: document.id },
@@ -507,7 +509,7 @@ export class DocumentsService {
     const newVersion = document.version + 1;
     const ext = path.extname(decodeUploadFilename(file.originalname));
     const key = path.posix.join('cases', caseId, `${documentId}_v${newVersion}${ext}`);
-    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype, { firmId: user.firmId });
 
     // A fresh version was uploaded — any earlier version's approval no
     // longer applies to what's on disk now.
@@ -559,7 +561,7 @@ export class DocumentsService {
       'documents',
       `${documentId}_v${newVersion}${ext}`,
     );
-    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype, { firmId: user.firmId });
 
     await this.prisma.documentVersion.create({
       data: {

@@ -419,10 +419,10 @@ enum ClosingEmailRecipientKind {
 }
 
 model Firm {
-  standupPromptLogs StandupPromptLog[]
-  dailyStandups DailyStandup[]
-  coachingNotes CoachingNote[]
-  appFeedback AppFeedback[]
+  standupPromptLogs     StandupPromptLog[]
+  dailyStandups         DailyStandup[]
+  coachingNotes         CoachingNote[]
+  appFeedback           AppFeedback[]
   mcpEnabled            Boolean            @default(false)
   mcpConnections        McpConnection[]
   id                    String             @id @default(uuid())
@@ -478,6 +478,8 @@ model Firm {
   deadlineRules      DeadlineRule[]
   dailyBriefs        DailyBrief[]
   secretaryMessages  SecretaryMessage[]
+  aiQuotaUses        AiQuotaUse[]
+  storedObjects      StoredObject[]
 }
 
 model FirmMember {
@@ -637,10 +639,10 @@ model Session {
 }
 
 model User {
-  dailyStandups DailyStandup[]
-  receivedCoachingNotes CoachingNote[] @relation("CoachingNoteRecipient")
-  authoredCoachingNotes CoachingNote[] @relation("CoachingNoteAuthor")
-  appFeedback AppFeedback[]
+  dailyStandups          DailyStandup[]
+  receivedCoachingNotes  CoachingNote[]     @relation("CoachingNoteRecipient")
+  authoredCoachingNotes  CoachingNote[]     @relation("CoachingNoteAuthor")
+  appFeedback            AppFeedback[]
   mcpConnections         McpConnection[]
   id                     String             @id @default(uuid())
   email                  String             @unique
@@ -3194,7 +3196,6 @@ model SecretaryMessage {
   @@index([firmId, userId, createdAt])
 }
 
-
 model McpClient {
   id           String   @id @default(uuid())
   clientId     String   @unique
@@ -3207,23 +3208,23 @@ model McpClient {
 }
 
 model McpConnection {
-  id                 String    @id @default(uuid())
-  firmId             String
-  userId             String
-  clientId           String
-  clientName         String
-  accessTokenHash    String?   @unique
-  accessExpiresAt    DateTime?
-  refreshTokenHash   String?   @unique
-  refreshExpiresAt   DateTime?
-  lastUsedAt         DateTime?
-  revokedAt          DateTime?
-  createdAt          DateTime  @default(now())
+  id               String    @id @default(uuid())
+  firmId           String
+  userId           String
+  clientId         String
+  clientName       String
+  accessTokenHash  String?   @unique
+  accessExpiresAt  DateTime?
+  refreshTokenHash String?   @unique
+  refreshExpiresAt DateTime?
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
 
-  firm      Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client    McpClient @relation(fields: [clientId], references: [clientId])
-  authCodes McpAuthCode[]
+  firm              Firm                  @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client            McpClient             @relation(fields: [clientId], references: [clientId])
+  authCodes         McpAuthCode[]
   usedRefreshTokens McpUsedRefreshToken[]
 
   @@index([firmId])
@@ -3257,7 +3258,7 @@ model McpAuthCode {
 
 /// Read-only mirror of the owner's own Outlook events (not ours). Subject/location are owner-only.
 model OutlookCalendarItem {
-  id           String   @id @default(uuid())
+  id           String            @id @default(uuid())
   connectionId String
   userId       String
   graphEventId String
@@ -3266,17 +3267,16 @@ model OutlookCalendarItem {
   location     String?
   startAt      DateTime
   endAt        DateTime
-  isAllDay     Boolean  @default(false)
+  isAllDay     Boolean           @default(false)
   /// free | tentative | busy | oof | workingElsewhere | unknown
   showAs       String
-  webLink      String?  @db.Text
-  updatedAt    DateTime @updatedAt
+  webLink      String?           @db.Text
+  updatedAt    DateTime          @updatedAt
   connection   MailboxConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@unique([connectionId, graphEventId])
   @@index([userId, startAt])
 }
-
 
 enum AppFeedbackKind {
   BUG
@@ -3292,12 +3292,12 @@ enum AppFeedbackSource {
 }
 
 model AppFeedback {
-  id             String            @id @default(uuid())
+  id             String                @id @default(uuid())
   kind           AppFeedbackKind
   source         AppFeedbackSource
   /// 1 ใช้ยาก · 2 พอใช้ · 3 ใช้ง่าย — RATING only
   rating         Int?
-  message        String?           @db.Text
+  message        String?               @db.Text
   /// Route pattern, e.g. /cases/[id]; null for LINE
   route          String?
   /// web | ios | android
@@ -3310,11 +3310,12 @@ model AppFeedback {
   firmId         String?
   resolvedAt     DateTime?
   resolvedBy     String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  firm      Firm?                 @relation(fields: [firmId], references: [id], onDelete: SetNull)
-  lineRound AppFeedbackLineRound? @relation(fields: [lineRoundId], references: [id], onDelete: Cascade)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firm           Firm?                 @relation(fields: [firmId], references: [id], onDelete: SetNull)
+  lineRound      AppFeedbackLineRound? @relation(fields: [lineRoundId], references: [id], onDelete: Cascade)
+
   @@unique([lineRoundId, userId])
   @@index([createdAt])
   @@index([kind, createdAt])
@@ -3328,7 +3329,6 @@ model AppFeedbackLineRound {
   recipientCount Int
   answers        AppFeedback[]
 }
-
 
 enum StandupStatus {
   CHECKED_IN
@@ -3348,8 +3348,9 @@ model DailyStandup {
   blocker          String?       @db.Text
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
-  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firm             Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([firmId, userId, day])
   @@index([firmId, day])
 }
@@ -3357,10 +3358,11 @@ model DailyStandup {
 /// One prompt per firm member per Bangkok day.
 model StandupPromptLog {
   firmId String
-  firm   Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  firm   Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
   id     String   @id @default(uuid())
   userId String
   day    DateTime @db.Date
+
   @@unique([firmId, userId, day])
 }
 
@@ -3377,9 +3379,37 @@ model CoachingNote {
   acknowledgedAt DateTime?
   reply          String?
   createdAt      DateTime  @default(now())
-  firm   Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  user   User @relation("CoachingNoteRecipient", fields: [userId], references: [id], onDelete: Cascade)
-  author User @relation("CoachingNoteAuthor", fields: [authorId], references: [id])
+  firm           Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user           User      @relation("CoachingNoteRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  author         User      @relation("CoachingNoteAuthor", fields: [authorId], references: [id])
+
   @@index([firmId, userId, createdAt])
   @@index([firmId, acknowledgedAt])
+}
+
+/// One user-invoked AI action counted against the firm's plan (PLAN_CONFIG.aiQuota).
+/// Separate from AiRun, which logs every model call (one action can make several).
+model AiQuotaUse {
+  id        String   @id @default(uuid())
+  firmId    String
+  userId    String?
+  action    String
+  createdAt DateTime @default(now())
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@index([firmId, createdAt])
+}
+
+/// Bytes a firm keeps in file storage, one row per stored object key
+/// (PLAN_CONFIG.storageGb). Written by FileStorageService.put, removed by delete.
+model StoredObject {
+  key       String   @id
+  firmId    String
+  bytes     Int
+  createdAt DateTime @default(now())
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
 }

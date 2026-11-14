@@ -140,7 +140,7 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
   it('ยังไม่มีคดี → ไฟล์หนังสือเก็บเป็นไฟล์แนบของเรื่อง', async () => {
     const result = await service.issueNotice(user, 'intake-1', { noticeRecipient: 'คู่กรณี' } as any);
 
-    expect(fileStorage.put).toHaveBeenCalledWith(expect.stringMatching(/^intake\/intake-1\/.*\.docx$/), expect.any(Buffer), expect.any(String));
+    expect(fileStorage.put).toHaveBeenCalledWith(expect.stringMatching(/^intake\/intake-1\/.*\.docx$/), expect.any(Buffer), expect.any(String), { firmId: 'firm-1' });
     expect(prisma.intakeAttachment.create).toHaveBeenCalled();
     expect(result.noticeDocumentId).toBe('att-1');
   });
