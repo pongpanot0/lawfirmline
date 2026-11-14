@@ -19,6 +19,7 @@ import { LoadFailed } from '@/components/ui/LoadFailed';
 import { SelectField, TextField } from '@/components/ui/form-fields';
 import { LicenseBadge, MemberLicenses } from '@/components/team/MemberLicenses';
 import { NoAccess } from '@/components/ui/NoAccess';
+import { PlanLock } from '@/components/billing/PlanLock';
 import { confirmDialog } from '@/lib/confirm-dialog';
 
 type TeamMember = Awaited<ReturnType<typeof api.getTeamMembers>>[number];
@@ -250,9 +251,13 @@ export default function TeamPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Pending invites hold a seat too (the API counts them), so say so before anyone fills the form.
+  const seatsFull = !loading && !!user && members.length + invitations.length >= user.maxUsers;
+
   return (
     <div className="space-y-6">
-      <PageHeader title={d.team.title} description={d.team.description} actions={<Button type="button" title="ส่งคำเชิญทางอีเมลหรือคัดลอกลิงก์" onClick={() => setInviteOpen(true)}><UserPlus className="mr-2 h-4 w-4" />เชิญสมาชิก</Button>} />
+      <PageHeader title={d.team.title} description={d.team.description} actions={seatsFull ? undefined : <Button type="button" title="ส่งคำเชิญทางอีเมลหรือคัดลอกลิงก์" onClick={() => setInviteOpen(true)}><UserPlus className="mr-2 h-4 w-4" />เชิญสมาชิก</Button>} />
+      {seatsFull && <PlanLock title={`ใช้ครบ ${user!.maxUsers} ที่นั่งของแพ็กเกจแล้ว`} description={invitations.length ? 'คำเชิญที่รอตอบนับเป็นที่นั่งด้วย ยกเลิกคำเชิญด้านล่างหรือเปลี่ยนแพ็กเกจเพื่อเชิญเพิ่ม' : 'เปลี่ยนแพ็กเกจเพื่อเชิญสมาชิกเพิ่ม'} />}
 
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} ariaLabel="เชิญสมาชิก">
 

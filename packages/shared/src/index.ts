@@ -1197,6 +1197,8 @@ export interface SubscriptionSummary {
   daysRemaining: number | null;
   maxUsers: number;
   memberCount: number;
+  /** The plan's case cap and how many more fit (closed cases count); null when there is no cap. */
+  cases: { limit: number; left: number } | null;
   canAccessApp: boolean;
   /** Paid by card through a Stripe subscription that renews on its own (plan changes go through changePlan, not checkout). */
   autoRenew: boolean;

@@ -11,7 +11,7 @@ import { CheckoutSteps } from '@/components/guide/CheckoutSteps';
 import { SubmitSummary } from '@/components/guide/SubmitSummary';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { PageLoading } from '@/components/ui/misc';
+import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
@@ -90,13 +90,13 @@ function ExpenseClaimContent() {
 
   if (ids.length === 0) {
     return (
-      <div className="p-6">
-        <p role="alert" className="text-sm text-destructive">{d.expenses.claimNoSelection}</p>
-        <Link href="/expenses" className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline">
-          <ArrowLeft className="h-4 w-4" aria-hidden />
-          {d.expenses.back}
-        </Link>
-      </div>
+      // Arriving here without a selection is a normal first visit, not an error: say how to start.
+      <EmptyState
+        icon={Printer}
+        title={d.expenses.claimNoSelection}
+        description="ใบเบิกทำจากรายการค่าใช้จ่าย ไปที่หน้าค่าใช้จ่าย ติ๊กรายการที่จะเบิก แล้วกด “จัดทำใบเบิก”"
+        action={<Link href="/expenses" className="inline-flex min-h-11 items-center gap-1 rounded-md border px-4 text-sm font-medium"><ArrowLeft className="h-4 w-4" aria-hidden />{d.expenses.back}</Link>}
+      />
     );
   }
 

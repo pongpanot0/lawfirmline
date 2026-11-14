@@ -36,11 +36,13 @@ export default function GettingStarted() {
   }
 
   const checks = progress && setupChecks(progress);
-  const steps: Step[] = progress && checks ? [
+  // A one-seat plan has nobody to invite, so the team step would be a dead end.
+  const hasTeam = (user?.maxUsers ?? 2) > 1;
+  const steps: Step[] = (progress && checks ? [
     { title: th ? 'ทีมงาน' : 'Team', hint: th ? `สมาชิก ${progress.members} คน · คำเชิญรอตอบ ${progress.invites}` : `${progress.members} members · ${progress.invites} pending invitations`, href: '/team', action: th ? 'เชิญทีม' : 'Invite team', done: checks.team },
     { title: th ? 'ลูกความ' : 'Clients', hint: th ? `${progress.clients} ราย · เพิ่มทีละรายหรือนำเข้าจาก CSV ด้านล่าง` : `${progress.clients} on file · add one or import a CSV below`, href: '/clients/new', action: th ? 'เพิ่มลูกความ' : 'Add client', done: checks.clients },
     { title: th ? 'คดีแรก' : 'First case', hint: th ? `${progress.cases} คดี · เปิดคดีแล้วเลือกทนายผู้รับผิดชอบ` : `${progress.cases} cases · open one and choose its owner`, href: '/cases/new', action: th ? 'เปิดคดี' : 'Open case', done: checks.cases },
-  ] : [];
+  ] : []).filter(s => hasTeam || s.href !== '/team');
   const next = steps.find(s => !s.done);
   const doneCount = steps.filter(s => s.done).length;
 
@@ -62,7 +64,9 @@ export default function GettingStarted() {
   ];
 
   return <div className="mx-auto max-w-4xl space-y-10">
-    <PageHeader title={th ? 'เริ่มต้นใช้งานสำนักงาน' : 'Getting started'} description={th ? 'สำหรับเจ้าของและผู้ดูแลสำนักงาน: ตั้งค่า 3 อย่างครั้งเดียว แล้วใช้ "ภาระงานทีม" เป็นหน้าทำงานทุกวัน' : 'For owners and office managers: set up three things once, then run each day from Operations.'} />
+    <PageHeader title={th ? 'เริ่มต้นใช้งานสำนักงาน' : 'Getting started'} description={hasTeam
+      ? (th ? 'สำหรับเจ้าของและผู้ดูแลสำนักงาน: ตั้งค่า 3 อย่างครั้งเดียว แล้วใช้ "ภาระงานทีม" เป็นหน้าทำงานทุกวัน' : 'For owners and office managers: set up three things once, then run each day from Operations.')
+      : (th ? 'ตั้งค่า 2 อย่างครั้งเดียว แล้วใช้ "งานวันนี้" เป็นหน้าทำงานทุกวัน' : 'Set up two things once, then run each day from Today.')} />
     {error && <p role="alert" className="text-destructive">{error}</p>}{notice && <p role="status" className="rounded-lg bg-muted p-3">{notice}</p>}
 
     {!progress && (loadError

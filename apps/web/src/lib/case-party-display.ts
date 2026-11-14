@@ -1,3 +1,5 @@
+import { TMP_CLIENT_PLACEHOLDER } from '@lawfirm/shared';
+
 type CaseParticipant = { name: string; role: string };
 
 const PARTY_ROLES = {
@@ -11,4 +13,10 @@ export function casePartyDisplay(participants: CaseParticipant[], party: keyof t
     .map((participant) => participant.name.trim())
     .filter(Boolean)
     .join(', ') || '—';
+}
+
+/** A case's client as people should read it: the "tmp" placeholder (no client chosen yet) reads as none. */
+export function caseClientName(name: string | null | undefined): string | null {
+  const trimmed = name?.trim();
+  return trimmed && trimmed !== TMP_CLIENT_PLACEHOLDER ? trimmed : null;
 }
