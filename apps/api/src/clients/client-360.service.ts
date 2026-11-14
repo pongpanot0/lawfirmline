@@ -1,3 +1,5 @@
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { redactCustomFields } from '../custom-fields/custom-field-rules';
 import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, FirmRole, hasFirmCapability } from '@lawfirm/shared';
@@ -30,6 +32,7 @@ export class Client360Service {
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
     private assignmentNotifier: AssignmentNotifierService,
+    private customFields: CustomFieldsService,
   ) {}
 
   private relatedCases(user: AuthUser, clientId: string): Prisma.CaseWhereInput {
@@ -49,7 +52,7 @@ export class Client360Service {
     const client = await this.prisma.client.findFirst({
       where: { id: clientId, ...this.caseAccess.getClientFilterForUser(user) },
       select: {
-        id: true, name: true, type: true,
+        id: true, name: true, type: true, customFields: true,
         contacts: {
           select: CLIENT_CONTACT_SELECT,
           orderBy: [{ isPrimary: 'desc' as const }, { name: 'asc' as const }],
@@ -57,7 +60,8 @@ export class Client360Service {
       },
     });
     if (!client) throw new NotFoundException('Client not found');
-    return client;
+    const defs = await this.customFields.listAllForFirm(user.firmId, 'CLIENT');
+    return { ...client, customFields: redactCustomFields(client.customFields, defs, user.id, 'app') };
   }
 
   async overview(user: AuthUser, clientId: string) {

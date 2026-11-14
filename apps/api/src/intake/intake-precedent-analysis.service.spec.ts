@@ -1,3 +1,4 @@
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,10 +14,12 @@ describe('IntakePrecedentAnalysisService', () => {
   let service: IntakePrecedentAnalysisService;
   const mockPrisma = {
     intake: { findFirst: jest.fn() },
+    case: { findFirst: jest.fn() },
     intakePrecedentAnalysis: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
     document: { findMany: jest.fn() },
     intakeAttachment: { findMany: jest.fn() },
   };
+  const fieldDefinitions = { listAllForFirm: jest.fn().mockResolvedValue([]) };
   const mockIapp = { searchPrecedents: jest.fn(), getPrecedentDetail: jest.fn() };
   const mockDocIntel = { extractTextWithOcr: jest.fn(), extractFactsWithAI: jest.fn() };
   const mockConfig = { get: jest.fn() };
@@ -36,6 +39,7 @@ describe('IntakePrecedentAnalysisService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    fieldDefinitions.listAllForFirm.mockResolvedValue([]);
     mockDocIntel.extractFactsWithAI.mockResolvedValue({ facts: [], flags: [] });
     mockConfig.get.mockReturnValue('test-openai-key');
     // The analysable files come from the two stores, not from the intake row;
@@ -49,6 +53,7 @@ describe('IntakePrecedentAnalysisService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakePrecedentAnalysisService,
+        { provide: CustomFieldsService, useValue: fieldDefinitions },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }), getCaseFilterForUser: () => ({ firmId: 'firm-1' }), canAccessCase: jest.fn().mockResolvedValue(true) } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: IappLegalClient, useValue: mockIapp },
@@ -60,6 +65,35 @@ describe('IntakePrecedentAnalysisService', () => {
     }).compile();
     service = module.get(IntakePrecedentAnalysisService);
     global.fetch = jest.fn();
+  });
+
+  it('summarizes a case without custom fields without loading unused definitions', async () => {
+    mockPrisma.case.findFirst.mockResolvedValue({ title: 'คดี', tasks: [], customFields: null });
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ documentSummary: 'สรุปข้อมูลคดีจากข้อมูลที่สำนักงานบันทึก พร้อมรายละเอียดสถานะและงานค้าง' }) } }] }) });
+    await service.summarizeCase(user, 'case');
+    expect(fieldDefinitions.listAllForFirm).not.toHaveBeenCalled();
+    expect(mockPrisma.intakePrecedentAnalysis.create).toHaveBeenCalled();
+  });
+
+  it('case AI input excludes all PERSONAL, sensitive FIRM and orphan values before gathering facts', async () => {
+    fieldDefinitions.listAllForFirm.mockResolvedValue([
+      { key: 'cf_A', visibility: 'PERSONAL', ownerUserId: 'A' },
+      { key: 'cf_own', visibility: 'PERSONAL', ownerUserId: user.id },
+      { key: 'cf_secret', visibility: 'FIRM', isSensitive: true },
+      { key: 'cf_public', visibility: 'FIRM', isSensitive: false },
+    ] as any);
+    mockPrisma.case.findFirst.mockResolvedValue({ title: 'คดี', tasks: [], customFields: {
+      cf_A: 'private-A', cf_own: 'private-own', cf_secret: 'sensitive-value', cf_public: 'public-value', cf_orphan: 'orphan-value', chargeSection: 'legacy-value',
+    } });
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ documentSummary: 'สรุปข้อมูลคดีจากข้อมูลที่สำนักงานบันทึก พร้อมรายละเอียดสถานะและงานค้าง' }) } }] }) });
+    await service.summarizeCase(user, 'case');
+    const requests = (global.fetch as jest.Mock).mock.calls.map(([, init]) => JSON.parse(init.body));
+    const payload = JSON.stringify(requests);
+    for (const value of ['private-A', 'private-own', 'sensitive-value', 'orphan-value', 'cf_A', 'cf_own', 'cf_secret', 'cf_orphan']) expect(payload).not.toContain(value);
+    expect(payload).toContain('public-value');
+    expect(payload).toContain('legacy-value');
+    const saved = mockPrisma.intakePrecedentAnalysis.create.mock.calls[0][0].data;
+    expect(JSON.stringify(saved.extractedFacts)).not.toContain('sensitive-value');
   });
 
   describe('analyze', () => {

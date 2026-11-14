@@ -456,6 +456,10 @@ export class UpdateParticipantDto {
 }
 
 export class CaseQueryDto {
+  @IsOptional()
+  @IsString()
+  cf?: string;
+
   /** ขั้นตอนในกระบวนพิจารณา — กรองแยกจาก status ได้ */
   @IsOptional()
   @IsEnum(CaseStage)

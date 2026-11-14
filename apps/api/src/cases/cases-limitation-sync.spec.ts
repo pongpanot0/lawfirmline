@@ -1,3 +1,5 @@
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test } from '@nestjs/testing';
 import { CasesService } from './cases.service';
 import { CalendarService } from '../calendar/calendar.service';
@@ -20,6 +22,7 @@ describe('CasesService — limitation reminder follows case state', () => {
   beforeEach(async () => {
     afterChange = {};
     prisma = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
       firm: { findUnique: jest.fn().mockResolvedValue(null) }, // no plan: no case limit
       case: {
         findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }),
@@ -54,6 +57,8 @@ describe('CasesService — limitation reminder follows case state', () => {
     };
     const module = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
+        { provide: CustomFieldValuesService, useValue: {} },
         CasesService,
         { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: PrismaService, useValue: prisma },

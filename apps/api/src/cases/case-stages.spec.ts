@@ -1,3 +1,5 @@
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -21,6 +23,7 @@ describe('case stages', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prisma = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
       emailThread: { findFirst: jest.fn().mockResolvedValue(null) },
       conflictCheck: { findFirst: jest.fn().mockResolvedValue({ result: 'CLEAR' }) },
       intakeDocumentRequest: { findMany: jest.fn().mockResolvedValue([]) },
@@ -53,6 +56,8 @@ describe('case stages', () => {
     prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma));
     const module = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
+        { provide: CustomFieldValuesService, useValue: {} },
         CasesService,
         { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: PrismaService, useValue: prisma },

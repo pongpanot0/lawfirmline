@@ -16,6 +16,7 @@ const row = (id: string) => ({
 
 describe('case progress endpoint', () => {
   const prisma = {
+    customFieldDefinition: { findMany: jest.fn().mockResolvedValue([]) },
     case: { findMany: jest.fn() }, task: { findMany: jest.fn() },
     appliedPlaybook: { findMany: jest.fn() }, conflictCheck: { findMany: jest.fn() },
     intakeDocumentRequest: { findMany: jest.fn() }, calendarEvent: { groupBy: jest.fn() },
@@ -26,6 +27,7 @@ describe('case progress endpoint', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    prisma.customFieldDefinition.findMany.mockResolvedValue([]);
     jest.useFakeTimers().setSystemTime(now);
     for (const table of Object.values(prisma)) Object.values(table)[0].mockResolvedValue([]);
     prisma.caseType.findMany.mockResolvedValue([{ id: 'type', fieldSchema: [
@@ -35,7 +37,7 @@ describe('case progress endpoint', () => {
   });
   afterEach(() => jest.useRealTimers());
 
-  it.each([1, 40])('uses seven batched queries for %i cases with the findAll access filter', async (count) => {
+  it.each([1, 40])('uses eight batched queries for %i cases with the findAll access filter', async (count) => {
     const cases = Array.from({ length: count }, (_, i) => row(`case-${i}`));
     prisma.case.findMany.mockResolvedValue(cases);
     prisma.conflictCheck.findMany.mockResolvedValue(cases.map((c) => ({ caseId: c.id, intakeId: null, result: 'CLEAR', checkedAt: now })));

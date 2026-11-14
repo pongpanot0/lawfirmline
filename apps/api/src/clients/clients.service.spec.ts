@@ -1,3 +1,4 @@
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ClientsService } from './clients.service';
@@ -42,6 +43,7 @@ describe('ClientsService.update contact upsert', () => {
     }));
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
         ClientsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
@@ -107,8 +109,8 @@ describe('ClientsService.update contact upsert', () => {
     ]);
     const out = await service.findAll(user);
     expect(out).toEqual([
-      { id: 'a', openCaseCount: 1, openTaskCount: 2 },
-      { id: 'b', openCaseCount: 1, openTaskCount: 0 },
+      { id: 'a', customFields: {}, openCaseCount: 1, openTaskCount: 2 },
+      { id: 'b', customFields: {}, openCaseCount: 1, openTaskCount: 0 },
     ]);
     // Closed cases and skipped journey steps are not backlog.
     const where = mockPrisma.task.groupBy.mock.calls[0][0].where.AND[0];
@@ -211,6 +213,7 @@ describe('ClientsService.remove', () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
         ClientsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: {} },
@@ -247,5 +250,29 @@ describe('ClientsService.remove', () => {
     mockPrisma.client.findFirst.mockResolvedValue(counts({ billedInvoices: 1 }));
     await expect(service.remove(owner, 'client-1')).rejects.toThrow(ConflictException);
     expect(mockPrisma.client.delete).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('ClientsService custom fields', () => {
+  it('redacts another user PERSONAL on detail, list and ordinary update without losing stored values', async () => {
+    const defs = [
+      { key: 'cf_mine', visibility: 'PERSONAL', ownerUserId: 'A', type: 'TEXT' },
+      { key: 'cf_firm', visibility: 'FIRM', type: 'TEXT' },
+    ];
+    const raw = { id: 'client', customFields: { cf_mine: 'private', cf_firm: 'shared', cf_orphan: 'orphan' } };
+    const db: any = {
+      client: { findFirst: jest.fn(async () => raw), findMany: jest.fn(async () => [raw]), update: jest.fn(async () => raw) },
+      case: { findMany: jest.fn(async () => []) },
+      $transaction: jest.fn(async fn => fn(db)),
+    };
+    const access: any = { getClientFilterForUser: () => ({ firmId: 'firm' }), getCaseFilterForUser: () => ({ firmId: 'firm' }) };
+    const fields = { listAllForFirm: jest.fn(async () => defs) } as unknown as CustomFieldsService;
+    const service = new ClientsService(db, access, fields);
+    const user = { id: 'B', firmId: 'firm' } as any;
+    expect((await service.findOne(user, 'client')).customFields).toEqual({ cf_firm: 'shared' });
+    expect((await service.findAll(user))[0].customFields).toEqual({ cf_firm: 'shared' });
+    expect((await service.update(user, 'client', { name: 'renamed' })).customFields).toEqual({ cf_firm: 'shared' });
+    expect(raw.customFields.cf_mine).toBe('private');
   });
 });

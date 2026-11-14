@@ -1,3 +1,5 @@
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CasesController } from './cases.controller';
 import { CasesService } from './cases.service';
@@ -20,6 +22,8 @@ describe('CasesController precedent analysis', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CasesController],
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
+        { provide: CustomFieldValuesService, useValue: {} },
         { provide: CasesService, useValue: mockCasesService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
         { provide: CaseCommentsService, useValue: {} },

@@ -1,3 +1,5 @@
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CasesService } from './cases.service';
 import { CalendarService } from '../calendar/calendar.service';
@@ -32,6 +34,8 @@ describe('CasesService assignment notifications', () => {
     mockPrisma.firmMember.count.mockResolvedValue(2);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
+        { provide: CustomFieldValuesService, useValue: {} },
         CasesService,
         { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },

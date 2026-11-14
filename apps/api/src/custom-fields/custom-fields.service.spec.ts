@@ -229,3 +229,18 @@ describe('CustomFieldsService', () => {
     }
   });
 });
+
+
+describe('CustomFieldsService full definition inventory', () => {
+  it('lists other users PERSONAL and archived definitions only from the requested firm and entity', async () => {
+    const { service } = setup([
+      row({ id: 'personal', visibility: 'PERSONAL', ownerUserId: 'A' }),
+      row({ id: 'archived', archivedAt: new Date('2026-11-01') }),
+      row({ id: 'foreign', firmId: 'other' }),
+      row({ id: 'client', entityKind: 'CLIENT' }),
+    ]);
+    const defs = await service.listAllForFirm('f1', 'CASE');
+    expect(defs.map(d => d.id)).toEqual(['personal', 'archived']);
+    expect(defs[1].archivedAt).toBe('2026-11-01T00:00:00.000Z');
+  });
+});

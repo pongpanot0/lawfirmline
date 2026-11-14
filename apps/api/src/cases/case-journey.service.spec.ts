@@ -11,6 +11,8 @@ const user = { id: 'u1', firmId: 'f1', firmRole: FirmRole.LAWYER } as AuthUser;
 
 describe('Case journey endpoints', () => {
   const prisma = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
+    customFieldDefinition: { findMany: jest.fn().mockResolvedValue([]) },
     case: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     intake: { findFirst: jest.fn() },
     emailThread: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -28,6 +30,7 @@ describe('Case journey endpoints', () => {
   beforeEach(() => {
     jest.restoreAllMocks();
     jest.resetAllMocks();
+    prisma.customFieldDefinition.findMany.mockResolvedValue([]);
     prisma.emailThread.findFirst.mockResolvedValue(null);
     prisma.task.findMany.mockResolvedValue([]);
     prisma.conflictCheck.findFirst.mockResolvedValue({ result: 'CLEAR' });
@@ -51,7 +54,7 @@ describe('Case journey endpoints', () => {
   it('checks tenant and deletion again on the journey data query', async () => {
     prisma.case.findFirst.mockResolvedValueOnce({ id: 'case' }).mockResolvedValueOnce(null);
     await expect(service.journey(user, 'case')).rejects.toThrow(NotFoundException);
-    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { id: 'case', firmId: 'f1', deletedAt: null }, select: { stage: true, openedAtStage: true, partyRole: true, intakeId: true, title: true, clientId: true, clientName: true, courtName: true, customFields: true, caseType: { select: { fieldSchema: true } }, participants: { select: { name: true, side: true, role: true } } } });
+    expect(prisma.case.findFirst).toHaveBeenLastCalledWith({ where: { id: 'case', firmId: 'f1', deletedAt: null }, select: { stage: true, openedAtStage: true, partyRole: true, intakeId: true, title: true, clientId: true, clientName: true, courtName: true, customFields: true, caseTypeId: true, caseType: { select: { fieldSchema: true } }, participants: { select: { name: true, side: true, role: true } } } });
     expect(prisma.appliedPlaybook.findMany).not.toHaveBeenCalled();
   });
 
@@ -294,9 +297,89 @@ describe('Case journey endpoints', () => {
     expect(await service.update(user, 'case', { stage: CaseStage.CLOSING })).toMatchObject({ stage: 'CLOSING' });
   });
 
+  it.each([['NUMBER', 0], ['BOOLEAN', false]] as const)('required %s allows stage advance with %p and ignores archived required values', async (type, value) => {
+    const current = { ...row, caseTypeId: 'civil', customFields: { cf_required: value, cf_archived: 'retained' } };
+    prisma.case.findFirst.mockResolvedValue(current);
+    prisma.case.findUnique.mockResolvedValue(current);
+    prisma.task.findMany.mockResolvedValue([]);
+    prisma.customFieldDefinition.findMany.mockResolvedValue([
+      { id: 'd1', key: 'cf_required', label: 'Required', type, required: true, visibility: 'FIRM', entityKind: 'CASE', caseTypeIds: ['civil'], options: null, archivedAt: null },
+      { id: 'd2', key: 'cf_archived', label: 'Archived', type: 'NUMBER', required: true, visibility: 'FIRM', entityKind: 'CASE', caseTypeIds: [], options: null, archivedAt: new Date() },
+    ] as any);
+    await expect(service.advanceJourney(user, 'case', {})).resolves.toBeDefined();
+    expect(prisma.case.updateMany).toHaveBeenCalled();
+    expect(current.customFields.cf_archived).toBe('retained');
+    prisma.case.updateMany.mockClear();
+    delete (current.customFields as Record<string, unknown>).cf_required;
+    await expect(service.advanceJourney(user, 'case', {})).rejects.toMatchObject({ status: 400, response: { blockers: [expect.stringContaining('Required')] } });
+    expect(prisma.case.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([['clear', 0, null, false], ['fill', undefined, 0, true]] as const)('validates the resulting required value when a PATCH combines stage advance and %s', async (_action, beforeValue, patchValue, allowed) => {
+    const current = { ...row, caseTypeId: 'civil', customFields: { cf_required: beforeValue } };
+    prisma.case.findFirst.mockImplementation(async () => ({ ...current }));
+    prisma.case.findUnique.mockImplementation(async () => ({ ...current }));
+    prisma.case.update.mockImplementation(async ({ data }) => Object.assign(current, data));
+    prisma.task.findMany.mockResolvedValue([]);
+    prisma.customFieldDefinition.findMany.mockResolvedValue([
+      { id: 'd1', key: 'cf_required', label: 'Required', type: 'NUMBER', entityKind: 'CASE', required: true, visibility: 'FIRM', caseTypeIds: ['civil'], options: null, archivedAt: null },
+    ] as any);
+    const db = prisma as any;
+    db.$queryRaw = jest.fn(async () => []);
+    db.auditLog = { create: jest.fn(async () => ({})) };
+    prisma.$transaction.mockImplementation(async (fn: any) => {
+      const snapshot = { ...current, customFields: { ...current.customFields } };
+      try { return await fn(prisma); } catch (error) { Object.assign(current, snapshot); throw error; }
+    });
+    const run = () => service.update(user, 'case', { stage: CaseStage.CLOSING, customFields: { cf_required: patchValue } });
+    if (allowed) {
+      await expect(run()).resolves.toMatchObject({ stage: 'CLOSING', customFields: { cf_required: 0 } });
+      expect(prisma.case.updateMany).toHaveBeenCalled();
+    } else {
+      await expect(run()).rejects.toMatchObject({ status: 400, response: { blockers: [expect.stringContaining('Required')] } });
+      expect(prisma.case.updateMany).not.toHaveBeenCalled();
+      expect(current.customFields.cf_required).toBe(0);
+    }
+  });
+
+  it('stage-only saves lock the firm before reading required values', async () => {
+    prisma.case.findFirst.mockResolvedValue({ ...row, customFields: { cf_required: 0 } });
+    prisma.case.findUnique.mockResolvedValue(row);
+    prisma.task.findMany.mockResolvedValue([]);
+    const db = prisma as any;
+    let locked = false;
+    db.$queryRaw = jest.fn(async () => { locked = true; return []; });
+    prisma.$transaction.mockImplementation(async fn => {
+      locked = false;
+      const findFirst = db.case.findFirst;
+      const transaction = { ...db, case: { ...db.case, findFirst: jest.fn(async (...args: any[]) => {
+        expect(locked).toBe(true);
+        return findFirst(...args);
+      }) } };
+      return fn(transaction);
+    });
+    await expect(service.update(user, 'case', { stage: CaseStage.CLOSING })).resolves.toBeDefined();
+    expect(db.$queryRaw).toHaveBeenCalled();
+  });
+
+  it('checks required fields for the resulting case type on a combined stage/type PATCH', async () => {
+    const current = { ...row, caseTypeId: 'civil', customFields: {} };
+    prisma.case.findFirst.mockResolvedValue(current);
+    prisma.case.findUnique.mockResolvedValue(current);
+    prisma.task.findMany.mockResolvedValue([]);
+    const db = prisma as any;
+    db.$queryRaw = jest.fn(async () => []);
+    db.caseType = { count: jest.fn(async () => 1), findFirst: jest.fn(async () => ({ fieldSchema: [] })) };
+    prisma.customFieldDefinition.findMany.mockResolvedValue([
+      { id: 'd1', key: 'cf_required', label: 'Criminal requirement', type: 'TEXT', entityKind: 'CASE', required: true, visibility: 'FIRM', caseTypeIds: ['criminal'], options: null, archivedAt: null },
+    ] as any);
+    await expect(service.update(user, 'case', { stage: CaseStage.CLOSING, caseTypeId: 'criminal' })).rejects.toMatchObject({ status: 400, response: { blockers: [expect.stringContaining('Criminal requirement')] } });
+    expect(prisma.case.updateMany).not.toHaveBeenCalled();
+  });
+
   it('controllers forward identity/body and use scoped service checks (without the old 403 case guard)', async () => {
     const mock = { journey: jest.fn(), advanceJourney: jest.fn() };
-    const controller = new CasesController(mock as any, {} as any, {} as any);
+    const controller = new CasesController(mock as any, {} as any, {} as any, {} as any);
     controller.journey(user, 'case');
     controller.advanceJourney(user, 'case', { toStage: CaseStage.CLOSING });
     expect(mock.journey).toHaveBeenCalledWith(user, 'case');

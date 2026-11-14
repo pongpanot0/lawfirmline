@@ -1,3 +1,5 @@
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
+import { SetCustomFieldValuesDto } from '../custom-fields/dto/custom-field-values.dto';
 import {
   Controller,
   Get,
@@ -10,7 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ClientsService } from './clients.service';
-import { ClientContactDto, CreateClientDto, UpdateClientDto } from './dto/client.dto';
+import { ClientContactDto, CreateClientDto, UpdateClientDto, ClientQueryDto } from './dto/client.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -27,11 +29,12 @@ export class ClientsController {
     private clientsService: ClientsService,
     private contactLineLink: ContactLineLinkService,
     private client360: Client360Service,
+    private customFieldValues: CustomFieldValuesService,
   ) {}
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser, @Query('search') search?: string) {
-    return this.clientsService.findAll(user, search);
+  findAll(@CurrentUser() user: AuthUser, @Query() query: ClientQueryDto) {
+    return this.clientsService.findAll(user, query.search, query.cf);
   }
 
   @Get('contacts/:contactId/line-status')
@@ -64,6 +67,11 @@ export class ClientsController {
   @Roles(Role.ADMIN, Role.LAWYER)
   addContact(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ClientContactDto) {
     return this.clientsService.addContact(user, id, dto);
+  }
+
+  @Patch(':id/custom-fields')
+  setCustomFields(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetCustomFieldValuesDto) {
+    return this.customFieldValues.setValues(user, 'CLIENT', id, dto.values);
   }
 
   @Patch(':id')

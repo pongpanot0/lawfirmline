@@ -1,3 +1,5 @@
+import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FirmRole } from '@lawfirm/shared';
 import { CasesService } from './cases.service';
@@ -23,6 +25,8 @@ describe('CasesService.findOne', () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
+        { provide: CustomFieldValuesService, useValue: {} },
         CasesService,
         { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
@@ -100,6 +104,8 @@ describe('CasesService.createForPortal', () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
+        { provide: CustomFieldValuesService, useValue: {} },
         CasesService,
         { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
@@ -165,6 +171,8 @@ describe('CasesService.create Own Ref allocation', () => {
     mockPrisma.case.findUnique.mockResolvedValue({ id: 'taken' });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
+        { provide: CustomFieldValuesService, useValue: {} },
         CasesService,
         { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },

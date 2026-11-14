@@ -25,6 +25,14 @@ export class CustomFieldsService {
     return defs.map((def) => this.toDto(def));
   }
 
+  async listAllForFirm(firmId: string, entityKind: CustomFieldEntity): Promise<CustomFieldDefinitionDto[]> {
+    const defs = await this.prisma.customFieldDefinition.findMany({
+      where: { firmId, entityKind },
+      orderBy: [{ section: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    return defs.map((def) => this.toDto(def));
+  }
+
   async create(user: AuthUser, dto: CreateCustomFieldDto): Promise<CustomFieldDefinitionDto> {
     this.assertCapability(user, dto.visibility);
     return this.write(user, async (db) => {
