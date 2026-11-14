@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, Paperclip } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Paperclip } from 'lucide-react';
+import { buildClaimsLedgerCsv, triggerDownload } from '@/lib/petty-cash-csv';
+import { bangkokDateInputValue } from '@/lib/bangkok';
 import type { ExpenseClaimStatus } from '@lawfirm/shared';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
@@ -297,6 +299,22 @@ export default function ReimbursementsPage() {
           {members.map((m) => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}
         </SelectField>
       </details>
+      <div className="mb-4 flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          title="ดาวน์โหลดรายการในแท็บนี้เป็นไฟล์ CSV สำหรับลงบัญชี"
+          disabled={loading || !claims.some(c => c.status === filter)}
+          onClick={() => triggerDownload(
+            new Blob([buildClaimsLedgerCsv(claims.filter(c => c.status === filter))], { type: 'text/csv;charset=utf-8' }),
+            `ชุดเบิก-${({ PENDING: 'รออนุมัติ', APPROVED: 'รอจ่าย', PAID: 'จ่ายแล้ว', REJECTED: 'ไม่อนุมัติ' } as Record<string, string>)[filter] ?? 'ทั้งหมด'}-${bangkokDateInputValue(new Date())}.csv`,
+          )}
+        >
+          <Download className="h-4 w-4" aria-hidden />
+          ดาวน์โหลด CSV
+        </Button>
+      </div>
       {actionError && <p role="alert" className="mb-3 text-sm text-destructive">{actionError}</p>}
 
       {loading ? (
