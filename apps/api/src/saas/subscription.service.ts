@@ -17,6 +17,7 @@ import {
   PlanOption, canBuyAddOns } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
 import { PlanQuotaService } from '../common/services/plan-quota.service';
+import { caseRoom } from '../common/plan-limits';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
 import { StripeService } from './stripe.service';
@@ -68,6 +69,7 @@ export class SubscriptionService {
       daysRemaining,
       maxUsers: firm.maxUsers,
       memberCount,
+      cases: await caseRoom(this.prisma, user.firmId),
       canAccessApp: authUser ? this.tenant.canAccessApp(authUser) : false,
       autoRenew,
       billingPeriod: (stripeSub?.billingPeriod as BillingPeriod | undefined) ?? null,

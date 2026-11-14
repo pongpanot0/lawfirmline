@@ -1,3 +1,4 @@
+import { caseClientName } from '@/lib/case-party-display';
 import Link from 'next/link';
 import { CaseStatus } from '@lawfirm/shared';
 import { StatusBadge } from './StatusBadge';
@@ -28,8 +29,8 @@ export function CaseCard({
         <div>
           <p className="text-xs font-medium text-muted-foreground">{ownRef}</p>
           <h3 className="mt-1 font-semibold text-foreground">{title}</h3>
-          {clientName && (
-            <p className="mt-1 text-sm text-muted-foreground">ลูกความ: {clientName}</p>
+          {caseClientName(clientName) && (
+            <p className="mt-1 text-sm text-muted-foreground">ลูกความ: {caseClientName(clientName)}</p>
           )}
           {leadLawyer && (
             <p className="mt-1 text-sm text-muted-foreground">

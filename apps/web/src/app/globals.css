@@ -71,6 +71,11 @@
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
+/* Below xl the submit checklist (SubmitSummary) is fixed to the bottom edge; keep focused fields scrolled above it. */
+@media (max-width: 1279px) {
+  #workspace-content:has(aside[data-submit-summary]) { scroll-padding-bottom: 11rem; }
+}
+
 :root { --operations-highlight: #fbf3e4; }
 .dark { --operations-highlight: #332b1e; }
 

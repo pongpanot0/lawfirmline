@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { hasFirmCapability } from '@lawfirm/shared';
+import { hasFirmCapability, PLAN_FEATURE_LOCKED } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
-import { api, AuditLogItem } from '@/lib/api';
+import { api, ApiError, AuditLogItem } from '@/lib/api';
+import { PlanLock } from '@/components/billing/PlanLock';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { AUDIT_ACTIONS, auditActionText } from '@/lib/audit-actions';
@@ -23,6 +24,7 @@ export default function AuditLogPage() {
   const [cursor, setCursor] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   const load = (append: boolean) => {
     if (!token) return;
@@ -34,7 +36,10 @@ export default function AuditLogPage() {
         setTotal(result.total);
         setCursor(result.items.at(-1)?.id);
       })
-      .catch(() => setError(true))
+      .catch((err) => {
+        if (err instanceof ApiError && (err.body as { code?: string } | undefined)?.code === PLAN_FEATURE_LOCKED) setLocked(true);
+        else setError(true);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -45,6 +50,15 @@ export default function AuditLogPage() {
 
   if (!hasFirmCapability(user?.firmRole, 'viewFirmReports')) {
     return <p className="text-destructive">{d.admin.accessDenied}</p>;
+  }
+
+  if (locked) {
+    return (
+      <div>
+        <PageHeader title={d.admin.auditLogTitle} description={d.admin.auditLogDescription} />
+        <PlanLock title="บันทึกการใช้งานของสำนักงาน" description="ดูว่าใครทำอะไรในระบบเมื่อไร มีในแพ็กเกจ Professional" />
+      </div>
+    );
   }
 
   return (

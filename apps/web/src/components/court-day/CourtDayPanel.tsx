@@ -1,4 +1,5 @@
 'use client';
+import { caseClientName } from '@/lib/case-party-display';
 import { prepareCourtOffline } from '@/lib/court-offline';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -382,7 +383,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
           <p className="text-muted-foreground">
             {t.attending}: {person.firstName} {person.lastName}
           </p>
-          {(event.case.client?.name || event.case.clientName) && <p>ลูกความ: {event.case.client?.name || event.case.clientName}</p>}
+          {(event.case.client?.name || caseClientName(event.case.clientName)) && <p>ลูกความ: {event.case.client?.name || caseClientName(event.case.clientName)}</p>}
         </div>
       </header>
 
@@ -1042,7 +1043,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                       title={t.clientDraft}
                       value={state.draftRecipientKind === 'CUSTOMER'
                         ? data.event.case.customers.find((row) => row.customerId === state.draftCustomerId)?.customer.name ?? t.choosePayer
-                        : data.event.case.client?.name ?? data.event.case.clientName ?? t.representedClient}
+                        : data.event.case.client?.name ?? caseClientName(data.event.case.clientName) ?? t.representedClient}
                     />
                   )}
                 </dl>

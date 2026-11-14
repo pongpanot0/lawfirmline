@@ -29,6 +29,7 @@ import {
   type UserItem,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { PlanLock } from '@/components/billing/PlanLock';
 import { PageLoading } from '@/components/ui/misc';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { CourtSelect } from '@/components/cases/CourtSelect';
@@ -72,6 +73,11 @@ function NewCaseForm() {
   const emailFailures = useRef(0);
   const playbookManuallySelected = useRef(Boolean(requestedSopId));
   const [autoTitle, setAutoTitle] = useState(true);
+  const [caseCap, setCaseCap] = useState<{ limit: number; left: number } | null>(null);
+  useEffect(() => {
+    if (token) api.getSubscription(token).then((s) => setCaseCap(s.cases)).catch(() => {});
+  }, [token]);
+  const atCaseCap = caseCap?.left === 0;
   const [retry, setRetry] = useState(0);
   const [lookupWarning, setLookupWarning] = useState('');
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
@@ -427,6 +433,8 @@ function NewCaseForm() {
         <div className="rounded-xl bg-[#eeebe3] px-5 py-3"><span className={styles.label}>เลขอ้างอิงสำนักงาน</span><div className="flex items-center gap-3">{editingRef ? <input disabled={submitting} aria-label="เลขอ้างอิงสำนักงาน" value={form.ownRef} onChange={(event) => setForm({ ...form, ownRef: event.target.value })} className={inputClass} /> : <span className="text-2xl font-bold">{form.ownRef || 'กำลังออกเลขอ้างอิง'}</span>}<button type="button" disabled={submitting} className="min-h-11 text-sm underline focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setEditingRef(!editingRef)}>{editingRef ? 'เสร็จ' : 'แก้ไข'}</button></div><p className={styles.hint}>ระบบออกเลขให้อัตโนมัติ</p></div>
       </div>
 
+      {atCaseCap && <div className="mt-6"><PlanLock title={`ใช้ครบ ${caseCap!.limit} คดีของแพ็กเกจแล้ว`} description="นับรวมคดีที่ปิดแล้ว จึงเปิดคดีใหม่ไม่ได้จนกว่าจะเปลี่ยนแพ็กเกจ คดีเดิมยังดูและแก้ไขได้ตามปกติ" /></div>}
+
       <div className="min-w-0">
         <div className="min-w-0">
           <form ref={formRef} noValidate
@@ -752,7 +760,7 @@ function NewCaseForm() {
 
 </div></details>
             </fieldset>
-            <aside aria-label="สรุปก่อนเปิดคดี" className={`mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-[#fffdfa] px-6 py-4 ${showValidation && missing.length ? "border-2 border-[#e9b9b9]" : ""}`}><div>{submitting ? <><strong>กำลังเปิดคดี…</strong><p className="text-sm text-muted-foreground">สร้างแฟ้มคดี · ตรวจผลประโยชน์ขัดกัน · แจ้งทีม — อย่าปิดหน้านี้</p></> : missing.length ? <><strong className="text-[#a83232]">กรอกช่องบังคับแล้ว {completed} จาก 4</strong><p className={styles.hint}>ยังขาด: {missing.map((item) => item.label).join(' · ')}</p></> : <><strong className="text-[#227052]"><Check aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> กรอกช่องบังคับครบแล้ว</strong><p className={styles.hint}>กด “เปิดคดี” แล้วระบบจะสร้างแฟ้มคดี ตรวจผลประโยชน์ขัดกัน และแจ้งทีมให้</p></>}</div><Button type="submit" className={`${styles.btn} ${styles.primary} px-8 text-base`} aria-disabled={submitting}>{submitting ? <><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />กำลังเปิดคดี…</> : uploadFailures.length ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)` : 'เปิดคดี'}</Button></aside>
+            <aside aria-label="สรุปก่อนเปิดคดี" className={`mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-[#fffdfa] px-6 py-4 ${showValidation && missing.length ? "border-2 border-[#e9b9b9]" : ""}`}><div>{submitting ? <><strong>กำลังเปิดคดี…</strong><p className="text-sm text-muted-foreground">สร้างแฟ้มคดี · ตรวจผลประโยชน์ขัดกัน · แจ้งทีม — อย่าปิดหน้านี้</p></> : missing.length ? <><strong className="text-[#a83232]">กรอกช่องบังคับแล้ว {completed} จาก 4</strong><p className={styles.hint}>ยังขาด: {missing.map((item) => item.label).join(' · ')}</p></> : <><strong className="text-[#227052]"><Check aria-hidden="true" className="inline h-[1.1em] w-[1.1em]" /> กรอกช่องบังคับครบแล้ว</strong><p className={styles.hint}>กด “เปิดคดี” แล้วระบบจะสร้างแฟ้มคดี ตรวจผลประโยชน์ขัดกัน และแจ้งทีมให้</p></>}</div><Button type="submit" className={`${styles.btn} ${styles.primary} px-8 text-base`} aria-disabled={submitting} disabled={atCaseCap && !submitting}>{submitting ? <><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />กำลังเปิดคดี…</> : uploadFailures.length ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)` : 'เปิดคดี'}</Button></aside>
           </form>
           {contactDialogCustomerIndex != null && (() => {
             const row = customers[contactDialogCustomerIndex];
