@@ -14,6 +14,7 @@ const definitions = createImportRegistry(deps);
 async function specFor(kind: typeof definitions[number]): Promise<TemplateSpec> {
   const db = Object.fromEntries(['user', 'firmMember', 'client', 'case', 'caseType', 'caseProceeding', 'task', 'calendarEvent', 'expense', 'timeEntry', 'invitation']
     .map(key => [key, { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) }]));
+  Object.assign(db, { firm: { findUnique: jest.fn().mockResolvedValue({ maxUsers: 5 }) } });
   const lookups = await kind.lookups(db as never, user);
   return { sheet: kind.sheet, headers: kind.headers, required: kind.required, maxRows: 300, help: kind.help, ...kind.template(lookups, user) };
 }

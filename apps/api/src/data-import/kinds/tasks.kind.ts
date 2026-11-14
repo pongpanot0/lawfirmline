@@ -17,7 +17,8 @@ export function resolveTaskRows(rows: RawImportRow[], lookups: StaffCaseLookups,
     const draft = draftFor(row, user);
     const title = requiredText(draft, TASK_HEADERS[0]);
     const legalCase = resolveCase(draft, lookups, 'เลขอ้างอิงคดี');
-    const member = resolveMember(draft, lookups, 'ผู้รับผิดชอบ (อีเมล)');
+    // No case and no assignee = the importer's own task, like /todos; otherwise it would belong to nobody.
+    const member = resolveMember(draft, lookups, 'ผู้รับผิดชอบ (อีเมล)', legalCase ? undefined : user.id);
     if (member) {
       const problem = todoAssignmentProblem(user, member.id, member.role);
       if (problem) draft.problems.push(`ผู้รับผิดชอบ (อีเมล): ${member.email} ${problem.message}`);
@@ -39,7 +40,7 @@ export function tasksKind(deps: ImportKindDeps): ImportKindDef<TaskDraft, StaffC
     kind: 'tasks', label: 'งาน', sheet: 'งาน', headers: TASK_HEADERS, required: [TASK_HEADERS[0]], canImport: staffCanImport,
     help: {
       'ชื่องาน *': 'ชื่องาน ห้ามซ้ำกับชื่อ/คดี/ผู้รับผิดชอบ/กำหนดเสร็จเดียวกัน', 'เลขอ้างอิงคดี': 'เลขอ้างอิงภายในคดีที่คุณเข้าถึงได้ เว้นว่าง = งานทั่วไป',
-      'ผู้รับผิดชอบ (อีเมล)': 'อีเมลสมาชิกในสำนักงาน มอบหมายได้ตามลำดับบทบาท เว้นว่าง = ยังไม่มอบหมาย', 'กำหนดเสร็จ': 'วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)',
+      'ผู้รับผิดชอบ (อีเมล)': 'อีเมลสมาชิกในสำนักงาน มอบหมายได้ตามลำดับบทบาท เว้นว่าง: งานในคดียังไม่มอบหมาย งานที่ไม่มีคดีเป็นของผู้นำเข้า', 'กำหนดเสร็จ': 'วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)',
       'ความสำคัญ': 'สูง/กลาง/ต่ำ เว้นว่าง = กลาง', 'สถานะ': 'ยังไม่เริ่ม/กำลังทำ/เสร็จแล้ว เว้นว่าง = ยังไม่เริ่ม', 'รายละเอียด': 'รายละเอียดงาน',
     },
     template: (lookups, user) => ({ dropdowns: [['ความสำคัญ', Object.keys(PRIORITY)], ['สถานะ', Object.keys(STATUS)]], dateHeaders: ['กำหนดเสร็จ'], examples: [['เตรียมเอกสาร', lookups.cases[0]?.ownRef ?? '', user.email, '15/12/2569', 'กลาง', 'ยังไม่เริ่ม', 'ตรวจเอกสารก่อนส่ง']], extraHelp: memberHelp(lookups.members) }),

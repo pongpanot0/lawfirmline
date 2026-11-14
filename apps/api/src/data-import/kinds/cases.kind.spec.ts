@@ -57,4 +57,10 @@ describe('cases import wrapper resolver', () => {
     expect(one({}, { ...importUser, firmRole: FirmRole.EXTERNAL }).problems.join(' ')).toContain('ไม่มีสิทธิ์');
     expect(one({}, { ...importUser, role: undefined }).problems.join(' ')).toContain('ไม่มีสิทธิ์');
   });
+  it('flags rows beyond the plan case room in the preview, counting closed rows too', () => {
+    const rows = [1, 2, 3].map((n) => row({ ...base, 'ชื่อคดี *': `คดี ${n}`, เลขอ้างอิงภายใน: `NEW00${n}` }, n + 1));
+    const drafts = resolveImportCaseRows(rows, { ...lookups(), room: { limit: 15, left: 2 } }, importUser);
+    expect(drafts.map((d) => d.problems.some((p) => p.includes('เกินจำนวนคดีของแพ็กเกจ')))).toEqual([false, false, true]);
+    expect(resolveImportCaseRows(rows, { ...lookups(), room: null }, importUser).every((d) => !d.problems.length)).toBe(true);
+  });
 });

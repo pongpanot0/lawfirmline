@@ -3712,7 +3712,7 @@ export const api = {
   previewDataImport: (token: string, kind: ImportKind, file: File) => {
     const form = new FormData();
     form.append('file', file);
-    return request<ImportPreview>(`/data-import/${kind}/preview`, { method: 'POST', token, body: form });
+    return request<ImportPreview>(`/data-import/${kind}/preview`, { method: 'POST', token, body: form, silent: true });
   },
   commitDataImport: (token: string, id: string) => request<{ batchId: string; kind: ImportKind; created: number }>(`/data-import/batches/${encodeURIComponent(id)}/commit`, { method: 'POST', token }),
   getDataImportBatches: (token: string) => request<{ batches: ImportBatch[] }>('/data-import/batches', { token }),

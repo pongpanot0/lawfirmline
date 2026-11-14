@@ -90,7 +90,7 @@ describe('kind transaction writes and tenant scopes', () => {
     const assertCanInvite = jest.fn().mockResolvedValue({ allowed: true });
     const deps = depsAs({ tenant: { assertCanInvite }, invitations: { createForImport, sendInvitation } });
     const tx = { firm: { findUnique: jest.fn().mockResolvedValue({ maxUsers: 3 }) }, firmMember: { count: jest.fn().mockResolvedValue(1) }, invitation: { count: jest.fn().mockResolvedValue(1) } };
-    const drafts = resolveMemberRows([row({ 'อีเมล *': 'a@example.com', 'ตำแหน่ง *': 'ผู้ช่วย' }), row({ 'อีเมล *': 'b@example.com', 'ตำแหน่ง *': 'ผู้ช่วย' }, 3)], { members: [], memberEmails: new Set(), pendingEmails: new Set() }, importUser);
+    const drafts = resolveMemberRows([row({ 'อีเมล *': 'a@example.com', 'ตำแหน่ง *': 'ผู้ช่วย' }), row({ 'อีเมล *': 'b@example.com', 'ตำแหน่ง *': 'ผู้ช่วย' }, 3)], { members: [], memberEmails: new Set(), pendingEmails: new Set(), maxUsers: 10, seatsLeft: 10 }, importUser);
     await expect(membersKind(deps).commit(dbAs(tx), importUser, drafts)).rejects.toThrow('โควตา');
     expect(assertCanInvite).toHaveBeenCalledTimes(1);
     expect(createForImport).not.toHaveBeenCalled();
@@ -104,7 +104,7 @@ describe('kind transaction writes and tenant scopes', () => {
   it('refuses invitation tenant denial or a missing firm without writing', async () => {
     const createForImport = jest.fn(); const assertCanInvite = jest.fn().mockResolvedValue({ allowed: false, message: 'no seats' });
     const deps = depsAs({ tenant: { assertCanInvite }, invitations: { createForImport } });
-    const drafts = resolveMemberRows([row({ 'อีเมล *': 'a@example.com', 'ตำแหน่ง *': 'ผู้ช่วย' })], { members: [], memberEmails: new Set(), pendingEmails: new Set() }, importUser);
+    const drafts = resolveMemberRows([row({ 'อีเมล *': 'a@example.com', 'ตำแหน่ง *': 'ผู้ช่วย' })], { members: [], memberEmails: new Set(), pendingEmails: new Set(), maxUsers: 10, seatsLeft: 10 }, importUser);
     await expect(membersKind(deps).commit(dbAs({}), importUser, drafts)).rejects.toThrow('no seats');
     assertCanInvite.mockResolvedValue({ allowed: true } as never);
     await expect(membersKind(deps).commit(dbAs({ firm: { findUnique: async () => null }, firmMember: { count: async () => 0 }, invitation: { count: async () => 0 } }), importUser, drafts)).rejects.toThrow('ไม่พบสำนักงาน');

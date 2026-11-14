@@ -97,6 +97,11 @@ const DMY = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 /** Excel date cell, or วว/ดด/ปปปป with a Buddhist (> 2400) or Christian year → UTC midnight of that day. */
 export function parseImportDate(value: unknown): Date | null | 'INVALID' {
   if (value == null || value === '') return null;
+  // A real date pasted into the template's text-formatted cell arrives as its Excel serial number.
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value) || value < 1 || value > 400000) return 'INVALID';
+    value = new Date(Date.UTC(1899, 11, 30) + value * 86400000);
+  }
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return 'INVALID';
     // Typing 15/03/2569 into a date cell stores the year 2569 CE: the Buddhist year needs the same -543.
