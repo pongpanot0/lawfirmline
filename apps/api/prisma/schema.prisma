@@ -3037,6 +3037,7 @@ model AppliedPlaybook {
 }
 
 model DataImportBatch {
+  kind        String    @default("SETUP")
   id          String    @id @default(uuid())
   firmId      String
   createdById String

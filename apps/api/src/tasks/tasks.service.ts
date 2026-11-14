@@ -1,3 +1,4 @@
+import { todoAssignmentProblem } from './todo-assignment';
 import { length as isLength } from 'class-validator';
 import { ModuleRef } from '@nestjs/core';
 import { WorkflowsService } from '../workflows/workflows.service';
@@ -17,7 +18,6 @@ import {
   AuthUser,
   FirmRole,
   canAssignFirmRole,
-  canDelegateTask,
   hasFirmCapability,
   effectiveReviewerId,
   isEligibleReviewer,
@@ -536,19 +536,15 @@ export class TasksService {
    */
   private async assertCanAssignTodo(user: AuthUser, assigneeId: string) {
     if (assigneeId === user.id) return;
-    if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER, FirmRole.LAWYER].includes(user.firmRole)) {
-      throw new ForbiddenException('ผู้ช่วยมอบหมายงานให้ผู้อื่นไม่ได้');
-    }
+    const permission = todoAssignmentProblem(user, assigneeId);
+    if (permission) throw new ForbiddenException(permission.message);
     const member = await this.prisma.firmMember.findFirst({
       where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: assigneeId },
       select: { role: true },
     });
-    if (!member) throw new NotFoundException('ผู้รับมอบหมายไม่ได้อยู่ในสำนักงานนี้');
-    if (!canDelegateTask(user.firmRole, member.role as FirmRole)) {
-      throw new ForbiddenException(user.firmRole === FirmRole.LAWYER
-        ? 'ทนายความมอบหมายงานได้เฉพาะผู้ช่วยหรือผู้จัดการสำนักงาน'
-        : 'มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณเท่านั้น');
-    }
+    const problem = todoAssignmentProblem(user, assigneeId, (member?.role as FirmRole | undefined) ?? null);
+    if (problem?.kind === 'notFound') throw new NotFoundException(problem.message);
+    if (problem) throw new ForbiddenException(problem.message);
   }
 
   async notifyParentObserversOnSubtaskAction(

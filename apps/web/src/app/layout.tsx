@@ -3,6 +3,7 @@ import { AuthProvider } from '@/lib/auth';
 import { ThemeProvider } from '@/lib/theme';
 import { LocaleProvider } from '@/components/landing/LocaleProvider';
 import { FacebookPixel } from '@/components/FacebookPixel';
+import { GoogleTagManager } from '@/components/GoogleTagManager';
 import { ActionFeedback } from '@/components/feedback/ActionFeedback';
 import { AiWorkingIndicator } from '@/components/feedback/AiWorkingIndicator';
 import { ThaiValidity } from '@/components/ui/ThaiValidity';
@@ -64,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ThaiValidity />
           <ConfirmHost />
           <FacebookPixel />
+          <GoogleTagManager />
         </ThemeProvider>
       </body>
     </html>

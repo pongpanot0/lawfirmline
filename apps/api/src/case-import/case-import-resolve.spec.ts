@@ -147,4 +147,10 @@ describe('resolveCaseRows', () => {
       ['ซ้ำกับแถวที่ 8 ในไฟล์'],
     ]);
   });
+  it('never names a clashing case the importer cannot open', () => {
+    const hidden = one({ เลขคดีดำ: 'พ1/2569', ศาล: 'ศาลแพ่ง' }, lookups({ visibleOwnRefs: new Set(['TSB-0009']) }));
+    expect(hidden.problems.join(' ')).toContain('ไม่มีสิทธิ์เปิดดู');
+    expect(hidden.problems.join(' ')).not.toContain('TSB-0007');
+    expect(one({ เลขคดีดำ: 'พ9/2569' }, lookups({ visibleOwnRefs: new Set(['TSB-0009']) })).problems.join(' ')).toContain('TSB-0009');
+  });
 });
