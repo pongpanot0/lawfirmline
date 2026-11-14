@@ -114,6 +114,7 @@ export default function CaseImportPage() {
   return (
     <div className="min-w-0 pb-24">
       <Link href="/cases" className="mb-4 inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground">← เรื่องและคดี</Link>
+      <Link href="/import" className="mb-4 ml-4 inline-flex min-h-11 items-center whitespace-nowrap text-sm text-primary hover:underline">นำเข้าข้อมูลประเภทอื่น →</Link>
       <PageHeader
         title="นำเข้าคดีจาก Excel"
         description="ดาวน์โหลดแบบฟอร์ม กรอกหนึ่งแถวต่อหนึ่งคดี แล้วอัปโหลดกลับมาตรวจก่อนสร้างคดี"

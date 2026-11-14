@@ -1,11 +1,13 @@
 import {
   Injectable,
+  Logger,
   BadRequestException,
   ForbiddenException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import type { Prisma, Invitation } from '../generated/prisma';
 import { AuthUser, FirmRole, canInviteFirmRole, hasFirmCapability, maskEmail } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
@@ -15,6 +17,7 @@ import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class InvitationService {
+  private readonly logger = new Logger(InvitationService.name);
   constructor(
     private prisma: PrismaService,
     private tenant: TenantService,
@@ -53,65 +56,50 @@ export class InvitationService {
       throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขคำเชิญตำแหน่งนี้');
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    const invitation = await this.prisma.invitation.upsert({
-      where: { firmId_email: { firmId: user.firmId, email: dto.email } },
-      create: {
-        firmId: user.firmId,
-        email: dto.email,
-        role: dto.role ?? FirmRole.ASSISTANT,
-        token,
-        expiresAt,
-        invitedById: user.id,
-      },
-      update: {
-        token,
-        expiresAt,
-        acceptedAt: null,
-        role: dto.role ?? FirmRole.ASSISTANT,
-        invitedById: user.id,
-      },
-    });
-
-    await this.prisma.auditLog.create({
-      data: {
-        firmId: user.firmId,
-        userId: user.id,
-        action: 'USER_INVITED',
-        metadata: { email: maskEmail(dto.email), role: invitation.role },
-      },
-    });
-
-    const invitePath = `/invite/${invitation.token}`;
-    const inviteUrl = `${this.email.getAppUrl()}${invitePath}`;
-
-    let emailSent = false;
-    if (this.email.isConfigured()) {
-      try {
-        await this.email.sendInvitationEmail({
-          to: invitation.email,
-          firmName: user.firmName,
-          inviterName: `${user.firstName} ${user.lastName}`.trim(),
-          inviteUrl,
-          role: invitation.role,
-          expiresAt: invitation.expiresAt,
-        });
-        emailSent = true;
-      } catch {
-        // Invitation is saved; owner can still copy the invite link.
-      }
-    }
-
+    const invitation = await this.createForImport(this.prisma, user, dto.email, dto.role ?? FirmRole.ASSISTANT);
+    const emailSent = await this.sendInvitation(user, invitation);
     return {
       id: invitation.id,
       email: invitation.email,
       role: invitation.role,
       expiresAt: invitation.expiresAt,
-      inviteUrl: invitePath,
+      inviteUrl: `/invite/${invitation.token}`,
       emailSent,
     };
+  }
+
+  /** Caller checks permissions, duplicates and seats before writing; accepts the import transaction. */
+  async createForImport(tx: Prisma.TransactionClient, user: AuthUser, email: string, role: FirmRole) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const invitation = await tx.invitation.upsert({
+      where: { firmId_email: { firmId: user.firmId, email } },
+      create: { firmId: user.firmId, email, role, token, expiresAt, invitedById: user.id },
+      update: { token, expiresAt, acceptedAt: null, role, invitedById: user.id },
+    });
+    await tx.auditLog.create({
+      data: { firmId: user.firmId, userId: user.id, action: 'USER_INVITED', metadata: { email: maskEmail(email), role: invitation.role } },
+    });
+    return invitation;
+  }
+
+  /** Email is best effort after the invitation is saved, for both normal and Excel invitations. */
+  async sendInvitation(user: AuthUser, invitation: Pick<Invitation, 'email' | 'role' | 'token' | 'expiresAt'>): Promise<boolean> {
+    if (!this.email.isConfigured()) return false;
+    try {
+      await this.email.sendInvitationEmail({
+        to: invitation.email,
+        firmName: user.firmName,
+        inviterName: `${user.firstName} ${user.lastName}`.trim(),
+        inviteUrl: `${this.email.getAppUrl()}/invite/${invitation.token}`,
+        role: invitation.role,
+        expiresAt: invitation.expiresAt,
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn(`Invitation email failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+      return false;
+    }
   }
 
   async getByToken(token: string) {

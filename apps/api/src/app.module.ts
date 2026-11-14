@@ -51,6 +51,7 @@ import { DocumentReviewModule } from './document-review/document-review.module';
 import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
 import { CaseDriveModule } from './outlook-integration/drive/case-drive.module';
 import { CaseImportModule } from './case-import/case-import.module';
+import { DataImportModule } from './data-import/data-import.module';
 import { CargoClaimsModule } from './cargo-claims/cargo-claims.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { McpModule } from './mcp/mcp.module';
@@ -108,6 +109,7 @@ import { McpModule } from './mcp/mcp.module';
     OutlookIntegrationModule,
     CaseDriveModule,
     CaseImportModule,
+    DataImportModule,
     ConflictCheckModule,
     CargoClaimsModule,
     WorkflowsModule,
