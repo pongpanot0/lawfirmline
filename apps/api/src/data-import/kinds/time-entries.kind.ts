@@ -3,7 +3,7 @@ import type { RawImportRow } from '../../common/excel-import/types';
 import type { ImportDraft, ImportKindDef, ImportKindDeps } from '../import-kind';
 import { checkDuplicate, dayKey, draftFor, importAmount, importDate, maxLength, memberHelp, resolveCase, resolveMember, signature, staffCanImport, staffCases, StaffCaseLookups, yesNo } from '../kind-helpers';
 
-export const TIME_HEADERS = ['วันที่ *', 'เลขอ้างอิงคดี *', 'ชั่วโมง *', 'ผู้ทำงาน (อีเมล; ว่าง = ผู้นำเข้า)', 'อัตรา (บาท/ชม.; ว่าง = member defaultHourlyRate)', 'รายละเอียด', 'เรียกเก็บได้'] as const;
+export const TIME_HEADERS = ['วันที่ *', 'เลขอ้างอิงคดี *', 'ชั่วโมง *', 'ผู้ทำงาน (อีเมล; ว่าง = ผู้นำเข้า)', 'อัตรา (บาท/ชม.; ว่าง = อัตราตั้งต้นของสมาชิก)', 'รายละเอียด', 'เรียกเก็บได้'] as const;
 export interface TimeEntryDraft extends ImportDraft { date?: Date; caseId: string; hours?: number; userId: string; rate: number; description?: string; billable: boolean }
 /** Same time = day, accessible case, worker, hours, hourly rate and description. */
 export const timeEntrySignature = (entry: Pick<TimeEntryDraft, 'date' | 'caseId' | 'userId' | 'hours' | 'rate' | 'description'>) => signature(dayKey(entry.date), entry.caseId, entry.userId, entry.hours, entry.rate, entry.description);
@@ -33,7 +33,7 @@ export function timeEntriesKind(deps: ImportKindDeps): ImportKindDef<TimeEntryDr
     help: {
       'วันที่ *': 'วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)', 'เลขอ้างอิงคดี *': 'เลขอ้างอิงภายในคดีที่คุณเข้าถึงได้', 'ชั่วโมง *': 'มากกว่า 0 ไม่เกิน 24 ชั่วโมง',
       'ผู้ทำงาน (อีเมล; ว่าง = ผู้นำเข้า)': 'เว้นว่าง = ผู้นำเข้า ผู้จัดการการเงินระบุสมาชิกคนอื่นได้',
-      'อัตรา (บาท/ชม.; ว่าง = member defaultHourlyRate)': `ตัวเลข 0–${MONEY_MAX} บาท/ชั่วโมง เว้นว่าง = อัตราสมาชิก ถ้าไม่ตั้งไว้ใช้ 0`,
+      'อัตรา (บาท/ชม.; ว่าง = อัตราตั้งต้นของสมาชิก)': `ตัวเลข 0–${MONEY_MAX} บาท/ชั่วโมง เว้นว่าง = อัตราสมาชิก ถ้าไม่ตั้งไว้ใช้ 0`,
       'รายละเอียด': 'ไม่เกิน 500 ตัวอักษร; รายการซ้ำตรวจวันที่ คดี ผู้ทำงาน ชั่วโมง อัตราและรายละเอียด', 'เรียกเก็บได้': 'ใช่/ไม่ เว้นว่าง = ใช่',
     },
     template: (lookups) => ({ dropdowns: [['เรียกเก็บได้', ['ใช่', 'ไม่']]], dateHeaders: ['วันที่ *'], examples: [['15/12/2569', lookups.cases[0]?.ownRef ?? 'REF20260001', 1.5, '', '', 'เตรียมคำให้การ', 'ใช่']], extraHelp: memberHelp(lookups.members) }),
