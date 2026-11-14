@@ -3714,7 +3714,8 @@ export const api = {
     form.append('file', file);
     return request<ImportPreview>(`/data-import/${kind}/preview`, { method: 'POST', token, body: form, silent: true });
   },
-  commitDataImport: (token: string, id: string) => request<{ batchId: string; kind: ImportKind; created: number }>(`/data-import/batches/${encodeURIComponent(id)}/commit`, { method: 'POST', token }),
+  /** Silent: the page shows the result card or the inline error itself. */
+  commitDataImport: (token: string, id: string) => request<{ batchId: string; kind: ImportKind; created: number }>(`/data-import/batches/${encodeURIComponent(id)}/commit`, { method: 'POST', token, silent: true }),
   getDataImportBatches: (token: string) => request<{ batches: ImportBatch[] }>('/data-import/batches', { token }),
 
   downloadCaseImportTemplate: (token: string) => fetchBlob('/case-import/template', { token }),
