@@ -37,21 +37,43 @@ export function taskPoints(size: TaskSize | `${TaskSize}`) {
   return TASK_SIZE_POINTS[size as TaskSize];
 }
 
-/** Office default queue standard, used until a member has enough finished work to set their own. */
+/** Office default queue standard (points per week), used until a member has enough finished work to set their own. */
 export const HEAVY_QUEUE_POINTS = 10;
 export const HEAVY_DAY_POINTS = 4;
-/** Weeks of finished work behind a member's personal standard. */
-export const STANDARD_HISTORY_WEEKS = 8;
+/** Weeks of finished work behind a member's personal standard: the last month. */
+export const STANDARD_HISTORY_WEEKS = 4;
+/** Fewest finished tasks in that month before a member gets their own standard. */
+const STANDARD_MIN_TASKS = 4;
 
 /**
- * A member's queue standard = points they actually finished per week over the last STANDARD_HISTORY_WEEKS weeks,
- * so a fast lawyer can carry more than 10 and a slower one is flagged earlier.
- * Too little history (fewer than 5 finished tasks) keeps the office default. Clamped to 5–30 so one odd stretch can't make it absurd.
+ * A member's queue standard = points they actually finished per week over the last month (STANDARD_HISTORY_WEEKS weeks),
+ * so a fast lawyer can carry more than 10 and a slower one is flagged earlier. Screens may show it per month (×4).
+ * Too little history (fewer than STANDARD_MIN_TASKS finished tasks) keeps the office default. Clamped to 5–30 so one odd stretch can't make it absurd.
  * ponytail: leave weeks count as zero-output weeks; exclude them if standards dip after long leave.
  */
 export function personalStandard(finished: { points: number; count: number }) {
-  if (finished.count < 5) return HEAVY_QUEUE_POINTS;
+  if (finished.count < STANDARD_MIN_TASKS) return HEAVY_QUEUE_POINTS;
   return Math.min(30, Math.max(5, Math.round(finished.points / STANDARD_HISTORY_WEEKS)));
+}
+
+/** A weekly standard as points per month, for display. */
+export const monthlyPoints = (weekly: number) => weekly * 4;
+
+/** Size from planned days, matching TASK_SIZES: half a day or less S, about a day M, several days L. */
+export function sizeFromDays(days: number): TaskSize {
+  return days <= 0.5 ? TaskSize.S : days <= 1 ? TaskSize.M : TaskSize.L;
+}
+
+/**
+ * Typical size of a work type from how many days finished tasks of that type took (accepted → done); null under 5 samples.
+ * Thresholds are wider than sizeFromDays because calendar days also hold queue wait.
+ * ponytail: calendar time, not effort — switch to logged hours once time entries link to tasks.
+ */
+export function sizeFromHistory(days: number[]): TaskSize | null {
+  if (days.length < 5) return null;
+  const sorted = [...days].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  return median <= 1 ? TaskSize.S : median <= 3 ? TaskSize.M : TaskSize.L;
 }
 
 /** The one queue rule every screen uses: over = above the standard, near = 80% of it or more. */

@@ -1,4 +1,4 @@
-import { assignmentWarnings, compareWorkload, dayLoad, personalStandard, queueLoad, workloadStatus, type AssignmentCandidate } from '@lawfirm/shared';
+import { assignmentWarnings, compareWorkload, sizeFromDays, sizeFromHistory, dayLoad, personalStandard, queueLoad, workloadStatus, type AssignmentCandidate } from '@lawfirm/shared';
 
 // The same thresholds drive web, mobile, MCP and the assign form, so the boundaries are pinned here once.
 describe('workload rules', () => {
@@ -26,10 +26,10 @@ describe('workload rules', () => {
     const sorted = [m('free', 2), m('leave', 1, 0, true), m('near', 8), m('overdue', 3, 2), m('over', 12), m('leaveOverdue', 1, 1, true), m('over2', 15)].sort(compareWorkload);
     expect(sorted.map((x) => x.name)).toEqual(['over2', 'over', 'near', 'overdue', 'free', 'leaveOverdue', 'leave']);
   });
-  it('each person has their own standard from 8 weeks of finished work', () => {
-    expect(personalStandard({ points: 160, count: 40 })).toBe(20); // fast: 20/week
-    expect(personalStandard({ points: 48, count: 20 })).toBe(6); // slower: full at 6
-    expect(personalStandard({ points: 4, count: 4 })).toBe(10); // too little history → office default
+  it('each person has their own standard from the last month of finished work', () => {
+    expect(personalStandard({ points: 80, count: 20 })).toBe(20); // fast: 20/week
+    expect(personalStandard({ points: 24, count: 10 })).toBe(6); // slower: full at 6
+    expect(personalStandard({ points: 6, count: 3 })).toBe(10); // too little history → office default
     expect(personalStandard({ points: 8, count: 8 })).toBe(5); // floor
     expect(personalStandard({ points: 400, count: 100 })).toBe(30); // cap
     expect(queueLoad(12, 20)).toBe('ok');
@@ -46,5 +46,17 @@ describe('team radar order', () => {
   it('keeps the two busiest together even when a lighter member has overdue work', () => {
     const m = (name: string, openPoints: number, overdueCount: number) => ({ name, openPoints, standardPoints: 10, overdueCount, days: [{ onLeave: false }] });
     expect([m('light-late', 2, 1), m('near', 8, 0), m('over', 12, 1)].sort(compareWorkload).map((x) => x.name)).toEqual(['over', 'near', 'light-late']);
+  });
+});
+
+describe('task size from data', () => {
+  it('maps planned days to the size labels', () => {
+    expect(sizeFromDays(0.5)).toBe('S'); expect(sizeFromDays(1)).toBe('M'); expect(sizeFromDays(2)).toBe('L');
+  });
+  it('uses the median of past durations, only with enough history', () => {
+    expect(sizeFromHistory([1, 1, 1, 1])).toBeNull();
+    expect(sizeFromHistory([0.2, 0.5, 0.8, 9, 0.3])).toBe('S');
+    expect(sizeFromHistory([2, 2, 3, 10, 1])).toBe('M');
+    expect(sizeFromHistory([4, 5, 6, 1, 7])).toBe('L');
   });
 });

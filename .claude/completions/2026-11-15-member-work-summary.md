@@ -8,3 +8,8 @@
 - Mockup: Stitch project 4125760283365915225; PNG in `docs/mockups/member-summary.png`.
 - Gotcha: Recharts SVG attributes can't take `var(--token)` — resolve via getComputedStyle (`useChartColors`).
 - Open question to user: office default 10 pts/week — switch to monthly or reweight sizes?
+
+## Follow-up (same day): task size from data + monthly standard
+- New tasks without a size: workflow steps use `sizeFromDays(durationDays)` (≤0.5 S, ≤1 M, else L); other tasks with a workType use `sizeFromHistory` (median accepted→done days of the last 100 finished tasks of that type, ≥5 samples; ≤1 S, ≤3 M, else L). No workType or too little history → DB default M. Other create paths (court-day, intake, practice setup, import, client-360) still default M.
+- Standard now from the last 4 weeks (min 4 finished tasks), still points/week internally so near/over rules are unchanged; Team Radar shows "ทำได้ ~N/เดือน" (×4).
+- Coaching AI still reads 8 weeks of history; its standard uses only the last 4.

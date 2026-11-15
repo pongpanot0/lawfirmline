@@ -14,6 +14,8 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { taskRef } from './standup.service';
 
 const DAY_MS = 86400000;
+/** Weeks of finished work the AI draft reads; the standard uses only the last STANDARD_HISTORY_WEEKS of them. */
+const COACHING_HISTORY_WEEKS = 8;
 const people = { select: { id: true, firstName: true, lastName: true } } as const;
 const noteInclude = { user: people, author: people } as const;
 type NoteRow = Prisma.CoachingNoteGetPayload<{ include: typeof noteInclude }>;
@@ -110,8 +112,8 @@ export class CoachingService {
     const dayStart = bangkokDayStart(now);
     const weekday = new Date(`${bangkokDayKey(now)}T00:00:00Z`).getUTCDay();
     const monday = new Date(dayStart.getTime() - ((weekday + 6) % 7) * DAY_MS);
-    const weeks = Array.from({ length: STANDARD_HISTORY_WEEKS }, (_, i) => ({ weekStart: bangkokDayKey(new Date(monday.getTime() - (STANDARD_HISTORY_WEEKS - 1 - i) * 7 * DAY_MS)), finishedPoints: 0 }));
-    const since = new Date(monday.getTime() - (STANDARD_HISTORY_WEEKS - 1) * 7 * DAY_MS);
+    const weeks = Array.from({ length: COACHING_HISTORY_WEEKS }, (_, i) => ({ weekStart: bangkokDayKey(new Date(monday.getTime() - (COACHING_HISTORY_WEEKS - 1 - i) * 7 * DAY_MS)), finishedPoints: 0 }));
+    const since = new Date(monday.getTime() - (COACHING_HISTORY_WEEKS - 1) * 7 * DAY_MS);
     const caseScope = { OR: [{ caseId: null }, { case: this.caseAccess.getCaseFilterForUser(user) }] };
     const [comments, standups, workload] = await Promise.all([
       this.prisma.taskComment.findMany({ where: { authorId: userId, createdAt: { gte: new Date(now.getTime() - 14 * DAY_MS), lte: now },
@@ -133,13 +135,13 @@ export class CoachingService {
       const i = Math.floor((task.completedAt.getTime() - since.getTime()) / (7 * DAY_MS));
       if (i >= 0 && i < weeks.length) {
         weeks[i].finishedPoints += taskPoints(task.size);
-        finishedCount++;
+        if (i >= weeks.length - STANDARD_HISTORY_WEEKS) finishedCount++;
       }
     }
     const payload = { tasks: [...refs.values()], comments, standups: standups.map((s) => ({ ...s,
       yesterdayTaskIds: s.yesterdayTaskIds.filter((id) => refs.has(id)), todayTaskIds: s.todayTaskIds.filter((id) => refs.has(id)),
     })), stats: {
-      openPoints: open.reduce((sum, t) => sum + taskPoints(t.size), 0), standardPoints: personalStandard({ points: weeks.reduce((sum, week) => sum + week.finishedPoints, 0), count: finishedCount }),
+      openPoints: open.reduce((sum, t) => sum + taskPoints(t.size), 0), standardPoints: personalStandard({ points: weeks.slice(-STANDARD_HISTORY_WEEKS).reduce((sum, week) => sum + week.finishedPoints, 0), count: finishedCount }),
       overdueCount: open.filter((t) => t.dueDate && t.dueDate < now).length, finishedPointsPerWeek: weeks,
       // Where open work waits now (count, average/oldest days) so the draft can name the bottleneck.
       waitingByStage: buildWorkSummary(workload.map((t) => ({ ...t, caseRef: null, onHold: !!t.onHold && !t.onHold.endedAt, blocked: !!t.blockedBy && t.blockedBy.status !== 'DONE' })), [], now).stages

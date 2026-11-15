@@ -115,7 +115,7 @@ describe('CoachingService', () => {
     expect(input.stats.finishedPointsPerWeek.slice(-2)).toEqual([{ weekStart: '2026-11-02', finishedPoints: 1 }, { weekStart: '2026-11-09', finishedPoints: 2 }]);
   });
 
-  it.each([[0, 10], [4, 10], [8, 5], [40, 20], [100, 30]])('uses the personal standard for %i finished tasks: %i points', async (count, expected) => {
+  it.each([[0, 10], [3, 10], [4, 5], [8, 8], [20, 20], [100, 30]])('uses the last-month personal standard for %i finished L tasks: %i points', async (count, expected) => {
     const { db, svc } = build();
     db.task.findMany.mockResolvedValueOnce(Array.from({ length: count }, (_, i) => ({
       id: `done-${i}`, status: 'DONE', size: 'L', dueDate: null, completedAt: new Date('2026-11-12T02:00:00Z'),
