@@ -1,3 +1,4 @@
+export * from './court-fees';
 export * from './fee-packages';
 export * from './invoice-totals';
 export * from './document-templates';
