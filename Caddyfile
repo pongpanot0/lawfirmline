@@ -42,12 +42,21 @@ www.{$DOMAIN} {
 	}
 	header @firm >X-Robots-Tag "noindex, nofollow"
 
+	# lb_try_*: hold requests while api/web restart on a deploy (~10 s) instead of
+	# answering 502. Caddy retries only when it cannot reach the upstream, so no
+	# request is sent twice.
 	@api host api.{$DOMAIN}
 	handle @api {
-		reverse_proxy api:3001
+		reverse_proxy api:3001 {
+			lb_try_duration 30s
+			lb_try_interval 250ms
+		}
 	}
 
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:3000 {
+			lb_try_duration 30s
+			lb_try_interval 250ms
+		}
 	}
 }

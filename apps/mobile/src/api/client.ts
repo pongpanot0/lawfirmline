@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { fetchWithRetry } from '@lawfirm/shared';
 
 /**
  * Thin fetch wrapper: attaches the access token, refreshes once on 401
@@ -73,7 +74,7 @@ async function refreshAccessToken(): Promise<string | null> {
 
 export async function authenticatedFetch(path: string, init: RequestInit = {}) {
   const { accessToken } = await getTokens();
-  const doFetch = (token: string | null) => fetch(`${API_URL}${path}`, {
+  const doFetch = (token: string | null) => fetchWithRetry(`${API_URL}${path}`, {
     ...init,
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
   });

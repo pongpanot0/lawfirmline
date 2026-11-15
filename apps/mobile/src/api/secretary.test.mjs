@@ -24,12 +24,15 @@ function setup({ size = 128, response = { text: 'สรุปคดีให้�
   const requests = [];
   const deleted = [];
   const queryData = new Map();
-  const client = load('./client.ts', { 'expo-secure-store': { getItemAsync: async () => 'token' } }, {
-    fetch: async (url, init) => {
-      requests.push({ url, ...init });
-      return new Response(JSON.stringify(response), { status });
-    },
-  });
+  const fetch = async (url, init) => {
+    requests.push({ url, ...init });
+    return new Response(JSON.stringify(response), { status });
+  };
+  // Retries are covered by the shared helper's own test; here every request is sent once.
+  const client = load('./client.ts', {
+    'expo-secure-store': { getItemAsync: async () => 'token' },
+    '@lawfirm/shared': { fetchWithRetry: (url, init) => fetch(url, init) },
+  }, { fetch });
   const files = load('./files.ts', {
     './client': client, 'expo-file-system/legacy': {}, 'expo-sharing': {},
     'expo-file-system': { File: class {
