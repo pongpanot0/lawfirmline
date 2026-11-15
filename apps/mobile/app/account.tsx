@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, View } from 'react-native';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { setAppLockEnabled, useAppLockEnabled } from '@/app-lock';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/api/auth';
 import { api, ApiError } from '@/api/client';
-import { FormPage, FormSection } from '@/components/Form';
+import { FormPage, FormSection, SwitchRow } from '@/components/Form';
 import { TextField } from '@/components/Input';
 import { Disclosure } from '@/components/Disclosure';
 import { Text } from '@/components/AppText';
@@ -37,7 +39,29 @@ export default function AccountScreen() {
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [busy, setBusy] = useState<'profile' | 'password' | null>(null);
+  const [busy, setBusy] = useState<'profile' | 'password' | 'lock' | null>(null);
+  const appLock = useAppLockEnabled();
+  const [canLock, setCanLock] = useState(false);
+  const [lockError, setLockError] = useState<string | null>(null);
+  useEffect(() => {
+    void LocalAuthentication.getEnrolledLevelAsync()
+      .then((level) => setCanLock(level !== LocalAuthentication.SecurityLevel.NONE)).catch(() => setCanLock(false));
+  }, []);
+  // Turning the lock on asks for one scan first, so nobody locks themselves out of an app they cannot unlock.
+  const toggleLock = async (next: boolean) => {
+    setLockError(null); setBusy('lock');
+    try {
+      if (next) {
+        const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'ยืนยันเพื่อเปิดการล็อกแอป', cancelLabel: 'ยกเลิก' });
+        if (!result.success) { setLockError('ยังไม่ได้เปิดการล็อก · สแกนไม่สำเร็จหรือกดยกเลิก'); return; }
+      }
+      await setAppLockEnabled(next);
+    } catch {
+      setLockError('บันทึกการตั้งค่าไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setBusy(null);
+    }
+  };
   const [error, setError] = useState<{ section: 'profile' | 'password'; message: string } | null>(null);
   const [saved, setSaved] = useState(false);
   const [triedProfile, setTriedProfile] = useState(false), [triedPassword, setTriedPassword] = useState(false);
@@ -117,6 +141,11 @@ export default function AccountScreen() {
         <Button title="เปลี่ยนรหัสผ่าน" variant="secondary" onPress={changePassword} busy={busy === 'password'} disabled={!!busy} />
       </View>
     </Disclosure>
+    {canLock && <Card style={{ marginTop: spacing.md }}>
+      <SwitchRow label="ล็อกแอปด้วยสแกนหน้า / นิ้ว" detail="เปิดแอปใหม่ หรือกลับมาหลังพักเกิน 1 นาที ต้องสแกนก่อนใช้งาน"
+        value={appLock === true} disabled={appLock === null || busy === 'lock'} onValueChange={toggleLock} />
+      {lockError && <InlineError message={lockError} />}
+    </Card>}
     <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://samnuan.com/privacy')}
       style={({ pressed }) => [{ minHeight: 44, justifyContent: 'center', marginTop: spacing.sm }, pressed && { opacity: 0.6 }]}>
       <Text style={{ color: colors.info }}>นโยบายความเป็นส่วนตัว</Text>
