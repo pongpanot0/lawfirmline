@@ -1,7 +1,7 @@
 /* Hallmark · P4 H4 E4 S4 R4 V4 · modern-minimal · Workbench · designed-as-app */
 :root {
-  --font-sans: "Noto Sans Thai", "Inter", system-ui, sans-serif;
-  --font-display: "Trirong", "Noto Sans Thai", serif;
+  --font-sans: var(--font-noto-thai, "Noto Sans Thai"), var(--font-inter, "Inter"), system-ui, sans-serif;
+  --font-display: var(--font-trirong, "Trirong"), var(--font-noto-thai, "Noto Sans Thai"), serif;
   --radius: 0.5rem;
   --space-3xs: 4px;
   --space-2xs: 8px;

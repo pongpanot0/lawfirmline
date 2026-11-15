@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter, Noto_Sans_Thai, Trirong } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth';
 import { ThemeProvider } from '@/lib/theme';
 import { LocaleProvider } from '@/components/landing/LocaleProvider';
@@ -9,6 +10,10 @@ import { AiWorkingIndicator } from '@/components/feedback/AiWorkingIndicator';
 import { ThaiValidity } from '@/components/ui/ThaiValidity';
 import { ConfirmHost } from '@/components/ui/ConfirmHost';
 import './globals.css';
+
+const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700'], display: 'swap', variable: '--font-inter', preload: false });
+const notoThai = Noto_Sans_Thai({ subsets: ['thai', 'latin'], weight: ['400', '500', '600', '700'], display: 'swap', variable: '--font-noto-thai' });
+const trirong = Trirong({ subsets: ['thai', 'latin'], weight: ['500', '600', '700'], display: 'swap', variable: '--font-trirong', preload: false });
 
 const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'samnuan.com';
 const title = 'Samnuan — ระบบจัดการสำนักงานกฎหมาย';
@@ -47,15 +52,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Trirong:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="th" className={`${inter.variable} ${notoThai.variable} ${trirong.variable}`} suppressHydrationWarning>
       <body className="font-sans">
         <ThemeProvider>
           <LocaleProvider>

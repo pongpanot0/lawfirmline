@@ -12,6 +12,7 @@
 #   - platform hosts: apex, www, api
 #   - known firm slugs under ROOT_DOMAIN
 # Otherwise `*.{$DOMAIN}` can steal SNI for api/www and return ERR_SSL_PROTOCOL_ERROR.
+# The specific www redirect wins over the wildcard; keep on-demand TLS on both blocks.
 
 {
 	on_demand_tls {
@@ -19,7 +20,14 @@
 	}
 }
 
-{$DOMAIN}, www.{$DOMAIN}, api.{$DOMAIN}, *.{$DOMAIN} {
+www.{$DOMAIN} {
+	tls {
+		on_demand
+	}
+	redir https://{$DOMAIN}{uri} 308
+}
+
+{$DOMAIN}, api.{$DOMAIN}, *.{$DOMAIN} {
 	tls {
 		on_demand
 	}
@@ -27,6 +35,12 @@
 	# Auto-upgrade any http:// subresource (images, API URLs stored in data)
 	# so Chrome never flags the page as "not secure" over mixed content.
 	header Content-Security-Policy "upgrade-insecure-requests"
+
+	@firm {
+		host *.{$DOMAIN}
+		not host api.{$DOMAIN} www.{$DOMAIN}
+	}
+	header @firm >X-Robots-Tag "noindex, nofollow"
 
 	@api host api.{$DOMAIN}
 	handle @api {

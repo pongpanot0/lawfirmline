@@ -2,7 +2,12 @@ import type { Metadata } from 'next';
 import { PublicAccountPage } from '@/components/brand/PublicAccountPage';
 import { DeleteAccountForm } from './DeleteAccountForm';
 
-export const metadata: Metadata = { title: 'ขอลบบัญชี | Samnuan', description: 'Request deletion of your Samnuan account and associated personal data without installing the app.' };
+export const metadata: Metadata = {
+  title: 'ขอลบบัญชี | Samnuan',
+  description: 'ส่งคำขอลบบัญชี Samnuan และข้อมูลส่วนบุคคลที่เกี่ยวข้องได้โดยไม่ต้องติดตั้งแอป',
+  alternates: { canonical: '/delete-account' },
+  robots: { index: false, follow: true },
+};
 
 export default function DeleteAccountPage() {
   return (
