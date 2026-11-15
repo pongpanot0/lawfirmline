@@ -1,3 +1,4 @@
+import { resolveTemplate } from '../document-templates/document-templates.service';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, hasFirmCapability } from '@lawfirm/shared';
 import { Invoice, InvoicePayment, Prisma } from '../generated/prisma';
@@ -6,9 +7,10 @@ import { PrismaService } from '../prisma/prisma.module';
 const round = (n: number) => Math.round(n * 100) / 100;
 
 // Callers hold the invoice row lock so allocations and reissues are serialized.
-export async function issueReceipt(tx: Prisma.TransactionClient, firmId: string, invoice: Invoice, payment: InvoicePayment, issuedAt: Date, replacesReceiptId?: string) {
+export async function issueReceipt(tx: Prisma.TransactionClient, firmId: string, invoice: Invoice, payment: InvoicePayment, issuedAt: Date, replacesReceiptId?: string, templateId?: string) {
   const firm = await tx.firm.findUnique({ where: { id: firmId } });
   if (!firm) throw new NotFoundException('ไม่พบสำนักงาน');
+  const templateSnapshot = await resolveTemplate(tx, firmId, 'RECEIPT', invoice.billToCustomerId, templateId);
   const lines = await tx.invoiceLineItem.findMany({ where: { invoiceId: invoice.id }, select: { amount: true, taxClass: true } });
   const active = await tx.receipt.findMany({ where: { invoiceId: invoice.id, firmId, voidedAt: null } });
   const fees = lines.filter(l => l.taxClass !== 'DISBURSEMENT').reduce((sum, l) => sum + l.amount, 0);
@@ -41,7 +43,8 @@ export async function issueReceipt(tx: Prisma.TransactionClient, firmId: string,
     issuedAt, isTaxInvoice: firm.vatRegistered && allocation.amountVat > 0,
     firmSnapshot: { legalName: firm.legalName, taxId: firm.taxId, taxBranch: firm.taxBranch,
       address: firm.billingAddress, vatRegistered: firm.vatRegistered, logoKey: firm.logoKey },
-    templateVersion: 'standard-v1',
+    templateSnapshot: templateSnapshot as unknown as Prisma.InputJsonValue,
+    templateVersion: templateSnapshot.templateId ? `${templateSnapshot.templateId}:v${templateSnapshot.version}` : 'standard-v1',
   } });
 }
 
@@ -71,7 +74,7 @@ export class ReceiptsService {
   async print(user: AuthUser, id: string) {
     this.authorize(user);
     const receipt = await this.prisma.receipt.findFirst({ where: { id, firmId: user.firmId },
-      include: { payment: true, invoice: { include: { lineItems: true,
+      include: { payment: true, invoice: { include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
         billToCustomer: { select: { id: true, name: true, taxId: true, branch: true, address: true, billingEmail: true, billingPhone: true } },
         case: { select: { ownRef: true, title: true } }, intake: { select: { title: true } } } } } });
     if (!receipt) throw new NotFoundException('ไม่พบใบเสร็จ');
@@ -95,7 +98,7 @@ export class ReceiptsService {
         amount: receipt.amountReceived, whtAmount: receipt.amountWht } };
   }
 
-  async reissue(user: AuthUser, id: string) {
+  async reissue(user: AuthUser, id: string, templateId?: string) {
     this.authorize(user);
     return this.prisma.$transaction(async tx => {
       const original = await tx.receipt.findFirst({ where: { id, firmId: user.firmId } });
@@ -108,7 +111,7 @@ export class ReceiptsService {
       if (active) throw new BadRequestException('รายการรับเงินนี้มีใบเสร็จที่ยังไม่ยกเลิกแล้ว');
       if (!receipt.payment.clearedAt) throw new BadRequestException('รายการรับเงินยังไม่เคลียร์');
       const issuedAt = receipt.payment.method === 'CHEQUE' ? receipt.payment.clearedAt : receipt.payment.receivedAt;
-      return issueReceipt(tx, user.firmId, receipt.invoice, receipt.payment, issuedAt, receipt.id);
+      return issueReceipt(tx, user.firmId, receipt.invoice, receipt.payment, issuedAt, receipt.id, templateId);
     }).catch(error => {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('รายการรับเงินนี้มีใบเสร็จที่ยังไม่ยกเลิกแล้ว โหลดหน้าใหม่');
       throw error;

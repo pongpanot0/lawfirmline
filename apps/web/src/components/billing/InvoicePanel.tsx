@@ -84,13 +84,14 @@ export function InvoicePanel({
     if (!win) { setError('เปิดหน้าพิมพ์ไม่ได้ ให้อนุญาตป๊อปอัปแล้วลองใหม่อีกครั้ง'); return; }
     try {
       const data = await api.getInvoicePrintData(token, invoiceId);
-      const firm = await invoiceFirmData(token);
+      const firm = await invoiceFirmData(token, data.templateSnapshot?.logoKey);
       const lines = [
         ...data.lineItems.map((l) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, amount: l.amount, taxClass: l.taxClass })),
       ];
       const ok = openBillingDocWindow(
         buildBillingDocHtml({
           kind,
+          templateSnapshot: data.templateSnapshot,
           ...firm,
           firmName: user?.firmName ?? '',
           invoiceNumber: data.invoiceNumber,

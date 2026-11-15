@@ -256,7 +256,7 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
       mockPrisma.caseCustomer.findMany.mockResolvedValue([{ customerId: 'c1', sharePercent: 100 }]);
       await expect(
         billing.createInvoice(user, { caseId: 'case-1' }, { ...fee(1000), discountAmount: 1000.01, discountReason: 'เกินยอด' } as any),
-      ).rejects.toThrow('ส่วนลดต้องไม่เกินยอดก่อนหัก');
+      ).rejects.toThrow('ส่วนลดต้องไม่เกินค่าวิชาชีพ (ไม่รวมเงินจ่ายแทน)');
       expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
     });
 

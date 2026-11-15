@@ -1,3 +1,5 @@
+export * from './invoice-totals';
+export * from './document-templates';
 export * from './task-operations';
 export * from './task-routine';
 export * from './firm-role';

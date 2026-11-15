@@ -54,7 +54,7 @@ function SettingsContent() {
   const officeLinks = OFFICE_LINKS.filter((l) => hasFirmCapability(user?.firmRole, l.capability));
   const canSetPrefix = hasFirmCapability(user?.firmRole, 'manageSubscription');
   const canSetupOffice = hasFirmCapability(user?.firmRole, 'manageFirmContent');
-  const hasOffice = officeLinks.length > 0 || canSetPrefix || canSetupOffice;
+  const hasOffice = officeLinks.length > 0 || canSetPrefix || canSetupOffice || hasFirmCapability(user?.firmRole, 'manageInvoices');
   const views: Array<{ key: SettingsView; label: string }> = [
     { key: 'profile', label: d.settings.profile },
     { key: 'notifications', label: 'การแจ้งเตือน' },
@@ -462,6 +462,7 @@ function SettingsContent() {
             </Card>
           )}
           {hasFirmCapability(user?.firmRole, 'manageAiConnections') && <AiFirmSettings />}
+          {hasFirmCapability(user?.firmRole, 'manageInvoices') && <Link href="/settings/document-templates" title="จัดการรูปแบบเอกสาร" className="flex min-h-11 items-center gap-3 rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted">เทมเพลตเอกสาร<ChevronRight className="ml-auto h-4 w-4" /></Link>}
           {<BillingProfileCard canEdit={canSetPrefix} />}
           {canSetPrefix && <CaseNumberPrefixCard />}
         </div>

@@ -450,6 +450,7 @@ model Firm {
   billingAddress String?
   vatRegistered  Boolean @default(false)
   logoKey        String?
+  billingDocumentTemplates BillingDocumentTemplate[]
   receipts       Receipt[]
   standupPromptLogs     StandupPromptLog[]
   dailyStandups         DailyStandup[]
@@ -956,6 +957,10 @@ model CustomFieldDefinition {
 }
 
 model Client {
+  invoiceTemplateId String?
+  receiptTemplateId String?
+  invoiceTemplate BillingDocumentTemplate? @relation("ClientInvoiceTemplate", fields: [invoiceTemplateId], references: [id], onDelete: SetNull)
+  receiptTemplate BillingDocumentTemplate? @relation("ClientReceiptTemplate", fields: [receiptTemplateId], references: [id], onDelete: SetNull)
   customFields Json?
   id           String   @id @default(uuid())
   firmId       String
@@ -2357,6 +2362,7 @@ enum TaxClass {
 }
 
 model Invoice {
+  templateSnapshot Json?
   feeTaxClass TaxClass @default(LITIGATION_EXEMPT)
   vatRate     Float    @default(0.07)
   vatAmount   Float    @default(0)
@@ -2502,6 +2508,7 @@ model IntakeClient {
 }
 
 model InvoiceLineItem {
+  sortOrder Int @default(0)
   taxClass TaxClass @default(LITIGATION_EXEMPT)
   id          String @id @default(uuid())
   invoiceId   String
@@ -3520,6 +3527,7 @@ model PlanAddOn {
 }
 
 model Receipt {
+  templateSnapshot Json?
   id              String   @id @default(uuid())
   firmId          String
   invoiceId       String
@@ -3551,4 +3559,31 @@ model Receipt {
   // One active receipt per payment is enforced by the partial unique index in SQL.
   @@index([paymentId])
   @@index([firmId, issuedAt])
+}
+
+
+enum DocumentType {
+  INVOICE
+  RECEIPT
+}
+
+model BillingDocumentTemplate {
+  id String @id @default(uuid())
+  firmId String
+  name String
+  docType DocumentType
+  layout Json
+  logoKey String?
+  isDefault Boolean @default(false)
+  version Int @default(1)
+  archivedAt DateTime?
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  invoiceClients Client[] @relation("ClientInvoiceTemplate")
+  receiptClients Client[] @relation("ClientReceiptTemplate")
+
+  @@index([firmId, docType])
 }

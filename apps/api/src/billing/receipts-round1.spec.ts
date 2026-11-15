@@ -15,6 +15,7 @@ describe('round 1 payment receipts', () => {
         findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn(),
         update: jest.fn(async ({ data }) => ({ id: 'p1', whtAmount: 0, ...data })),
       },
+      billingDocumentTemplate: { findFirst: jest.fn().mockResolvedValue(null) },
       firm: { findUnique: jest.fn().mockResolvedValue({ legalName: 'Law', taxId: '1234567890123', taxBranch: '00000', billingAddress: 'Bangkok', vatRegistered: false, logoKey: null }) },
       invoiceLineItem: { findMany: jest.fn().mockResolvedValue([{ amount: 100000, taxClass: 'LITIGATION_EXEMPT' }]) },
       receipt: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(async ({ data }) => ({ id: 'r1', ...data })), findFirst: jest.fn().mockResolvedValue(null) },

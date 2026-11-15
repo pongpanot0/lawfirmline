@@ -1,3 +1,4 @@
+import { TemplateChoiceDto } from '../document-templates/dto/document-templates.dto';
 import {
   Controller,
   Get,
@@ -106,8 +107,8 @@ export class BillingController {
   @Post('receipts/:id/reissue')
   @UseGuards(FirmRoleGuard)
   @RequireCapability('manageInvoices')
-  reissueReceipt(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.receiptsService.reissue(user, id);
+  reissueReceipt(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: TemplateChoiceDto) {
+    return this.receiptsService.reissue(user, id, dto?.templateId);
   }
 
   @Get('time-entries/default-rate')
@@ -479,8 +480,8 @@ export class BillingController {
   @RequirePlanFeature('reporting', { writesOnly: true })
   @UseGuards(FirmRoleGuard)
   @RequireCapability('manageInvoices')
-  markInvoiceSent(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
-    return this.collectionsService.markSent(user, invoiceId);
+  markInvoiceSent(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string, @Body() dto: TemplateChoiceDto) {
+    return this.collectionsService.markSent(user, invoiceId, dto?.templateId);
   }
 
   @Post('invoices/:invoiceId/payments')

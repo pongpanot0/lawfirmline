@@ -19,6 +19,7 @@ describe('receipt allocation and reissue', () => {
     const matches = (row: any, where: any) => Object.entries(where).every(([key, value]) => row[key] === value);
     let number = 0;
     db = {
+      billingDocumentTemplate: { findFirst: jest.fn().mockResolvedValue(null) },
       firm: { findUnique: async () => ({ vatRegistered: true, legalName: 'Law', taxId: '1234567890123', taxBranch: '00000', billingAddress: 'Bangkok', logoKey: null }) },
       invoice: { findFirst: async ({ where }: any) => matches(invoice, where) ? invoice : null },
       invoiceLineItem: { findMany: async () => lines },

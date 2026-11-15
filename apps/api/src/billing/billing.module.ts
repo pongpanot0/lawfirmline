@@ -1,3 +1,4 @@
+import { DocumentTemplatesModule } from '../document-templates/document-templates.module';
 import { ReceiptsService } from './receipts.service';
 import { FirmLinkService } from '../notifications/firm-link.service';
 import { forwardRef, Module } from '@nestjs/common';
@@ -10,7 +11,7 @@ import { TimeSuggestionsService } from './time-suggestions.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [forwardRef(() => NotificationsModule)],
+  imports: [DocumentTemplatesModule, forwardRef(() => NotificationsModule)],
   controllers: [BillingController],
   providers: [
     ReceiptsService, FirmLinkService,BillingService, PettyCashService, CashAdvanceService, CollectionsService, TimeSuggestionsService],

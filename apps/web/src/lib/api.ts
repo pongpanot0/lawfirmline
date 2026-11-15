@@ -1,3 +1,4 @@
+import type { TemplateLayout } from '@lawfirm/shared';
 import type { CustomFieldDefinitionDto, CustomFieldEntity, CustomFieldValue } from '@lawfirm/shared';
 import type { BillingUsage, AiCreditsEstimate, AddOnKind } from '@lawfirm/shared';
 import { PLAN_LIMIT_AI } from '@lawfirm/shared';
@@ -621,6 +622,8 @@ export interface ClientItem {
   billingEmail?: string | null;
   billingPhone?: string | null;
   contacts: ClientContactItem[];
+  invoiceTemplateId?: string | null;
+  receiptTemplateId?: string | null;
   _count?: { cases: number };
   /** Only on the list endpoint: visible open cases and their open top-level tasks. */
   openCaseCount?: number;
@@ -1219,6 +1222,7 @@ export interface InvoicePaymentItem {
 }
 
 export interface RecordInvoicePaymentInput {
+  templateId?: string;
   amount: number;
   method?: 'TRANSFER' | 'CHEQUE' | 'CASH' | 'OTHER';
   receivedAt: string;
@@ -1252,8 +1256,11 @@ export interface ReceiptItem {
   replacesReceiptId: string | null;
 }
 
+export interface DocumentTemplate { id: string; name: string; docType: 'INVOICE' | 'RECEIPT'; layout: TemplateLayout; logoKey: string | null; isDefault: boolean; version: number }
+export interface ResolvedDocumentTemplate { templateId: string | null; name: string; version: number; layout: TemplateLayout; logoKey: string | null }
 export interface BillingProfile { legalName: string | null; taxId: string | null; taxBranch: string | null; billingAddress: string | null; vatRegistered: boolean; logoKey: string | null }
 export interface ReceiptPrintData extends ReceiptItem {
+  templateSnapshot?: { layout: TemplateLayout; logoKey: string | null } | null;
   isTaxInvoice: boolean;
   /** ยอดคงค้าง ณ วันที่ออกใบเสร็จนี้ — ไม่เปลี่ยนเมื่อพิมพ์ซ้ำ */
   outstandingAfter?: number;
@@ -2279,8 +2286,8 @@ export const api = {
   getFirmInvoices: (token: string) =>
     request<FirmInvoiceItem[]>('/invoices', { token }),
 
-  markInvoiceSent: (token: string, invoiceId: string) =>
-    request<FirmInvoiceItem>(`/invoices/${invoiceId}/send`, { method: 'PATCH', token }),
+  markInvoiceSent: (token: string, invoiceId: string, templateId?: string) =>
+    request<FirmInvoiceItem>(`/invoices/${invoiceId}/send`, { method: 'PATCH', token, body: JSON.stringify(templateId ? { templateId } : {}) }),
 
   recordInvoicePayment: (token: string, invoiceId: string, data: RecordInvoicePaymentInput) =>
     request<RecordInvoicePaymentResult>(`/invoices/${invoiceId}/payments`, {
@@ -2299,6 +2306,12 @@ export const api = {
   markReceiptSent: (token: string, id: string) => request<ReceiptItem>(`/receipts/${id}/sent`, { method: 'PATCH', token }),
   reissueReceipt: (token: string, id: string) => request<ReceiptItem>(`/receipts/${id}/reissue`, { method: 'POST', token }),
   voidReceipt: (token: string, id: string, reason: string) => request<ReceiptItem>(`/receipts/${id}/void`, { method: 'POST', token, body: JSON.stringify({ reason }) }),
+  getBillingDocumentTemplates: (token: string, docType: 'INVOICE' | 'RECEIPT') => request<DocumentTemplate[]>(`/document-templates?docType=${docType}`, { token }),
+  resolveDocumentTemplate: (token: string, docType: 'INVOICE' | 'RECEIPT', customerId?: string) => request<ResolvedDocumentTemplate>(`/document-templates/resolve?docType=${docType}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ''}`, { token }),
+  createBillingDocumentTemplate: (token: string, data: { name: string; docType: 'INVOICE' | 'RECEIPT'; copyFromId?: string }) => request<DocumentTemplate>('/document-templates', { token, method: 'POST', body: JSON.stringify(data) }),
+  updateBillingDocumentTemplate: (token: string, id: string, data: { name?: string; layout?: TemplateLayout; isDefault?: boolean }) => request<DocumentTemplate>(`/document-templates/${id}`, { token, method: 'PATCH', body: JSON.stringify(data) }),
+  archiveBillingDocumentTemplate: (token: string, id: string) => request<DocumentTemplate>(`/document-templates/${id}/archive`, { token, method: 'POST' }),
+  bindBillingDocumentTemplate: (token: string, id: string, data: { invoiceTemplateId?: string | null; receiptTemplateId?: string | null }) => request<ClientItem>(`/clients/${id}/document-templates`, { token, method: 'PUT', body: JSON.stringify(data) }),
   getBillingProfile: (token: string) => request<BillingProfile>('/firm/billing-profile', { token }),
   updateBillingProfile: (token: string, data: Omit<BillingProfile, 'logoKey'>) => request<BillingProfile>('/firm/billing-profile', { method: 'PATCH', token, body: JSON.stringify(data) }),
   uploadBillingLogo: (token: string, file: File) => { const body = new FormData(); body.append('logo', file); return request<{ logoKey: string }>('/firm/billing-profile/logo', { method: 'POST', token, body }); },
@@ -4766,6 +4779,7 @@ export interface InvoiceItem {
 }
 
 export interface InvoicePrintData {
+  templateSnapshot?: { layout: TemplateLayout; logoKey: string | null } | null;
   id: string;
   invoiceNumber: string;
   status: string;
@@ -4806,7 +4820,10 @@ export interface InvoiceDraft {
 }
 
 export interface CreateInvoiceInput {
-  lineItems?: { description: string; quantity: number; unitPrice: number }[];
+  templateId?: string;
+  lineItems?: { description: string; quantity: number; unitPrice: number; taxClass?: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT'; sortOrder?: number }[];
+  timeEntryLines?: { id: string; description?: string; taxClass?: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT'; sortOrder?: number }[];
+  expenseLines?: { id: string; description?: string; taxClass?: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT'; sortOrder?: number }[];
   timeEntryIds?: string[];
   expenseIds?: string[];
   /** ใบที่ออกเปล่าไม่มีงานให้อ้างลูกค้า จึงระบุตรง ๆ */

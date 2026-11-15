@@ -73,6 +73,80 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
     billing = module.get(BillingService);
   });
 
+  it('keeps time and expense lines in request order and honors explicit manual sortOrder', async () => {
+    mockPrisma.caseCustomer.findMany.mockResolvedValue([]);
+    mockPrisma.timeEntry.findMany.mockResolvedValue([
+      { id: 't1', description: 'Time 1', hours: 1, rate: 100 }, { id: 't2', description: 'Time 2', hours: 1, rate: 200 },
+    ]);
+    mockPrisma.expense.findMany.mockResolvedValue([
+      { id: 'e1', description: 'Expense 1', amount: 10 }, { id: 'e2', description: 'Expense 2', amount: 20 },
+    ]);
+    mockPrisma.timeEntry.updateMany.mockResolvedValue({ count: 2 });
+    mockPrisma.expense.updateMany.mockResolvedValue({ count: 2 });
+    await billing.createInvoice(user, { caseId: 'case-1' }, {
+      timeEntryIds: ['t2', 't1'], expenseIds: ['e2', 'e1'],
+      lineItems: [{ description: 'Last', quantity: 1, unitPrice: 1, sortOrder: 10 }, { description: 'Before last', quantity: 1, unitPrice: 2, sortOrder: 9 }],
+    });
+    const args = mockPrisma.invoice.create.mock.calls[0][0];
+    expect(args.data.lineItems.create.map((l: any) => [l.description, l.sortOrder])).toEqual([
+      ['Time 2', 0], ['Time 1', 1], ['Expense 2', 2], ['Expense 1', 3], ['Before last', 4], ['Last', 5],
+    ]);
+    expect(args.include.lineItems.orderBy).toEqual([{ sortOrder: 'asc' }, { id: 'asc' }]);
+  });
+
+  it('applies linked-line overrides, ignores legacy ids, and persists stable cross-source order', async () => {
+    mockPrisma.caseCustomer.findMany.mockResolvedValue([]);
+    mockPrisma.timeEntry.findMany.mockResolvedValue([
+      { id: 't1', description: 'Old 1', hours: 2, rate: 100 },
+      { id: 't2', description: 'Old 2', hours: 1, rate: 200 },
+    ]);
+    mockPrisma.expense.findMany.mockResolvedValue([
+      { id: 'e1', description: 'Old expense', amount: 50 }, { id: 'e2', description: 'Expense tie', amount: 25 },
+    ]);
+    mockPrisma.expense.updateMany.mockResolvedValue({ count: 2 });
+    mockPrisma.timeEntry.updateMany.mockResolvedValue({ count: 2 });
+    await billing.createInvoice(user, { caseId: 'case-1' }, {
+      timeEntryIds: ['ignored'], expenseIds: ['ignored'],
+      timeEntryLines: [
+        { id: 't2', description: 'Second', taxClass: 'ADVISORY_VAT', sortOrder: 5 },
+        { id: 't1', sortOrder: 5 },
+      ],
+      expenseLines: [
+        { id: 'e1', description: 'First', taxClass: 'LITIGATION_EXEMPT', sortOrder: 0 },
+        { id: 'e2', sortOrder: 5 },
+      ],
+      lineItems: [{ description: 'Last', quantity: 1, unitPrice: 10, sortOrder: 5 }],
+    } as any);
+    const rows = mockPrisma.invoice.create.mock.calls[0][0].data.lineItems.create;
+    expect(rows.map((l: any) => [l.description, l.taxClass, l.sortOrder])).toEqual([
+      ['First', 'LITIGATION_EXEMPT', 0], ['Second', 'ADVISORY_VAT', 1],
+      ['Old 1', 'LITIGATION_EXEMPT', 2], ['Expense tie', 'DISBURSEMENT', 3], ['Last', 'LITIGATION_EXEMPT', 4],
+    ]);
+    expect(rows.map((l: any) => l.amount)).toEqual([50, 200, 200, 25, 10]);
+    expect(mockPrisma.timeEntry.findMany.mock.calls[0][0].where.id.in).toEqual(['t2', 't1']);
+  });
+
+  it.each(['timeEntryLines', 'expenseLines'])('rejects foreign-case or unbillable ids in %s', async (field) => {
+    await expect(billing.createInvoice(user, { caseId: 'case-1' }, {
+      [field]: [{ id: 'foreign' }],
+    })).rejects.toThrow(BadRequestException);
+    const table = field === 'timeEntryLines' ? mockPrisma.timeEntry : mockPrisma.expense;
+    expect(table.findMany.mock.calls[0][0].where).toMatchObject({
+      caseId: 'case-1', case: { firmId: 'firm-1' }, invoiceId: null, writtenOffAt: null, billable: true,
+    });
+    expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['timeEntryLines', 'expenseLines'])('rejects linked %s without a case', async (field) => {
+    await expect(billing.createInvoice(user, {}, { [field]: [{ id: 't1' }] })).rejects.toThrow('เก็บเงินจากบันทึกเวลา');
+  });
+
+  it('lets explicit empty linked lines override legacy ids', async () => {
+    await billing.createInvoice(user, {}, { timeEntryLines: [], timeEntryIds: ['ignored'], expenseLines: [], expenseIds: ['ignored'] } as any);
+    expect(mockPrisma.timeEntry.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.expense.findMany).not.toHaveBeenCalled();
+  });
+
   it('bills the single customer of the case for the full amount', async () => {
     mockPrisma.caseCustomer.findMany.mockResolvedValue([
       { customerId: 'viriyah', sharePercent: 100 },
@@ -196,8 +270,8 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
 
       expect((invoices[0] as any).totalAmount).toBe(16200);
       expect((invoices[0] as any).lineItems.create).toEqual([
-        { description: 'ว่าความนัดสืบพยาน', quantity: 6, unitPrice: 2500, amount: 15000, taxClass: 'LITIGATION_EXEMPT' },
-        { description: 'ค่าเดินทางไปศาล', quantity: 1, unitPrice: 1200, amount: 1200, taxClass: 'DISBURSEMENT' },
+        { description: 'ว่าความนัดสืบพยาน', quantity: 6, unitPrice: 2500, amount: 15000, taxClass: 'LITIGATION_EXEMPT', sortOrder: 0 },
+        { description: 'ค่าเดินทางไปศาล', quantity: 1, unitPrice: 1200, amount: 1200, taxClass: 'DISBURSEMENT', sortOrder: 1 },
       ]);
     });
 

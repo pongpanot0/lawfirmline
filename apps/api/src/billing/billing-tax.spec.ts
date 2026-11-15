@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { BillingService } from './billing.service';
-import { AuthUser } from '@lawfirm/shared';
+import { AuthUser, computeInvoiceTotals } from '@lawfirm/shared';
 const user = { id: 'u1', firmId: 'f1' } as AuthUser;
 describe('invoice VAT', () => {
   let db: any, service: BillingService;
@@ -22,6 +22,13 @@ describe('invoice VAT', () => {
     const [invoice] = await (service as any).createInvoice(user, {}, { lineItems: lines, discountAmount: 3000, discountReason: 'discount' } as any);
     expect(invoice.vatAmount).toBe(1260); expect(invoice.totalAmount).toBe(33260);
     expect(invoice.lineItems.create[2].taxClass).toBe('DISBURSEMENT');
+  });
+  it('rejects discounts above fees even when disbursements cover the difference', async () => {
+    await expect(service.createInvoice(user, {}, { lineItems: lines, discountAmount: 31000, discountReason: 'discount' } as any))
+      .rejects.toThrow('ส่วนลดต้องไม่เกินค่าวิชาชีพ (ไม่รวมเงินจ่ายแทน)');
+    const [invoice] = await service.createInvoice(user, {}, { lineItems: lines, discountAmount: 30000, discountReason: 'discount' } as any);
+    expect(invoice.totalAmount).toBe(5000);
+    expect(invoice.vatAmount).toBe(0);
   });
   it('does not tax an unregistered firm', async () => {
     db.firm.findUnique.mockResolvedValue({ vatRegistered: false });
@@ -47,5 +54,23 @@ describe('invoice VAT', () => {
     await service.setInvoiceDiscount(user, 'i1', { discountAmount: 3000, discountReason: 'discount' });
     expect(db.changed).toMatchObject({ vatAmount: 1800, totalAmount: 33800 });
     await expect(service.setInvoiceDiscount(user, 'i1', { discountAmount: 31000, discountReason: 'discount' })).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('shared computeInvoiceTotals', () => {
+  const lines: Parameters<typeof computeInvoiceTotals>[0] = [
+    { amount: 10000, taxClass: 'LITIGATION_EXEMPT' },
+    { amount: 20000, taxClass: 'ADVISORY_VAT' },
+    { amount: 5000, taxClass: 'DISBURSEMENT' },
+  ];
+  it.each<[number, boolean, number, number]>([
+    [0, false, 0, 35000], [0, true, 1400, 36400],
+    [3000, true, 1260, 33260], [30000, true, 0, 5000],
+  ])('computes discount %s, registered %s', (discount, registered, vat, total) => {
+    expect(computeInvoiceTotals(lines, discount, registered, 0.07)).toEqual({ exempt: 10000, taxable: 20000, vat, disbursement: 5000, total });
+  });
+  it('handles only disbursements and empty invoices', () => {
+    expect(computeInvoiceTotals([lines[2]], 0, true, 0.07)).toEqual({ exempt: 0, taxable: 0, vat: 0, disbursement: 5000, total: 5000 });
+    expect(computeInvoiceTotals([], 0, true, 0.07).total).toBe(0);
   });
 });

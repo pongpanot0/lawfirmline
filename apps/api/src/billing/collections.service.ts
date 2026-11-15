@@ -1,3 +1,4 @@
+import { resolveTemplate } from '../document-templates/document-templates.service';
 import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { AuthUser, FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { InvoiceStatus, Invoice, InvoicePayment, Prisma } from '../generated/prisma';
@@ -62,7 +63,7 @@ export class CollectionsService {
   async getInvoice(user: AuthUser, invoiceId: string) {
     this.owner(user);
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id: invoiceId, firmId: user.firmId }, include: { ...INVOICE_INCLUDE, lineItems: true },
+      where: { id: invoiceId, firmId: user.firmId }, include: { ...INVOICE_INCLUDE, lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] } },
     });
     if (!invoice) throw new NotFoundException('ไม่พบใบแจ้งหนี้');
     return { ...this.row(invoice, new Date()), lineItems: invoice.lineItems,
@@ -143,18 +144,21 @@ export class CollectionsService {
     return this.getInvoice(user, invoiceId);
   }
 
-  async markSent(user: AuthUser, invoiceId: string): Promise<Invoice> {
+  async markSent(user: AuthUser, invoiceId: string, templateId?: string): Promise<Invoice> {
     this.owner(user);
-    const invoice = await this.prisma.invoice.findFirst({ where: { id: invoiceId, firmId: user.firmId } });
-    if (!invoice) throw new NotFoundException('Invoice not found');
-    if (invoice.status !== InvoiceStatus.DRAFT) {
-      throw new BadRequestException('ส่งได้เฉพาะใบแจ้งหนี้ฉบับร่าง');
-    }
-    const issuedAt = new Date();
-    const dueAt = invoice.dueAt ?? new Date(issuedAt.getTime() + 30 * DAY_MS);
-    return this.prisma.invoice.update({
-      where: { id: invoiceId, firmId: user.firmId, status: InvoiceStatus.DRAFT },
-      data: { status: InvoiceStatus.SENT, issuedAt, dueAt },
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id" = ${invoiceId} AND "firmId" = ${user.firmId} FOR UPDATE`;
+      const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, firmId: user.firmId } });
+      if (!invoice) throw new NotFoundException('Invoice not found');
+      if (invoice.status !== InvoiceStatus.DRAFT) throw new BadRequestException('ส่งได้เฉพาะใบแจ้งหนี้ฉบับร่าง');
+      const keptTemplateId = (invoice.templateSnapshot as { templateId?: string } | null)?.templateId ?? undefined;
+      const templateSnapshot = await resolveTemplate(tx, user.firmId, 'INVOICE', invoice.billToCustomerId, templateId ?? keptTemplateId);
+      const issuedAt = new Date();
+      const dueAt = invoice.dueAt ?? new Date(issuedAt.getTime() + 30 * DAY_MS);
+      return tx.invoice.update({
+        where: { id: invoiceId, firmId: user.firmId, status: InvoiceStatus.DRAFT },
+        data: { status: InvoiceStatus.SENT, issuedAt, dueAt, templateSnapshot: templateSnapshot as unknown as Prisma.InputJsonValue },
+      });
     }).catch(error => {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') throw new ConflictException('สถานะใบแจ้งหนี้เปลี่ยนแล้ว กรุณาโหลดล่าสุด');
       throw error;
@@ -184,6 +188,7 @@ export class CollectionsService {
         include: { payments: true },
       });
       if (!invoice) throw new NotFoundException('Invoice not found');
+      if (dto.templateId) await resolveTemplate(tx, user.firmId, 'RECEIPT', invoice.billToCustomerId, dto.templateId);
       if (dto.createRequestId) {
         const existing = await tx.invoicePayment.findUnique({ where: { firmId_createRequestId: { firmId: user.firmId, createRequestId: dto.createRequestId } }, include: { receipts: { where: { voidedAt: null } } } });
         if (existing) {
@@ -220,7 +225,7 @@ export class CollectionsService {
           recordedById: user.id,
         },
       });
-      const receipt = dto.method === 'CHEQUE' ? null : await issueReceipt(tx, user.firmId, invoice, payment, receivedAt);
+      const receipt = dto.method === 'CHEQUE' ? null : await issueReceipt(tx, user.firmId, invoice, payment, receivedAt, undefined, dto.templateId);
       const outstanding = round(outstandingBefore - (dto.method === 'CHEQUE' ? 0 : dto.amount + whtAmount));
       const updatedInvoice: Invoice =
         outstanding <= 0.005
@@ -248,6 +253,7 @@ export class CollectionsService {
       if (payment.method !== 'CHEQUE') throw new BadRequestException('เลือกรายการรับเงินด้วยเช็ค');
       if (clearedAt < payment.receivedAt) throw new BadRequestException('วันที่เช็คผ่านต้องไม่ก่อนวันที่รับเช็ค');
       const outstandingBefore = round(invoice.totalAmount - settledAmount(invoice.payments));
+      if (dto.templateId) await resolveTemplate(tx, user.firmId, 'RECEIPT', invoice.billToCustomerId, dto.templateId);
       if (payment.clearedAt) {
         if (payment.clearedAt.getTime() !== clearedAt.getTime()) throw new ConflictException('เช็คผ่านแล้ว กรุณาใช้วันที่เดิม');
         return { payment, receipt: payment.receipts[0] ?? null, outstanding: outstandingBefore };
@@ -255,7 +261,7 @@ export class CollectionsService {
       const settled = round(payment.amount + payment.whtAmount);
       if (settled > outstandingBefore) throw new BadRequestException('ยอดเช็ครวมภาษีเกินยอดค้าง กรุณาตรวจรายการรับเงิน');
       const updated = await tx.invoicePayment.update({ where: { id: paymentId, firmId: user.firmId, invoiceId }, data: { clearedAt } });
-      const receipt = await issueReceipt(tx, user.firmId, invoice, updated, clearedAt);
+      const receipt = await issueReceipt(tx, user.firmId, invoice, updated, clearedAt, undefined, dto.templateId);
       const outstanding = round(outstandingBefore - settled);
       if (outstanding <= 0.005) await tx.invoice.update({ where: { id: invoiceId, firmId: user.firmId }, data: { status: InvoiceStatus.PAID } });
       return { payment: updated, receipt, outstanding };

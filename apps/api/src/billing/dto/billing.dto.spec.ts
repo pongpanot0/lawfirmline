@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { CreateExpenseDto, CreateStandaloneExpenseDto, ReturnCashAdvanceDto, SettleCashAdvanceDto,
+import { CreateInvoiceDto, CreateExpenseDto, CreateStandaloneExpenseDto, ReturnCashAdvanceDto, SettleCashAdvanceDto,
   CashAdvanceReconciliationDto, UpdateExpenseReceiptNoDto, RecordPaymentDto, ClearChequeDto, VoidReceiptDto, BillingProfileDto } from './billing.dto';
 
 describe('Cash advance and receipt DTOs', () => {
@@ -69,5 +69,24 @@ describe('round 1 billing input validation', () => {
   });
   it.each([{ taxId: '123' }, { vatRegistered: null }, { legalName: null }, { billingAddress: null }])('rejects an invalid billing profile %p', async profile => {
     expect((await validate(plainToInstance(BillingProfileDto, profile))).length).toBeGreaterThan(0);
+  });
+});
+
+describe('invoice linked-line DTOs', () => {
+  it.each(['timeEntryLines', 'expenseLines'])('validates and retains %s overrides', async (field) => {
+    const dto = plainToInstance(CreateInvoiceDto, { [field]: [{
+      id: '123e4567-e89b-42d3-a456-426614174000', description: '  Edited  ', taxClass: 'ADVISORY_VAT', sortOrder: 2,
+    }] });
+    expect(await validate(dto, { whitelist: true })).toEqual([]);
+    expect((dto as any)[field][0].description).toBe('Edited');
+  });
+  it.each([
+    { id: 'bad' }, { description: '' }, { description: 'x'.repeat(501) },
+    { taxClass: 'INVALID' }, { sortOrder: -1 }, { sortOrder: 0.5 }, { sortOrder: null },
+  ])('rejects invalid linked-line fields %p', async (invalid) => {
+    const dto = plainToInstance(CreateInvoiceDto, { timeEntryLines: [{
+      id: '123e4567-e89b-42d3-a456-426614174000', ...invalid,
+    }] });
+    expect((await validate(dto)).length).toBeGreaterThan(0);
   });
 });

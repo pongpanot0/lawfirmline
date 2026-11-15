@@ -1,10 +1,11 @@
 import { assertFirmRefs } from '../common/firm-refs';
+import { resolveTemplate } from '../document-templates/document-templates.service';
 import { lineActions } from '../notifications/line-actions';
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AuthUser, ExpenseClaimStatus, ExpenseStatus, hasFirmCapability } from '@lawfirm/shared';
+import { AuthUser, ExpenseClaimStatus, ExpenseStatus, hasFirmCapability, computeInvoiceTotals } from '@lawfirm/shared';
 import { InvoiceStatus, NotificationCategory, Prisma, TaxClass } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
@@ -1023,7 +1024,7 @@ export class BillingService {
   async getInvoices(caseId: string) {
     const invoices = await this.prisma.invoice.findMany({
       where: { caseId },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } }, payments: { select: { amount: true, whtAmount: true, clearedAt: true } } },
+      include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } }, payments: { select: { amount: true, whtAmount: true, clearedAt: true } } },
       orderBy: { createdAt: 'desc' },
     });
     return invoices.map(({ payments, ...invoice }) => ({
@@ -1048,7 +1049,7 @@ export class BillingService {
   async getIntakeInvoices(intakeId: string) {
     return this.prisma.invoice.findMany({
       where: { intakeId },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -1059,7 +1060,7 @@ export class BillingService {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: invoiceId, firmId: user.firmId },
       include: {
-        lineItems: true,
+        lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
         timeEntries: true,
         expenses: true,
         billToCustomer: {
@@ -1076,7 +1077,7 @@ export class BillingService {
   async getStandaloneInvoices(user: AuthUser) {
     return this.prisma.invoice.findMany({
       where: { firmId: user.firmId, caseId: null, intakeId: null },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -1131,16 +1132,13 @@ export class BillingService {
   }
 
   private invoiceTotals(lines: { amount: number; taxClass: TaxClass }[], discount: number, vatRegistered: boolean, vatRate: number) {
-    const fees = lines.filter(l => l.taxClass !== TaxClass.DISBURSEMENT).reduce((sum, l) => sum + l.amount, 0);
-    const disbursements = lines.filter(l => l.taxClass === TaxClass.DISBURSEMENT).reduce((sum, l) => sum + l.amount, 0);
-    const advisory = lines.filter(l => l.taxClass === TaxClass.ADVISORY_VAT).reduce((sum, l) => sum + l.amount, 0);
-    const vatAmount = vatRegistered && fees > 0 ? this.round2(vatRate * advisory * (1 - discount / fees)) : 0;
-    return { fees, vatAmount, totalAmount: this.round2(fees - discount + vatAmount + disbursements) };
+    const totals = computeInvoiceTotals(lines, discount, vatRegistered, vatRate);
+    return { vatAmount: totals.vat, totalAmount: totals.total };
   }
 
   private assertValidDiscount(subtotal: number, discountAmount: number, reason?: string | null) {
     if (discountAmount < 0) throw new BadRequestException('ส่วนลดต้องไม่ติดลบ');
-    if (discountAmount > subtotal) throw new BadRequestException('ส่วนลดต้องไม่เกินยอดก่อนหัก');
+    if (discountAmount > subtotal) throw new BadRequestException('ส่วนลดต้องไม่เกินค่าวิชาชีพ (ไม่รวมเงินจ่ายแทน)');
     if (discountAmount > 0 && !reason?.trim()) throw new BadRequestException('ส่วนลดต้องระบุเหตุผล');
   }
 
@@ -1266,7 +1264,7 @@ export class BillingService {
     });
     return this.prisma.invoice.findFirst({
       where: { id: invoiceId, firmId: user.firmId },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } } },
     });
   }
 
@@ -1322,60 +1320,78 @@ export class BillingService {
       clientIds: [dto.billToCustomerId, ...(dto.splits ?? []).map((split) => split.customerId)],
     });
 
+    const timeEntryLines: NonNullable<CreateInvoiceDto['timeEntryLines']> = dto.timeEntryLines ?? (dto.timeEntryIds ?? []).map(id => ({ id }));
+    const expenseLines: NonNullable<CreateInvoiceDto['expenseLines']> = dto.expenseLines ?? (dto.expenseIds ?? []).map(id => ({ id }));
+    const timeEntryIds = timeEntryLines.map(line => line.id);
+    const expenseIds = expenseLines.map(line => line.id);
+
     // งานที่บันทึกเวลา/เบิกไว้มีได้เฉพาะในคดี — เงียบ ๆ ทิ้งไปจะกลายเป็นออกบิลขาด
-    if (!caseId && (dto.timeEntryIds?.length || dto.expenseIds?.length)) {
+    if (!caseId && (timeEntryIds.length || expenseIds.length)) {
       throw new BadRequestException('เก็บเงินจากบันทึกเวลาและค่าใช้จ่ายได้เฉพาะใบที่ออกจากคดี');
     }
 
     // ยอดของงานในคดีอ่านจาก DB เสมอ — ราคาที่ client ส่งมาเชื่อไม่ได้
     const [billedTime, billedExpenses] = await Promise.all([
-      caseId && dto.timeEntryIds?.length
+      caseId && timeEntryIds.length
         ? this.prisma.timeEntry.findMany({
-            where: { id: { in: dto.timeEntryIds }, caseId, case: { firmId: user.firmId }, ...unbilledTimeWhere() },
+            where: { id: { in: timeEntryIds }, caseId, case: { firmId: user.firmId }, ...unbilledTimeWhere() },
             orderBy: { date: 'asc' },
           })
         : [],
-      caseId && dto.expenseIds?.length
+      caseId && expenseIds.length
         ? this.prisma.expense.findMany({
-            where: { id: { in: dto.expenseIds }, caseId, case: { firmId: user.firmId }, ...unbilledExpenseWhere() },
+            where: { id: { in: expenseIds }, caseId, case: { firmId: user.firmId }, ...unbilledExpenseWhere() },
             orderBy: { date: 'asc' },
           })
         : [],
     ]);
 
     // รายการที่หายไประหว่างทางแปลว่ามีคนออกบิลไปแล้ว หรือไม่ได้อยู่ในคดีนี้
-    if (billedTime.length !== (dto.timeEntryIds?.length ?? 0)) {
+    if (billedTime.length !== timeEntryIds.length) {
       throw new BadRequestException('บันทึกเวลาบางรายการถูกออกบิลไปแล้ว หรือไม่ได้อยู่ในคดีนี้');
     }
-    if (billedExpenses.length !== (dto.expenseIds?.length ?? 0)) {
+    if (billedExpenses.length !== expenseIds.length) {
       throw new BadRequestException(
         'ค่าใช้จ่ายบางรายการถูกออกบิลไปแล้ว ยังไม่อนุมัติ ตั้งเป็นสำนักงานออกเอง หรือไม่ได้อยู่ในคดีนี้',
       );
     }
 
+    const timeById = new Map(billedTime.map(entry => [entry.id, entry]));
+    const expenseById = new Map(billedExpenses.map(expense => [expense.id, expense]));
     const lineItems = [
-      ...billedTime.map((entry) => ({
-        description: entry.description || 'ค่าทนายความ',
-        quantity: entry.hours,
-        unitPrice: entry.rate,
-        amount: this.round2(entry.hours * entry.rate),
-        taxClass: dto.feeTaxClass ?? TaxClass.LITIGATION_EXEMPT,
-      })),
-      ...billedExpenses.map((expense) => ({
-        description: expense.description,
-        quantity: 1,
-        unitPrice: expense.amount,
-        amount: expense.amount,
-        taxClass: TaxClass.DISBURSEMENT,
-      })),
-      ...(dto.lineItems ?? []).map((item) => ({
+      ...timeEntryLines.map((line, index) => {
+        const entry = timeById.get(line.id)!;
+        return {
+          sortOrder: line.sortOrder ?? index,
+          description: line.description ?? (entry.description || 'ค่าทนายความ'),
+          quantity: entry.hours,
+          unitPrice: entry.rate,
+          amount: this.round2(entry.hours * entry.rate),
+          taxClass: line.taxClass ?? dto.feeTaxClass ?? TaxClass.LITIGATION_EXEMPT,
+        };
+      }),
+      ...expenseLines.map((line, index) => {
+        const expense = expenseById.get(line.id)!;
+        return {
+          sortOrder: line.sortOrder ?? billedTime.length + index,
+          description: line.description ?? expense.description,
+          quantity: 1,
+          unitPrice: expense.amount,
+          amount: expense.amount,
+          taxClass: line.taxClass ?? TaxClass.DISBURSEMENT,
+        };
+      }),
+      ...(dto.lineItems ?? []).map((item, index) => ({
+        sortOrder: item.sortOrder ?? billedTime.length + billedExpenses.length + index,
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         amount: this.round2(item.quantity * item.unitPrice),
         taxClass: item.taxClass ?? TaxClass.LITIGATION_EXEMPT,
       })),
-    ];
+    ].sort((a, b) => a.sortOrder - b.sortOrder)
+      // Persist stable source-order ties; reads sort by sortOrder then random UUID.
+      .map((line, sortOrder) => ({ ...line, sortOrder }));
     // ใบที่ออกจากคดีหรือ intake ต้องมีรายการ ส่วนใบเปล่าที่ทำไว้ให้ลูกค้าดูก่อน ยังไม่มีก็ได้
     if (!lineItems.length && (caseId || intakeId)) {
       throw new BadRequestException('ใบแจ้งหนี้ต้องมีรายการอย่างน้อยหนึ่งบรรทัด');
@@ -1439,6 +1455,10 @@ export class BillingService {
     const totals = recipientLines.map(lines => this.invoiceTotals(lines, recipients.length === 1 ? discountAmount : 0, firm.vatRegistered, 0.07));
 
     return this.prisma.$transaction(async (tx) => {
+      // เทมเพลตที่เลือกตอนออกใบ — ตรวจว่าเป็นของสำนักงานนี้ แล้วเก็บไว้กับใบ (ส่งเมื่อไรก็ใช้เทมเพลตนี้ เว้นแต่เลือกใหม่)
+      const templateSnapshots = dto.templateId
+        ? await Promise.all(recipients.map(r => resolveTemplate(tx, user.firmId, 'INVOICE', r.customerId, dto.templateId)))
+        : null;
       const numbers =
         recipients.length === 1 && dto.invoiceNumber
           ? [dto.invoiceNumber]
@@ -1462,9 +1482,10 @@ export class BillingService {
               dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
               createdById: user.id,
               billToCustomerId: recipient.customerId,
+              ...(templateSnapshots ? { templateSnapshot: templateSnapshots[index] as unknown as Prisma.InputJsonValue } : {}),
               lineItems: { create: recipientLines[index] },
             },
-            include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+            include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } } },
           }),
         ),
       );

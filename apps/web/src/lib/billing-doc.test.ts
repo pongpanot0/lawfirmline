@@ -50,6 +50,12 @@ test('receipt uses frozen firm, payment and void reason safely', async () => {
     voidedAt: '2026-11-16', voidReason: '<reason>',
   } as unknown as import('./api').ReceiptPrintData;
   const html = buildReceiptDocHtml(data, undefined, undefined, 54);
+  const { STANDARD_V1_LAYOUT } = await import('@lawfirm/shared');
+  assert.equal(html, buildReceiptDocHtml({ ...data, templateSnapshot: { layout: STANDARD_V1_LAYOUT, logoKey: null } }, undefined, undefined, 54));
+  const customReceipt = buildReceiptDocHtml({ ...data, templateSnapshot: { logoKey: null, layout: { version: 1, blocks: [{ id: 'items', type: 'items', column: 'full', settings: { columns: ['description'], groupByTaxClass: true } }] } } });
+  assert.ok(customReceipt.includes('รายการตามใบแจ้งหนี้ INV-1'));
+  assert.ok(customReceipt.includes('ค่าวิชาชีพ'));
+  assert.ok(!customReceipt.includes('<th>จำนวนเงิน</th>'));
   assert.ok(html.includes('Frozen firm'));
   assert.ok(html.includes('ใบเสร็จรับเงิน/ใบกำกับภาษี'));
   assert.ok(html.includes('ยกเลิกแล้ว: &lt;reason&gt;'));
@@ -71,4 +77,49 @@ test('withholding suggestion uses the capped share of invoice fees', async () =>
   const { suggestWht } = await import('./billing-doc.ts');
   assert.equal(suggestWht(0.03, 100000, 25000, 1000, 60000, 100000), 780);
   assert.equal(suggestWht(0.03, 100000, 60000, 1000, 60000, 100000), 1800);
+});
+
+test('standard layout preserves invoice output', async () => {
+  const { STANDARD_V1_LAYOUT } = await import('@lawfirm/shared');
+  assert.equal(buildBillingDocHtml(base), buildBillingDocHtml({ ...base, templateSnapshot: { layout: STANDARD_V1_LAYOUT, logoKey: null } }));
+});
+
+test('custom layout pairs columns, honours hidden (server enforces VAT blocks) and renders payment details', () => {
+  const html = buildBillingDocHtml({ ...base, templateSnapshot: { logoKey: null, layout: { version: 1, blocks: [
+    { id: 'n', type: 'note', column: 'left', settings: { text: 'ข้อความ <สำคัญ>' } },
+    { id: 'b', type: 'bank', column: 'right', settings: { bankName: 'ธนาคาร', accountName: 'บัญชี', accountNo: '123' } },
+    { id: 'h', type: 'words', column: 'full', hidden: true },
+    { id: 'c', type: 'customer', column: 'full', hidden: true },
+    { id: 'p', type: 'promptpay', column: 'full', settings: { promptpayId: '0812345678', fontSize: 'lg' } },
+  ] } } });
+  assert.ok(html.includes('font-size:16px'));
+  assert.match(html, /template-row"><div><div data-block="n"><section>ข้อความ &lt;สำคัญ&gt;<\/section><\/div><\/div><div><div data-block="b"><section><b>ข้อมูลบัญชีธนาคาร/);
+  assert.ok(html.includes('บัญชี') && html.includes('123'));
+  assert.ok(!html.includes('จำนวนเงินตัวอักษร'));
+  assert.ok(!html.includes('เรียกเก็บจาก / ผู้ว่าจ้าง'));
+  assert.ok(html.includes('สแกนจ่ายผ่านแอปธนาคาร') && html.includes('คิวอาร์พร้อมเพย์'));
+});
+
+
+test('item settings select columns and group fees and disbursements', () => {
+  const lines = [
+    { description: 'ค่าใช้จ่าย', quantity: 2, unitPrice: 25, amount: 50, taxClass: 'DISBURSEMENT' as const },
+    { description: 'ค่าทนาย <test>', quantity: 3, unitPrice: 100, amount: 300, taxClass: 'LITIGATION_EXEMPT' as const },
+  ];
+  const html = buildBillingDocHtml({ ...base, lines, templateSnapshot: { logoKey: null, layout: { version: 1, blocks: [
+    { id: 'items', type: 'items', column: 'full', settings: { columns: ['description', 'quantity', 'unitPrice'], groupByTaxClass: true } },
+  ] } } });
+  assert.match(html, /<th>รายการ<\/th><th>จำนวน<\/th><th>ราคาต่อหน่วย<\/th>/);
+  assert.ok(!html.includes('<th>ประเภทภาษี</th>'));
+  assert.ok(!html.includes('<th>จำนวนเงิน</th>'));
+  assert.ok(html.indexOf('ค่าวิชาชีพ') < html.indexOf('ค่าทนาย &lt;test&gt;'));
+  assert.ok(html.indexOf('ค่าทนาย &lt;test&gt;') < html.indexOf('เงินจ่ายแทนลูกความ'));
+  assert.ok(html.includes('100.00 บาท'));
+  assert.ok(html.includes('data-block="items"'));
+});
+
+test('invoice firm tax identifies head office and branches', () => {
+  const firmProfile = { legalName: 'Firm', billingAddress: '', taxId: '0105566012345', taxBranch: '00000' };
+  assert.ok(buildBillingDocHtml({ ...base, firmProfile }).includes('เลขประจำตัวผู้เสียภาษี 0105566012345 (สำนักงานใหญ่)'));
+  assert.ok(buildBillingDocHtml({ ...base, firmProfile: { ...firmProfile, taxBranch: '00001' } }).includes('เลขประจำตัวผู้เสียภาษี 0105566012345 สาขาที่ 00001'));
 });

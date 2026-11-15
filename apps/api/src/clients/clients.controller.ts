@@ -1,3 +1,7 @@
+import { DocumentTemplatesService } from '../document-templates/document-templates.service';
+import { BindDocumentTemplatesDto } from '../document-templates/dto/document-templates.dto';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
 import { SetCustomFieldValuesDto } from '../custom-fields/dto/custom-field-values.dto';
 import {
@@ -5,6 +9,8 @@ import {
   Get,
   Post,
   Patch,
+  Put,
+  ParseUUIDPipe,
   Delete,
   Body,
   Param,
@@ -30,7 +36,15 @@ export class ClientsController {
     private contactLineLink: ContactLineLinkService,
     private client360: Client360Service,
     private customFieldValues: CustomFieldValuesService,
+    private documentTemplates: DocumentTemplatesService,
   ) {}
+
+  @Put(':id/document-templates')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageSubscription')
+  bindDocumentTemplates(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: BindDocumentTemplatesDto) {
+    return this.documentTemplates.bind(user, id, dto);
+  }
 
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: ClientQueryDto) {

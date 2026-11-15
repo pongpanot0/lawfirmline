@@ -11,6 +11,7 @@ const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as A
 
 describe('CollectionsService', () => {
   const mockPrisma = {
+    billingDocumentTemplate: { findFirst: jest.fn().mockResolvedValue(null) },
     firm: { findUnique: jest.fn().mockResolvedValue({ vatRegistered: false, legalName: null, taxId: null, taxBranch: null, billingAddress: null, logoKey: null }) },
     invoiceLineItem: { findMany: jest.fn().mockResolvedValue([{ amount: 1000, taxClass: 'LITIGATION_EXEMPT' }]) },
     receipt: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(async ({ data }: any) => ({ id: 'r1', ...data })) },

@@ -1,5 +1,7 @@
+import { TemplateChoiceDto } from '../../document-templates/dto/document-templates.dto';
 import {
   IsNumber,
+  IsInt,
   IsOptional,
   IsString,
   ArrayMaxSize,
@@ -223,6 +225,12 @@ export class SubmitExpensesDto {
 }
 
 export class InvoiceLineItemDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsInt()
+  @Min(0)
+  @Max(2147483647)
+  sortOrder?: number;
+
   @IsOptional()
   @IsEnum(TaxClass, { message: 'เลือกประเภทภาษีที่ถูกต้อง' })
   taxClass?: TaxClass;
@@ -261,7 +269,34 @@ export class SetExpenseBillableDto {
   billable!: boolean;
 }
 
+export class InvoiceSourceLineDto {
+  @IsUUID('4')
+  id!: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  description?: string;
+
+  @IsOptional()
+  @IsEnum(TaxClass, { message: 'เลือกประเภทภาษีที่ถูกต้อง' })
+  taxClass?: TaxClass;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsInt()
+  @Min(0)
+  @Max(2147483647)
+  sortOrder?: number;
+}
+
 export class CreateInvoiceDto {
+  /** เทมเพลตใบแจ้งหนี้ที่เลือกในหน้าออกใบ — ว่างได้ (ใช้ค่าตั้งต้นตอนส่ง) */
+  @IsOptional()
+  @IsUUID('4', { message: 'เลือกเทมเพลตที่ถูกต้อง' })
+  templateId?: string;
+
   @IsOptional()
   @IsEnum(TaxClass, { message: 'เลือกประเภทภาษีค่าบริการที่ถูกต้อง' })
   feeTaxClass?: TaxClass;
@@ -309,6 +344,18 @@ export class CreateInvoiceDto {
   @IsString()
   @MaxLength(500)
   discountReason?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceSourceLineDto)
+  timeEntryLines?: InvoiceSourceLineDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceSourceLineDto)
+  expenseLines?: InvoiceSourceLineDto[];
 
   /** บันทึกเวลาในคดีที่จะเก็บเงินรอบนี้ — ราคาอ่านจาก DB ไม่เชื่อค่าที่ส่งมา */
   @IsOptional()
@@ -367,7 +414,7 @@ export class ConfirmTimeEntriesDto {
   entries!: ConfirmTimeEntryDto[];
 }
 
-export class RecordPaymentDto {
+export class RecordPaymentDto extends TemplateChoiceDto {
   @ValidateIf((_object, value) => value !== undefined)
   @IsNumber(money, { message: 'ระบุภาษีหัก ณ ที่จ่ายเป็นตัวเลขไม่เกิน 2 ตำแหน่ง' })
   @Min(0, { message: 'ภาษีหัก ณ ที่จ่ายต้องไม่ติดลบ' })
@@ -452,7 +499,7 @@ export class SetInvoiceDiscountDto {
   discountReason?: string;
 }
 
-export class ClearChequeDto {
+export class ClearChequeDto extends TemplateChoiceDto {
   @IsDateString({ strict: true }, { message: 'ระบุวันที่เช็คผ่านที่ถูกต้อง' })
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'ระบุวันที่เช็คผ่านเป็น YYYY-MM-DD' })
   clearedAt!: string;
