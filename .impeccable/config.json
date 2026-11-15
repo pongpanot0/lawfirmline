@@ -20,6 +20,33 @@
         ],
         "createdAt": "2026-11-14T13:35:16.104Z",
         "reason": "False positive: only bordered rule is '.promo footer { border-top:0 }' (removes the border); no accent border exists on a rounded element"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "docs/design/2026-11-15-seo-pages/prototype/index.html"
+        ],
+        "createdAt": "2026-11-15T10:49:55.796Z",
+        "reason": "DESIGN.md (Editorial Juris, locked 2026-10-05, user confirmed) mandates paper cream for public surfaces"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "docs/design/2026-11-15-seo-pages/prototype/feature.html"
+        ],
+        "createdAt": "2026-11-15T10:49:55.810Z",
+        "reason": "DESIGN.md (Editorial Juris, locked 2026-10-05, user confirmed) mandates paper cream for public surfaces"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "docs/design/2026-11-15-seo-pages/prototype/index.html"
+        ],
+        "createdAt": "2026-11-15T10:49:55.823Z",
+        "reason": "agent decision: inner cards depict the app's own UI inside a product-screen figure, not page layout"
       }
     ]
   }
