@@ -21,10 +21,10 @@ describe('workload rules', () => {
     expect(at(10)).toEqual(['คิวงานใกล้เกณฑ์ ตรวจลำดับงานก่อนเพิ่ม']);
     expect(at(12)).toEqual(['คิวงานเกินเกณฑ์ 2 แต้ม ตรวจลำดับงานก่อนเพิ่ม']);
   });
-  it('team radar sorts by urgency, then overdue and points', () => {
+  it('team radar sorts by load vs own standard, overdue breaks ties, leave last', () => {
     const m = (name: string, openPoints: number, overdueCount = 0, onLeave = false) => ({ name, openPoints, standardPoints: 10, overdueCount, days: [{ onLeave }] });
     const sorted = [m('free', 2), m('leave', 1, 0, true), m('near', 8), m('overdue', 3, 2), m('over', 12), m('leaveOverdue', 1, 1, true), m('over2', 15)].sort(compareWorkload);
-    expect(sorted.map((x) => x.name)).toEqual(['over2', 'over', 'overdue', 'leaveOverdue', 'near', 'free', 'leave']);
+    expect(sorted.map((x) => x.name)).toEqual(['over2', 'over', 'near', 'overdue', 'free', 'leaveOverdue', 'leave']);
   });
   it('each person has their own standard from 8 weeks of finished work', () => {
     expect(personalStandard({ points: 160, count: 40 })).toBe(20); // fast: 20/week
@@ -36,8 +36,15 @@ describe('workload rules', () => {
     expect(queueLoad(8, 6)).toBe('over');
     expect(workloadStatus({ openPoints: 12, standardPoints: 20, overdueCount: 0, days: [{ onLeave: false }] })).toBe('free');
   });
-  it('within a group, fuller relative to own standard comes first', () => {
+  it('fuller relative to own standard comes first', () => {
     const m = (name: string, openPoints: number, standardPoints: number) => ({ name, openPoints, standardPoints, overdueCount: 0, days: [{ onLeave: false }] });
     expect([m('big', 22, 20), m('small', 8, 6)].sort(compareWorkload).map((x) => x.name)).toEqual(['small', 'big']);
+  });
+});
+
+describe('team radar order', () => {
+  it('keeps the two busiest together even when a lighter member has overdue work', () => {
+    const m = (name: string, openPoints: number, overdueCount: number) => ({ name, openPoints, standardPoints: 10, overdueCount, days: [{ onLeave: false }] });
+    expect([m('light-late', 2, 1), m('near', 8, 0), m('over', 12, 1)].sort(compareWorkload).map((x) => x.name)).toEqual(['over', 'near', 'light-late']);
   });
 });

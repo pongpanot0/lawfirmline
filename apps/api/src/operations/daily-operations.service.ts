@@ -1,7 +1,7 @@
 import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
 import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AssigneeLoad, AssignmentType, AuthUser, FirmRole, hasFirmCapability, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts, personalStandard, STANDARD_HISTORY_WEEKS } from '@lawfirm/shared';
+import { AssigneeLoad, AssignmentType, AuthUser, buildWorkSummary, FirmRole, hasFirmCapability, MemberWorkSummary, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts, personalStandard, STANDARD_HISTORY_WEEKS } from '@lawfirm/shared';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 import { reviewQueueOrder, reviewQueueWhere } from '../tasks/review-queue';
 import { PrismaService } from '../prisma/prisma.module';
@@ -15,6 +15,7 @@ import { CoachingService } from '../coaching/coaching.service';
 import { AssignDailyTaskDto, CreateDailyTaskDto } from './dto/daily-operations.dto';
 
 const DAY_MS = 86400000;
+const SUMMARY_WEEKS = 12;
 
 /** Who attends an event: its assignee (else the case lead) plus any co-assignees — same rule reminders use. */
 function attends(e: { assigneeId: string | null; case: { leadLawyerId: string }; assignees: { userId: string }[] }, userId: string) {
@@ -197,6 +198,28 @@ export class DailyOperationsService {
         };
       }),
     };
+  }
+
+  /** Twelve Bangkok weeks (Monday start) of one member's closed/new/open work, and where open work is waiting now. */
+  async summary(user: AuthUser, userId: string): Promise<MemberWorkSummary> {
+    const member = await this.prisma.firmMember.findUnique({ where: { firmId_userId: { firmId: user.firmId, userId } }, include: { user: { select: { firstName: true, lastName: true } } } });
+    if (!member) throw new NotFoundException('ไม่พบสมาชิกในสำนักงาน');
+    const now = new Date();
+    const today = bangkokDayStart(now);
+    const monday = new Date(today.getTime() - ((new Date(`${bangkokDayKey(now)}T00:00:00Z`).getUTCDay() + 6) % 7) * DAY_MS);
+    const weekStarts = Array.from({ length: SUMMARY_WEEKS }, (_, i) => new Date(monday.getTime() - (SUMMARY_WEEKS - 1 - i) * 7 * DAY_MS));
+    const rows = await this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { assigneeId: userId, OR: [{ status: { not: TaskStatus.DONE } }, { completedAt: { gte: weekStarts[0] } }] }] }, select: {
+      id: true, title: true, status: true, caseId: true, createdAt: true, assignedAt: true, acknowledgedAt: true, submittedAt: true, dueDate: true, completedAt: true,
+      case: { select: { ownRef: true } }, onHold: { select: { endedAt: true } }, blockedBy: { select: { status: true } },
+    } });
+    const caseIds = [...new Set(rows.map((t) => t.caseId).filter((id): id is string => !!id))];
+    const visible = hasFirmCapability(user.firmRole, 'viewAllCases') ? new Set(caseIds) : new Set((await this.prisma.case.findMany({
+      where: { AND: [{ id: { in: caseIds } }, this.caseAccess.getCaseFilterForUser(user)] }, select: { id: true },
+    })).map((c) => c.id));
+    const canSee = (caseId: string | null) => !caseId || visible.has(caseId);
+    const tasks = rows.map((t) => ({ ...t, title: canSee(t.caseId) ? t.title : 'งานที่คุณไม่มีสิทธิ์ดู', caseRef: canSee(t.caseId) ? t.case?.ownRef ?? null : null,
+      onHold: !!t.onHold && !t.onHold.endedAt, blocked: !!t.blockedBy && t.blockedBy.status !== TaskStatus.DONE }));
+    return { userId, firstName: member.user.firstName, lastName: member.user.lastName, role: member.role, ...buildWorkSummary(tasks, weekStarts, now) };
   }
 
   /**

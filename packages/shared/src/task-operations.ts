@@ -75,16 +75,12 @@ export function workloadStatus(member: { openPoints: number; standardPoints: num
 }
 
 type WorkloadMember = Parameters<typeof workloadStatus>[0];
-const workloadUrgency = (m: WorkloadMember) => {
-  const status = workloadStatus(m);
-  if (status === 'over_standard') return 0;
-  if (m.overdueCount > 0) return 1;
-  return { near_standard: 2, has_overdue: 1, free: 3, on_leave_this_week: 4 }[status];
-};
+const loadRatio = (m: WorkloadMember) => m.openPoints / m.standardPoints;
 
-/** Team-radar order: over standard, then overdue, near standard, free, on leave; more overdue, then fuller (points vs own standard) first within a group. */
+/** Team-radar order: fullest queue vs own standard first, so the busiest people sit together; more overdue breaks ties; on leave this week last. */
 export function compareWorkload(a: WorkloadMember, b: WorkloadMember) {
-  return workloadUrgency(a) - workloadUrgency(b) || b.overdueCount - a.overdueCount || b.openPoints / b.standardPoints - a.openPoints / a.standardPoints;
+  const away = (m: WorkloadMember) => workloadStatus(m) === 'on_leave_this_week' ? 1 : 0;
+  return away(a) - away(b) || loadRatio(b) - loadRatio(a) || b.overdueCount - a.overdueCount;
 }
 
 export type DailyTaskUpdateInput = { completed: string; remaining: string; blocker?: string };
