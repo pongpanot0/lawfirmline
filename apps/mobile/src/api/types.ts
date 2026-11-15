@@ -89,6 +89,7 @@ export interface CaseOutstandingResult {
 
 export interface CaseDetail extends CaseListItem {
   customFields?: Record<string, unknown> | null;
+  customers?: Array<{ customerId: string; isPrimary: boolean }>;
   clientName: string | null;
   courtLevel: string | null;
   caseTypeId?: string | null;
@@ -256,6 +257,8 @@ export interface InvoicePaymentItem {
   method: 'TRANSFER' | 'CHEQUE' | 'CASH' | 'OTHER'; note: string | null;
   invoice?: { invoiceNumber: string };
   createRequestId?: string | null;
+  clearedAt?: string | null;
+  whtAmount?: number;
 }
 
 export const PAYMENT_METHOD_LABEL = { TRANSFER: 'โอนเงิน', CHEQUE: 'เช็ค', CASH: 'เงินสด', OTHER: 'อื่น ๆ' } as const;

@@ -1,11 +1,12 @@
 import { assertFirmRefs } from '../common/firm-refs';
+import { resolveTemplate } from '../document-templates/document-templates.service';
 import { lineActions } from '../notifications/line-actions';
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AuthUser, ExpenseClaimStatus, ExpenseStatus, hasFirmCapability } from '@lawfirm/shared';
-import { InvoiceStatus, NotificationCategory, Prisma } from '../generated/prisma';
+import { AuthUser, ExpenseClaimStatus, ExpenseStatus, hasFirmCapability, computeInvoiceTotals } from '@lawfirm/shared';
+import { InvoiceStatus, NotificationCategory, Prisma, TaxClass } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CashAdvanceService } from './cash-advance.service';
@@ -13,6 +14,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { randomUUID } from 'crypto';
+import { settledAmount } from './settlement';
 import { unbilledExpenseWhere, unbilledTimeWhere } from './unbilled';
 import {
   CreateTimeEntryDto,
@@ -640,19 +642,19 @@ export class BillingService {
         OR: [{ case: caseFilter }, { caseId: null }],
       },
       include: {
+        payments: true,
         case: {
           select: {
             ownRef: true,
             title: true,
             clientName: true,
-            client: { select: { name: true } },
+            client: { select: { name: true, type: true } },
           },
         },
         intake: { select: { title: true, clientName: true } },
-        billToCustomer: { select: { id: true, name: true } },
+        billToCustomer: { select: { id: true, name: true, type: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 20,
     });
 
     return invoices.map((invoice) => ({
@@ -663,7 +665,12 @@ export class BillingService {
       invoiceNumber: invoice.invoiceNumber,
       status: invoice.status,
       totalAmount: invoice.totalAmount,
+      vatAmount: invoice.vatAmount,
+      paidAmount: settledAmount(invoice.payments),
+      outstanding: this.round2(invoice.totalAmount - settledAmount(invoice.payments)),
       dueAt: invoice.dueAt,
+      issuedAt: invoice.issuedAt,
+      clientType: invoice.billToCustomer?.type ?? invoice.case?.client?.type ?? null,
       ownRef: invoice.case?.ownRef ?? null,
       // ใบที่ไม่มีคดีอ้างชื่อเรื่องที่รับเข้ามาแทน ไม่มีทั้งคู่ก็เป็นใบที่ออกเปล่า
       subject: invoice.case?.title ?? invoice.intake?.title ?? 'ใบแจ้งหนี้ที่ออกเปล่า',
@@ -1015,11 +1022,14 @@ export class BillingService {
   }
 
   async getInvoices(caseId: string) {
-    return this.prisma.invoice.findMany({
+    const invoices = await this.prisma.invoice.findMany({
       where: { caseId },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } }, payments: { select: { amount: true, whtAmount: true, clearedAt: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    return invoices.map(({ payments, ...invoice }) => ({
+      ...invoice, outstanding: this.round2(Math.max(0, invoice.totalAmount - settledAmount(payments))),
+    }));
   }
 
   /**
@@ -1039,7 +1049,7 @@ export class BillingService {
   async getIntakeInvoices(intakeId: string) {
     return this.prisma.invoice.findMany({
       where: { intakeId },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -1050,7 +1060,7 @@ export class BillingService {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: invoiceId, firmId: user.firmId },
       include: {
-        lineItems: true,
+        lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
         timeEntries: true,
         expenses: true,
         billToCustomer: {
@@ -1067,7 +1077,7 @@ export class BillingService {
   async getStandaloneInvoices(user: AuthUser) {
     return this.prisma.invoice.findMany({
       where: { firmId: user.firmId, caseId: null, intakeId: null },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -1110,6 +1120,7 @@ export class BillingService {
         description: expense.description,
         category: expense.category,
         amount: expense.amount,
+        taxClass: TaxClass.DISBURSEMENT,
       })),
       // ค่าจ้างที่ตกลงไว้กับคดี ใช้เป็นตัวตั้งเมื่อยังไม่มีบันทึกเวลา
       agreedFee: legalCase?.actualFee ?? legalCase?.estimatedFee ?? null,
@@ -1120,9 +1131,14 @@ export class BillingService {
     return Math.round(n * 100) / 100;
   }
 
+  private invoiceTotals(lines: { amount: number; taxClass: TaxClass }[], discount: number, vatRegistered: boolean, vatRate: number) {
+    const totals = computeInvoiceTotals(lines, discount, vatRegistered, vatRate);
+    return { vatAmount: totals.vat, totalAmount: totals.total };
+  }
+
   private assertValidDiscount(subtotal: number, discountAmount: number, reason?: string | null) {
     if (discountAmount < 0) throw new BadRequestException('ส่วนลดต้องไม่ติดลบ');
-    if (discountAmount > subtotal) throw new BadRequestException('ส่วนลดต้องไม่เกินยอดก่อนหัก');
+    if (discountAmount > subtotal) throw new BadRequestException('ส่วนลดต้องไม่เกินค่าวิชาชีพ (ไม่รวมเงินจ่ายแทน)');
     if (discountAmount > 0 && !reason?.trim()) throw new BadRequestException('ส่วนลดต้องระบุเหตุผล');
   }
 
@@ -1220,21 +1236,25 @@ export class BillingService {
   ) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: invoiceId, firmId: user.firmId },
-      include: { lineItems: { select: { amount: true } } },
+      include: { lineItems: { select: { amount: true, taxClass: true } } },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     if (invoice.status !== InvoiceStatus.DRAFT) {
       throw new BadRequestException('ใส่ส่วนลดได้เฉพาะใบแจ้งหนี้ฉบับร่าง');
     }
-    const subtotal = invoice.lineItems.reduce((sum, item) => sum + item.amount, 0);
+    const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId }, select: { vatRegistered: true } });
+    if (!firm) throw new NotFoundException('ไม่พบสำนักงาน');
+    const subtotal = invoice.lineItems.filter(item => item.taxClass !== TaxClass.DISBURSEMENT).reduce((sum, item) => sum + item.amount, 0);
     const reason = dto.discountReason?.trim() || null;
     this.assertValidDiscount(subtotal, dto.discountAmount, reason);
+    const totals = this.invoiceTotals(invoice.lineItems, dto.discountAmount, firm.vatRegistered, invoice.vatRate);
     const result = await this.prisma.invoice.updateMany({
       where: { id: invoiceId, firmId: user.firmId, status: InvoiceStatus.DRAFT },
       data: {
         discountAmount: dto.discountAmount,
         discountReason: dto.discountAmount > 0 ? reason : null,
-        totalAmount: this.round2(subtotal - dto.discountAmount),
+        vatAmount: totals.vatAmount,
+        totalAmount: totals.totalAmount,
       },
     });
     if (result.count !== 1) throw new ConflictException('ใบแจ้งหนี้เปลี่ยนสถานะแล้ว กรุณาโหลดล่าสุด');
@@ -1244,7 +1264,7 @@ export class BillingService {
     });
     return this.prisma.invoice.findFirst({
       where: { id: invoiceId, firmId: user.firmId },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } } },
     });
   }
 
@@ -1284,87 +1304,145 @@ export class BillingService {
     target: { caseId?: string; intakeId?: string },
     dto: CreateInvoiceDto,
   ) {
+    if (dto.milestoneLines?.length) {
+      if (!target.caseId) throw new BadRequestException('เรียกเก็บงวดได้เฉพาะใบแจ้งหนี้ของคดี');
+      return this.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT "id" FROM "Case" WHERE "id" = ${target.caseId} AND "firmId" = ${user.firmId} FOR UPDATE`;
+        return this.createInvoiceInTransaction(user, target, dto, tx);
+      });
+    }
+    return this.createInvoiceInTransaction(user, target, dto);
+  }
+
+  private async createInvoiceInTransaction(
+    user: AuthUser, target: { caseId?: string; intakeId?: string }, dto: CreateInvoiceDto,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
     const { caseId, intakeId } = target;
+    if (caseId && !await db.case.findFirst({ where: { id: caseId, firmId: user.firmId }, select: { id: true } })) {
+      throw new NotFoundException('ไม่พบคดี');
+    }
+    if (intakeId && !await db.intake.findFirst({ where: { id: intakeId, firmId: user.firmId }, select: { id: true } })) {
+      throw new NotFoundException('ไม่พบเรื่องรับเข้า');
+    }
     if (dto.splits && dto.billToCustomerId) {
       throw new BadRequestException('เลือกได้อย่างเดียว: แบ่งบิลหลายผู้จ่าย หรือวางบิลผู้ว่าจ้างรายเดียว');
     }
     // Who gets billed must be this firm's client: the invoice then prints their
     // tax id and address, and reminders go to their contacts.
-    await assertFirmRefs(this.prisma, user.firmId, {
+    await assertFirmRefs(db, user.firmId, {
       clientIds: [dto.billToCustomerId, ...(dto.splits ?? []).map((split) => split.customerId)],
     });
 
+    const milestoneLines = dto.milestoneLines ?? [];
+    const milestoneIds = milestoneLines.map(line => line.id);
+    const milestones = milestoneIds.length ? await db.caseFeeMilestone.findMany({
+      where: { id: { in: milestoneIds }, firmId: user.firmId, caseId, invoiceId: null, status: { in: ['PENDING', 'PARTIAL'] } },
+      include: { caseFee: { select: { feeTaxClass: true } } },
+    }) : [];
+    if (milestones.length !== milestoneIds.length) throw new BadRequestException('งวดถูกออกบิลแล้ว ยกเว้นแล้ว หรือไม่ได้อยู่ในคดีนี้');
+    const milestoneById = new Map(milestones.map(m => [m.id, m]));
+
+    const timeEntryLines: NonNullable<CreateInvoiceDto['timeEntryLines']> = dto.timeEntryLines ?? (dto.timeEntryIds ?? []).map(id => ({ id }));
+    const expenseLines: NonNullable<CreateInvoiceDto['expenseLines']> = dto.expenseLines ?? (dto.expenseIds ?? []).map(id => ({ id }));
+    const timeEntryIds = timeEntryLines.map(line => line.id);
+    const expenseIds = expenseLines.map(line => line.id);
+
     // งานที่บันทึกเวลา/เบิกไว้มีได้เฉพาะในคดี — เงียบ ๆ ทิ้งไปจะกลายเป็นออกบิลขาด
-    if (!caseId && (dto.timeEntryIds?.length || dto.expenseIds?.length)) {
+    if (!caseId && (timeEntryIds.length || expenseIds.length)) {
       throw new BadRequestException('เก็บเงินจากบันทึกเวลาและค่าใช้จ่ายได้เฉพาะใบที่ออกจากคดี');
     }
 
     // ยอดของงานในคดีอ่านจาก DB เสมอ — ราคาที่ client ส่งมาเชื่อไม่ได้
     const [billedTime, billedExpenses] = await Promise.all([
-      caseId && dto.timeEntryIds?.length
-        ? this.prisma.timeEntry.findMany({
-            where: { id: { in: dto.timeEntryIds }, caseId, ...unbilledTimeWhere() },
+      caseId && timeEntryIds.length
+        ? db.timeEntry.findMany({
+            where: { id: { in: timeEntryIds }, caseId, case: { firmId: user.firmId }, ...unbilledTimeWhere() },
             orderBy: { date: 'asc' },
           })
         : [],
-      caseId && dto.expenseIds?.length
-        ? this.prisma.expense.findMany({
-            where: { id: { in: dto.expenseIds }, caseId, ...unbilledExpenseWhere() },
+      caseId && expenseIds.length
+        ? db.expense.findMany({
+            where: { id: { in: expenseIds }, caseId, case: { firmId: user.firmId }, ...unbilledExpenseWhere() },
             orderBy: { date: 'asc' },
           })
         : [],
     ]);
 
     // รายการที่หายไประหว่างทางแปลว่ามีคนออกบิลไปแล้ว หรือไม่ได้อยู่ในคดีนี้
-    if (billedTime.length !== (dto.timeEntryIds?.length ?? 0)) {
+    if (billedTime.length !== timeEntryIds.length) {
       throw new BadRequestException('บันทึกเวลาบางรายการถูกออกบิลไปแล้ว หรือไม่ได้อยู่ในคดีนี้');
     }
-    if (billedExpenses.length !== (dto.expenseIds?.length ?? 0)) {
+    if (billedExpenses.length !== expenseIds.length) {
       throw new BadRequestException(
         'ค่าใช้จ่ายบางรายการถูกออกบิลไปแล้ว ยังไม่อนุมัติ ตั้งเป็นสำนักงานออกเอง หรือไม่ได้อยู่ในคดีนี้',
       );
     }
 
+    const timeById = new Map(billedTime.map(entry => [entry.id, entry]));
+    const expenseById = new Map(billedExpenses.map(expense => [expense.id, expense]));
     const lineItems = [
-      ...billedTime.map((entry) => ({
-        description: entry.description || 'ค่าทนายความ',
-        quantity: entry.hours,
-        unitPrice: entry.rate,
-        amount: entry.hours * entry.rate,
-      })),
-      ...billedExpenses.map((expense) => ({
-        description: expense.description,
-        quantity: 1,
-        unitPrice: expense.amount,
-        amount: expense.amount,
-      })),
-      ...(dto.lineItems ?? []).map((item) => ({
+      ...timeEntryLines.map((line, index) => {
+        const entry = timeById.get(line.id)!;
+        return {
+          sortOrder: line.sortOrder ?? index,
+          description: line.description ?? (entry.description || 'ค่าทนายความ'),
+          quantity: entry.hours,
+          unitPrice: entry.rate,
+          amount: this.round2(entry.hours * entry.rate),
+          taxClass: line.taxClass ?? dto.feeTaxClass ?? TaxClass.LITIGATION_EXEMPT,
+        };
+      }),
+      ...expenseLines.map((line, index) => {
+        const expense = expenseById.get(line.id)!;
+        return {
+          sortOrder: line.sortOrder ?? billedTime.length + index,
+          description: line.description ?? expense.description,
+          quantity: 1,
+          unitPrice: expense.amount,
+          amount: expense.amount,
+          taxClass: line.taxClass ?? TaxClass.DISBURSEMENT,
+        };
+      }),
+      ...milestoneLines.map((line, index) => {
+        const m = milestoneById.get(line.id)!;
+        const amount = m.closeAmount ?? m.amount;
+        return { sortOrder: line.sortOrder ?? billedTime.length + billedExpenses.length + index,
+          description: line.description ?? m.label, quantity: 1, unitPrice: amount, amount, taxClass: m.caseFee.feeTaxClass };
+      }),
+      ...(dto.lineItems ?? []).map((item, index) => ({
+        sortOrder: item.sortOrder ?? billedTime.length + billedExpenses.length + milestones.length + index,
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        amount: item.quantity * item.unitPrice,
+        amount: this.round2(item.quantity * item.unitPrice),
+        taxClass: item.taxClass ?? TaxClass.LITIGATION_EXEMPT,
       })),
-    ];
+    ].sort((a, b) => a.sortOrder - b.sortOrder)
+      // Persist stable source-order ties; reads sort by sortOrder then random UUID.
+      .map((line, sortOrder) => ({ ...line, sortOrder }));
     // ใบที่ออกจากคดีหรือ intake ต้องมีรายการ ส่วนใบเปล่าที่ทำไว้ให้ลูกค้าดูก่อน ยังไม่มีก็ได้
     if (!lineItems.length && (caseId || intakeId)) {
       throw new BadRequestException('ใบแจ้งหนี้ต้องมีรายการอย่างน้อยหนึ่งบรรทัด');
     }
-    const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0);
+    const subtotal = lineItems.filter(item => item.taxClass !== TaxClass.DISBURSEMENT).reduce((sum, item) => sum + item.amount, 0);
     const discountAmount = dto.discountAmount ?? 0;
     const discountReason = dto.discountReason?.trim() || null;
     this.assertValidDiscount(subtotal, discountAmount, discountReason);
-    const totalAmount = subtotal;
+    const firm = await db.firm.findUnique({ where: { id: user.firmId }, select: { vatRegistered: true } });
+    if (!firm) throw new NotFoundException('ไม่พบสำนักงาน');
 
     // ลูกค้าของงาน: จากคดีก่อน ไม่มีคดีก็จากเรื่องที่รับเข้ามา
     const caseCustomers = caseId
-      ? await this.prisma.caseCustomer.findMany({
-          where: { caseId },
+      ? await db.caseCustomer.findMany({
+          where: { caseId, case: { firmId: user.firmId } },
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
           select: { customerId: true, sharePercent: true },
         })
       : intakeId
-        ? await this.prisma.intakeCustomer.findMany({
-            where: { intakeId },
+        ? await db.intakeCustomer.findMany({
+            where: { intakeId, intake: { firmId: user.firmId } },
             orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
             select: { customerId: true, sharePercent: true },
           })
@@ -1398,12 +1476,19 @@ export class BillingService {
     // ใบที่แบ่งจากชุดเดียวกันใช้ splitGroupId ร่วมกัน; ใบเดียวไม่มี
     const splitGroupId = recipients.length > 1 ? randomUUID() : null;
 
-    const amounts =
-      recipients.length === 1
-        ? [this.round2(totalAmount - discountAmount)]
-        : this.allocate(totalAmount, recipients.map((recipient) => recipient.sharePercent));
+    const shares = recipients.map(recipient => recipient.sharePercent);
+    const allocations = lineItems.map(line => this.allocate(line.amount, shares));
+    const recipientLines = recipients.map((recipient, index) => recipients.length === 1 ? lineItems : lineItems.map((line, i) => ({
+      ...line, description: `${line.description} (ส่วนแบ่ง ${recipient.sharePercent}%)`,
+      quantity: 1, unitPrice: allocations[i][index], amount: allocations[i][index],
+    })));
+    const totals = recipientLines.map(lines => this.invoiceTotals(lines, recipients.length === 1 ? discountAmount : 0, firm.vatRegistered, 0.07));
 
-    return this.prisma.$transaction(async (tx) => {
+    const create = async (tx: Prisma.TransactionClient) => {
+      // เทมเพลตที่เลือกตอนออกใบ — ตรวจว่าเป็นของสำนักงานนี้ แล้วเก็บไว้กับใบ (ส่งเมื่อไรก็ใช้เทมเพลตนี้ เว้นแต่เลือกใหม่)
+      const templateSnapshots = dto.templateId
+        ? await Promise.all(recipients.map(r => resolveTemplate(tx, user.firmId, 'INVOICE', r.customerId, dto.templateId)))
+        : null;
       const numbers =
         recipients.length === 1 && dto.invoiceNumber
           ? [dto.invoiceNumber]
@@ -1417,30 +1502,20 @@ export class BillingService {
               caseId,
               intakeId,
               invoiceNumber: numbers[index],
-              totalAmount: amounts[index],
+              totalAmount: totals[index].totalAmount,
+              vatAmount: totals[index].vatAmount,
+              vatRate: 0.07,
+              feeTaxClass: dto.feeTaxClass ?? TaxClass.LITIGATION_EXEMPT,
               discountAmount: recipients.length === 1 ? discountAmount : 0,
               discountReason: recipients.length === 1 && discountAmount > 0 ? discountReason : null,
               splitGroupId,
               dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
               createdById: user.id,
               billToCustomerId: recipient.customerId,
-              lineItems: {
-                create:
-                  recipients.length === 1
-                    ? lineItems
-                    : // ponytail: ใบที่แบ่งจ่ายสรุปเป็นบรรทัดเดียว รายละเอียดงานดูได้ที่คดี
-                      // แตกเป็นรายบรรทัดเมื่อลูกค้าขอเห็น breakdown ในใบของตัวเอง
-                      [
-                        {
-                          description: `ส่วนแบ่ง ${recipient.sharePercent}% ของค่าดำเนินคดี`,
-                          quantity: 1,
-                          unitPrice: amounts[index],
-                          amount: amounts[index],
-                        },
-                      ],
-              },
+              ...(templateSnapshots ? { templateSnapshot: templateSnapshots[index] as unknown as Prisma.InputJsonValue } : {}),
+              lineItems: { create: recipientLines[index] },
             },
-            include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+            include: { lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, billToCustomer: { select: { id: true, name: true } } },
           }),
         ),
       );
@@ -1460,20 +1535,28 @@ export class BillingService {
       const primaryInvoiceId = invoices[0].id;
       if (billedTime.length) {
         const claimed = await tx.timeEntry.updateMany({
-          where: { id: { in: billedTime.map((entry) => entry.id) }, caseId, ...unbilledTimeWhere() },
+          where: { id: { in: billedTime.map((entry) => entry.id) }, caseId, case: { firmId: user.firmId }, ...unbilledTimeWhere() },
           data: { invoiceId: primaryInvoiceId },
         });
         if (claimed.count !== billedTime.length) throw new ConflictException('รายการเวลาถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
       }
       if (billedExpenses.length) {
         const claimed = await tx.expense.updateMany({
-          where: { id: { in: billedExpenses.map((expense) => expense.id) }, caseId, ...unbilledExpenseWhere() },
+          where: { id: { in: billedExpenses.map((expense) => expense.id) }, caseId, case: { firmId: user.firmId }, ...unbilledExpenseWhere() },
           data: { invoiceId: primaryInvoiceId },
         });
         if (claimed.count !== billedExpenses.length) throw new ConflictException('ค่าใช้จ่ายถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
       }
 
+      if (milestoneIds.length) {
+        const claimed = await tx.caseFeeMilestone.updateMany({
+          where: { id: { in: milestoneIds }, firmId: user.firmId, caseId, invoiceId: null, status: { in: ['PENDING', 'PARTIAL'] } },
+          data: { status: 'INVOICED', invoiceId: primaryInvoiceId },
+        });
+        if (claimed.count !== milestoneIds.length) throw new ConflictException('งวดถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
+      }
       return invoices;
-    });
+    };
+    return tx ? create(tx) : this.prisma.$transaction(create);
   }
 }

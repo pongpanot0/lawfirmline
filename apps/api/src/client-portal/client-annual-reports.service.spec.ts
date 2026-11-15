@@ -28,7 +28,7 @@ function prismaMock() {
       findMany: jest.fn().mockResolvedValue([{ totalAmount: 12000 }]),
       count: jest.fn().mockResolvedValue(0),
     },
-    invoicePayment: { findMany: jest.fn().mockResolvedValue([{ amount: 5000 }]) },
+    invoicePayment: { findMany: jest.fn().mockResolvedValue([{ amount: 4850, whtAmount: 150, clearedAt: new Date('2026-11-01') }]) },
     clientContact: { findMany: jest.fn().mockResolvedValue([{ id: 'contact-1' }]) },
     clientAnnualReport: {
       findMany: jest.fn(),
@@ -71,7 +71,7 @@ it('previews a payer report with prior-year cases and separate financial totals'
   expect(mock.invoice.findMany.mock.calls[0][0].where).toMatchObject({
     billToCustomerId: 'client-1', status: { in: ['SENT', 'PAID'] },
   });
-  expect(mock.invoicePayment.findMany.mock.calls[0][0].where.receivedAt).toEqual({
+  expect(mock.invoicePayment.findMany.mock.calls[0][0].where.clearedAt).toEqual({
     gte: new Date('2026-01-01T00:00:00Z'), lt: new Date('2027-01-01T00:00:00Z'),
   });
 });

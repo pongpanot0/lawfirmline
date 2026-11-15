@@ -1,5 +1,6 @@
 'use client';
 
+import { CaseFeeSection } from '@/components/cases/CaseFeeSection';
 import { AiBadge } from '@/components/AiBadge';
 
 import { useEffect, useState } from 'react';
@@ -13,8 +14,8 @@ import {
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { api, TimeEntryItem, ExpenseItem, CustomerShareItem, InvoiceItem } from '@/lib/api';
-import { InvoicePanel } from '@/components/billing/InvoicePanel';
+import { api, TimeEntryItem, ExpenseItem, InvoiceItem, ReceiptItem } from '@/lib/api';
+import { buildBillingDocHtml, invoiceFirmData, buildReceiptDocHtml, openBillingDocWindow } from '@/lib/billing-doc';
 import { TimeEntryForm } from '@/components/billing/TimeEntryForm';
 import { formatCurrency } from '@/lib/utils';
 import { MoneyInput } from '@/components/ui/MoneyInput';
@@ -147,10 +148,11 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const [timeError, setTimeError] = useState('');
 
   // ลูกค้า (ผู้ว่าจ้าง) ของคดี — คนที่ใบแจ้งหนี้จะไปถึง ไม่ใช่ลูกความ
-  const [customers, setCustomers] = useState<CustomerShareItem[]>([]);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [receipts, setReceipts] = useState<ReceiptItem[]>([]);
+  const [printError, setPrintError] = useState('');
+  const [caseTypeId, setCaseTypeId] = useState<string | undefined>();
   const [agreedFee, setAgreedFee] = useState<number | null>(null);
-  const [toolsOpen, setToolsOpen] = useState(false);
   const [writeOffTarget, setWriteOffTarget] = useState<string | null>(null);
   const canApprove = hasFirmCapability(user?.firmRole, 'approveExpenses');
 
@@ -162,11 +164,13 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       api.getExpenseSummary(token, id).catch(() => ({ totalSpent: 0, revenue: 0, profit: 0 })),
       api.getCase(token, id).catch(() => null),
       api.getInvoices(token, id).catch(() => [] as InvoiceItem[]),
+      canWriteOff ? api.getReceipts(token) : Promise.resolve([] as ReceiptItem[]),
     ])
-      .then(([entries, exps, summary, detail, invs]) => {
-        setCustomers(detail?.customers ?? []);
+      .then(([entries, exps, summary, detail, invs, docs]) => {
+        setReceipts(docs);
         setInvoices(invs);
         setAgreedFee(detail?.estimatedFee ?? null);
+        setCaseTypeId(detail?.caseType?.id);
         setTimeEntries(entries);
         setExpenses(exps);
         setTotalSpent(summary.totalSpent);
@@ -250,16 +254,40 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
   const issued = invoices.filter((inv) => inv.status !== 'DRAFT' && inv.status !== 'VOID' && inv.status !== 'CANCELLED');
   const issuedTotal = issued.reduce((sum, inv) => sum + inv.totalAmount, 0);
-  const paidTotal = issued.filter((inv) => inv.status === 'PAID').reduce((sum, inv) => sum + inv.totalAmount, 0);
-  const outstanding = issuedTotal - paidTotal;
+  // ยอดค้างจริงจาก server (หักเงินที่เคลียร์แล้ว + หัก ณ ที่จ่าย) — ไม่ใช่แค่ใบที่สถานะ PAID
+  const outstanding = issued.reduce((sum, inv) => sum + (inv.outstanding ?? (inv.status === 'PAID' ? 0 : inv.totalAmount)), 0);
+  const paidTotal = issuedTotal - outstanding;
   const card = 'rounded-xl border border-[#e2e0d8] bg-card';
   const hint = 'mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground';
   const label = 'text-[.8rem] text-muted-foreground';
   const shortDate = (value: string) => new Date(value).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' });
+  const printDocument = async (documentId: string, receipt: boolean) => {
+    if (!token) return;
+    setPrintError('');
+    const win = window.open('', '_blank');
+    if (!win) { setPrintError('เปิดหน้าพิมพ์ไม่ได้ ให้อนุญาตป๊อปอัปแล้วลองใหม่อีกครั้ง'); return; }
+    try {
+      let html: string;
+      if (receipt) {
+        const data = await api.getReceiptPrintData(token, documentId);
+        let logo: string | undefined;
+        if (data.templateSnapshot?.logoKey ?? data.firmSnapshot.logoKey) {
+          const blob = await api.getBillingLogo(token, (data.templateSnapshot?.logoKey ?? data.firmSnapshot.logoKey)!);
+          logo = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error()); reader.readAsDataURL(blob); });
+        }
+        html = buildReceiptDocHtml(data, logo, receipts.find(r => r.id === data.replacesReceiptId)?.receiptNumber);
+      } else {
+        const data = await api.getInvoicePrintData(token, documentId);
+        html = buildBillingDocHtml({ ...(await invoiceFirmData(token, data.templateSnapshot?.logoKey)), kind: 'INVOICE', templateSnapshot: data.templateSnapshot, firmName: user?.firmName ?? '', invoiceNumber: data.invoiceNumber, issuedAt: data.issuedAt, dueAt: data.dueAt, matterLabel: data.case ? `${data.case.ownRef} — ${data.case.title}` : data.intake?.title ?? '', billTo: data.billToCustomer ?? null, lines: data.lineItems, totalAmount: data.totalAmount, discountAmount: data.discountAmount, discountReason: data.discountReason });
+      }
+      if (!openBillingDocWindow(html, win)) setPrintError('เปิดหน้าพิมพ์ไม่ได้ ให้อนุญาตป๊อปอัปแล้วลองใหม่อีกครั้ง');
+    } catch { win.close(); setPrintError('โหลดข้อมูลพิมพ์ไม่สำเร็จ ลองใหม่อีกครั้ง'); }
+  };
   const invoicePill = (inv: InvoiceItem) => { const amount = formatCurrency(inv.totalAmount); return inv.status === 'PAID' ? <span className="rounded-full bg-[#e6f3ec] px-3 py-1 font-semibold text-[#227052]">ชำระแล้ว {amount}</span> : inv.status === 'DRAFT' ? <span className="rounded-full bg-[#eeebe3] px-3 py-1 font-semibold">ร่าง {amount}</span> : <span className="rounded-full bg-[#fbf3e0] px-3 py-1 font-semibold text-[#6b4f0b]">รอชำระ {amount}</span>; };
   const expenseState = (e: ExpenseItem) => e.writtenOffAt ? <span className="text-muted-foreground">ตัดทิ้ง</span> : e.status === ExpenseStatus.PAID ? <span className="text-[#227052]">จ่ายแล้ว</span> : e.status === ExpenseStatus.APPROVED ? <span className="text-[#227052]">อนุมัติแล้ว</span> : e.status === ExpenseStatus.REJECTED ? <span className="text-[#a83232]">ไม่อนุมัติ</span> : e.status === ExpenseStatus.PENDING ? <span className="text-[#6b4f0b]">รออนุมัติ</span> : <span className="text-muted-foreground">ร่าง</span>;
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {canWriteOff && token && <CaseFeeSection token={token} caseId={id} caseTypeId={caseTypeId} invoices={invoices} receipts={receipts} onChanged={load} />}
       <div className="grid gap-4 md:grid-cols-4">
         <div className={`${card} p-5`}><div className={label}>ค่าวิชาชีพที่ตกลง</div><div className="text-2xl font-bold">{agreedFee != null ? formatCurrency(agreedFee) : <span className="text-base font-semibold text-muted-foreground">ยังไม่ได้ระบุ</span>}</div></div>
         <div className={`${card} p-5`}><div className={label}>ออกใบแจ้งหนี้แล้ว</div><div className="text-2xl font-bold">{formatCurrency(issuedTotal)}</div></div>
@@ -328,9 +356,10 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
           ...(canWriteOff && e.writtenOffAt && !e.invoiceId && token ? [{ label: 'ยกเลิกการตัดทิ้ง', hint: 'นำรายการกลับมา', icon: RotateCcw, onClick: () => void handleUndoWriteOff(() => api.undoTimeEntryWriteOff(id, e.id, token!)) }] : []),
         ]} /></div></div>{e.writtenOffAt && <WrittenOffNote by={e.writtenOffBy} reason={e.writeOffReason} />}{writeOffTarget === e.id && canWriteOffTime(e) && token && <WriteOffAction label={e.description || d.caseBilling.timeEntry} onConfirm={async (reason) => { await api.writeOffTimeEntry(id, e.id, reason, token!); setWriteOffTarget(null); load(); }} />}</li>)}</ul><p className={`${v2.hint} px-5 pb-4`}>รวม {totalHours.toFixed(1)} ชม. · ยังไม่ได้เรียกเก็บ {formatCurrency(timeEntries.filter((e) => !e.invoiceId && !e.writtenOffAt && e.billable !== false).reduce((sum, e) => sum + e.hours * e.rate, 0))} — ใส่ในใบแจ้งหนี้ถัดไปได้</p></section>
       </div>
-      <section className={`${v2.card} shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><div className="flex items-center justify-between border-b border-[#e2e0d8] px-5 py-3"><h3 className="text-lg font-bold">ใบแจ้งหนี้</h3><button type="button" aria-expanded={toolsOpen} onClick={() => setToolsOpen(!toolsOpen)} className={`${v2.btn} ${v2.primary} min-h-0 py-2`}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ออกใบแจ้งหนี้</button></div>
-          {invoices.length ? <ul className="divide-y divide-[#e2e0d8] text-sm">{invoices.map((inv) => <li key={inv.id} className="flex items-center justify-between gap-3 px-5 py-3.5"><div><b>{inv.invoiceNumber}</b><div className={label}>{[inv.billToCustomer?.name, inv.status === 'DRAFT' ? 'ยังไม่ส่ง' : null].filter(Boolean).join(' · ') || 'ใบแจ้งหนี้ของคดี'}</div></div>{invoicePill(inv)}</li>)}</ul> : <p className={`${hint} px-5 py-4`}>ยังไม่มีใบแจ้งหนี้ของคดีนี้</p>}
-      {toolsOpen && <div className="p-5"><InvoicePanel target={{ caseId: id }} customers={customers} onChanged={load} /></div>}</section>
+      <section className={`${v2.card} shadow-[0_4px_16px_rgba(20,46,67,.06)]`}><div className="flex items-center justify-between border-b border-[#e2e0d8] px-5 py-3"><h3 className="text-lg font-bold">ใบแจ้งหนี้</h3><a href={`/invoices/new?caseId=${encodeURIComponent(id)}`} title="สร้างใบแจ้งหนี้จากงานในคดี" className={`${v2.btn} ${v2.primary} min-h-0 py-2`}><Plus aria-hidden="true" className="h-[1.1em] w-[1.1em]" />ออกใบแจ้งหนี้</a></div>
+          {printError && <p role="alert" className="p-4 text-sm text-destructive">{printError}</p>}
+          {invoices.length ? <ul className="divide-y divide-[#e2e0d8] text-sm">{invoices.map((inv) => <li key={inv.id} className="space-y-3 px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><b>{inv.invoiceNumber}</b><div className={label}>{[inv.billToCustomer?.name, inv.status === 'DRAFT' ? 'ยังไม่ส่ง' : null].filter(Boolean).join(' · ') || 'ใบแจ้งหนี้ของคดี'}</div></div>{invoicePill(inv)}<Button variant="outline" title="กดเพื่อพิมพ์ใบแจ้งหนี้" onClick={() => void printDocument(inv.id, false)}>พิมพ์ใบแจ้งหนี้</Button></div>{receipts.filter(r => r.invoiceId === inv.id).map(r => <div key={r.id} className="flex flex-wrap items-center gap-2"><span>{r.receiptNumber}{r.voidedAt ? ' · ยกเลิกแล้ว' : ''}</span><Button variant="outline" title="กดเพื่อพิมพ์ใบเสร็จ" onClick={() => void printDocument(r.id, true)}>พิมพ์ใบเสร็จ</Button></div>)}</li>)}</ul> : <p className={`${hint} px-5 py-4`}>ยังไม่มีใบแจ้งหนี้ของคดีนี้</p>}
+      </section>
       <dl className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border md:grid-cols-3 xl:grid-cols-6 [&>div]:bg-card [&>div]:p-4">
         <div>
           <dt className="text-xs text-muted-foreground sm:text-sm">รายได้</dt>

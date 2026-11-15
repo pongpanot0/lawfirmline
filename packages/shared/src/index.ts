@@ -1,3 +1,6 @@
+export * from './fee-packages';
+export * from './invoice-totals';
+export * from './document-templates';
 export * from './task-operations';
 export * from './work-summary';
 export * from './task-routine';

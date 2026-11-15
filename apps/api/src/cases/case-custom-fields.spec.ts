@@ -137,7 +137,7 @@ describe('custom field overview and PATCH boundaries', () => {
     const fixture = setup(entity);
     const controller = entity === 'CASE'
       ? new CasesController({} as any, {} as any, {} as any, fixture.service)
-      : new ClientsController({} as any, {} as any, {} as any, fixture.service);
+      : new ClientsController({} as any, {} as any, {} as any, fixture.service, {} as any);
     const out = await controller.setCustomFields(user, 'record', { values: { cf_firm: 'new' } });
     expect(fixture.stored().cf_personal).toBe('A only');
     expect(out.customFields).not.toHaveProperty('cf_personal');

@@ -1,3 +1,5 @@
+import { FeePackagesService } from '../fee-packages/fee-packages.service';
+import { settledAmount } from '../billing/settlement';
 import { customFieldFilter } from '../custom-fields/custom-field-filter';
 import { mergeCustomFieldPatch, redactCustomFields } from '../custom-fields/custom-field-rules';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
@@ -136,6 +138,7 @@ export class CasesService {
     @Optional() private cargoClaims?: CargoClaimsService,
     private customFields: CustomFieldsService = new CustomFieldsService(prisma),
     private customFieldValues: CustomFieldValuesService = new CustomFieldValuesService(prisma, customFields, caseAccess),
+    @Optional() private feeMilestones?: FeePackagesService,
   ) {}
 
   private caseInclude = {
@@ -969,6 +972,10 @@ export class CasesService {
       if (result.count === 0) throw new ConflictException('สถานะคดีเปลี่ยนไปแล้ว โหลดหน้าใหม่แล้วลองอีกครั้ง');
       return write(tx);
     }) : leadChanged || customFields !== undefined ? await this.prisma.$transaction(write) : await write(this.prisma);
+    if (stageChanged) {
+      try { await this.feeMilestones?.onStageChanged(id, user.firmId); }
+      catch (error) { this.logger.warn(`แจ้งงวดค่าธรรมเนียมคดี ${id} ไม่สำเร็จ: ${error instanceof Error ? error.message : String(error)}`); }
+    }
     // The overview form always sends both, so only an actual change re-syncs our client's row.
     const clientChanged = dto.clientId !== undefined && (dto.clientId || null) !== (before.clientId ?? null);
     const partyRoleChanged = dto.partyRole !== undefined && (dto.partyRole || null) !== (before.partyRole ?? null);
@@ -1218,12 +1225,12 @@ export class CasesService {
       }),
       this.prisma.invoice.findMany({
         where: { caseId: id, firmId: user.firmId, status: { in: ['SENT', 'DRAFT'] } },
-        select: { status: true, totalAmount: true, payments: { select: { amount: true } } },
+        select: { status: true, totalAmount: true, payments: { select: { amount: true, whtAmount: true, clearedAt: true } } },
       }),
     ]);
     const round = (amount: number) => Math.round(amount * 100) / 100;
     const unpaidAmounts = invoices.filter(invoice => invoice.status === 'SENT')
-      .map(invoice => round(invoice.totalAmount - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0)))
+      .map(invoice => round(invoice.totalAmount - settledAmount(invoice.payments)))
       .filter(amount => amount > 0);
     const draftCount = invoices.filter(invoice => invoice.status === 'DRAFT').length;
 

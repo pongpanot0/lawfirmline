@@ -11,10 +11,14 @@ const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as A
 
 describe('CollectionsService', () => {
   const mockPrisma = {
+    billingDocumentTemplate: { findFirst: jest.fn().mockResolvedValue(null) },
+    firm: { findUnique: jest.fn().mockResolvedValue({ vatRegistered: false, legalName: null, taxId: null, taxBranch: null, billingAddress: null, logoKey: null }) },
+    invoiceLineItem: { findMany: jest.fn().mockResolvedValue([{ amount: 1000, taxClass: 'LITIGATION_EXEMPT' }]) },
+    receipt: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(async ({ data }: any) => ({ id: 'r1', ...data })) },
     invoice: { findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     invoicePayment: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
     clientContact: { findMany: jest.fn() },
-    $queryRaw: jest.fn().mockResolvedValue(undefined),
+    $queryRaw: jest.fn().mockResolvedValue([{ n: BigInt(1) }]),
     $transaction: jest.fn(async (arg: any) => (typeof arg === 'function' ? arg(mockPrisma) : Promise.all(arg))),
   } as any;
   const mockLineMessaging = { pushTo: jest.fn() };
@@ -49,6 +53,14 @@ describe('CollectionsService', () => {
       expect(result.status).toBe(InvoiceStatus.SENT);
     });
 
+    it('freezes the issuer details with the template snapshot at send', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue({ id: 'i1', firmId: 'firm-1', status: InvoiceStatus.DRAFT, dueAt: null });
+      mockPrisma.firm.findUnique.mockResolvedValue({ vatRegistered: true, legalName: 'สำนักงาน ก', taxId: '0105566012345', taxBranch: '00000', billingAddress: 'กรุงเทพ', logoKey: null });
+      mockPrisma.invoice.update.mockImplementation(({ data }: any) => Promise.resolve({ id: 'i1', ...data }));
+      await service.markSent(owner, 'i1');
+      expect(mockPrisma.invoice.update.mock.calls[0][0].data.templateSnapshot.firm).toEqual({ legalName: 'สำนักงาน ก', address: 'กรุงเทพ', taxId: '0105566012345', taxBranch: '00000', vatRegistered: true, logoKey: null });
+    });
+
     it('does not overwrite a status changed by a concurrent issue or receipt', async () => {
       mockPrisma.invoice.findFirst.mockResolvedValue({ id: 'i1', status: InvoiceStatus.DRAFT, dueAt: null });
       mockPrisma.invoice.update.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('Status changed', { code: 'P2025', clientVersion: 'test' }));
@@ -72,12 +84,13 @@ describe('CollectionsService', () => {
       firmId: 'firm-1',
       status: InvoiceStatus.SENT,
       totalAmount: 1000,
+      discountAmount: 0, vatAmount: 0,
       payments: [],
       ...overrides,
     });
 
     it('returns the same payment after a lost response, including when the invoice is already paid', async () => {
-      const payment = { id: 'p1', invoiceId: 'i1', amount: 1000, method: PaymentMethod.TRANSFER, receivedAt: new Date('2026-09-26'), note: null };
+      const payment = { id: 'p1', invoiceId: 'i1', amount: 1000, method: PaymentMethod.TRANSFER, receivedAt: new Date('2026-09-26'), clearedAt: new Date('2026-09-26'), whtAmount: 0, whtRate: null, whtCertificateNo: null, receipts: [{ id: 'r1' }], note: null };
       mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ status: InvoiceStatus.PAID, payments: [payment] }));
       mockPrisma.invoicePayment.findUnique.mockResolvedValue(payment);
       const result = await service.recordPayment(owner, 'i1', { amount: 1000, receivedAt: '2026-09-26', createRequestId: 'same-request' });
@@ -105,7 +118,7 @@ describe('CollectionsService', () => {
 
     it('keeps SENT and returns outstanding on a partial payment', async () => {
       mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice());
-      mockPrisma.invoicePayment.create.mockResolvedValue({ id: 'p1', amount: 400 });
+      mockPrisma.invoicePayment.create.mockResolvedValue({ id: 'p1', amount: 400, whtAmount: 0 });
       const dto = { amount: 400, receivedAt: '2026-09-26' } as any;
       const result = await service.recordPayment(owner, 'i1', dto);
       expect(mockPrisma.invoice.update).not.toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: InvoiceStatus.PAID }) }));
@@ -114,10 +127,10 @@ describe('CollectionsService', () => {
 
     it('locks the invoice row with FOR UPDATE before reading it or creating the payment', async () => {
       mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice());
-      mockPrisma.invoicePayment.create.mockResolvedValue({ id: 'p1', amount: 400 });
+      mockPrisma.invoicePayment.create.mockResolvedValue({ id: 'p1', amount: 400, whtAmount: 0 });
       const dto = { amount: 400, receivedAt: '2026-09-26' } as any;
       await service.recordPayment(owner, 'i1', dto);
-      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
       const lockOrder = mockPrisma.$queryRaw.mock.invocationCallOrder[0];
       const findOrder = mockPrisma.invoice.findFirst.mock.invocationCallOrder[0];
       const createOrder = mockPrisma.invoicePayment.create.mock.invocationCallOrder[0];
@@ -129,12 +142,12 @@ describe('CollectionsService', () => {
     });
 
     it('flips to PAID on an exact payment', async () => {
-      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ payments: [{ amount: 400 }] }));
-      mockPrisma.invoicePayment.create.mockResolvedValue({ id: 'p2', amount: 600 });
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ payments: [{ amount: 400, whtAmount: 0, clearedAt: new Date('2026-09-26') }] }));
+      mockPrisma.invoicePayment.create.mockResolvedValue({ id: 'p2', amount: 600, whtAmount: 0 });
       const dto = { amount: 600, receivedAt: '2026-09-26' } as any;
       const result = await service.recordPayment(owner, 'i1', dto);
       expect(mockPrisma.invoice.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: 'i1' },
+        where: { id: 'i1', firmId: owner.firmId },
         data: expect.objectContaining({ status: InvoiceStatus.PAID }),
       }));
       expect(result.outstanding).toBe(0);
@@ -153,7 +166,7 @@ describe('CollectionsService', () => {
     });
 
     it('throws when invoice is already PAID', async () => {
-      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ status: InvoiceStatus.PAID, payments: [{ amount: 1000 }] }));
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ status: InvoiceStatus.PAID, payments: [{ amount: 1000, whtAmount: 0, clearedAt: new Date('2026-09-26') }] }));
       const dto = { amount: 100, receivedAt: '2026-09-26' } as any;
       await expect(service.recordPayment(owner, 'i1', dto)).rejects.toThrow(BadRequestException);
     });
@@ -166,14 +179,14 @@ describe('CollectionsService', () => {
       const today = d('2026-09-26');
       mockPrisma.invoice.findMany.mockResolvedValue([
         {
-          id: 'i1', invoiceNumber: 'INV-1', totalAmount: 1000, payments: [{ amount: 1000 }],
+          id: 'i1', invoiceNumber: 'INV-1', totalAmount: 1000, payments: [{ amount: 1000, whtAmount: 0, clearedAt: new Date('2026-09-26') }],
           issuedAt: d('2026-08-01'), dueAt: d('2026-08-31'), lastReminderAt: null,
           billToCustomer: null, case: null, caseId: null,
         },
         {
-          id: 'i2', invoiceNumber: 'INV-2', totalAmount: 500, payments: [{ amount: 100 }],
+          id: 'i2', invoiceNumber: 'INV-2', totalAmount: 500, payments: [{ amount: 100, whtAmount: 0, clearedAt: new Date('2026-09-26') }],
           issuedAt: d('2026-06-01'), dueAt: d('2026-06-24'), lastReminderAt: null,
-          billToCustomer: { name: 'Acme' }, case: { ownRef: 'CASE-1', client: { name: 'Client X' } }, caseId: 'case-2',
+          billToCustomer: { name: 'Acme', type: 'COMPANY' }, case: { ownRef: 'CASE-1', client: { name: 'Client X', type: 'INDIVIDUAL' } }, caseId: 'case-2',
         },
       ]);
       const result = await service.getReceivables(owner, today);
@@ -181,6 +194,7 @@ describe('CollectionsService', () => {
       expect(result.rows[0].id).toBe('i2');
       expect(result.rows[0].outstanding).toBe(400);
       expect(result.rows[0].customerName).toBe('Acme');
+      expect(result.rows[0]).toMatchObject({ clientType: 'COMPANY', issuedAt: d('2026-06-01').toISOString() });
       expect(result.rows[0].caseRef).toBe('CASE-1');
       expect(result.rows[0].daysOverdue).toBe(94);
       expect(result.rows[0].bucket).toBe('90+');
@@ -198,7 +212,7 @@ describe('CollectionsService', () => {
       invoiceNumber: 'INV-1',
       status: InvoiceStatus.SENT,
       totalAmount: 1000,
-      payments: [{ amount: 200 }],
+      payments: [{ amount: 200, whtAmount: 0, clearedAt: new Date('2026-09-26') }],
       dueAt: new Date('2026-09-30'),
       lastReminderAt: null,
       billToCustomerId: null,
@@ -271,7 +285,7 @@ describe('CollectionsService', () => {
     });
 
     it('throws BadRequest when outstanding is 0', async () => {
-      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ payments: [{ amount: 1000 }] }));
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ payments: [{ amount: 1000, whtAmount: 0, clearedAt: new Date('2026-09-26') }] }));
       await expect(service.sendReminder(owner, 'i1', now)).rejects.toThrow(BadRequestException);
     });
 

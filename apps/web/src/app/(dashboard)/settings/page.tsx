@@ -9,6 +9,7 @@ import { api, ApiError, LineIntegrationStatus, LinePersonalStatus, NotificationP
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { MfaToggle } from '@/components/settings/MfaToggle';
 import { SessionsPanel } from '@/components/settings/SessionsPanel';
+import { BillingProfileCard } from '@/components/billing/BillingProfileCard';
 import { CaseNumberPrefixCard } from '@/components/settings/CaseNumberPrefixCard';
 import { AiConnectionsSection } from '@/components/settings/AiConnectionsSection';
 import { AiFirmSettings } from '@/components/settings/AiFirmSettings';
@@ -53,7 +54,7 @@ function SettingsContent() {
   const officeLinks = OFFICE_LINKS.filter((l) => hasFirmCapability(user?.firmRole, l.capability));
   const canSetPrefix = hasFirmCapability(user?.firmRole, 'manageSubscription');
   const canSetupOffice = hasFirmCapability(user?.firmRole, 'manageFirmContent');
-  const hasOffice = officeLinks.length > 0 || canSetPrefix || canSetupOffice;
+  const hasOffice = officeLinks.length > 0 || canSetPrefix || canSetupOffice || hasFirmCapability(user?.firmRole, 'manageInvoices');
   const views: Array<{ key: SettingsView; label: string }> = [
     { key: 'profile', label: d.settings.profile },
     { key: 'notifications', label: 'การแจ้งเตือน' },
@@ -461,6 +462,9 @@ function SettingsContent() {
             </Card>
           )}
           {hasFirmCapability(user?.firmRole, 'manageAiConnections') && <AiFirmSettings />}
+          {hasFirmCapability(user?.firmRole, 'manageInvoices') && <Link href="/settings/fee-packages" title="จัดการตารางค่าธรรมเนียมตามประเภทคดี" className="flex min-h-11 items-center gap-3 rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted">ตารางราคากลางค่าวิชาชีพ<ChevronRight className="ml-auto h-4 w-4" /></Link>}
+          {hasFirmCapability(user?.firmRole, 'manageInvoices') && <Link href="/settings/document-templates" title="จัดการรูปแบบเอกสาร" className="flex min-h-11 items-center gap-3 rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted">เทมเพลตเอกสาร<ChevronRight className="ml-auto h-4 w-4" /></Link>}
+          {<BillingProfileCard canEdit={canSetPrefix} />}
           {canSetPrefix && <CaseNumberPrefixCard />}
         </div>
       )}

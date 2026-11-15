@@ -1,3 +1,4 @@
+import { settledAmount } from '../billing/settlement';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { AuthUser } from '@lawfirm/shared';
@@ -110,7 +111,7 @@ export class ClientAnnualReportsService {
       throw new BadRequestException('Invalid report audience');
     }
     const { start, end } = yearBounds(year);
-    // InvoicePayment.receivedAt is a SQL DATE, unlike the timestamp fields above.
+    // InvoicePayment.clearedAt is a SQL DATE, unlike the timestamp fields above.
     const paymentStart = new Date(Date.UTC(year, 0, 1));
     const paymentEnd = new Date(Date.UTC(year + 1, 0, 1));
     const cases = await this.prisma.case.findMany({
@@ -196,10 +197,10 @@ export class ClientAnnualReportsService {
       }),
       this.prisma.invoicePayment.findMany({
         where: {
-          firmId: user.firmId, receivedAt: { gte: paymentStart, lt: paymentEnd },
+          firmId: user.firmId, clearedAt: { gte: paymentStart, lt: paymentEnd },
           invoice: { firmId: user.firmId, caseId: { in: ids }, billToCustomerId: clientId },
         },
-        select: { amount: true },
+        select: { amount: true, whtAmount: true, clearedAt: true },
       }),
       this.prisma.invoice.count({
         where: {
@@ -226,7 +227,7 @@ export class ClientAnnualReportsService {
         claimedAmount: rows.reduce((sum, item) => sum + (item.claimedAmount ?? 0), 0),
         claimedCaseCount: rows.filter((item) => item.claimedAmount != null).length,
         invoicedAmount: invoices.reduce((sum, item) => sum + item.totalAmount, 0),
-        receivedAmount: payments.reduce((sum, item) => sum + item.amount, 0),
+        receivedAmount: settledAmount(payments),
         unassignedInvoiceCount,
       },
     };

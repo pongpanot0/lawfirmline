@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { hasFirmCapability } from '@lawfirm/shared';
@@ -20,7 +20,10 @@ import { bangkokDay, formatMoney, thDate } from '@/format';
 import { colors, fonts, radius, spacing, typeScale } from '@/theme';
 
 type Tracking = { ownerId: string; nextAt: string; note: string; updatedAt: string };
-type Payment = { amount: string; receivedAt: string; method: InvoicePaymentItem['method']; note: string; createRequestId: string };
+type Payment = { amount: string; receivedAt: string; method: InvoicePaymentItem['method'] | 'PROMPTPAY'; note: string; createRequestId: string; whtEnabled?: boolean; whtRate?: '0.03' | '0.01'; whtAmount?: string; certificate?: string };
+type Receipt = { id: string; invoiceId: string; receiptNumber: string; issuedAt: string; amount: number; voidedAt: string | null };
+type PaymentResult = { receipt: { receiptNumber: string } | null };
+const methods = { TRANSFER: 'โอน', PROMPTPAY: 'พร้อมเพย์', CHEQUE: 'เช็ค', CASH: 'เงินสด' } as const;
 const requestId = () => `mobile-payment-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 
 export default function InvoiceScreen() {
@@ -28,6 +31,7 @@ export default function InvoiceScreen() {
   const owner = hasFirmCapability(user?.firmRole, 'manageInvoices'), today = bangkokDay(new Date().toISOString());
   const invoice = useQuery({ queryKey: ['collection-invoice', id], enabled: owner && !!id, queryFn: () => api<CollectionDetail>(`/invoices/${id}/collection`) });
   const members = useMembers();
+  const receipts = useQuery({ queryKey: ['invoice-receipts', id], enabled: owner && !!id, queryFn: () => api<Receipt[]>('/receipts').then(rows => rows.filter(row => row.invoiceId === id)) });
   useFocusEffect(useCallback(() => { if (owner) void invoice.refetch(); }, [owner, invoice.refetch]));
   const [tracking, setTracking] = useState<Tracking | null>(null), [payment, setPayment] = useState<Payment | null>(null);
   const [triedPay, setTriedPay] = useState(false);
@@ -35,15 +39,15 @@ export default function InvoiceScreen() {
   const [notice, setNotice] = useState(''), [actionError, setActionError] = useState('');
   const draft = useTaskDraft(user && owner ? `${taskDraftScope(user)}invoice:${id}` : null, { tracking, payment, files: [] }, value => { setTracking(value.tracking); setPayment(value.payment); }, !!tracking || !!payment,
     { name: `ร่างติดตาม / รับเงิน ${invoice.data?.invoiceNumber ?? ''}`, route: `/invoice/${id}` });
-  const refreshMoney = () => { for (const key of ['owner-finance', 'owner-kpis', 'collection-invoice']) void client.invalidateQueries({ queryKey: [key] }); };
+  const refreshMoney = () => { for (const key of ['owner-finance', 'owner-kpis', 'collection-invoice', 'invoice-receipts']) void client.invalidateQueries({ queryKey: [key] }); };
   const saveTracking = useMutation({ retry: false,
     mutationFn: (value: Tracking) => api<CollectionDetail>(`/invoices/${id}/follow-up`, { method: 'PATCH', body: { ...value, ownerId: value.ownerId || null, nextAt: value.nextAt || null, note: value.note.trim() || null } }),
     onSuccess: () => { setTracking(null); refreshMoney(); setNotice('บันทึกการติดตามแล้ว'); },
     onError: error => { void invoice.refetch(); setActionError(`บันทึกการติดตามไม่สำเร็จ · ${error.message}`); },
   });
   const receive = useMutation({ retry: false,
-    mutationFn: (value: Payment) => api(`/invoices/${id}/payments`, { method: 'POST', body: { ...value, amount: Number(value.amount), note: value.note.trim() || undefined } }),
-    onSuccess: () => { setPayment(null); setTriedPay(false); refreshMoney(); setNotice('บันทึกรับเงินจริงแล้ว'); },
+    mutationFn: (value: Payment) => api<PaymentResult>(`/invoices/${id}/payments`, { method: 'POST', body: { amount: Number(value.amount), receivedAt: value.receivedAt, method: value.method === 'PROMPTPAY' ? 'TRANSFER' : value.method, note: value.method === 'PROMPTPAY' ? ['พร้อมเพย์', value.note.trim()].filter(Boolean).join(' · ') : value.note.trim() || undefined, createRequestId: value.createRequestId, whtAmount: value.whtEnabled ? Number(value.whtAmount) : 0, whtRate: value.whtEnabled ? Number(value.whtRate) : null, whtCertificateNo: value.whtEnabled ? value.certificate?.trim() || undefined : undefined } }),
+    onSuccess: result => { setPayment(null); setTriedPay(false); refreshMoney(); setNotice(result.receipt ? `ออกใบเสร็จ ${result.receipt.receiptNumber} แล้ว` : 'เช็ครอเคลียร์'); },
     onError: async (error, value) => {
       const fresh = await invoice.refetch();
       if (fresh.data?.payments.some(row => row.createRequestId === value.createRequestId)) {
@@ -51,6 +55,9 @@ export default function InvoiceScreen() {
       } else setActionError(`ยังยืนยันผลรับเงินไม่ได้ · ${error.message} · ตรวจประวัติรับเงินก่อนลองอีกครั้ง ร่างเดิมใช้คีย์เดิมเพื่อกันซ้ำ`);
     },
   });
+  const clearCheque = useMutation({ retry: false, mutationFn: (paymentId: string) => api<PaymentResult>(`/invoices/${id}/payments/${paymentId}/clear`, { method: 'POST', body: { clearedAt: today } }),
+    onSuccess: result => { refreshMoney(); setNotice(result.receipt ? `ออกใบเสร็จ ${result.receipt.receiptNumber} แล้ว` : 'ยืนยันเช็คผ่านแล้ว'); },
+    onError: error => { refreshMoney(); setActionError(`ยืนยันเช็คไม่สำเร็จ · ${error.message} · ตรวจสถานะล่าสุดแล้วลองใหม่`); } });
   const issue = useMutation({ retry: false,
     mutationFn: () => api(`/invoices/${id}/send`, { method: 'PATCH' }),
     onSuccess: () => { refreshMoney(); setNotice('บันทึกวางบิลแล้ว'); },
@@ -60,17 +67,19 @@ export default function InvoiceScreen() {
   if (invoice.isLoading) return <LoadingState label="กำลังโหลดใบแจ้งหนี้…" />;
   const data = invoice.data;
   if (!data) return <FormPage><ErrorState message="โหลดใบแจ้งหนี้ไม่ได้" onRetry={() => invoice.refetch()} /></FormPage>;
-  const busy = saveTracking.isPending || receive.isPending || issue.isPending;
+  const busy = saveTracking.isPending || receive.isPending || issue.isPending || clearCheque.isPending;
   const disabled = busy || invoice.isError || invoice.isFetching || !draft.ready;
   const patchPayment = (patch: Partial<Payment>) => setPayment(value => value ? { ...value, ...patch, createRequestId: requestId() } : null);
   const startAction = () => { setNotice(''); setActionError(''); };
   const amount = payment ? Number(payment.amount) : 0;
+  const withheld = payment?.whtEnabled ? Number(payment.whtAmount) : 0;
   const payErrors = payment ? {
     amount: !/^\d+(?:\.\d{1,2})?$/.test(payment.amount) || amount <= 0 ? 'ใส่ยอดรับมากกว่า 0 (ทศนิยมไม่เกิน 2 หลัก)'
-      : amount > data.outstanding ? `ยอดรับต้องไม่เกินยอดค้าง ${formatMoney(data.outstanding)} ฿` : undefined,
+      : amount + withheld > data.outstanding + 0.005 ? `ยอดรับรวมภาษีหัก ณ ที่จ่ายต้องไม่เกิน ${formatMoney(data.outstanding)} ฿` : undefined,
+    wht: payment.whtEnabled && (!/^[0-9]+(?:\.[0-9]{1,2})?$/.test(payment.whtAmount ?? '') || withheld < 0) ? 'ใส่ยอดหักตามหนังสือรับรอง ทศนิยมไม่เกิน 2 หลัก' : undefined,
     receivedAt: payment.receivedAt > today ? 'วันที่รับเงินต้องไม่เกินวันนี้' : undefined,
-  } : { amount: undefined, receivedAt: undefined };
-  const payMissing = triedPay ? [payErrors.amount && 'จำนวนเงินที่รับจริง', payErrors.receivedAt && 'วันที่รับเงินจริง'].filter((item): item is string => !!item) : [];
+  } : { amount: undefined, receivedAt: undefined, wht: undefined };
+  const payMissing = triedPay ? [payErrors.amount && 'จำนวนเงินที่รับจริง', payErrors.receivedAt && 'วันที่รับเงินจริง', payErrors.wht && 'ยอดหัก ณ ที่จ่าย'].filter((item): item is string => !!item) : [];
   const sent = data.status === 'SENT';
   return <FormPage>
     <Stack.Screen options={{ title: data.invoiceNumber }} />
@@ -111,25 +120,32 @@ export default function InvoiceScreen() {
       ])} />}
     {sent && <>
       {/* One form at a time: the payment form is the primary path, follow-up is the quiet one. */}
-      {!payment && !tracking && <Button title="บันทึกรับเงินจริง" disabled={disabled} onPress={() => { startAction(); setTriedPay(false);
-        setPayment({ amount: String(data.outstanding), receivedAt: today, method: 'TRANSFER', note: '', createRequestId: requestId() }); }} />}
-      {payment && <FormSection title="รับเงินตามหลักฐานการชำระ">
-        <TextField label="จำนวนเงินที่รับจริง (บาท)" required value={payment.amount} disabled={busy} onChange={amount => patchPayment({ amount })}
-          placeholder="เช่น 1000.00" keyboardType="decimal-pad" hint={`ยอดค้าง ${formatMoney(data.outstanding)} ฿`} error={triedPay ? payErrors.amount : undefined}
-          inputStyle={styles.amountInput} />
-        {busy ? <Text>{thDate(payment.receivedAt)}</Text> : <DatePicker label="วันที่รับเงินจริง" required value={payment.receivedAt} maxDate={today}
-          error={triedPay ? payErrors.receivedAt : undefined} onChange={receivedAt => patchPayment({ receivedAt })} />}
-        <Dropdown label="ช่องทางรับเงิน" fieldLabel="ช่องทางรับเงิน" inline value={payment.method} disabled={busy}
-          options={Object.entries(PAYMENT_METHOD_LABEL).map(([value, label]) => ({ value, label }))} onChange={method => patchPayment({ method: method as Payment['method'] })} />
-        <TextField label="เลขอ้างอิง / หมายเหตุการรับเงิน · ถ้ามี" value={payment.note} disabled={busy} onChange={note => patchPayment({ note })} />
-        <MissingSummary items={payMissing} />
-        <Button title="ตรวจและยืนยันรับเงิน" disabled={disabled} busy={receive.isPending} onPress={() => {
-          setTriedPay(true);
-          if (payErrors.amount || payErrors.receivedAt) return;
-          Alert.alert('ยืนยันรับเงินจริง', `${data.invoiceNumber} · ${formatMoney(amount)} ฿\n${thDate(payment.receivedAt)} · ${PAYMENT_METHOD_LABEL[payment.method]}\nยืนยันตามหลักฐานการชำระที่ตรวจแล้ว`, [{ text: 'ยกเลิก', style: 'cancel' }, { text: 'บันทึกรับเงิน', onPress: () => { startAction(); receive.mutate(payment); } }]);
-        }} />
-        <Button title="ยกเลิกร่างรับเงิน" variant="link" disabled={busy} onPress={() => { setPayment(null); setTriedPay(false); }} />
-      </FormSection>}
+      {!payment && !tracking && <Button title="บันทึกรับชำระ" accessibilityHint="เปิดแบบฟอร์มบันทึกการชำระ" disabled={disabled} onPress={() => { startAction(); setTriedPay(false);
+        setPayment({ amount: String(data.outstanding), receivedAt: today, method: 'TRANSFER', note: '', createRequestId: requestId(), whtEnabled: false, whtRate: '0.03', whtAmount: '0', certificate: '' }); }} />}
+      <Modal visible={!!payment} transparent animationType="slide" onRequestClose={() => { if (!busy) setPayment(null); }}>
+        <View style={styles.sheetBackdrop}><View style={styles.sheet}>
+          <Text accessibilityRole="header" style={styles.sheetTitle}>บันทึกรับชำระ</Text>
+          {payment && <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.md }}>
+            <Text style={styles.meta}>{data.invoiceNumber} · ยอดค้าง {formatMoney(data.outstanding)} ฿</Text>
+            <Text style={{ fontWeight: '700' }}>ช่องทางรับเงิน</Text><Text style={styles.meta}>เลือกวิธีที่ได้รับเงินจริง</Text>
+            <View style={styles.choices}>{Object.entries(methods).map(([value, label]) => <Button key={value} inline title={label} accessibilityHint={`เลือก${label}`} variant={payment.method === value ? 'primary' : 'secondary'} disabled={busy} onPress={() => patchPayment({ method: value as Payment['method'] })} />)}</View>
+            {payment.method === 'CHEQUE' && <Text style={{ color: colors.warn }}>ยังไม่ออกใบเสร็จจนกว่าเช็คผ่าน</Text>}
+            <DatePicker label="วันที่รับเงิน" hint="ใช้เป็นวันที่บนใบเสร็จ" required value={payment.receivedAt} maxDate={today} error={triedPay ? payErrors.receivedAt : undefined} onChange={receivedAt => patchPayment({ receivedAt })} />
+            <TextField label="จำนวนเงินที่รับจริง (บาท)" required value={payment.amount} disabled={busy} onChange={amount => patchPayment({ amount })} placeholder="เช่น 1000.00" keyboardType="decimal-pad" hint="ยอดเงินที่ได้รับก่อนรวมภาษีหัก ณ ที่จ่าย" error={triedPay ? payErrors.amount : undefined} inputStyle={styles.amountInput} />
+            <View style={styles.toggle}><View style={{ flex: 1 }}><Text style={{ fontWeight: '700' }}>ผู้ว่าจ้างหัก ณ ที่จ่าย</Text><Text style={styles.meta}>เปิดเมื่อมีหนังสือรับรอง</Text></View><Switch accessibilityLabel="ผู้ว่าจ้างหัก ณ ที่จ่าย" accessibilityHint="เปิดเพื่อระบุภาษีหัก ณ ที่จ่าย" value={!!payment.whtEnabled} disabled={busy} onValueChange={whtEnabled => patchPayment({ whtEnabled })} /></View>
+            {payment.whtEnabled && <><Text style={styles.meta}>เลือกอัตราตามหนังสือรับรอง</Text><View style={styles.choices}>{(['0.03', '0.01'] as const).map(rate => <Button key={rate} inline title={rate === '0.03' ? '3%' : '1%'} accessibilityHint="เลือกอัตราภาษี" variant={(payment.whtRate ?? '0.03') === rate ? 'primary' : 'secondary'} disabled={busy} onPress={() => patchPayment({ whtRate: rate })} />)}</View>
+              <TextField label="ยอดหัก ณ ที่จ่าย (บาท)" value={payment.whtAmount ?? ''} disabled={busy} onChange={whtAmount => patchPayment({ whtAmount })} keyboardType="decimal-pad" hint="ระบุยอดตามหนังสือรับรอง" error={triedPay ? payErrors.wht : undefined} />
+              <TextField label="เลขหนังสือรับรอง · ถ้ามี" value={payment.certificate ?? ''} disabled={busy} maxLength={120} onChange={certificate => patchPayment({ certificate })} hint="ใช้ตรวจสอบหนังสือรับรอง 50 ทวิ" /></>}
+            <TextField label="เลขอ้างอิง / หมายเหตุ · ถ้ามี" value={payment.note} disabled={busy} onChange={note => patchPayment({ note })} hint="ระบุข้อมูลสำหรับตรวจสอบการชำระ" />
+            <MissingSummary items={payMissing} />
+            <InlineError message={actionError || undefined} />
+          </ScrollView>}
+          {payment && <View style={styles.sheetFooter}><Button title={payment.method === 'CHEQUE' ? 'บันทึกเช็ค' : 'บันทึกและออกใบเสร็จ'} accessibilityHint="ตรวจยอดและยืนยันการบันทึก" disabled={disabled} busy={receive.isPending} onPress={() => {
+            setTriedPay(true); if (payErrors.amount || payErrors.receivedAt || payErrors.wht) return;
+            Alert.alert('ยืนยันรับชำระ', `${data.invoiceNumber} · รับ ${formatMoney(amount)} ฿ · หัก ณ ที่จ่าย ${formatMoney(withheld)} ฿\n${thDate(payment.receivedAt)} · ${methods[payment.method as keyof typeof methods] ?? PAYMENT_METHOD_LABEL[payment.method as keyof typeof PAYMENT_METHOD_LABEL]}`, [{ text: 'ยกเลิก', style: 'cancel' }, { text: 'บันทึก', onPress: () => { startAction(); receive.mutate(payment); } }]);
+          }} /><Button title="ยกเลิก" accessibilityHint="ปิดแบบฟอร์มโดยไม่บันทึก" variant="secondary" disabled={busy} onPress={() => { setPayment(null); setTriedPay(false); }} /></View>}
+        </View></View>
+      </Modal>
       <SectionLabel>ผู้ติดตามและปัญหาค้าง</SectionLabel>
       {!tracking && <Card style={{ gap: spacing.xs }}>
         <Text style={{ color: colors.ink, fontWeight: '600' }}>ผู้ติดตาม {data.collectionOwner ? `${data.collectionOwner.firstName} ${data.collectionOwner.lastName}` : '— ยังไม่ระบุ'}</Text>
@@ -161,12 +177,23 @@ export default function InvoiceScreen() {
       {data.payments.map((row, index) => <View key={row.id} style={[styles.line, index > 0 && styles.lineDivider]}>
         <Text style={{ color: colors.ink }}><Text style={styles.lineAmount}>{formatMoney(row.amount)} ฿</Text> · {thDate(row.receivedAt)}</Text>
         <Text style={styles.meta}>{PAYMENT_METHOD_LABEL[row.method]}{row.note ? ` · ${row.note}` : ''}</Text>
+        {row.method === 'CHEQUE' && !row.clearedAt && <><Tag tone="due">เช็ครอเคลียร์</Tag><Button title="ยืนยันเช็คผ่าน" accessibilityHint="บันทึกว่าเช็คผ่านวันนี้และออกใบเสร็จ" variant="secondary" disabled={disabled} onPress={() => Alert.alert('ยืนยันเช็คผ่าน', `บันทึกวันที่เช็คผ่าน ${thDate(today)} และออกใบเสร็จ`, [{ text: 'ยกเลิก', style: 'cancel' }, { text: 'ยืนยัน', onPress: () => { startAction(); clearCheque.mutate(row.id); } }])} /></>}
       </View>)}
     </Card> : <Card><EmptyState compact>ยังไม่มีรายการรับเงินจริงสำหรับใบนี้</EmptyState></Card>}
+    <SectionLabel>ใบเสร็จของใบแจ้งหนี้นี้</SectionLabel>
+    {receipts.isLoading && <LoadingState inline label="กำลังโหลดใบเสร็จ…" />}
+    {receipts.isError && <InlineError message="โหลดใบเสร็จไม่ได้ ตรวจการเชื่อมต่อแล้วลองใหม่" onRetry={() => receipts.refetch()} />}
+    {receipts.data && (receipts.data.length ? <Card style={{ paddingVertical: spacing.xs }}>{receipts.data.map((receipt, index) => <View key={receipt.id} style={[styles.line, index > 0 && styles.lineDivider]}><Text style={styles.lineAmount}>{receipt.receiptNumber}</Text><Text style={styles.meta}>{thDate(receipt.issuedAt)} · {formatMoney(receipt.amount)} ฿</Text>{receipt.voidedAt && <Tag tone="due">ยกเลิกแล้ว</Tag>}</View>)}</Card> : <Card><EmptyState compact>ยังไม่มีใบเสร็จสำหรับใบนี้</EmptyState></Card>)}
   </FormPage>;
 }
 
 const styles = StyleSheet.create({
+  sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheet: { backgroundColor: colors.bg, borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md, paddingHorizontal: 24, paddingTop: 20, maxHeight: '92%' },
+  sheetTitle: { ...typeScale.title, color: colors.ink, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.divider },
+  sheetFooter: { borderTopWidth: 1, borderColor: colors.divider, paddingVertical: 16, gap: 12 },
+  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
   statePage: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg },
   notice: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.goodSoft,
     borderWidth: 1, borderColor: colors.goodEdge },

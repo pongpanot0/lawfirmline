@@ -1,3 +1,4 @@
+import { FeePackagesModule } from '../fee-packages/fee-packages.module';
 import { forwardRef, Module } from '@nestjs/common';
 import { CasesService } from './cases.service';
 import { CasesController } from './cases.controller';
@@ -22,7 +23,7 @@ import { CaseProceedingsService } from './case-proceedings.service';
 import { CaseProceedingsController } from './case-proceedings.controller';
 
 @Module({
-  imports: [forwardRef(() => CalendarModule), forwardRef(() => NotificationsModule), forwardRef(() => IntakeModule), forwardRef(() => CargoClaimsModule), forwardRef(() => DeadlinesModule), ConflictCheckModule],
+  imports: [FeePackagesModule, forwardRef(() => CalendarModule), forwardRef(() => NotificationsModule), forwardRef(() => IntakeModule), forwardRef(() => CargoClaimsModule), forwardRef(() => DeadlinesModule), ConflictCheckModule],
   controllers: [
     CasesController,
     CaseActivitiesController,

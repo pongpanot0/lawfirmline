@@ -4,7 +4,7 @@ import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, Check, ChevronRight, FilePlus2, FileText, Images, Inbox, LucideIcon, ShieldCheck } from 'lucide-react-native';
-import { groupParticipantsBySide, PARTICIPANT_ROLE_LABELS, PARTY_ROLE_LABELS, type ParticipantRole, type PartyRole } from '@lawfirm/shared';
+import { groupParticipantsBySide, PARTICIPANT_ROLE_LABELS, PARTY_ROLE_LABELS, type ParticipantRole, type PartyRole, hasFirmCapability } from '@lawfirm/shared';
 import { api, ApiError } from '@/api/client';
 import { useAuth } from '@/api/auth';
 import { canToggleTask } from '@/workflow';
@@ -19,6 +19,7 @@ import { ReassignSheet } from '@/components/ReassignSheet';
 import { CaseEmailTab } from '@/components/CaseEmailTab';
 import { CustomFieldsSection } from '@/components/CustomFieldsSection';
 import { CaseBriefCard, CaseNextHearing, CaseStageCard } from '@/components/CaseBriefCard';
+import { CaseFeeSection } from '@/components/CaseFeeSection';
 import { Masthead } from '@/components/Masthead';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
@@ -234,6 +235,7 @@ export default function CaseDetailScreen() {
             ) : null}
           </Card>
           <CaseBriefCard caseId={id} />
+          {hasFirmCapability(user?.firmRole, 'manageInvoices') && <CaseFeeSection caseId={id} customerId={detail.customers?.find(c => c.isPrimary)?.customerId ?? detail.customers?.[0]?.customerId} />}
           <CustomFieldsSection entityKind="CASE" id={id} values={detail.customFields} caseTypeId={detail.caseTypeId} onSaved={() => void caseQuery.refetch()} />
           <Card style={{ marginTop: spacing.md }}>
             <View style={styles.cardHead}>

@@ -1,3 +1,4 @@
+import type { TemplateLayout } from '@lawfirm/shared';
 import type { CustomFieldDefinitionDto, CustomFieldEntity, CustomFieldValue } from '@lawfirm/shared';
 import type { BillingUsage, AiCreditsEstimate, AddOnKind } from '@lawfirm/shared';
 import { PLAN_LIMIT_AI } from '@lawfirm/shared';
@@ -621,6 +622,8 @@ export interface ClientItem {
   billingEmail?: string | null;
   billingPhone?: string | null;
   contacts: ClientContactItem[];
+  invoiceTemplateId?: string | null;
+  receiptTemplateId?: string | null;
   _count?: { cases: number };
   /** Only on the list endpoint: visible open cases and their open top-level tasks. */
   openCaseCount?: number;
@@ -1191,10 +1194,13 @@ export interface FirmInvoiceItem {
   intakeId?: string | null;
   createdAt?: string;
   customerName?: string;
+  clientType?: 'COMPANY' | 'INDIVIDUAL' | null;
   subject?: string;
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+  outstanding: number;
+  paidAmount: number;
   issuedAt?: string | null;
   dueAt?: string | null;
   ownRef: string;
@@ -1209,19 +1215,60 @@ export interface InvoicePaymentItem {
   note?: string | null;
   recordedById: string;
   createdAt: string;
+  clearedAt: string | null;
+  whtAmount: number;
+  whtRate: number | null;
+  whtCertificateNo: string | null;
 }
 
 export interface RecordInvoicePaymentInput {
+  templateId?: string;
   amount: number;
   method?: 'TRANSFER' | 'CHEQUE' | 'CASH' | 'OTHER';
   receivedAt: string;
   note?: string;
+  createRequestId?: string;
+  whtAmount?: number;
+  whtRate?: number | null;
+  whtCertificateNo?: string;
 }
 
 export interface RecordInvoicePaymentResult {
   invoice: FirmInvoiceItem;
   payment: InvoicePaymentItem;
+  receipt: ReceiptItem | null;
   outstanding: number;
+}
+
+export interface ReceiptItem {
+  id: string;
+  invoiceId: string;
+  receiptNumber: string;
+  invoiceNumber: string;
+  customerName: string | null;
+  issuedAt: string;
+  amount: number;
+  whtAmount: number;
+  sentAt: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  isTaxInvoice: boolean;
+  replacesReceiptId: string | null;
+}
+
+export interface DocumentTemplate { id: string; name: string; docType: 'INVOICE' | 'RECEIPT'; layout: TemplateLayout; logoKey: string | null; isDefault: boolean; version: number }
+export interface ResolvedDocumentTemplate { templateId: string | null; name: string; version: number; layout: TemplateLayout; logoKey: string | null }
+export interface BillingProfile { legalName: string | null; taxId: string | null; taxBranch: string | null; billingAddress: string | null; vatRegistered: boolean; logoKey: string | null }
+export interface ReceiptPrintData extends ReceiptItem {
+  templateSnapshot?: { layout: TemplateLayout; logoKey: string | null } | null;
+  isTaxInvoice: boolean;
+  /** ยอดคงค้าง ณ วันที่ออกใบเสร็จนี้ — ไม่เปลี่ยนเมื่อพิมพ์ซ้ำ */
+  outstandingAfter?: number;
+  firmSnapshot: { legalName: string | null; taxId: string | null; taxBranch: string | null; address: string | null; logoKey: string | null };
+  customer: InvoicePrintData['billToCustomer'];
+  payment: InvoicePaymentItem;
+  invoice: { invoiceNumber: string; totalAmount: number; lineItems: Array<{ description: string; quantity: number; unitPrice: number; amount: number; taxClass: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT' }>; case: { ownRef: string; title: string } | null; intake: { title: string | null } | null };
+  totals: { amountExempt: number; amountTaxable: number; amountVat: number; amountDisbursement: number; amountReceived: number; amountWht: number; totalAmount: number; discountAmount: number; vatAmount: number; vatRate: number; amount: number; whtAmount: number };
 }
 
 export interface ReceivablesRow {
@@ -1238,6 +1285,7 @@ export interface ReceivablesRow {
   daysOverdue: number;
   bucket: '0-30' | '31-60' | '61-90' | '90+';
   lastReminderAt: string | null;
+  pendingCheques: { id: string; amount: number; whtAmount: number; receivedAt: string }[];
 }
 
 export interface ReceivablesResult {
@@ -2238,8 +2286,8 @@ export const api = {
   getFirmInvoices: (token: string) =>
     request<FirmInvoiceItem[]>('/invoices', { token }),
 
-  markInvoiceSent: (token: string, invoiceId: string) =>
-    request<FirmInvoiceItem>(`/invoices/${invoiceId}/send`, { method: 'PATCH', token }),
+  markInvoiceSent: (token: string, invoiceId: string, templateId?: string) =>
+    request<FirmInvoiceItem>(`/invoices/${invoiceId}/send`, { method: 'PATCH', token, body: JSON.stringify(templateId ? { templateId } : {}) }),
 
   recordInvoicePayment: (token: string, invoiceId: string, data: RecordInvoicePaymentInput) =>
     request<RecordInvoicePaymentResult>(`/invoices/${invoiceId}/payments`, {
@@ -2250,6 +2298,24 @@ export const api = {
 
   getInvoicePayments: (token: string, invoiceId: string) =>
     request<InvoicePaymentItem[]>(`/invoices/${invoiceId}/payments`, { token }),
+
+  clearInvoiceCheque: (token: string, invoiceId: string, paymentId: string, clearedAt: string) =>
+    request<{ payment: InvoicePaymentItem; receipt: ReceiptItem; outstanding: number }>(`/invoices/${invoiceId}/payments/${paymentId}/clear`, { method: 'POST', token, body: JSON.stringify({ clearedAt }) }),
+  getReceipts: (token: string) => request<ReceiptItem[]>('/receipts', { token }),
+  getReceiptPrintData: (token: string, id: string) => request<ReceiptPrintData>(`/receipts/${id}/print`, { token }),
+  markReceiptSent: (token: string, id: string) => request<ReceiptItem>(`/receipts/${id}/sent`, { method: 'PATCH', token }),
+  reissueReceipt: (token: string, id: string) => request<ReceiptItem>(`/receipts/${id}/reissue`, { method: 'POST', token }),
+  voidReceipt: (token: string, id: string, reason: string) => request<ReceiptItem>(`/receipts/${id}/void`, { method: 'POST', token, body: JSON.stringify({ reason }) }),
+  getBillingDocumentTemplates: (token: string, docType: 'INVOICE' | 'RECEIPT') => request<DocumentTemplate[]>(`/document-templates?docType=${docType}`, { token }),
+  resolveDocumentTemplate: (token: string, docType: 'INVOICE' | 'RECEIPT', customerId?: string, templateId?: string) => request<ResolvedDocumentTemplate>(`/document-templates/resolve?docType=${docType}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ''}${templateId ? `&templateId=${encodeURIComponent(templateId)}` : ''}`, { token }),
+  createBillingDocumentTemplate: (token: string, data: { name: string; docType: 'INVOICE' | 'RECEIPT'; copyFromId?: string }) => request<DocumentTemplate>('/document-templates', { token, method: 'POST', body: JSON.stringify(data) }),
+  updateBillingDocumentTemplate: (token: string, id: string, data: { name?: string; layout?: TemplateLayout; isDefault?: boolean }) => request<DocumentTemplate>(`/document-templates/${id}`, { token, method: 'PATCH', body: JSON.stringify(data) }),
+  archiveBillingDocumentTemplate: (token: string, id: string) => request<DocumentTemplate>(`/document-templates/${id}/archive`, { token, method: 'POST' }),
+  bindBillingDocumentTemplate: (token: string, id: string, data: { invoiceTemplateId?: string | null; receiptTemplateId?: string | null }) => request<ClientItem>(`/clients/${id}/document-templates`, { token, method: 'PUT', body: JSON.stringify(data) }),
+  getBillingProfile: (token: string) => request<BillingProfile>('/firm/billing-profile', { token }),
+  updateBillingProfile: (token: string, data: Omit<BillingProfile, 'logoKey'>) => request<BillingProfile>('/firm/billing-profile', { method: 'PATCH', token, body: JSON.stringify(data) }),
+  uploadBillingLogo: (token: string, file: File) => { const body = new FormData(); body.append('logo', file); return request<{ logoKey: string }>('/firm/billing-profile/logo', { method: 'POST', token, body }); },
+  getBillingLogo: (token: string, key: string) => fetchBlob(`/firm/billing-profile/logo?key=${encodeURIComponent(key)}`, { token }),
 
   getReceivables: (token: string) =>
     request<ReceivablesResult>('/invoices/receivables', { token }),
@@ -4703,6 +4769,8 @@ export interface InvoiceItem {
   invoiceNumber: string;
   status: string;
   /** ยอดสุทธิหลังหักส่วนลดแล้ว */
+  /** ยอดค้างหลังหักเงินที่เคลียร์แล้วและหัก ณ ที่จ่าย (มีในรายการใบแจ้งหนี้ของคดี) */
+  outstanding?: number;
   totalAmount: number;
   discountAmount?: number;
   discountReason?: string | null;
@@ -4711,6 +4779,7 @@ export interface InvoiceItem {
 }
 
 export interface InvoicePrintData {
+  templateSnapshot?: { layout: TemplateLayout; logoKey: string | null } | null;
   id: string;
   invoiceNumber: string;
   status: string;
@@ -4719,7 +4788,7 @@ export interface InvoicePrintData {
   discountReason?: string | null;
   issuedAt: string | null;
   dueAt: string | null;
-  lineItems: { description: string; quantity: number; unitPrice: number; amount: number }[];
+  lineItems: { description: string; quantity: number; unitPrice: number; amount: number; taxClass: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT' }[];
   timeEntries: { description?: string | null; hours: number; rate: number; amount: number }[];
   expenses: { description: string; amount: number }[];
   billToCustomer?: {
@@ -4751,7 +4820,11 @@ export interface InvoiceDraft {
 }
 
 export interface CreateInvoiceInput {
-  lineItems?: { description: string; quantity: number; unitPrice: number }[];
+  milestoneLines?: { id: string; description?: string; sortOrder?: number }[];
+  templateId?: string;
+  lineItems?: { description: string; quantity: number; unitPrice: number; taxClass?: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT'; sortOrder?: number }[];
+  timeEntryLines?: { id: string; description?: string; taxClass?: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT'; sortOrder?: number }[];
+  expenseLines?: { id: string; description?: string; taxClass?: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT'; sortOrder?: number }[];
   timeEntryIds?: string[];
   expenseIds?: string[];
   /** ใบที่ออกเปล่าไม่มีงานให้อ้างลูกค้า จึงระบุตรง ๆ */

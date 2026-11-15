@@ -1,3 +1,4 @@
+import { FeePackagesService } from '../fee-packages/fee-packages.service';
 import { CustomFieldValuesService } from '../custom-fields/custom-field-values.service';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { Test } from '@nestjs/testing';
@@ -18,6 +19,7 @@ describe('case stages', () => {
   let service: CasesService;
   let prisma: any;
   const feed = { log: jest.fn() };
+  const feeMilestones = { onStageChanged: jest.fn() };
   const base = { id: 'case-1', status: 'IN_PROGRESS', stage: 'HEARING', title: 'คดี', ownRef: 'C-1', leadLawyerId: 'lead-1', courtName: 'ศาลแพ่ง' };
 
   beforeEach(async () => {
@@ -59,6 +61,7 @@ describe('case stages', () => {
         { provide: CustomFieldsService, useValue: { listAllForFirm: jest.fn().mockResolvedValue([]) } },
         { provide: CustomFieldValuesService, useValue: {} },
         CasesService,
+        { provide: FeePackagesService, useValue: feeMilestones },
         { provide: CalendarService, useValue: { remove: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: CaseFeedService, useValue: feed },
@@ -76,6 +79,25 @@ describe('case stages', () => {
       ],
     }).compile();
     service = module.get(CasesService);
+  });
+
+  it('calls the fee stage hook after a successful transaction and logs failures without failing the stage change', async () => {
+    feeMilestones.onStageChanged.mockImplementation(async () => {
+      expect(prisma.case.updateMany).toHaveBeenCalled();
+      throw new Error('notification failed');
+    });
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
+    await expect(service.update(user, 'case-1', { stage: 'AWAITING_JUDGMENT' } as any)).resolves.toBeDefined();
+    expect(feeMilestones.onStageChanged).toHaveBeenCalledWith('case-1', 'firm-1');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('notification failed'));
+    warn.mockRestore();
+    feeMilestones.onStageChanged.mockReset();
+  });
+
+  it('does not call the hook when the stage transaction fails', async () => {
+    prisma.case.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.update(user, 'case-1', { stage: 'AWAITING_JUDGMENT' } as any)).rejects.toThrow();
+    expect(feeMilestones.onStageChanged).not.toHaveBeenCalled();
   });
 
   it('logs a forward stage move with from/to stage', async () => {

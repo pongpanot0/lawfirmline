@@ -101,12 +101,12 @@ describe('CasesService.close — ด่านของค้าง', () => {
     prisma.calendarEvent.findMany.mockResolvedValue([{ id: 'e1' }]);
     prisma.document.findMany.mockResolvedValue([{ id: 'd1' }]);
     prisma.timeEntry.findMany.mockResolvedValue([{ hours: 1.5, rate: 1000 }, { hours: 0.5, rate: 2000 }]);
-    prisma.expense.findMany.mockResolvedValue([{ amount: 100.1 }, { amount: 200.2 }]);
+    prisma.expense.findMany.mockResolvedValue([{ amount: 100.1, whtAmount: 0, clearedAt: new Date('2026-11-01') }, { amount: 200.2, whtAmount: 0, clearedAt: new Date('2026-11-01') }]);
     prisma.invoice.findMany.mockResolvedValue([
-      { status: 'SENT', totalAmount: 1000, payments: [{ amount: 200 }, { amount: 300 }] },
+      { status: 'SENT', totalAmount: 1000, payments: [{ amount: 200, whtAmount: 0, clearedAt: new Date('2026-11-01') }, { amount: 300, whtAmount: 0, clearedAt: new Date('2026-11-01') }] },
       { status: 'SENT', totalAmount: 250, payments: [] },
-      { status: 'SENT', totalAmount: 100, payments: [{ amount: 100 }] },
-      { status: 'SENT', totalAmount: 50, payments: [{ amount: 100 }] },
+      { status: 'SENT', totalAmount: 100, payments: [{ amount: 97, whtAmount: 3, clearedAt: new Date('2026-11-01') }] },
+      { status: 'SENT', totalAmount: 50, payments: [{ amount: 97, whtAmount: 3, clearedAt: new Date('2026-11-01') }] },
       { status: 'DRAFT', totalAmount: 400, payments: [] },
       { status: 'PAID', totalAmount: 300, payments: [] },
     ]);
@@ -136,13 +136,13 @@ describe('CasesService.close — ด่านของค้าง', () => {
     });
     expect(prisma.invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ caseId: 'case-1', firmId: 'firm-1' }),
-      select: expect.objectContaining({ payments: { select: { amount: true } } }),
+      select: expect.objectContaining({ payments: { select: { amount: true, whtAmount: true, clearedAt: true } } }),
     }));
   });
 
   it.each(['time', 'expense', 'unpaid', 'draft'])('ของค้าง billing กลุ่ม %s บล็อกการปิดจนรับทราบ', async (group) => {
     if (group === 'time') prisma.timeEntry.findMany.mockResolvedValue([{ hours: 0, rate: 0 }]);
-    if (group === 'expense') prisma.expense.findMany.mockResolvedValue([{ amount: 0 }]);
+    if (group === 'expense') prisma.expense.findMany.mockResolvedValue([{ amount: 0, whtAmount: 0, clearedAt: new Date('2026-11-01') }]);
     if (group === 'unpaid') prisma.invoice.findMany.mockResolvedValue([{ status: 'SENT', totalAmount: 10, payments: [] }]);
     if (group === 'draft') prisma.invoice.findMany.mockResolvedValue([{ status: 'DRAFT', totalAmount: 0, payments: [] }]);
 
@@ -160,7 +160,7 @@ describe('CasesService.close — ด่านของค้าง', () => {
   });
 
   it('ยอด billing ว่างส่งกลับศูนย์ และใบ SENT ที่จ่ายครบไม่บล็อกปิด', async () => {
-    prisma.invoice.findMany.mockResolvedValue([{ status: 'SENT', totalAmount: 0.3, payments: [{ amount: 0.1 }, { amount: 0.2 }] }]);
+    prisma.invoice.findMany.mockResolvedValue([{ status: 'SENT', totalAmount: 0.3, payments: [{ amount: 0.1, whtAmount: 0, clearedAt: new Date('2026-11-01') }, { amount: 0.2, whtAmount: 0, clearedAt: new Date('2026-11-01') }] }]);
     expect(await service.outstanding(user, 'case-1')).toMatchObject({
       unbilledTime: { hours: 0, amount: 0 },
       unbilledExpenses: { count: 0, amount: 0 },
