@@ -6,8 +6,8 @@ import { CalendarDays, LucideIcon, Plus, Scale, SquareCheckBig, Sun, Users } fro
 import { CHROME_MAX_SCALE, colors, fonts, radius, shadow, spacing, TOUCH } from '@/theme';
 import { Text, useDisplayPreferences } from '@/components/AppText';
 
-const PILL_WIDTH = 56;
-const PILL_HEIGHT = 30;
+const PILL_WIDTH = 60;
+const PILL_HEIGHT = 32;
 // The library's tab button keeps its own 5pt padding on every side (tabVerticalUiKit); we add none on top.
 const BUTTON_PAD = 5;
 // Gap between the pill and its label.
@@ -15,11 +15,11 @@ const LABEL_GAP = 3;
 // Headroom for Android's taller Thai font metrics and the bar's hairline top border.
 const METRICS_SLACK = 4;
 
-/** The selected tab sits on a tinted pill with a heavier stroke, so the state reads without relying on colour alone. */
-function TabIcon({ Icon, color, size, focused }: { Icon: LucideIcon; color: ColorValue; size: number; focused: boolean }) {
+/** The selected tab sits on a marigold pill with a heavier stroke and bold label, so the state never rests on colour alone. */
+function TabIcon({ Icon, color, focused }: { Icon: LucideIcon; color: ColorValue; size: number; focused: boolean }) {
   return <View style={{ width: PILL_WIDTH, height: PILL_HEIGHT, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: focused ? colors.infoSoft : 'transparent' }}>
-    <Icon color={color as string} size={Math.min(size, 24)} strokeWidth={focused ? 2.4 : 1.8} />
+    backgroundColor: focused ? colors.accentSoft : 'transparent' }}>
+    <Icon color={color as string} size={26} strokeWidth={focused ? 2.4 : 2} />
   </View>;
 }
 
@@ -27,7 +27,7 @@ export default function TabsLayout() {
   const { scale } = useDisplayPreferences();
   const insets = useSafeAreaInsets();
   // Tab labels are fixed chrome: cap the combined scale so five Thai labels never truncate at 320pt.
-  const labelSize = 11 * Math.min(scale, CHROME_MAX_SCALE);
+  const labelSize = 12 * Math.min(scale, CHROME_MAX_SCALE);
   // Thai stacks tone marks above and sara u/uu below the line, so the label gets a 1.5x line box.
   const labelLine = Math.ceil(labelSize * 1.5);
   // A numeric bar height is used as-is, so size it from what the button needs: 5 pad + 30 pill + 3 gap + label line
@@ -35,6 +35,7 @@ export default function TabsLayout() {
   const contentHeight = BUTTON_PAD + PILL_HEIGHT + LABEL_GAP + labelLine + BUTTON_PAD + METRICS_SLACK;
   const bottomPad = Math.max(insets.bottom, spacing.xs);
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
@@ -44,13 +45,13 @@ export default function TabsLayout() {
         headerTitleStyle: { fontFamily: fonts.bold, fontSize: 18 * scale },
         tabBarAllowFontScaling: false,
         // flexShrink 0: the button is a flex column, so a tight bar would otherwise squeeze the label and clip the glyphs.
-        tabBarLabelStyle: { fontSize: labelSize, lineHeight: labelLine, marginTop: LABEL_GAP, fontWeight: '600', flexShrink: 0,
+        tabBarLabelStyle: { fontSize: labelSize, lineHeight: labelLine, marginTop: LABEL_GAP, fontWeight: '700', flexShrink: 0,
           textAlignVertical: 'center', ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}) },
         // The library's icon slot is a fixed 31x28; size it to the pill so the pill never overlaps the label.
         tabBarIconStyle: { width: PILL_WIDTH, height: PILL_HEIGHT },
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.faint,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, elevation: 0, ...shadow.md,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.divider, elevation: 0, ...shadow.md,
           height: contentHeight + bottomPad, paddingBottom: bottomPad },
         sceneStyle: { backgroundColor: colors.bg },
       }}
@@ -59,6 +60,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'วันนี้',
+          headerShown: false,
           tabBarIcon: props => <TabIcon Icon={Sun} {...props} />,
         }}
       />
@@ -67,21 +69,14 @@ export default function TabsLayout() {
         options={{
           title: 'คดี',
           tabBarIcon: props => <TabIcon Icon={Scale} {...props} />,
-          // The list's only create action lives in the header, so search sits directly above the cases.
-          headerRight: () => (
-            <Pressable accessibilityRole="button" accessibilityLabel="รับเคสใหม่" onPress={() => router.push('/case/new')}
-              style={({ pressed }) => [{ minHeight: TOUCH, minWidth: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-                paddingHorizontal: spacing.lg }, pressed && { opacity: 0.6 }]}>
-              <Plus size={18} color={colors.ink} />
-              <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={{ color: colors.ink, fontWeight: '600' }}>รับเคส</Text>
-            </Pressable>
-          ),
+          headerShown: false,
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
           title: 'ปฏิทิน',
+          headerShown: false,
           tabBarIcon: props => <TabIcon Icon={CalendarDays} {...props} />,
         }}
       />
@@ -89,6 +84,7 @@ export default function TabsLayout() {
         name="tasks"
         options={{
           title: 'งาน',
+          headerShown: false,
           tabBarIcon: props => <TabIcon Icon={SquareCheckBig} {...props} />,
         }}
       />
@@ -96,9 +92,13 @@ export default function TabsLayout() {
         name="team"
         options={{
           title: 'ทีม',
+          headerShown: false,
           tabBarIcon: props => <TabIcon Icon={Users} {...props} />,
         }}
       />
     </Tabs>
+    {/* Every tab opens on a navy masthead with light status-bar text, so the status bar keeps a navy backdrop while content scrolls under it. */}
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: colors.ink }} />
+    </View>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, StyleProp, TextStyle, View, ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { ChevronRight, LucideIcon, Search, X } from 'lucide-react-native';
@@ -78,10 +78,13 @@ export function SearchBox({ value, onChange, onSearch, onClear, placeholder }: {
 export function FilterTabs({ items, value, onChange }: {
   items: ReadonlyArray<{ value: string; label: string }>; value: string; onChange: (value: string) => void;
 }) {
-  return <ScrollView horizontal accessibilityRole="tablist" showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.xs }}>
+  // A tab chosen elsewhere (e.g. a link from วันนี้) may sit past the right edge: scroll it into view once laid out.
+  const scroll = useRef<ScrollView>(null);
+  return <ScrollView ref={scroll} horizontal accessibilityRole="tablist" showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.xs }}>
     {items.map(item => {
       const on = value === item.value;
       return <Pressable key={item.value} accessibilityRole="tab" accessibilityState={{ selected: on }}
+        onLayout={on ? event => scroll.current?.scrollTo({ x: Math.max(0, event.nativeEvent.layout.x - spacing.lg), animated: false }) : undefined}
         onPress={() => onChange(item.value)}
         style={({ pressed }) => [styles.filterTab, on && styles.filterTabOn, pressed && !on && { backgroundColor: colors.soft }]}>
         <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.filterText, on && styles.filterTextOn]}>{item.label}</Text>
@@ -200,7 +203,8 @@ export function EmptyNote({ children, action }: { children: React.ReactNode; act
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderColor: colors.line,
+    // Borderless white on the cool canvas; the whisper shadow carries the edge (transparent keeps the 1pt layout).
+    borderColor: 'transparent',
     borderWidth: 1,
     borderRadius: radius.card,
     padding: spacing.lg,

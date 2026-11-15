@@ -5,11 +5,13 @@ import type { OutlookCalendarItemDto } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, MapPin, Plus, X } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, MapPin, X } from 'lucide-react-native';
 import { useCalendarRange, useWorkload, useOutlookCalendar } from '@/api/hooks';
 import type { CalendarEventItem } from '@/api/types';
 import { Button, Card, EmptyState, ErrorState, EVENT_KIND_LABEL, InlineError, LoadingState, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay, initials, isoDay, thDate, thTime } from '@/format';
+import { liftedCard, Masthead, MastheadPill } from '@/components/Masthead';
+import { ProgressRing } from '@/components/ProgressRing';
 import { CHROME_MAX_SCALE, colors, fonts, radius, shadow, spacing, TOUCH, typeScale, pageContent } from '@/theme';
 
 const TH_MONTHS_FULL = [
@@ -78,6 +80,9 @@ export default function CalendarScreen() {
   };
   const goToday = () => { setCursor({ y: todayY, m: todayM - 1 }); setSelected(todayKey); };
   const cells = monthGrid(cursor.y, cursor.m);
+  const dayCount = (key: string) => (byDay.get(key)?.length ?? 0) + outlookItems.filter(item => onDay(item, key)).length;
+  // A day's ring fills against the busiest day this month (at least 3), so one meeting never reads as a full day.
+  const busiest = Math.max(3, ...cells.map(date => date ? dayCount(isoDay(date)) : 0));
   const selectedEvents = byDay.get(selected) ?? [];
   const selectedOutlook = outlookItems.filter(item => onDay(item, selected)).sort((a, b) => Number(b.isAllDay) - Number(a.isAllDay) || a.startAt.localeCompare(b.startAt));
   // One target everywhere (same as วันนี้): court dates open วันขึ้นศาล, everything else opens its team.
@@ -86,49 +91,34 @@ export default function CalendarScreen() {
     : router.push(`/event/${event.id}/team`);
 
   return (
-    <> <ScrollView
+    <><ScrollView
       style={styles.screen}
       contentContainerStyle={pageContent}
       refreshControl={
         <RefreshControl refreshing={events.isRefetching} onRefresh={() => events.refetch()} />
       }
     >
-      {memberId && <Pressable accessibilityRole="button" accessibilityLabel={`เลิกกรองนัดของ ${memberName} · ดูนัดทั้งหมด`}
-        style={({ pressed }) => [styles.filter, pressed && { opacity: 0.6 }]} onPress={() => router.replace('/(tabs)/calendar')}>
-        <Text style={styles.filterText}>นัดของ {memberName} · ดูทั้งหมด</Text>
-        <X size={16} color={colors.info} />
-      </Pressable>}
-      <Card>
+      <Masthead safeTop title="ปฏิทิน"
+        actions={<MastheadPill label="เพิ่มนัด" a11y={`เพิ่มนัดหมาย ${thDate(new Date(selected))}`} onPress={() => router.push(`/event/new?date=${selected}`)} />}>
         <View style={styles.monthHead}>
-          <Pressable
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="เดือนก่อนหน้า"
-            style={({ pressed }) => [styles.navButton, pressed && { backgroundColor: colors.soft }]}
-            onPress={() => goMonth(-1)}
-          >
-            <ChevronLeft size={20} color={colors.ink} />
+          <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel="เดือนก่อนหน้า"
+            style={({ pressed }) => [styles.navButton, pressed && { opacity: 0.6 }]} onPress={() => goMonth(-1)}>
+            <ChevronLeft size={22} color={colors.onInk} />
           </Pressable>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text accessibilityRole="header" style={styles.monthTitle}>
-              {TH_MONTHS_FULL[cursor.m]} {cursor.y + 543}
-            </Text>
+            <Text accessibilityRole="header" style={styles.monthTitle}>{TH_MONTHS_FULL[cursor.m]} {cursor.y + 543}</Text>
             {!onCurrentMonth && <Pressable accessibilityRole="button" accessibilityLabel="กลับไปเดือนนี้และวันนี้" onPress={goToday}
               style={({ pressed }) => [styles.filter, { alignSelf: 'center' }, pressed && { opacity: 0.6 }]}>
-              <Text style={styles.filterText}>กลับวันนี้</Text>
+              <Text style={[styles.filterText, { color: colors.accent }]}>กลับวันนี้</Text>
             </Pressable>}
           </View>
-          <Pressable
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="เดือนถัดไป"
-            style={({ pressed }) => [styles.navButton, pressed && { backgroundColor: colors.soft }]}
-            onPress={() => goMonth(1)}
-          >
-            <ChevronRight size={20} color={colors.ink} />
+          <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel="เดือนถัดไป"
+            style={({ pressed }) => [styles.navButton, pressed && { opacity: 0.6 }]} onPress={() => goMonth(1)}>
+            <ChevronRight size={22} color={colors.onInk} />
           </Pressable>
         </View>
-
+      </Masthead>
+      <Card style={liftedCard}>
         <View style={styles.grid}>
           <View style={styles.week}>
             {TH_DOW.map((d) => (
@@ -157,6 +147,8 @@ export default function CalendarScreen() {
                     onPress={() => setSelected(key)}
                   >
                     {({ pressed }) => <>
+                      <ProgressRing value={dayCount(key)} total={busiest} size={42} stroke={3} track="transparent"
+                        color={hasCourt ? colors.accent : colors.info}>
                       <View style={[styles.dayMark, isToday && !isSelected && styles.cellToday, isSelected && styles.cellSelected,
                         pressed && !isSelected && { backgroundColor: colors.soft }]}>
                         <Text
@@ -170,6 +162,7 @@ export default function CalendarScreen() {
                           {date.getDate()}
                         </Text>
                       </View>
+                      </ProgressRing>
                       {/* Brass marks a court date; other appointments get a muted dot. */}
                       {dayEvents || outlookCount ? <View style={[styles.dot, { backgroundColor: hasCourt ? colors.accent : colors.muted }]} /> : null}
                     </>}
@@ -180,6 +173,11 @@ export default function CalendarScreen() {
           ))}
         </View>
       </Card>
+      {memberId && <Pressable accessibilityRole="button" accessibilityLabel={`เลิกกรองนัดของ ${memberName} · ดูนัดทั้งหมด`}
+        style={({ pressed }) => [styles.filter, pressed && { opacity: 0.6 }]} onPress={() => router.replace('/(tabs)/calendar')}>
+        <Text style={styles.filterText}>นัดของ {memberName} · ดูทั้งหมด</Text>
+        <X size={16} color={colors.info} />
+      </Pressable>}
 
       <View style={{ minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}><View><Text style={{ color: colors.ink, fontWeight: '700' }}>นัดจาก Outlook</Text><Text style={styles.eventMeta}>เห็นเฉพาะคุณ</Text></View><Switch accessibilityLabel="นัดจาก Outlook" value={showOutlook} onValueChange={value => { setShowOutlook(value); setChosenOutlook(null); if (user?.id) AsyncStorage.setItem(`outlook-calendar:${user.id}`, String(value)).catch(() => {}); }} /></View>
       {outlook.isError && showOutlook && <InlineError message="โหลดนัดจาก Outlook ไม่สำเร็จ" onRetry={() => outlook.refetch()} />}
@@ -192,16 +190,6 @@ export default function CalendarScreen() {
             <Text style={styles.filterText}>กลับวันนี้</Text>
           </Pressable>}
         </View>
-        <Pressable
-          style={({ pressed }) => [styles.addButton, pressed && { backgroundColor: colors.inkPressed, ...shadow.none }]}
-          accessibilityRole="button"
-          accessibilityLabel={`เพิ่มนัดหมาย ${thDate(new Date(selected))}`}
-          hitSlop={8}
-          onPress={() => router.push(`/event/new?date=${selected}`)}
-        >
-          <Plus size={16} color={colors.bg} />
-          <Text style={styles.addText}>เพิ่มนัด</Text>
-        </Pressable>
       </View>
       {events.isError && (events.data
         ? <InlineError style={{ marginBottom: spacing.sm }} message="นัดหมายอาจยังไม่ล่าสุด" onRetry={() => events.refetch()} />
@@ -269,26 +257,9 @@ function OutlookCard({ item, onPress }: { item: OutlookCalendarItemDto; onPress:
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  monthHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  navButton: {
-    width: TOUCH,
-    height: TOUCH,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.button,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.raised,
-  },
-  monthTitle: { textAlign: 'center', ...typeScale.section, color: colors.ink },
+  monthHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs },
+  navButton: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, backgroundColor: colors.inkRaised },
+  monthTitle: { textAlign: 'center', ...typeScale.section, color: colors.onInk },
   grid: { gap: 2 },
   week: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   dow: {
@@ -301,7 +272,7 @@ const styles = StyleSheet.create({
   // The whole 44pt cell is the target; the visible mark is a 36pt circle, with the event dot just under it.
   cell: {
     flex: 1,
-    height: TOUCH + 6,
+    height: TOUCH + 10,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: 2,
