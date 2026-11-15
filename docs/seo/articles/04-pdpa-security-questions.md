@@ -8,7 +8,7 @@ schema: Article
 author: "ทีม Samnuan"
 legal_review_required: true
 reviewed: 2026-11-15
-internal_links: ["/privacy", "/pricing", "/articles/choose-legal-case-management-software"]
+internal_links: ["/privacy", "/#pricing", "/articles/choose-legal-case-management-software"]
 ---
 
 # เก็บข้อมูลคดีลูกความบนคลาวด์ ขัด PDPA ไหม? 10 คำถามที่ต้องถามผู้ให้บริการก่อนใช้

@@ -7,7 +7,7 @@ secondary_keywords: ["โปรแกรมบริหารสำนักง�
 schema: Article
 author: "ทีม Samnuan"
 reviewed: 2026-11-15
-internal_links: ["/pricing", "/features/court-calendar", "/features/deadlines", "/features/client-portal", "/features/billing", "/features/team-workload"]
+internal_links: ["/#pricing", "/features/court-calendar", "/features/deadlines", "/features/client-portal", "/features/billing", "/features/team-workload"]
 ---
 
 # เลือกโปรแกรมจัดการคดีสำหรับสำนักงานกฎหมายไทย: 8 เรื่องที่ต้องเช็กก่อนจ่ายเงิน
@@ -61,7 +61,7 @@ internal_links: ["/pricing", "/features/court-calendar", "/features/deadlines", 
 - **กำหนดเวลา:** เมื่อบันทึกเหตุการณ์ในคดี ระบบจะเสนอวันครบกำหนดให้ เช่น ยื่นคำให้การ อุทธรณ์ ฎีกา หรือบังคับคดี โดยข้ามวันหยุดราชการ และให้ทนายตรวจก่อนบันทึก
 - **ลูกความ:** มีพอร์ทัลลูกความ โดยลูกความไม่นับเป็นผู้ใช้ และตั้งแต่แพ็กเกจ Team ขึ้นไปส่งแจ้งเตือนผ่าน LINE ได้
 - **ข้อมูล:** เก็บบน AWS ศูนย์ข้อมูลในประเทศไทย ส่งออกรายการคดีเป็น CSV ได้ทุกแพ็กเกจ และแพ็กเกจ Professional มี Audit Log
-- **ราคา:** แพ็กเกจ Team ราคา {{price:TEAM}} บาท/เดือน สำหรับทีมไม่เกิน {{users:TEAM}} คน ไม่มีค่าติดตั้ง ทดลองใช้ฟรี 30 วันโดยไม่ต้องใช้บัตรเครดิต ([ดูทุกแพ็กเกจ](/pricing))
+- **ราคา:** แพ็กเกจ Team ราคา {{price:TEAM}} บาท/เดือน สำหรับทีมไม่เกิน {{users:TEAM}} คน ไม่มีค่าติดตั้ง ทดลองใช้ฟรี 30 วันโดยไม่ต้องใช้บัตรเครดิต ([ดูทุกแพ็กเกจ](/#pricing))
 
 ## คำถามที่พบบ่อย
 

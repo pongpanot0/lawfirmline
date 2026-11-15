@@ -1,6 +1,6 @@
 # Keyword plan: landing pages และบทความ (2026-11-15)
 
-แผนนี้เป็น input ให้ session "Samnuan.com SEO" ซึ่งเป็นเจ้าของ route ทั้งหมด (`/features/*`, `/articles/*`, `/pricing`, `/en`)
+แผนนี้เป็น input ให้ session "Samnuan.com SEO" ซึ่งเป็นเจ้าของ route ทั้งหมด (`/features/*`, `/articles/*`, `/#pricing`, `/en`)
 ไฟล์นี้ระบุแค่ว่าจะจับคำค้นอะไร ด้วย intent แบบไหน ไม่ได้สร้าง route เอง
 ร่างบทความอยู่ใน `docs/seo/articles/`
 
@@ -47,10 +47,10 @@
 
 | # | ไฟล์ร่าง | path ที่เสนอ | คำถามที่คนถาม AI | ช่วงการตัดสินใจ | ลิงก์ภายในไปที่ |
 |---|---|---|---|---|---|
-| 1 | `articles/01-choose-case-management-software.md` | `/articles/choose-legal-case-management-software` | "โปรแกรมจัดการคดีสำหรับสำนักงานกฎหมายในไทยมีอะไรบ้าง เลือกยังไง ราคาเท่าไร" | เปรียบเทียบ | `/pricing`, ทั้ง 5 feature pages |
+| 1 | `articles/01-choose-case-management-software.md` | `/articles/choose-legal-case-management-software` | "โปรแกรมจัดการคดีสำหรับสำนักงานกฎหมายในไทยมีอะไรบ้าง เลือกยังไง ราคาเท่าไร" | เปรียบเทียบ | `/#pricing`, ทั้ง 5 feature pages |
 | 2 | `articles/02-excel-line-vs-software.md` | `/articles/excel-line-vs-case-management-software` | "สำนักงานกฎหมายเล็ก ๆ ใช้ Excel กับ LINE กลุ่มพอไหม ต้องซื้อโปรแกรมตอนไหน" | รู้ว่ามีปัญหา | `/features/team-workload`, `/features/client-portal` |
 | 3 | `articles/03-civil-case-deadlines.md` | `/articles/civil-case-deadlines-thailand` | "ยื่นคำให้การกี่วัน อุทธรณ์ภายในกี่วัน นับวันหยุดไหม" | หาข้อมูล (ดึงคนเข้ามาได้มากที่สุด) | `/features/deadlines`, `/features/court-calendar` |
-| 4 | `articles/04-pdpa-security-questions.md` | `/articles/legal-software-pdpa-security-checklist` | "ใช้โปรแกรมคลาวด์เก็บข้อมูลคดีลูกความ ผิด PDPA ไหม ต้องถามผู้ขายอะไร" | ความไว้ใจ / ขั้นตอนก่อนจ่ายเงิน | `/privacy`, `/pricing` |
+| 4 | `articles/04-pdpa-security-questions.md` | `/articles/legal-software-pdpa-security-checklist` | "ใช้โปรแกรมคลาวด์เก็บข้อมูลคดีลูกความ ผิด PDPA ไหม ต้องถามผู้ขายอะไร" | ความไว้ใจ / ขั้นตอนก่อนจ่ายเงิน | `/privacy`, `/#pricing` |
 
 ### กติกาเนื้อหา (ทั้ง landing page และบทความ)
 
