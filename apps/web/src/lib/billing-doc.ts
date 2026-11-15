@@ -97,7 +97,7 @@ function firmTax(taxId?: string | null, branch?: string | null): string {
  * Printable invoice/receipt. The user prints and picks "Save as PDF" in the
  * browser dialog — no server-side PDF generation.
  */
-export function buildBillingDocHtml(data: BillingDocData): string {
+export function buildBillingDocHtml(data: BillingDocData, options?: { annotate?: boolean }): string {
   // Sent invoices carry the issuer details frozen at send time; drafts use the live profile.
   const frozen = data.templateSnapshot?.firm;
   const fp = frozen ? { legalName: frozen.legalName, billingAddress: frozen.address, taxId: frozen.taxId, taxBranch: frozen.taxBranch } : data.firmProfile;
@@ -120,7 +120,7 @@ export function buildBillingDocHtml(data: BillingDocData): string {
     firmTax: `<p>${firmTax(fp?.taxId, fp?.taxBranch)}</p>`,
     title: `<h1>${title} <small>ต้นฉบับ</small></h1>`,
     meta: blocks.title.slice(blocks.title.indexOf('<div class="meta">')),
-  }, '', data.lines);
+  }, '', data.lines, options?.annotate);
 }
 
 /** Open a print window for the document; returns false when popups are blocked. */
@@ -153,8 +153,8 @@ function promptpayQr(id: string): string {
   return `<svg role="img" aria-label="คิวอาร์พร้อมเพย์" viewBox="0 0 ${qr.size + 8} ${qr.size + 8}" width="120" height="120" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/><g fill="black">${squares}</g></svg>`;
 }
 
-function renderLayout(title: string, number: string, blocks: Record<typeof STANDARD_V1_BLOCKS[number], string>, layout: TemplateLayout | undefined, parts: Partial<Record<BlockType, string>>, watermark = '', lines: BillingDocLine[] = []): string {
-  if (!layout || (layout.version === 1 && layout.blocks.length === STANDARD_V1_LAYOUT.blocks.length && layout.blocks.every((block, i) => { const standard = STANDARD_V1_LAYOUT.blocks[i]; return block.type === standard.type && block.column === standard.column && !block.hidden && !block.settings; }))) return renderStandard(title, number, blocks, watermark);
+function renderLayout(title: string, number: string, blocks: Record<typeof STANDARD_V1_BLOCKS[number], string>, layout: TemplateLayout | undefined, parts: Partial<Record<BlockType, string>>, watermark = '', lines: BillingDocLine[] = [], annotate = false): string {
+  if (!layout || (!annotate && layout.version === 1 && layout.blocks.length === STANDARD_V1_LAYOUT.blocks.length && layout.blocks.every((block, i) => { const standard = STANDARD_V1_LAYOUT.blocks[i]; return block.type === standard.type && block.column === standard.column && !block.hidden && !block.settings; }))) return renderStandard(title, number, blocks, watermark);
   const fragments: Partial<Record<BlockType, string>> = { ...blocks, ...parts };
   // The server already un-hides VAT-required blocks in the snapshot for VAT-registered firms; honour `hidden` here.
   const content = layout.blocks.filter(block => !block.hidden).map(block => {
@@ -167,7 +167,7 @@ function renderLayout(title: string, number: string, blocks: Record<typeof STAND
     if (block.type === 'promptpay') html = `<section><b>พร้อมเพย์</b><p>${escapeHtml(settings?.promptpayId ?? '')}</p>${promptpayQr(settings?.promptpayId ?? '')}<p>สแกนจ่ายผ่านแอปธนาคาร</p></section>`;
     if (block.type === 'stamp') html = '<span class="stamp">ตราประทับ</span>';
     if (settings?.fontSize && settings.fontSize !== 'md') html = `<div style="font-size:${settings.fontSize === 'sm' ? '12px' : '16px'}">${html}</div>`;
-    return { column: block.column, html: `<div data-block="${escapeHtml(block.id)}">${html}</div>` };
+    return { column: block.column, html: `<div${annotate ? ` data-block="${escapeHtml(block.id)}"` : ''}>${html}</div>` };
   });
   const rows: string[] = [];
   for (let i = 0; i < content.length; i++) {
@@ -182,7 +182,7 @@ function renderLayout(title: string, number: string, blocks: Record<typeof STAND
     .replace(/<body>[\s\S]*<footer>/, `<body>${watermark}<main class="template-blocks">${rows.join('')}</main><footer>`);
 }
 
-export function buildReceiptDocHtml(data: import('./api').ReceiptPrintData, logoDataUrl?: string, replacedNumber?: string, outstanding?: number): string {
+export function buildReceiptDocHtml(data: import('./api').ReceiptPrintData, logoDataUrl?: string, replacedNumber?: string, outstanding?: number, options?: { annotate?: boolean }): string {
   const esc = (s: string | null | undefined) => escapeHtml(s ?? '');
   const snapshot = data.firmSnapshot;
   const totals = data.totals;
@@ -203,7 +203,7 @@ export function buildReceiptDocHtml(data: import('./api').ReceiptPrintData, logo
     firmTax: `<p>${firmTax(snapshot.taxId, snapshot.taxBranch)}</p>`,
     title: `<h1>${title} <small>ต้นฉบับ</small></h1>`,
     meta: blocks.title.slice(blocks.title.indexOf('<div class="meta">')),
-  }, data.voidedAt ? `<div class="void">ยกเลิกแล้ว</div><section>ยกเลิกแล้ว: ${esc(data.voidReason)}</section>` : '', data.invoice.lineItems);
+  }, data.voidedAt ? `<div class="void">ยกเลิกแล้ว</div><section>ยกเลิกแล้ว: ${esc(data.voidReason)}</section>` : '', data.invoice.lineItems, options?.annotate);
 }
 
 export async function invoiceFirmData(token: string, logoKey?: string | null) {
