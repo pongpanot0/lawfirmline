@@ -45,9 +45,7 @@ const escapeHtml = (text: string) =>
 const baht = (amount: number) =>
   `${amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
 
-export function suggestWht(rate: number, feeBase: number, amount: number, wht: number, outstanding: number, invoiceTotal: number): number {
-  return invoiceTotal > 0 ? Math.round(rate * feeBase * Math.min(amount + wht, outstanding) / invoiceTotal * 100) / 100 : 0;
-}
+export { suggestWht } from '@lawfirm/shared';
 
 export function bahtText(amount: number): string {
   const digits = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];

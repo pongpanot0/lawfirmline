@@ -66,7 +66,7 @@ export class CollectionsService {
       where: { id: invoiceId, firmId: user.firmId }, include: { ...INVOICE_INCLUDE, lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] } },
     });
     if (!invoice) throw new NotFoundException('ไม่พบใบแจ้งหนี้');
-    return { ...this.row(invoice, new Date()), lineItems: invoice.lineItems,
+    return { ...this.row(invoice, new Date()), discountAmount: invoice.discountAmount, lineItems: invoice.lineItems,
       payments: invoice.payments.sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime()),
     };
   }

@@ -13,3 +13,9 @@ export function computeInvoiceTotals(
   const vat = vatRegistered && fees > 0 ? round2(vatRate * taxable * (1 - discount / fees)) : 0;
   return { exempt, taxable, vat, disbursement, total: round2(fees - discount + vat + disbursement) };
 }
+
+/** WHT the payer is expected to withhold on this payment: rate × the fee base (lines other than disbursements, after discount),
+ * pro-rated by how much of the invoice the payment settles. */
+export function suggestWht(rate: number, feeBase: number, amount: number, wht: number, outstanding: number, invoiceTotal: number): number {
+  return invoiceTotal > 0 ? Math.round(rate * feeBase * Math.min(amount + wht, outstanding) / invoiceTotal * 100) / 100 : 0;
+}
