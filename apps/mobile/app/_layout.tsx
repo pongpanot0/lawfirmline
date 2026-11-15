@@ -125,6 +125,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 /** Cold start passes through three waits (fonts, session, auth); one wording keeps it reading as a single step. */
+// A screen opened straight from a link or notification gets the tabs beneath it, so it always has a back button.
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 const OPENING = 'กำลังเปิด Samnuan…';
 
 /** Module-level so a re-login (which remounts the session tree) does not replay an old tap. */
