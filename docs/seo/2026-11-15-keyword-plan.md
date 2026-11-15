@@ -1,6 +1,6 @@
 # Keyword plan: landing pages และบทความ (2026-11-15)
 
-แผนนี้เป็น input ให้ session "Samnuan.com SEO" ซึ่งเป็นเจ้าของ route ทั้งหมด (`/features/*`, `/articles/*`, `/#pricing`, `/en`)
+แผนนี้เป็น input ให้ session "Samnuan.com SEO" ซึ่งเป็นเจ้าของ route ทั้งหมด (`/features/*` ใน PR 249, และ `/articles/*`, `/pricing`, `/en` ที่ยังไม่มีเจ้าของ; ตอนนี้ราคาอยู่ที่ `/#pricing` บนหน้าแรก)
 ไฟล์นี้ระบุแค่ว่าจะจับคำค้นอะไร ด้วย intent แบบไหน ไม่ได้สร้าง route เอง
 ร่างบทความอยู่ใน `docs/seo/articles/`
 
