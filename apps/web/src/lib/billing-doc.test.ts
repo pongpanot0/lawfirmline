@@ -93,7 +93,7 @@ test('custom layout pairs columns, honours hidden (server enforces VAT blocks) a
     { id: 'p', type: 'promptpay', column: 'full', settings: { promptpayId: '0812345678', fontSize: 'lg' } },
   ] } } });
   assert.ok(html.includes('font-size:16px'));
-  assert.match(html, /template-row"><div><div data-block="n"><section>ข้อความ &lt;สำคัญ&gt;<\/section><\/div><\/div><div><div data-block="b"><section><b>ข้อมูลบัญชีธนาคาร/);
+  assert.match(html, /template-row"><div><div><section>ข้อความ &lt;สำคัญ&gt;<\/section><\/div><\/div><div><div><section><b>ข้อมูลบัญชีธนาคาร/);
   assert.ok(html.includes('บัญชี') && html.includes('123'));
   assert.ok(!html.includes('จำนวนเงินตัวอักษร'));
   assert.ok(!html.includes('เรียกเก็บจาก / ผู้ว่าจ้าง'));
@@ -115,7 +115,7 @@ test('item settings select columns and group fees and disbursements', () => {
   assert.ok(html.indexOf('ค่าวิชาชีพ') < html.indexOf('ค่าทนาย &lt;test&gt;'));
   assert.ok(html.indexOf('ค่าทนาย &lt;test&gt;') < html.indexOf('เงินจ่ายแทนลูกความ'));
   assert.ok(html.includes('100.00 บาท'));
-  assert.ok(html.includes('data-block="items"'));
+  assert.ok(!html.includes('data-block='));
 });
 
 test('invoice firm tax identifies head office and branches', () => {
@@ -140,4 +140,11 @@ test('grouped item rows keep one running sequence', () => {
   ], templateSnapshot: { logoKey: null, layout: { version: 1, blocks: [{ id: 'i', type: 'items', column: 'full', settings: { groupByTaxClass: true } }] } } });
   const nums = [...html.matchAll(/<tr><td>(\d+)<\/td><td>([ABC])<\/td>/g)].map(m => m[2] + m[1]);
   assert.deepEqual(nums, ['A1', 'C2', 'B3']);
+});
+
+test('annotation is opt-in and leaves standard print output unchanged', async () => {
+  const { STANDARD_V1_LAYOUT } = await import('@lawfirm/shared');
+  const data = { ...base, templateSnapshot: { layout: STANDARD_V1_LAYOUT, logoKey: null } };
+  assert.equal(buildBillingDocHtml(data, { annotate: false }), buildBillingDocHtml(base));
+  assert.match(buildBillingDocHtml(data, { annotate: true }), /data-block="/);
 });
