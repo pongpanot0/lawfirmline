@@ -17,6 +17,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, TimeEntryItem, ExpenseItem, InvoiceItem, ReceiptItem } from '@/lib/api';
 import { buildBillingDocHtml, invoiceFirmData, buildReceiptDocHtml, openBillingDocWindow } from '@/lib/billing-doc';
 import { TimeEntryForm } from '@/components/billing/TimeEntryForm';
+import { CourtFeeCalculator } from '@/components/billing/CourtFeeCalculator';
 import { formatCurrency } from '@/lib/utils';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { PageLoading } from '@/components/ui/misc';
@@ -152,6 +153,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const [receipts, setReceipts] = useState<ReceiptItem[]>([]);
   const [printError, setPrintError] = useState('');
   const [caseTypeId, setCaseTypeId] = useState<string | undefined>();
+  const [claimedAmount, setClaimedAmount] = useState<number | null>(null);
   const [agreedFee, setAgreedFee] = useState<number | null>(null);
   const [writeOffTarget, setWriteOffTarget] = useState<string | null>(null);
   const canApprove = hasFirmCapability(user?.firmRole, 'approveExpenses');
@@ -169,6 +171,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       .then(([entries, exps, summary, detail, invs, docs]) => {
         setReceipts(docs);
         setInvoices(invs);
+        setClaimedAmount(detail?.claimedAmount ?? null);
         setAgreedFee(detail?.estimatedFee ?? null);
         setCaseTypeId(detail?.caseType?.id);
         setTimeEntries(entries);
@@ -325,6 +328,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                 ))}
               </SelectField>
             </div>
+            {expenseForm.category === 'ค่าธรรมเนียมศาล' && <CourtFeeCalculator claimedAmount={claimedAmount} onApply={amount => setExpenseForm(current => ({ ...current, amount }))} />}
             <TextField
               label={d.caseBilling.descriptionField}
               required

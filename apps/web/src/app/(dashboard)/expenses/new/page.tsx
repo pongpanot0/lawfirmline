@@ -18,6 +18,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SelectField, TextField } from '@/components/ui/form-fields';
 import { MoneyInput } from '@/components/ui/MoneyInput';
+import { CourtFeeCalculator } from '@/components/billing/CourtFeeCalculator';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatCurrency } from '@/lib/utils';
@@ -33,6 +34,7 @@ export default function NewExpensePage() {
   const searchParams = useSearchParams();
   const caseIdParam = searchParams.get('caseId') ?? '';
   const [cases, setCases] = useState<CaseListItem[]>([]);
+  const [caseClaim, setCaseClaim] = useState<{ id: string; amount: number | null } | null>(null);
   const [advances, setAdvances] = useState<CashAdvanceItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -54,6 +56,15 @@ export default function NewExpensePage() {
     api.getCases(token).then(setCases).catch(() => setCases([]));
     api.listMyCashAdvances(token).then(setAdvances).catch(() => setAdvances([]));
   }, [token]);
+
+  useEffect(() => {
+    if (!token || !form.caseId) return;
+    let active = true;
+    api.getCase(token, form.caseId).then(detail => {
+      if (active) setCaseClaim({ id: form.caseId, amount: detail.claimedAmount ?? null });
+    }).catch(() => { if (active) setCaseClaim({ id: form.caseId, amount: null }); });
+    return () => { active = false; };
+  }, [token, form.caseId]);
 
   const selectedAdvance = advances.find((a) => a.id === form.paidFromAdvanceId);
   const advanceAmountExceeded =
@@ -174,6 +185,10 @@ export default function NewExpensePage() {
                 </option>
               ))}
             </SelectField>
+
+            {form.category === 'ค่าธรรมเนียมศาล' && (!form.caseId || caseClaim?.id === form.caseId) && (
+              <div className="md:col-span-2"><CourtFeeCalculator key={form.caseId} claimedAmount={form.caseId ? caseClaim?.amount : null} onApply={amount => setForm(current => ({ ...current, amount }))} /></div>
+            )}
 
             {form.category === 'ค่าธรรมเนียมศาล' && (
               <TextField
