@@ -53,6 +53,8 @@ export function estimateCourtFee(input: CourtFeeInput): CourtFeeResult {
   const claim = Math.max(0, input.claimAmount ?? 0);
   const notes: string[] = [];
   const out = (fee: number, lines: { label: string; amount: number }[]) => ({ fee, lines, notes, ruleVersion: COURT_FEE_RULE_VERSION });
+  const needsClaim = !['NON_MONETARY', 'CONSUMER', 'LABOUR', 'BANKRUPTCY'].includes(kind);
+  if (needsClaim && !(input.claimAmount! > 0)) notes.push('ยังไม่ได้ระบุทุนทรัพย์ — ยอดที่แสดงยังไม่ใช่ค่าขึ้นศาลจริง');
   if (level !== 'TRIAL') notes.push('ชั้นอุทธรณ์/ฎีกาคิดจากทุนทรัพย์ที่ยังพิพาทในชั้นนั้น (ม.150) ไม่ใช่ทุนทรัพย์เดิม');
 
   switch (kind) {
@@ -77,7 +79,9 @@ export function estimateCourtFee(input: CourtFeeInput): CourtFeeResult {
       const monetary = monetaryCourtFee(claim);
       if (level !== 'TRIAL') return out(monetary.fee, monetary.lines);
       notes.push('มโนสาเร่ชั้นต้น: ค่าขึ้นศาลรวมไม่เกิน 1,000 บาท (ม.190 จัตวา)');
-      return out(Math.min(monetary.fee, SMALL_CLAIM_TRIAL_CAP), monetary.fee > SMALL_CLAIM_TRIAL_CAP ? [...monetary.lines, { label: 'เพดานมโนสาเร่ 1,000 บาท', amount: SMALL_CLAIM_TRIAL_CAP - monetary.fee }] : monetary.lines);
+      if (monetary.fee <= SMALL_CLAIM_TRIAL_CAP) return out(monetary.fee, monetary.lines);
+      notes.push(`ตามอัตราปกติจะเป็น ${baht(monetary.fee)} บาท`);
+      return out(SMALL_CLAIM_TRIAL_CAP, [{ label: 'มโนสาเร่ชั้นต้น (เพดาน 1,000 บาท)', amount: SMALL_CLAIM_TRIAL_CAP }]);
     }
     case 'ADMIN': {
       // ระเบียบศาลปกครอง ข้อ 34: ทุนทรัพย์ต่ำกว่า 100 นับเป็น 100; เศษร้อยตั้งแต่ 50 ปัดขึ้น

@@ -28,7 +28,10 @@ describe('court fee estimate (ตาราง 1 ท้าย ป.วิ.พ.)', 
   });
 
   it('caps small claims at 1,000 only in the trial court', () => {
-    expect(estimateCourtFee({ kind: 'SMALL_CLAIM', level: 'TRIAL', claimAmount: 300_000 }).fee).toBe(1_000);
+    const capped = estimateCourtFee({ kind: 'SMALL_CLAIM', level: 'TRIAL', claimAmount: 300_000 });
+    expect(capped.fee).toBe(1_000);
+    expect(capped.lines.every(l => l.amount >= 0)).toBe(true);
+    expect(capped.lines.reduce((sum, l) => sum + l.amount, 0)).toBe(1_000);
     expect(estimateCourtFee({ kind: 'SMALL_CLAIM', level: 'TRIAL', claimAmount: 20_000 }).fee).toBe(400);
     expect(estimateCourtFee({ kind: 'SMALL_CLAIM', level: 'APPEAL', claimAmount: 300_000 }).fee).toBe(6_000);
   });
@@ -37,6 +40,11 @@ describe('court fee estimate (ตาราง 1 ท้าย ป.วิ.พ.)', 
     expect(estimateCourtFee({ kind: 'ADMIN', level: 'TRIAL', claimAmount: 149 }).fee).toBe(2);   // base 100
     expect(estimateCourtFee({ kind: 'ADMIN', level: 'TRIAL', claimAmount: 150 }).fee).toBe(4);   // base 200
     expect(estimateCourtFee({ kind: 'ADMIN', level: 'TRIAL', claimAmount: 40 }).fee).toBe(2);    // floor of 100
+  });
+
+  it('warns when a claim-based kind has no claim amount', () => {
+    expect(estimateCourtFee({ kind: 'GENERAL', level: 'TRIAL' }).notes.join(' ')).toContain('ยังไม่ได้ระบุทุนทรัพย์');
+    expect(estimateCourtFee({ kind: 'NON_MONETARY', level: 'TRIAL' }).notes.join(' ')).not.toContain('ยังไม่ได้ระบุทุนทรัพย์');
   });
 
   it('notes that appeal fees use the amount still disputed', () => {

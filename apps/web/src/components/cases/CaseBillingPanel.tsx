@@ -328,7 +328,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                 ))}
               </SelectField>
             </div>
-            {expenseForm.category === 'ค่าธรรมเนียมศาล' && <CourtFeeCalculator claimedAmount={claimedAmount} onApply={amount => setExpenseForm(current => ({ ...current, amount }))} />}
+            {expenseForm.category === 'ค่าธรรมเนียมศาล' && <CourtFeeCalculator key={claimedAmount ?? 'none'} claimedAmount={claimedAmount} onApply={amount => setExpenseForm(current => ({ ...current, amount }))} />}
             <TextField
               label={d.caseBilling.descriptionField}
               required
