@@ -65,7 +65,7 @@ describe('CoachingService', () => {
     const filterSpy = jest.spyOn(caseAccess, 'getCaseFilterForUser').mockReturnValue(caseFilter);
     db.taskComment.findMany.mockResolvedValue([{ taskId, body: 'visible update', kind: 'DAILY_UPDATE', createdAt: now }]);
     db.dailyStandup.findMany.mockResolvedValue([{ yesterdayTaskIds: [unknownId], todayTaskIds: [taskId, unknownId], todayNote: null }]);
-    db.task.findMany.mockResolvedValueOnce([{ id: taskId, status: 'TODO', size: 'M' }])
+    db.task.findMany.mockResolvedValueOnce([{ id: taskId, status: 'TODO', size: 'M', createdAt: new Date('2026-11-01') }])
       .mockResolvedValueOnce([{ id: taskId, title: 'visible task', case: null }]);
     const result = await svc.draft(user, 'u1');
     const acl = { OR: [{ caseId: null }, { case: caseFilter }] };
@@ -103,18 +103,19 @@ describe('CoachingService', () => {
   it('computes open points, overdue tasks and eight Bangkok weeks without the operations service', async () => {
     const { db, svc } = build();
     db.task.findMany.mockResolvedValueOnce([
-      { id: taskId, status: 'TODO', size: 'L', dueDate: new Date('2026-11-12'), completedAt: null },
-      { id: 'review', status: 'PENDING_REVIEW', size: 'L', dueDate: new Date('2026-11-12'), completedAt: null },
+      { id: taskId, status: 'TODO', size: 'L', dueDate: new Date('2026-11-12'), completedAt: null, createdAt: new Date('2026-11-01') },
+      { id: 'review', status: 'PENDING_REVIEW', size: 'L', dueDate: new Date('2026-11-12'), completedAt: null, createdAt: new Date('2026-11-01') },
       { id: 'done', status: 'DONE', size: 'M', dueDate: null, completedAt: new Date('2026-11-12T02:00:00Z') },
       { id: 'older', status: 'DONE', size: 'S', dueDate: null, completedAt: new Date('2026-11-08T16:59:00Z') },
     ]).mockResolvedValueOnce([{ id: taskId, title: 'คำร้อง', case: null }]);
     await svc.draft(user, 'u1'); const input = JSON.parse(JSON.parse(fetchSpy.mock.calls[0][1].body).messages[1].content);
     expect(input.stats).toMatchObject({ openPoints: 4, standardPoints: 10, overdueCount: 1 });
     expect(input.stats.finishedPointsPerWeek).toHaveLength(8);
+    expect(input.stats.waitingByStage.map((s: { stage: string; count: number }) => [s.stage, s.count])).toEqual([['รอตรวจ', 1], ['ยังไม่เริ่ม', 1]]);
     expect(input.stats.finishedPointsPerWeek.slice(-2)).toEqual([{ weekStart: '2026-11-02', finishedPoints: 1 }, { weekStart: '2026-11-09', finishedPoints: 2 }]);
   });
 
-  it.each([[0, 10], [4, 10], [8, 5], [40, 20], [100, 30]])('uses the personal standard for %i finished tasks: %i points', async (count, expected) => {
+  it.each([[0, 10], [3, 10], [4, 5], [8, 8], [20, 20], [100, 30]])('uses the last-month personal standard for %i finished L tasks: %i points', async (count, expected) => {
     const { db, svc } = build();
     db.task.findMany.mockResolvedValueOnce(Array.from({ length: count }, (_, i) => ({
       id: `done-${i}`, status: 'DONE', size: 'L', dueDate: null, completedAt: new Date('2026-11-12T02:00:00Z'),
@@ -130,7 +131,7 @@ describe('CoachingService', () => {
     expect(rag.logRun).toHaveBeenCalledWith(expect.objectContaining({ status: 'error' })); expect(db.coachingNote.create).not.toHaveBeenCalled();
   });
   it('drops unknown task ids and de-duplicates valid ids', async () => {
-    const { db, svc } = build(); db.task.findMany.mockResolvedValueOnce([{ id: taskId, status: 'TODO', size: 'M' }]).mockResolvedValueOnce([{ id: taskId, title: 'งาน', case: null }]);
+    const { db, svc } = build(); db.task.findMany.mockResolvedValueOnce([{ id: taskId, status: 'TODO', size: 'M', createdAt: new Date('2026-11-01') }]).mockResolvedValueOnce([{ id: taskId, title: 'งาน', case: null }]);
     fetchSpy.mockResolvedValue(response({ ...draft, linkedTaskIds: [unknownId, taskId, taskId] }));
     expect((await svc.draft(user, 'u1')).linkedTasks).toEqual([{ id: taskId, title: 'งาน', caseRef: null }]);
   });

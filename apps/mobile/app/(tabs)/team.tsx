@@ -21,6 +21,8 @@ import { bangkokDay, initials } from '@/format';
 import { leaveFlagsForDate, LeaveFlag } from '@/lib/leave-flags';
 import { CHROME_MAX_SCALE, colors, fonts, radius, spacing, typeScale, pageContent } from '@/theme';
 import { useAuth } from '@/api/auth';
+import { liftedCard, Masthead, mastheadStyles } from '@/components/Masthead';
+import { ProgressRing } from '@/components/ProgressRing';
 
 /**
  * Compare counts without treating fewer tasks as confirmed availability.
@@ -35,7 +37,8 @@ function loadTone(member: WorkloadMember): { label: string; tone: TagTone; color
 
 function MemberCard({ member, max, leave, todayEvents, onDetail, onTasks, onCalendar, onCases }: { member: WorkloadMember; max: number; leave?: LeaveFlag; todayEvents: number | string; onDetail: () => void; onTasks: () => void; onCalendar: () => void; onCases: () => void }) {
   const load = loadTone(member);
-  const width = max === 0 ? 0 : Math.max(4, (member.openTasks / max) * 100);
+  // Ring colour: red when work is overdue, marigold past 60% of the busiest person, green otherwise.
+  const ringColor = member.overdueTasks > 0 ? colors.warn : member.openTasks / max >= 0.6 ? colors.accent : colors.good;
   // Only facts that need attention become chips; zero counts stay out of the way.
   const chips: Array<{ tone: TagTone; text: string; icon?: LucideIcon }> = [
     ...(member.overdueTasks > 0 ? [{ tone: 'due' as TagTone, text: `เกินกำหนด ${member.overdueTasks}`, icon: AlertTriangle }] : []),
@@ -53,9 +56,11 @@ function MemberCard({ member, max, leave, todayEvents, onDetail, onTasks, onCale
       <Pressable accessibilityRole="button"
         accessibilityLabel={`ดูรายละเอียด ${member.name} งานเปิด ${member.openTasks}${member.overdueTasks ? ` เกินกำหนด ${member.overdueTasks}` : ''}${member.openCases ? ` คดีหลัก ${member.openCases}` : ''}`}
         onPress={onDetail} style={({ pressed }) => [styles.row, { minHeight: 48 }, pressed && { opacity: 0.7 }]}>
-        <View style={styles.avatar}>
-          <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.avatarText}>{initials(member.name)}</Text>
-        </View>
+        <ProgressRing value={member.openTasks} total={max} size={52} stroke={4} color={ringColor} track={colors.soft}>
+          <View style={styles.avatar}>
+            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.avatarText}>{initials(member.name)}</Text>
+          </View>
+        </ProgressRing>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.name}>{member.name}</Text>
           {member.openCases > 0 && <Text style={styles.detail}>คดีหลัก {member.openCases}</Text>}
@@ -66,9 +71,6 @@ function MemberCard({ member, max, leave, todayEvents, onDetail, onTasks, onCale
         </View>
         <ChevronRight size={18} color={colors.muted} />
       </Pressable>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${width}%`, backgroundColor: load.color }]} />
-      </View>
       {(chips.length > 0 || member.openTasks === 0) && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
         {chips.length ? chips.map(chip => <Tag key={chip.text} tone={chip.tone} icon={chip.icon}>{chip.text}</Tag>) : <Tag tone={load.tone}>{load.label}</Tag>}
       </View>}
@@ -93,12 +95,16 @@ export default function TeamScreen() {
   const events = useCalendarRange(today, today);
   const flags = leaveFlagsForDate(leaves.data ?? [], today);
 
-  if (workload.isLoading) return <View style={styles.screen}><LoadingState label="กำลังโหลดภาระงานทีม…" /></View>;
 
   const data = workload.data;
   const max = Math.max(...(data?.members.map((m) => m.openTasks) ?? [0]), 1);
   const overloaded = data?.members.filter((m) => m.overdueTasks > 0).length ?? 0;
-  const members = memberId ? data?.members.filter((member) => member.id === memberId) ?? [] : data?.members ?? [];
+  const members = (memberId ? data?.members.filter((member) => member.id === memberId) ?? [] : [...data?.members ?? []])
+    .sort((a, b) => b.overdueTasks - a.overdueTasks || b.openTasks - a.openTasks);
+  const overdueTotal = data?.members.reduce((sum, member) => sum + member.overdueTasks, 0) ?? 0;
+  // The rebalance prompt goes to the people who can move work: office roles and senior lawyers.
+  const canRebalance = hasFirmCapability(user?.firmRole, 'runOperations') || user?.firmRole === 'SENIOR_LAWYER';
+  const onLeave = [...flags.values()].filter(flag => flag.kind === 'ON_LEAVE').length;
   // One note for partial failures; the full error only when the team list itself is missing.
   const failed = [workload, leaves, events].filter(query => query.isError);
   const teamSummary = data ? [
@@ -117,35 +123,39 @@ export default function TeamScreen() {
         />
       }
     >
+      <Masthead safeTop title="ทีม" subtitle={data ? `${data.members.length} คน` : undefined}
+        actions={canRebalance ? <Pressable accessibilityRole="button"
+          accessibilityLabel="ดูภาระงานทีมล่วงหน้า 7 วัน" onPress={() => router.push('/team-week')}
+          style={({ pressed }) => [mastheadStyles.roundButton, pressed && { opacity: 0.7 }]}>
+          <CalendarDays size={20} color={colors.onInk} />
+        </Pressable> : undefined} />
+      {/* The lifted card: four team counts; tiles with something to act on are tinted. */}
+      <Card style={[liftedCard, styles.statRow]}>
+        {[
+          { label: 'งานเปิด', value: data?.totals.openTasks, tone: undefined },
+          { label: 'เกินกำหนด', value: data ? overdueTotal : undefined, tone: overdueTotal ? 'warn' : undefined },
+          { label: 'นัดศาล 7 วัน', value: data?.totals.hearingsThisWeek, tone: data?.totals.hearingsThisWeek ? 'court' : undefined },
+          { label: 'ลาวันนี้', value: leaves.data ? onLeave : undefined, tone: undefined },
+        ].map(stat => <View key={stat.label} accessible accessibilityLabel={`${stat.label} ${stat.value ?? 'ยังโหลดไม่ได้'}`}
+          style={[styles.stat, stat.tone === 'court' && { backgroundColor: colors.accentSoft }]}>
+          <Text style={[styles.statValue, stat.tone === 'warn' && { color: colors.warn }, stat.tone === 'court' && { color: colors.accentInk }]}>{stat.value ?? '—'}</Text>
+          <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} numberOfLines={1}
+            style={[styles.statLabel, stat.tone === 'warn' && { color: colors.warn }, stat.tone === 'court' && { color: colors.accentInk }]}>{stat.label}</Text>
+        </View>)}
+      </Card>
+      {workload.isLoading ? <LoadingState label="กำลังโหลดภาระงานทีม…" /> : null}
       {!data && workload.isError ? (
-        <ErrorState message="โหลดภาระงานทีมไม่สำเร็จ" onRetry={() => workload.refetch()} />
+        <View style={{ marginTop: spacing.md }}><ErrorState message="โหลดภาระงานทีมไม่สำเร็จ" onRetry={() => workload.refetch()} /></View>
       ) : failed.length > 0 ? (
-        <InlineError style={{ marginBottom: spacing.md }} message="บางข้อมูลยังโหลดไม่ได้" onRetry={() => failed.forEach(query => void query.refetch())} />
+        <InlineError style={{ marginTop: spacing.md }} message="บางข้อมูลยังโหลดไม่ได้" onRetry={() => failed.forEach(query => void query.refetch())} />
       ) : null}
 
       {data ? (
         <>
-          {/* Team totals lead as count tiles; an idle team reads as one plain sentence instead of zeros. */}
-          {/* One raised summary card: team totals, the overdue notice, then the 7-day view. */}
-          {!memberId && <Card style={styles.summaryCard}>
-            {data.totals.openTasks > 0 ? <View style={styles.statRow}>
-              <View accessible accessibilityLabel={`งานเปิดทั้งทีม ${data.totals.openTasks}`} style={styles.stat}>
-                <Text style={styles.statLabel}>งานเปิดทั้งทีม</Text>
-                <Text style={styles.statValue}>{data.totals.openTasks}</Text>
-              </View>
-              {data.totals.hearingsThisWeek > 0 && <View accessible accessibilityLabel={`นัดศาล 7 วัน ${data.totals.hearingsThisWeek}`} style={styles.stat}>
-                <Text style={styles.statLabel}>นัดศาล 7 วัน</Text>
-                <Text style={[styles.statValue, { color: colors.accentInk }]}>{data.totals.hearingsThisWeek}</Text>
-              </View>}
-            </View> : <Text style={styles.summary}>{teamSummary}</Text>}
-            {overloaded > 0 && <View style={styles.overloadedRow}>
-              <AlertTriangle size={18} color={colors.warn} style={{ marginTop: 2 }} />
-              <Text style={styles.overloaded}>{overloaded} คนมีงานเกินกำหนด · พิจารณาเกลี่ยงาน</Text>
-            </View>}
-            {(hasFirmCapability(user?.firmRole, 'runOperations') || user?.firmRole === 'SENIOR_LAWYER') && <View style={styles.summaryAction}>
-              <Button title="ดูภาระงานทีมล่วงหน้า 7 วัน" icon={CalendarDays} variant="secondary" onPress={() => router.push('/team-week')} />
-            </View>}
-          </Card>}
+          {overloaded > 0 && !memberId && canRebalance && <View style={[styles.overloadedRow, { marginTop: spacing.md }]}>
+            <AlertTriangle size={18} color={colors.warn} style={{ marginTop: 2 }} />
+            <Text style={styles.overloaded}>{overloaded} คนมีงานเกินกำหนด · พิจารณาเกลี่ยงาน</Text>
+          </View>}
 
           <SectionLabel>{memberId ? members[0]?.name ?? 'สมาชิกทีม' : 'รายคน · เรียงตามภาระงาน'}</SectionLabel>
           {memberId && <Pressable accessibilityRole="button" accessibilityLabel="เลิกกรอง · ดูทั้งทีม"
@@ -174,18 +184,18 @@ export default function TeamScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  statRow: { flexDirection: 'row', gap: spacing.lg },
-  stat: { flex: 1, minWidth: 0, gap: 2 },
-  statLabel: { ...typeScale.overline, color: colors.muted },
+  statRow: { flexDirection: 'row', gap: spacing.xs, padding: spacing.sm },
+  stat: { flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: spacing.md, borderRadius: radius.lg },
+  statLabel: { fontSize: 12, lineHeight: 18, fontWeight: '600', color: colors.muted },
   statValue: { ...typeScale.stat, color: colors.ink, fontVariant: ['tabular-nums'] },
   summaryCard: { gap: spacing.md },
   summaryAction: { paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
   overloadedRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: colors.warnSoft, borderWidth: 1,
     borderColor: colors.warnEdge, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   avatar: {
-    backgroundColor: colors.sunken,
     width: 40,
     height: 40,
+    backgroundColor: colors.soft,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
