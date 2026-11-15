@@ -15,7 +15,8 @@ module.exports = ({ config }) => ({
     '@react-native-firebase/app',
     [
       'expo-build-properties',
-      { ios: { useFrameworks: 'static', forceStaticLinking: ['RNFBApp', 'RNFBAnalytics'] } },
+      // RNFirebase 27 pulls Firebase via SPM and refuses static pod linkage (duplicate symbols).
+      { ios: { useFrameworks: 'dynamic' } },
     ],
   ],
 });
