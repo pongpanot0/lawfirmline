@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Samnuan — ฟีเจอร์ (prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Trirong:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="shared.js"></script>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body class="bg-paper font-sans text-ink antialiased">
+<div id="nav"></div>
+<main id="page"></main>
+<div id="footer"></div>
+
+<script>
+/* Page content. Facts only from docs/seo/2026-11-15-landing-pages-fact-sheet.md. */
+const PAGES = {
+  calendar: {
+    crumb: 'ปฏิทินนัดศาล', h1: 'เห็นนัดศาลของทั้งทีม|ในปฏิทินเดียว',
+    lead: 'รวมนัดศาล ประชุม และวันลาของทุกคนไว้ด้วยกัน ดูได้ทันทีว่าใครติดศาลวันไหน ก่อนรับนัดใหม่หรือมอบหมายงาน',
+    plan: 'ปฏิทินนัดศาลมีในทุกแพ็กเกจ · ปฏิทินว่าง/ติดศาลของทีมเริ่มที่แพ็กเกจ Team',
+    quote: 'นัดศาลจดอยู่ในสมุดของทนายแต่ละคน กว่าจะรู้ว่าชนกันก็ตอนรับนัดไปแล้ว',
+    details: [
+      ['นัดทุกอย่างอยู่ที่เดียว', 'นัดศาล ประชุมลูกความ และวันลาแสดงในปฏิทินเดียวกัน แยกสีตามประเภท'],
+      ['ผูกนัดกับสำนวน', 'บันทึกนัดจากหน้าคดี ทุกนัดจึงรู้ว่าเป็นคดีไหน ศาลไหน และใครรับผิดชอบ'],
+      ['เวลาเดินทางไปศาล', 'ระบบคำนวณเวลาเดินทางไปศาลให้ จัดนัดที่ต่อกันได้โดยไม่ต้องเดาเวลาเผื่อ'],
+    ],
+    faq: [['ทนายทุกคนเห็นปฏิทินเดียวกันไหม', 'เห็น ทุกคนในทีมเห็นนัดและวันลาของกันตามสิทธิ์ที่ตั้งไว้'],
+          ['ดูบนมือถือได้ไหม', 'ได้ ระหว่างรออยู่ที่ศาลก็เปิดดูนัดถัดไปและข้อมูลคดีจากมือถือได้']],
+    cta: 'เริ่มรวมนัดศาลของทีมไว้ในที่เดียว',
+  },
+  deadlines: {
+    crumb: 'กำหนดเวลาคดี', h1: 'ไม่พลาดกำหนดยื่น|แม้ช่วงวันหยุดยาว',
+    lead: 'ระบบเสนอวันครบกำหนดตามประเภทคดี นับข้ามเสาร์-อาทิตย์และวันหยุดราชการให้ แล้วให้ทนายเป็นคนตรวจและยืนยัน',
+    plan: '',
+    quote: 'ต้องนับวันยื่นคำให้การเอง แล้วยังต้องคอยเช็กว่าวันสุดท้ายตรงกับวันหยุดหรือเปล่า',
+    details: [
+      ['ระบบเสนอ ทนายยืนยัน', 'วันครบกำหนดทุกวันเป็นข้อเสนอ ทนายตรวจและกดยืนยันก่อนลงปฏิทิน ระบบไม่ตั้งวันให้เอง'],
+      ['ข้ามวันหยุดราชการไทย', 'นับระยะเวลาโดยข้ามเสาร์-อาทิตย์และวันหยุดราชการ ลดโอกาสนับวันผิด'],
+      ['กำหนดเวลาที่ใช้บ่อย', 'เช่น ยื่นคำให้การ ยื่นบัญชีระบุพยานก่อนวันสืบพยาน และยื่นอุทธรณ์หลังฟังคำพิพากษา'],
+    ],
+    note: 'ข้อมูลทั่วไป ไม่ใช่คำแนะนำทางกฎหมาย ทนายต้องตรวจทานทุกวันที่ระบบเสนอ',
+    faq: [['ระบบตั้งวันให้เองเลยไหม', 'ไม่ ระบบเสนอวันให้ ทนายต้องตรวจและกดยืนยันทุกครั้ง'],
+          ['ถ้าวันครบกำหนดตรงกับวันหยุดล่ะ', 'ระบบนับข้ามเสาร์-อาทิตย์และวันหยุดราชการให้ แล้วแสดงวันที่เสนอให้ทนายตรวจ']],
+    cta: 'เริ่มให้ระบบช่วยนับกำหนดเวลาคดี',
+  },
+  portal: {
+    crumb: 'พอร์ทัลลูกความ', h1: 'ให้ลูกความเช็ก|ความคืบหน้าคดีได้เอง',
+    lead: 'ลูกความเปิดดูสถานะคดี วันนัด และเอกสารได้ในพอร์ทัล ทีมไม่ต้องรับสายถามเรื่องเดิมทุกวัน',
+    plan: 'พอร์ทัลลูกความมีในทุกแพ็กเกจ · ลูกความที่เข้าดูไม่นับเป็นผู้ใช้',
+    quote: 'ลูกความโทรมาถามว่าคดีถึงไหนแล้วทุกสัปดาห์ ทั้งที่ยังไม่มีอะไรเปลี่ยน',
+    details: [
+      ['สถานะคดีที่ลูกความอ่านเข้าใจ', 'แสดงความคืบหน้าของคดีเรียงตามเวลา พร้อมวันนัดถัดไป'],
+      ['เลือกได้ว่าลูกความเห็นเอกสารไหน', 'ทนายเลือกเผยแพร่เอกสารให้ลูกความเป็นฉบับ ๆ เอกสารภายในยังเห็นเฉพาะคนในสำนักงาน'],
+      ['ข้อความในคดี', 'ส่งข้อความเรื่องคดีถึงลูกความ และแจ้งเมื่อมีเอกสารใหม่'],
+    ],
+    faq: [['ต้องจ่ายค่าผู้ใช้ให้ลูกความด้วยไหม', 'ไม่ต้อง ลูกความที่เข้าดูพอร์ทัลไม่นับเป็นผู้ใช้'],
+          ['ลูกความเห็นเอกสารทุกฉบับไหม', 'ไม่ เห็นเฉพาะเอกสารที่สำนักงานเลือกเผยแพร่ให้']],
+    cta: 'เปิดพอร์ทัลให้ลูกความคนแรก',
+  },
+  billing: {
+    crumb: 'ใบแจ้งหนี้และรับชำระ', h1: 'ใบแจ้งหนี้ที่คิด VAT|แบบสำนักงานกฎหมาย',
+    lead: 'ออกใบแจ้งหนี้จากสำนวนคดีได้เลย ระบบแยก VAT งานคดีกับงานที่ปรึกษาให้ บันทึกหัก ณ ที่จ่ายตอนรับเงิน และออกใบเสร็จทุกครั้งที่ลูกความจ่าย',
+    plan: 'ใบแจ้งหนี้และรับชำระมีในแพ็กเกจ Firm ขึ้นไป',
+    quote: 'ออกบิลด้วย Word แล้วต้องเปิดอีกหลายไฟล์กว่าจะรู้ว่าลูกความค้างจ่ายเท่าไร',
+    details: [
+      ['ตั้งค่าวิชาชีพไว้ครั้งเดียว', 'กำหนดราคาตามประเภทคดี จะเหมาจ่าย คิดเปอร์เซ็นต์ทุนทรัพย์ คิดแบบขั้นบันได หรือรายชั่วโมงก็ได้ ถ้าตกลงราคากับลูกความต่างไปก็แก้ได้ โดยระบบบันทึกเหตุผลไว้'],
+      ['แบ่งงวดตามขั้นตอนคดี', 'พอคดีถึงขั้นตอนที่ตกลงเก็บเงินไว้ ระบบแจ้งเตือนผู้รับผิดชอบ แล้วคนในสำนักงานเป็นผู้ออกใบแจ้งหนี้'],
+      ['ออกใบเสร็จทุกครั้งที่รับเงิน', 'รับชำระบางส่วนได้ บันทึกหัก ณ ที่จ่าย และออกใบเสร็จพร้อมเลขที่ทุกงวด'],
+    ],
+    calculator: true,
+    faq: [['ระบบออกใบแจ้งหนี้ให้เองไหม', 'ไม่ ระบบแจ้งเตือนเมื่อถึงงวด แล้วคนในสำนักงานเป็นผู้ออกใบแจ้งหนี้ จากนั้นพิมพ์หรือบันทึกเป็น PDF ส่งให้ลูกความ'],
+          ['ใส่โลโก้และข้อมูลภาษีของสำนักงานได้ไหม', 'ได้ ตั้งชื่อนิติบุคคล เลขประจำตัวผู้เสียภาษี สาขา ที่อยู่ และโลโก้ แล้วจัดหน้าเอกสารแบบลากวางได้'],
+          ['ใส่ QR พร้อมเพย์ในเอกสารได้ไหม', 'ได้ ใส่ QR พร้อมเพย์และเลขบัญชีธนาคารในเทมเพลตได้']],
+    cta: 'เริ่มออกใบแจ้งหนี้จากสำนวนคดี',
+  },
+  team: {
+    crumb: 'งานของทีม', h1: 'รู้ว่างานแต่ละชิ้น|อยู่กับใคร|โดยไม่ต้องเดินไปถาม',
+    lead: 'มอบหมายงานพร้อมกำหนดส่ง กำหนดสิทธิ์ตามหน้าที่ และดูภาพรวมงานของทั้งสำนักงานได้ในที่เดียว',
+    plan: 'มอบหมายงานและสิทธิ์ตามบทบาทเริ่มที่แพ็กเกจ Team · รายงานภาพรวมสำนักงานเริ่มที่แพ็กเกจ Firm',
+    quote: 'ต้องเดินไปถามทีละคนว่างานถึงไหน แล้วก็ยังไม่รู้ว่าใครงานล้นมือ',
+    details: [
+      ['ทุกงานมีผู้รับผิดชอบ', 'มอบหมายงานจากหน้าคดี ระบุผู้รับผิดชอบและกำหนดส่ง'],
+      ['สิทธิ์ตามหน้าที่', 'ทนาย ธุรการ และหัวหน้าเห็นข้อมูลตามหน้าที่ของตัวเอง'],
+      ['สรุปงานรายคน', 'ดูภาระงานของแต่ละคนเป็นกราฟ และกดให้ AI ช่วยชี้งานที่ติดขัดได้เมื่อต้องการ'],
+    ],
+    faq: [['AI ทำงานเองโดยไม่ถามไหม', 'ไม่ AI ทำงานเฉพาะเมื่อผู้ใช้กดสั่งเท่านั้น'],
+          ['กำหนดสิทธิ์ได้ละเอียดแค่ไหน', 'กำหนดตามหน้าที่ในทีม แต่ละคนจึงเห็นเฉพาะส่วนที่เกี่ยวกับงานของตัวเอง']],
+    cta: 'เริ่มแบ่งงานของทีมใน Samnuan',
+  },
+  cases: {
+    crumb: 'สำนวนและเอกสาร', h1: 'ทุกสำนวนอยู่ในที่เดียว|หาเจอง่าย',
+    lead: 'ข้อมูลคดี เอกสาร และความเคลื่อนไหวทั้งหมดอยู่ในหน้าคดีเดียว ไม่ต้องไล่หาในโฟลเดอร์หรือแชต',
+    plan: 'จัดการคดีและเอกสารมีในทุกแพ็กเกจ',
+    quote: 'เอกสารคดีกระจายอยู่ในอีเมล ไลน์ และโฟลเดอร์ของแต่ละคน',
+    details: [
+      ['ครบในหน้าคดีเดียว', 'ข้อมูลคู่ความ ศาล ทุนทรัพย์ นัดหมาย และเอกสารอยู่ด้วยกัน'],
+      ['ความเคลื่อนไหวของคดี', 'ระบบบันทึกทุกการเปลี่ยนแปลงเรียงตามเวลา รู้ว่าใครทำอะไรเมื่อไร'],
+      ['ส่งออกข้อมูลได้', 'ส่งออกรายการคดีเป็นไฟล์ CSV ไปใช้ต่อในโปรแกรมอื่นได้'],
+    ],
+    faq: [['ย้ายข้อมูลจาก Excel ได้ไหม', 'นำเข้าข้อมูลคดีจาก Excel ได้'],
+          ['แพ็กเกจฟรีเก็บได้กี่คดี', 'แพ็กเกจ Free จัดการได้สูงสุด 15 คดี']],
+    cta: 'เปิดสำนวนแรกใน Samnuan',
+  },
+};
+
+const key = new URLSearchParams(location.search).get('f') || 'billing';
+const P = PAGES[key] || PAGES.billing;
+document.title = `${P.h1.replace(/\|/g, ' ')} | Samnuan (prototype)`;
+
+const calcHTML = `
+  <section class="mx-auto max-w-[1240px] px-4 py-20 md:px-6 reveal">
+    <div class="grid items-center gap-10 lg:grid-cols-2">
+      <div>
+        <h2 class="font-display text-3xl font-semibold leading-snug md:text-4xl">ค่าธรรมเนียมศาล คิดตามตาราง 1 ท้าย ป.วิ.พ.</h2>
+        <p class="mt-4 leading-relaxed text-ink-2">ตอนบันทึกค่าใช้จ่าย เลือกประเภทคดีและใส่ทุนทรัพย์ ระบบคำนวณค่าธรรมเนียมศาลเบื้องต้นให้ ลองพิมพ์ตัวเลขดูได้เลย</p>
+        <p class="mt-4 rounded-lg border border-rule bg-surface p-4 text-sm leading-relaxed text-ink-2">คดีมีทุนทรัพย์: ร้อยละ 2 ของส่วนที่ไม่เกิน 50 ล้านบาท (สูงสุด 200,000 บาท) บวกร้อยละ 0.1 ของส่วนที่เกิน · คดีผู้บริโภคและคดีแรงงานได้รับยกเว้น</p>
+      </div>
+      <div class="rounded-xl border border-rule bg-surface p-6">
+        <label class="block text-sm text-ink-2" for="amt">ทุนทรัพย์ (บาท)</label>
+        <input id="amt" inputmode="numeric" value="1,500,000" class="mt-1 w-full rounded-lg border border-rule bg-paper px-4 py-3 text-lg tabular-nums text-ink focus:border-ink focus:outline-none">
+        <label class="mt-4 block text-sm text-ink-2" for="kind">ประเภทคดี</label>
+        <select id="kind" class="mt-1 w-full rounded-lg border border-rule bg-paper px-4 py-3 text-ink focus:border-ink focus:outline-none">
+          <option value="general">คดีแพ่งทั่วไป (มีทุนทรัพย์)</option><option value="exempt">คดีผู้บริโภค / คดีแรงงาน</option>
+        </select>
+        <div class="mt-6 flex items-end justify-between rounded-lg bg-sunk p-4">
+          <div><p class="text-xs text-ink-2">ค่าธรรมเนียมศาลโดยประมาณ</p><p class="font-display text-3xl font-semibold tabular-nums"><span id="fee">30,000</span> <span class="text-base">บาท</span></p></div>
+          <span class="whitespace-nowrap rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper">ใช้ยอดนี้</span>
+        </div>
+        <p class="mt-3 text-xs text-ink-2">ตัวเลขเป็นการประมาณ ทนายตรวจทานก่อนบันทึก</p>
+      </div>
+    </div>
+  </section>`;
+
+document.getElementById('nav').innerHTML = navHTML('features');
+document.getElementById('page').innerHTML = `
+  <nav class="mx-auto max-w-[1240px] px-4 pt-6 text-sm text-ink-2 md:px-6" aria-label="breadcrumb">
+    <a href="index.html" class="hover:text-ink">หน้าแรก</a> / <a href="index.html#tour" class="hover:text-ink">ฟีเจอร์</a> / <span>${P.crumb}</span>
+  </nav>
+
+  <section class="mx-auto grid max-w-[1240px] items-center gap-12 px-4 pb-10 pt-10 md:px-6 md:pt-16 lg:grid-cols-12">
+    <div class="lg:col-span-6">
+      <h1 class="font-display text-[2.1rem] font-semibold leading-[1.3] md:text-[2.9rem] md:leading-[1.25]">${P.h1.split('|').map((s) => `<span class="inline-block max-w-full">${s}</span>`).join(' ')}</h1>
+      <p class="mt-5 text-lg leading-relaxed text-ink-2">${P.lead}</p>
+      <div class="mt-8 flex flex-wrap gap-3">
+        <a href="#" class="btn-primary whitespace-nowrap rounded-lg bg-ink px-6 py-3 font-medium text-paper">ทดลองใช้ฟรี 30 วัน</a>
+        <a href="#" class="whitespace-nowrap rounded-lg border border-ink px-6 py-3 font-medium text-ink hover:bg-surface">ดูราคา</a>
+      </div>
+      ${P.plan ? `<p class="mt-4 text-sm text-ink-2">${P.plan}</p>` : ''}
+    </div>
+    <figure class="rise lg:col-span-6">
+      <div class="tour-stage rounded-xl border border-rule bg-surface p-5 md:p-7"><div class="tour-panel is-on" data-key="${key}">${PANELS[key]}</div></div>
+      <figcaption class="mt-3 text-center text-xs text-ink-2">ตัวอย่างหน้าจอ · ข้อมูลสมมติ</figcaption>
+    </figure>
+  </section>
+
+  <section class="mx-auto max-w-[900px] px-4 py-16 text-center reveal">
+    <p class="font-display text-2xl leading-relaxed text-ink md:text-3xl">"${P.quote}"</p>
+  </section>
+
+  <section class="mx-auto max-w-[1240px] px-4 md:px-6">
+    <div class="divide-y divide-rule border-y border-rule">
+      ${P.details.map(([t, b]) => `<div class="grid gap-3 py-8 md:grid-cols-12 reveal"><h3 class="font-display text-xl font-semibold md:col-span-4">${t}</h3><p class="leading-relaxed text-ink-2 md:col-span-8">${b}</p></div>`).join('')}
+    </div>
+    ${P.note ? `<p class="mt-4 text-sm text-ink-2">${P.note}</p>` : ''}
+  </section>
+
+  ${P.calculator ? calcHTML : ''}
+
+  <section class="mx-auto max-w-[1240px] px-4 py-24 md:px-6">
+    <div class="reveal mb-12 text-center">
+      <h2 class="font-display text-3xl font-semibold md:text-4xl">เชื่อมกับทุกขั้นตอนของคดี</h2>
+      <p class="mt-3 text-ink-2">ข้อมูลส่งต่อกันทั้งระบบ คลิกดูขั้นตอนอื่นได้</p>
+    </div>
+    <div class="reveal">${tourHTML(key)}</div>
+  </section>
+
+  <section class="mx-auto max-w-[860px] px-4 reveal">
+    <h2 class="mb-6 text-center font-display text-3xl font-semibold">คำถามที่พบบ่อย</h2>
+    <div class="divide-y divide-rule border-y border-rule">
+      ${P.faq.map(([q, a]) => `<details class="group py-5"><summary class="flex items-center justify-between gap-4 font-medium text-ink">${q}<span class="chev text-ink-2" aria-hidden="true">⌄</span></summary><p class="mt-3 leading-relaxed text-ink-2">${a}</p></details>`).join('')}
+    </div>
+  </section>
+  ${ctaHTML(P.cta)}`;
+document.getElementById('footer').innerHTML = footerHTML();
+
+initTour(document.querySelector('.tour'), { autoplay: false });
+initReveal();
+
+/* Court-fee estimate: same rule as packages/shared estimateCourtFee (general civil + exempt cases). */
+const amt = document.getElementById('amt');
+if (amt) {
+  const kind = document.getElementById('kind'), fee = document.getElementById('fee');
+  const calc = () => {
+    const n = Number(amt.value.replace(/[^\d]/g, '')) || 0;
+    const head = Math.min(Math.min(n, 50e6) * 0.02, 200000);
+    const v = kind.value === 'exempt' ? 0 : Math.round(head + Math.max(0, n - 50e6) * 0.001);
+    fee.textContent = v.toLocaleString('th-TH');
+    fee.parentElement.animate?.([{ opacity: .4 }, { opacity: 1 }], { duration: 220 });
+  };
+  amt.addEventListener('input', () => { const d = amt.value.replace(/[^\d]/g, ''); amt.value = d ? Number(d).toLocaleString('th-TH') : ''; calc(); });
+  kind.addEventListener('change', calc); calc();
+}
+</script>
+</body>
+</html>

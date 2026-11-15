@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PLAN_CONFIG, SELLABLE_PLANS, SubscriptionPlan } from '@lawfirm/shared';
-import { LandingPage } from '@/components/landing/LandingPage';
+import { MarketingHome } from '@/components/marketing/MarketingHome';
 import { demoHref } from '@/components/landing/contact';
 import { serializeJsonLd, siteUrl } from '@/lib/seo';
 
@@ -8,6 +8,7 @@ const description =
   'รวมข้อมูลคดี เอกสาร และตารางนัดไว้ในที่เดียว ให้ทีมติดตามงานร่วมกัน พร้อมช่องทางให้ลูกความตรวจสอบความคืบหน้าได้ด้วยตนเอง';
 
 export const metadata: Metadata = {
+  title: 'โปรแกรมจัดการคดีสำหรับสำนักงานกฎหมาย | Samnuan',
   description,
   alternates: { canonical: '/' },
 };
@@ -47,7 +48,7 @@ export default function HomePage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }} />
-      <LandingPage />
+      <MarketingHome />
     </>
   );
 }

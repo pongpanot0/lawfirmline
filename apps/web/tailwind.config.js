@@ -5,6 +5,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        mk: { paper: '#F7F4ED', surface: '#FFFDFA', sunk: '#F0EDE6', rule: '#DFE0DC', ink: '#142E43', 'ink-2': '#52616B', brass: '#8B6D32', 'brass-soft': '#F3EBDD', ok: '#2F6B4F', 'ok-soft': '#E6F0EA', warn: '#9A3B2E', 'warn-soft': '#F6E5E1' },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

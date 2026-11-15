@@ -1,0 +1,53 @@
+/* Samnuan prototype motion. transform/opacity only; reduced-motion collapses to a plain swap. */
+:root { --ease-out: cubic-bezier(.22,.61,.36,1); }
+html, body { overflow-x: clip; background: #F7F4ED; }
+h1, h2, h3 { text-wrap: balance; font-style: normal; }
+p { text-wrap: pretty; }
+
+.btn-primary { transition: transform 120ms var(--ease-out), background-color 160ms; }
+.btn-primary:hover { transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+a:focus-visible, button:focus-visible { outline: 2px solid #8B6D32; outline-offset: 2px; border-radius: 6px; }
+
+/* hero app rises in once */
+.rise { opacity: 0; transform: translateY(24px); animation: rise 900ms var(--ease-out) 200ms forwards; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+/* scroll reveal */
+/* Content is visible by default; it is only hidden once JS has armed the reveal (.reveal-armed). */
+.reveal-armed .reveal { opacity: 0; transform: translateY(18px); transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out); }
+.reveal-armed .reveal.is-in { opacity: 1; transform: none; }
+
+/* tour */
+.tour-stage { display: grid; min-height: 360px; }
+.tour-panel { grid-area: 1 / 1; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 380ms var(--ease-out), transform 380ms var(--ease-out); }
+.tour-panel.is-on { opacity: 1; transform: none; pointer-events: auto; }
+/* Hidden panels don't size the stage, so it hugs the active panel instead of the tallest one. */
+.tour-stage { position: relative; }
+.tour-panel:not(.is-on) { position: absolute; inset: 0 0 auto 0; visibility: hidden; }
+.tour-row { opacity: 1; }
+.tour-panel.is-on .tour-row.row-in { animation: row 420ms var(--ease-out) both; animation-delay: var(--d, 0ms); }
+@keyframes row { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+.tour-step .step-body { max-height: 0; opacity: 0; transition: max-height 380ms var(--ease-out), opacity 300ms; }
+.tour-step.is-active { background: #FFFDFA; }
+.tour-step.is-active .step-num { color: #8B6D32; font-weight: 600; }
+.tour-step.is-active .step-label { color: #142E43; font-weight: 600; }
+.tour-step.is-active .step-body { max-height: 160px; opacity: 1; margin-top: .5rem; }
+.tour-progress span { transition: background-color 300ms; }
+
+/* deadline marker pulses once when its panel opens */
+.tour-panel.is-on .pulse-once { animation: pulse 1.4s var(--ease-out) 2; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(139,109,50,.45); } 60% { box-shadow: 0 0 0 7px rgba(139,109,50,0); } }
+
+/* FAQ disclosure */
+details summary { list-style: none; cursor: pointer; }
+details summary::-webkit-details-marker { display: none; }
+details .chev { transition: transform 200ms var(--ease-out); }
+details[open] .chev { transform: rotate(180deg); }
+
+@media (max-width: 1023px) { .tour-stage { min-height: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .rise, .reveal, .tour-panel, .tour-step .step-body { animation: none !important; transition: none !important; opacity: 1; transform: none; }
+  .tour-panel:not(.is-on) { opacity: 0; }
+  .tour-panel.is-on .tour-row.row-in, .pulse-once { animation: none !important; }
+}
