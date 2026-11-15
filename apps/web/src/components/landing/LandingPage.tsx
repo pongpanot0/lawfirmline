@@ -55,7 +55,7 @@ export function LandingPage() {
             <div className="tech-hero-depth" data-hero-visual>
             <div className="tech-hero-visual">
               <span className="tech-sheen" aria-hidden="true" /><div className="tech-window-bar"><span /><span /><span /><b> SAMNUAN / WORKSPACE</b></div>
-              <Image src={dashboardScreenshot} alt={t.tour.dashboard} priority sizes="(min-width: 900px) 55vw, 100vw" />
+              <Image src={dashboardScreenshot} alt={t.tour.dashboard} priority fetchPriority="high" sizes="(min-width: 1312px) 596px, (min-width: 900px) 45vw, 90vw" />
               <div className="tech-visual-label"><span className="tech-dot" /> {t.tour.dashboard}</div>
             </div>
             <div className="tech-chip tech-chip--hero" aria-hidden="true"><CalendarDays size={16} /> {locale === 'th' ? 'นัดศาลพรุ่งนี้ 09:00' : 'Court tomorrow · 09:00'}</div>

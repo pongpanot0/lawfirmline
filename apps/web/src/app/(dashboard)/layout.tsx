@@ -24,6 +24,15 @@ function DashboardLoading() {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <meta name="robots" content="noindex, nofollow" />
+      <DashboardContent>{children}</DashboardContent>
+    </>
+  );
+}
+
+function DashboardContent({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();

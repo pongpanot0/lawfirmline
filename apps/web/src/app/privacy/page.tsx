@@ -2,7 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PublicAccountPage } from '@/components/brand/PublicAccountPage';
 
-export const metadata: Metadata = { title: 'ความเป็นส่วนตัว | Samnuan', description: 'ข้อมูลที่ Samnuan ใช้ การจัดการบัญชี และช่องทางขอลบข้อมูลส่วนบุคคล' };
+export const metadata: Metadata = {
+  title: 'ความเป็นส่วนตัว | Samnuan',
+  description: 'ข้อมูลที่ Samnuan ใช้ การจัดการบัญชี และช่องทางขอลบข้อมูลส่วนบุคคล',
+  alternates: { canonical: '/privacy' },
+};
 
 const SECTIONS = ['ข้อมูลที่บริการใช้', 'เราใช้และแบ่งปันข้อมูลอย่างไร', 'ผู้ให้บริการภายนอก', 'ฟีเจอร์ AI', 'สิทธิ์บนโทรศัพท์และข้อมูลในเครื่อง', 'เว็บไซต์และการวัดผล', 'แก้ไขและขอลบบัญชี', 'ข้อมูลที่อาจต้องเก็บต่อ', 'สิทธิ์ของเจ้าของข้อมูล', 'ติดต่อ'];
 

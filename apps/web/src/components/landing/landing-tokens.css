@@ -27,7 +27,7 @@
   --color-band-ink-2: oklch(82% 0.045 250);
   --color-band-rule: oklch(38% 0.04 264);
 
-  --font-display: 'Trirong', 'Inter', ui-serif, Georgia, serif;
+  --font-display: var(--font-trirong, 'Trirong'), var(--font-inter, 'Inter'), ui-serif, Georgia, serif;
   --font-body: var(--font-sans);
 
   --space-3xs: 0.25rem;

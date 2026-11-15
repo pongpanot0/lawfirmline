@@ -22,11 +22,11 @@ export function SamnuanLogo({
       className={cn('inline-flex shrink-0 items-center gap-2.5', className)}
     >
       <img
-        src={variant === 'horizontal' ? '/brand/samnuan-balance-mark.png' : '/brand/samnuan-balance-icon.png'}
+        src={variant === 'horizontal' ? '/brand/samnuan-balance-mark-72.png' : '/brand/samnuan-balance-icon.png'}
         alt=""
         aria-hidden="true"
-        width={256}
-        height={256}
+        width={variant === 'horizontal' ? 72 : 256}
+        height={variant === 'horizontal' ? 72 : 256}
         className={cn('h-9 w-9 shrink-0 object-contain', markClassName)}
       />
       {wordmark && (

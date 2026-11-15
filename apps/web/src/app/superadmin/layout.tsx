@@ -9,6 +9,15 @@ import { NoAccess } from '@/components/ui/NoAccess';
 
 /** The program owner's console — its own shell, outside every firm's workspace. */
 export default function SuperadminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <meta name="robots" content="noindex, nofollow" />
+      <SuperadminContent>{children}</SuperadminContent>
+    </>
+  );
+}
+
+function SuperadminContent({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const signingOut = useRef(false);
