@@ -163,3 +163,91 @@
   --font-display: var(--font-trirong, 'Trirong'), ui-serif, Georgia, serif;
   --font-sans: var(--font-noto-thai, 'Noto Sans Thai'), sans-serif;
 }
+
+/* Article content */
+.mk .mk-prose {
+  min-width: 0;
+  font-size: 1.125rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.mk .mk-prose h2,
+.mk .mk-prose h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.4;
+  scroll-margin-top: 5.5rem;
+}
+.mk .mk-prose h2 {
+  margin: 2.5rem 0 1rem;
+  font-size: 1.75rem;
+}
+.mk .mk-prose h3 {
+  margin: 1.75rem 0 0.75rem;
+  font-size: 1.3rem;
+}
+.mk .mk-prose p,
+.mk .mk-prose ul,
+.mk .mk-prose ol {
+  margin: 1rem 0;
+}
+.mk .mk-prose ul,
+.mk .mk-prose ol {
+  padding-left: 1.5rem;
+}
+.mk .mk-prose ul {
+  list-style: disc;
+}
+.mk .mk-prose ol {
+  list-style: decimal;
+}
+.mk .mk-prose li + li {
+  margin-top: 0.5rem;
+}
+.mk .mk-prose a {
+  color: #142e43;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.mk .mk-prose details {
+  border-top: 1px solid #d8d1c4;
+  padding: 1rem 0;
+}
+.mk .mk-prose details:last-child {
+  border-bottom: 1px solid #d8d1c4;
+}
+.mk .mk-prose summary {
+  font-weight: 600;
+}
+.mk .mk-prose summary::after {
+  content: ' +';
+}
+.mk .mk-prose details[open] summary::after {
+  content: ' −';
+}
+.mk .mk-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+.mk .mk-prose table {
+  width: 100%;
+  min-width: 36rem;
+  border-collapse: collapse;
+  font-size: 1rem;
+}
+.mk .mk-prose th,
+.mk .mk-prose td {
+  border: 1px solid #d8d1c4;
+  padding: 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.mk .mk-prose th {
+  background: #eee9df;
+  font-weight: 600;
+}
+.mk .mk-table-scroll:focus-visible {
+  outline: 2px solid #8b6d32;
+  outline-offset: 2px;
+}

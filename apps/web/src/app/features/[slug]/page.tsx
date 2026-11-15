@@ -59,7 +59,7 @@ export default async function FeaturePage({ params }: Props) {
   return (
     <div className="mk font-sans antialiased">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(structured) }} />
-      <MarketingNav />
+      <MarketingNav active="features" />
       <main>
         <nav aria-label="breadcrumb" className="mx-auto max-w-[1240px] px-4 pt-6 text-sm text-mk-ink-2 md:px-6">
           <a href="/" className="hover:text-mk-ink">
@@ -85,7 +85,7 @@ export default async function FeaturePage({ params }: Props) {
                 ทดลองใช้ฟรี 30 วัน
               </a>
               <a
-                href="/#pricing"
+                href="/pricing"
                 className="whitespace-nowrap rounded-lg border border-mk-ink px-6 py-3 font-medium text-mk-ink hover:bg-mk-surface"
               >
                 ดูราคา
