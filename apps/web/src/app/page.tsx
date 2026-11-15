@@ -29,7 +29,8 @@ const structuredData = {
       name: 'Samnuan',
       url: siteUrl,
       applicationCategory: 'BusinessApplication',
-      operatingSystem: 'Web, iOS, Android',
+      // Add iOS/Android once the store listings are live and linked from the site.
+      operatingSystem: 'Web',
       inLanguage: 'th',
       description,
       offers: [SubscriptionPlan.FREE, ...SELLABLE_PLANS].map((plan) => ({
