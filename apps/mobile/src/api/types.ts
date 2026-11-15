@@ -245,7 +245,7 @@ export interface LeaveItem {
 
 export interface CollectionInvoice {
   id: string; invoiceNumber: string; status: 'DRAFT' | 'SENT' | 'PAID';
-  customerName: string | null; subject: string; caseId: string | null; caseRef: string | null;
+  customerName: string | null; clientType?: 'INDIVIDUAL' | 'COMPANY' | null; subject: string; caseId: string | null; caseRef: string | null;
   totalAmount: number; paidAmount: number; outstanding: number; issuedAt: string | null; dueAt: string | null;
   daysOverdue: number; lastReminderAt: string | null; updatedAt: string;
   collectionOwner: { id: string; firstName: string; lastName: string } | null;
@@ -264,7 +264,8 @@ export interface InvoicePaymentItem {
 export const PAYMENT_METHOD_LABEL = { TRANSFER: 'โอนเงิน', CHEQUE: 'เช็ค', CASH: 'เงินสด', OTHER: 'อื่น ๆ' } as const;
 
 export interface CollectionDetail extends CollectionInvoice {
-  lineItems: Array<{ id: string; description: string; quantity: number; unitPrice: number; amount: number }>;
+  lineItems: Array<{ id: string; description: string; quantity: number; unitPrice: number; amount: number; taxClass?: string }>;
+  discountAmount?: number;
   payments: InvoicePaymentItem[];
 }
 

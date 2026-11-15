@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { hasFirmCapability } from '@lawfirm/shared';
+import { hasFirmCapability, suggestWht } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { taskDraftScope } from '@/api/drafts';
@@ -21,7 +21,7 @@ import { colors, fonts, radius, spacing, typeScale } from '@/theme';
 
 type Tracking = { ownerId: string; nextAt: string; note: string; updatedAt: string };
 type Payment = { amount: string; receivedAt: string; method: InvoicePaymentItem['method'] | 'PROMPTPAY'; note: string; createRequestId: string; whtEnabled?: boolean; whtRate?: '0.03' | '0.01'; whtAmount?: string; certificate?: string };
-type Receipt = { id: string; invoiceId: string; receiptNumber: string; issuedAt: string; amount: number; voidedAt: string | null };
+type Receipt = { id: string; invoiceId: string; receiptNumber: string; issuedAt: string; amount: number; whtAmount?: number; voidedAt: string | null };
 type PaymentResult = { receipt: { receiptNumber: string } | null };
 const methods = { TRANSFER: 'โอน', PROMPTPAY: 'พร้อมเพย์', CHEQUE: 'เช็ค', CASH: 'เงินสด' } as const;
 const requestId = () => `mobile-payment-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
@@ -70,6 +70,13 @@ export default function InvoiceScreen() {
   const busy = saveTracking.isPending || receive.isPending || issue.isPending || clearCheque.isPending;
   const disabled = busy || invoice.isError || invoice.isFetching || !draft.ready;
   const patchPayment = (patch: Partial<Payment>) => setPayment(value => value ? { ...value, ...patch, createRequestId: requestId() } : null);
+  // Keep the gross settled (cash + WHT) fixed and split it again whenever WHT is switched or its rate changes, as the web form does.
+  const feeBase = Math.max(0, data.lineItems.filter(line => line.taxClass !== 'DISBURSEMENT').reduce((sum, line) => sum + line.amount, 0) - (data.discountAmount ?? 0));
+  const splitWht = (value: Payment, whtEnabled: boolean, whtRate: '0.03' | '0.01'): Partial<Payment> => {
+    const gross = (Number(value.amount) || 0) + (value.whtEnabled ? Number(value.whtAmount) || 0 : 0);
+    const wht = whtEnabled ? suggestWht(Number(whtRate), feeBase, gross, 0, data.outstanding, data.totalAmount) : 0;
+    return { whtEnabled, whtRate, whtAmount: wht.toFixed(2), amount: String(Math.round((gross - wht) * 100) / 100) };
+  };
   const startAction = () => { setNotice(''); setActionError(''); };
   const amount = payment ? Number(payment.amount) : 0;
   const withheld = payment?.whtEnabled ? Number(payment.whtAmount) : 0;
@@ -121,7 +128,8 @@ export default function InvoiceScreen() {
     {sent && <>
       {/* One form at a time: the payment form is the primary path, follow-up is the quiet one. */}
       {!payment && !tracking && <Button title="บันทึกรับชำระ" accessibilityHint="เปิดแบบฟอร์มบันทึกการชำระ" disabled={disabled} onPress={() => { startAction(); setTriedPay(false);
-        setPayment({ amount: String(data.outstanding), receivedAt: today, method: 'TRANSFER', note: '', createRequestId: requestId(), whtEnabled: false, whtRate: '0.03', whtAmount: '0', certificate: '' }); }} />}
+        const base: Payment = { amount: String(data.outstanding), receivedAt: today, method: 'TRANSFER', note: '', createRequestId: requestId(), whtEnabled: false, whtRate: '0.03', whtAmount: '0', certificate: '' };
+        setPayment(data.clientType === 'COMPANY' ? { ...base, ...splitWht(base, true, '0.03') } : base); }} />}
       <Modal visible={!!payment} transparent animationType="slide" onRequestClose={() => { if (!busy) setPayment(null); }}>
         <View style={styles.sheetBackdrop}><View style={styles.sheet}>
           <Text accessibilityRole="header" style={styles.sheetTitle}>บันทึกรับชำระ</Text>
@@ -132,9 +140,9 @@ export default function InvoiceScreen() {
             {payment.method === 'CHEQUE' && <Text style={{ color: colors.warn }}>ยังไม่ออกใบเสร็จจนกว่าเช็คผ่าน</Text>}
             <DatePicker label="วันที่รับเงิน" hint="ใช้เป็นวันที่บนใบเสร็จ" required value={payment.receivedAt} maxDate={today} error={triedPay ? payErrors.receivedAt : undefined} onChange={receivedAt => patchPayment({ receivedAt })} />
             <TextField label="จำนวนเงินที่รับจริง (บาท)" required value={payment.amount} disabled={busy} onChange={amount => patchPayment({ amount })} placeholder="เช่น 1000.00" keyboardType="decimal-pad" hint="ยอดเงินที่ได้รับก่อนรวมภาษีหัก ณ ที่จ่าย" error={triedPay ? payErrors.amount : undefined} inputStyle={styles.amountInput} />
-            <View style={styles.toggle}><View style={{ flex: 1 }}><Text style={{ fontWeight: '700' }}>ผู้ว่าจ้างหัก ณ ที่จ่าย</Text><Text style={styles.meta}>เปิดเมื่อมีหนังสือรับรอง</Text></View><Switch accessibilityLabel="ผู้ว่าจ้างหัก ณ ที่จ่าย" accessibilityHint="เปิดเพื่อระบุภาษีหัก ณ ที่จ่าย" value={!!payment.whtEnabled} disabled={busy} onValueChange={whtEnabled => patchPayment({ whtEnabled })} /></View>
-            {payment.whtEnabled && <><Text style={styles.meta}>เลือกอัตราตามหนังสือรับรอง</Text><View style={styles.choices}>{(['0.03', '0.01'] as const).map(rate => <Button key={rate} inline title={rate === '0.03' ? '3%' : '1%'} accessibilityHint="เลือกอัตราภาษี" variant={(payment.whtRate ?? '0.03') === rate ? 'primary' : 'secondary'} disabled={busy} onPress={() => patchPayment({ whtRate: rate })} />)}</View>
-              <TextField label="ยอดหัก ณ ที่จ่าย (บาท)" value={payment.whtAmount ?? ''} disabled={busy} onChange={whtAmount => patchPayment({ whtAmount })} keyboardType="decimal-pad" hint="ระบุยอดตามหนังสือรับรอง" error={triedPay ? payErrors.wht : undefined} />
+            <View style={styles.toggle}><View style={{ flex: 1 }}><Text style={{ fontWeight: '700' }}>ผู้ว่าจ้างหัก ณ ที่จ่าย</Text><Text style={styles.meta}>เปิดเมื่อมีหนังสือรับรอง</Text></View><Switch accessibilityLabel="ผู้ว่าจ้างหัก ณ ที่จ่าย" accessibilityHint="เปิดเพื่อระบุภาษีหัก ณ ที่จ่าย" value={!!payment.whtEnabled} disabled={busy} onValueChange={whtEnabled => patchPayment(splitWht(payment, whtEnabled, payment.whtRate ?? '0.03'))} /></View>
+            {payment.whtEnabled && <><Text style={styles.meta}>เลือกอัตราตามหนังสือรับรอง</Text><View style={styles.choices}>{(['0.03', '0.01'] as const).map(rate => <Button key={rate} inline title={rate === '0.03' ? '3%' : '1%'} accessibilityHint="เลือกอัตราภาษี" variant={(payment.whtRate ?? '0.03') === rate ? 'primary' : 'secondary'} disabled={busy} onPress={() => patchPayment(splitWht(payment, true, rate))} />)}</View>
+              <TextField label="ยอดหัก ณ ที่จ่าย (บาท)" value={payment.whtAmount ?? ''} disabled={busy} onChange={whtAmount => patchPayment({ whtAmount })} keyboardType="decimal-pad" hint="คำนวณจากอัตราให้แล้ว แก้ให้ตรงหนังสือรับรองได้" error={triedPay ? payErrors.wht : undefined} />
               <TextField label="เลขหนังสือรับรอง · ถ้ามี" value={payment.certificate ?? ''} disabled={busy} maxLength={120} onChange={certificate => patchPayment({ certificate })} hint="ใช้ตรวจสอบหนังสือรับรอง 50 ทวิ" /></>}
             <TextField label="เลขอ้างอิง / หมายเหตุ · ถ้ามี" value={payment.note} disabled={busy} onChange={note => patchPayment({ note })} hint="ระบุข้อมูลสำหรับตรวจสอบการชำระ" />
             <MissingSummary items={payMissing} />
@@ -176,6 +184,7 @@ export default function InvoiceScreen() {
     {data.payments.length ? <Card style={{ paddingVertical: spacing.xs }}>
       {data.payments.map((row, index) => <View key={row.id} style={[styles.line, index > 0 && styles.lineDivider]}>
         <Text style={{ color: colors.ink }}><Text style={styles.lineAmount}>{formatMoney(row.amount)} ฿</Text> · {thDate(row.receivedAt)}</Text>
+        {!!row.whtAmount && <Text style={styles.meta}>หัก ณ ที่จ่าย {formatMoney(row.whtAmount)} ฿ · รวม {formatMoney(row.amount + row.whtAmount)} ฿</Text>}
         <Text style={styles.meta}>{PAYMENT_METHOD_LABEL[row.method]}{row.note ? ` · ${row.note}` : ''}</Text>
         {row.method === 'CHEQUE' && !row.clearedAt && <><Tag tone="due">เช็ครอเคลียร์</Tag><Button title="ยืนยันเช็คผ่าน" accessibilityHint="บันทึกว่าเช็คผ่านวันนี้และออกใบเสร็จ" variant="secondary" disabled={disabled} onPress={() => Alert.alert('ยืนยันเช็คผ่าน', `บันทึกวันที่เช็คผ่าน ${thDate(today)} และออกใบเสร็จ`, [{ text: 'ยกเลิก', style: 'cancel' }, { text: 'ยืนยัน', onPress: () => { startAction(); clearCheque.mutate(row.id); } }])} /></>}
       </View>)}
@@ -183,7 +192,7 @@ export default function InvoiceScreen() {
     <SectionLabel>ใบเสร็จของใบแจ้งหนี้นี้</SectionLabel>
     {receipts.isLoading && <LoadingState inline label="กำลังโหลดใบเสร็จ…" />}
     {receipts.isError && <InlineError message="โหลดใบเสร็จไม่ได้ ตรวจการเชื่อมต่อแล้วลองใหม่" onRetry={() => receipts.refetch()} />}
-    {receipts.data && (receipts.data.length ? <Card style={{ paddingVertical: spacing.xs }}>{receipts.data.map((receipt, index) => <View key={receipt.id} style={[styles.line, index > 0 && styles.lineDivider]}><Text style={styles.lineAmount}>{receipt.receiptNumber}</Text><Text style={styles.meta}>{thDate(receipt.issuedAt)} · {formatMoney(receipt.amount)} ฿</Text>{receipt.voidedAt && <Tag tone="due">ยกเลิกแล้ว</Tag>}</View>)}</Card> : <Card><EmptyState compact>ยังไม่มีใบเสร็จสำหรับใบนี้</EmptyState></Card>)}
+    {receipts.data && (receipts.data.length ? <Card style={{ paddingVertical: spacing.xs }}>{receipts.data.map((receipt, index) => <View key={receipt.id} style={[styles.line, index > 0 && styles.lineDivider]}><Text style={styles.lineAmount}>{receipt.receiptNumber}</Text><Text style={styles.meta}>{thDate(receipt.issuedAt)} · {formatMoney(receipt.amount + (receipt.whtAmount ?? 0))} ฿{receipt.whtAmount ? ` · หัก ณ ที่จ่าย ${formatMoney(receipt.whtAmount)} ฿` : ''}</Text>{receipt.voidedAt && <Tag tone="due">ยกเลิกแล้ว</Tag>}</View>)}</Card> : <Card><EmptyState compact>ยังไม่มีใบเสร็จสำหรับใบนี้</EmptyState></Card>)}
   </FormPage>;
 }
 
