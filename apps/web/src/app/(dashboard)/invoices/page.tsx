@@ -7,7 +7,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FileText, Plus, Search, X } from 'lucide-react';
+import { Download, FileText, Plus, Search, X } from 'lucide-react';
+import { buildInvoicesCsv, downloadCsv } from '@/lib/csv-export';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ReceivablesPanel } from '@/components/billing/ReceivablesPanel';
 import { hasFirmCapability } from '@lawfirm/shared';
@@ -111,11 +112,27 @@ export default function InvoicesPage() {
 
       {canManageBilling && <details id="receivables"><summary className="cursor-pointer py-3">จัดการยอดลูกหนี้และบันทึกรับชำระ</summary><ReceivablesPanel onChanged={() => setRetry((value) => value + 1)} /></details>}
 
-      <WhoActsTabs value={status} onChange={key => setStatus(key as InvoiceStatus)} tabs={[
-        { key: 'DRAFT', label: 'ต้องส่ง', count: counts.DRAFT },
-        { key: 'SENT', label: 'รอชำระ', count: counts.SENT },
-        { key: 'PAID', label: 'ชำระแล้ว', count: counts.PAID },
-      ]} />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <WhoActsTabs value={status} onChange={key => setStatus(key as InvoiceStatus)} tabs={[
+            { key: 'DRAFT', label: 'ต้องส่ง', count: counts.DRAFT },
+            { key: 'SENT', label: 'รอชำระ', count: counts.SENT },
+            { key: 'PAID', label: 'ชำระแล้ว', count: counts.PAID },
+          ]} />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0 whitespace-nowrap"
+          title="ดาวน์โหลดใบแจ้งหนี้ที่แสดงอยู่เป็นไฟล์ CSV สำหรับลงบัญชี"
+          disabled={loading || filtered.length === 0}
+          onClick={() => downloadCsv(buildInvoicesCsv(filtered), `ใบแจ้งหนี้-${({ DRAFT: 'ต้องส่ง', SENT: 'รอชำระ', PAID: 'ชำระแล้ว', ALL: 'ทั้งหมด' } as const)[status]}`)}
+        >
+          <Download className="h-4 w-4" aria-hidden />
+          ดาวน์โหลด CSV
+        </Button>
+      </div>
       <FilterChips value={overdue ? 'overdue' : 'all'} onChange={key => setOverdue(key === 'overdue')} items={[{ key: 'all', label: 'ทั้งหมด', count: counts[status] }, { key: 'overdue', label: 'เลยกำหนดชำระ', count: rows.filter(row => row.status === status && row.status === 'SENT' && isOverdue(row.dueAt)).length }]} />
       <details><summary className="cursor-pointer py-3">ตัวกรองเพิ่ม</summary>
       <section aria-label="ค้นหาและกรองใบแจ้งหนี้" className="space-y-3 rounded-lg border bg-card p-4">

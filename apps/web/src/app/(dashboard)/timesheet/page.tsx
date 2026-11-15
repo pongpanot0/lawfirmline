@@ -1,6 +1,8 @@
 'use client';
 
 import { AiBadge } from '@/components/AiBadge';
+import { Download } from 'lucide-react';
+import { buildTimesheetCsv, downloadCsv } from '@/lib/csv-export';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { hasFirmCapability } from '@lawfirm/shared';
@@ -255,6 +257,18 @@ export default function TimesheetPage() {
                 ))}
               </Select>
             )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 whitespace-nowrap"
+              title="ดาวน์โหลดบันทึกเวลาในช่วงวันที่เลือกเป็นไฟล์ CSV"
+              disabled={loadingTimesheet || entries.length === 0}
+              onClick={() => downloadCsv(buildTimesheetCsv(entries), `บันทึกเวลา-${from}-ถึง-${to}`)}
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              ดาวน์โหลด CSV
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
