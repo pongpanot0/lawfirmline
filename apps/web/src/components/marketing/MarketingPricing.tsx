@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { CalendarDays, Check, Download, CreditCard, Users, Wrench } from 'lucide-react';
 import { PLAN_CONFIG, SubscriptionPlan, YEARLY_BILLED_MONTHS } from '@lawfirm/shared';
 import { fbTrack } from '@/components/FacebookPixel';
-import { useLocale } from '@/components/landing/LocaleProvider';
+import { landingCopy } from '@/lib/i18n/landing';
+import type { Lang } from '@/lib/marketing/i18n';
 import { demoHref } from '@/components/landing/contact';
 import { perPersonMonthly } from '@/components/landing/pricing-math';
 
@@ -20,9 +21,9 @@ const PAID_PLANS = [
 const POPULAR = 'team';
 const detailIcons = [CreditCard, CalendarDays, Users, Wrench, Download];
 
-export function MarketingPricing() {
-  const { locale, t } = useLocale();
-  const p = t.pricing;
+export function MarketingPricing({ lang = 'th' }: { lang?: Lang }) {
+  const locale = lang;
+  const p = landingCopy[lang].pricing;
   const [yearly, setYearly] = useState(false);
   const num = (n: number) => n.toLocaleString(locale === 'th' ? 'th-TH' : 'en-US');
 
