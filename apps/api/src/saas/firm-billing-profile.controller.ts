@@ -75,6 +75,7 @@ export class FirmBillingProfileController {
 
   @Get('logo')
   async logo(@CurrentUser() user: AuthUser, @Res() res: Response, @Query('key') key?: string) {
+    if (!hasFirmCapability(user.firmRole, 'manageInvoices') && !hasFirmCapability(user.firmRole, 'manageSubscription')) throw new ForbiddenException('ไม่มีสิทธิ์ดูโลโก้เอกสาร');
     const firm = await this.get(user);
     const logoKey = key ?? firm.logoKey;
     const prefix = `firms/${user.firmId}/billing/logos/`;

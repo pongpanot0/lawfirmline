@@ -259,6 +259,9 @@ export class CollectionsService {
       const outstanding = round(outstandingBefore - settled);
       if (outstanding <= 0.005) await tx.invoice.update({ where: { id: invoiceId, firmId: user.firmId }, data: { status: InvoiceStatus.PAID } });
       return { payment: updated, receipt, outstanding };
+    }).catch(error => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('เช็คนี้ออกใบเสร็จไปแล้ว โหลดหน้าใหม่');
+      throw error;
     });
   }
 

@@ -1021,11 +1021,14 @@ export class BillingService {
   }
 
   async getInvoices(caseId: string) {
-    return this.prisma.invoice.findMany({
+    const invoices = await this.prisma.invoice.findMany({
       where: { caseId },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } }, payments: { select: { amount: true, whtAmount: true, clearedAt: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    return invoices.map(({ payments, ...invoice }) => ({
+      ...invoice, outstanding: this.round2(Math.max(0, invoice.totalAmount - settledAmount(payments))),
+    }));
   }
 
   /**

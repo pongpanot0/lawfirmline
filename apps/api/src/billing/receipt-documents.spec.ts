@@ -5,7 +5,8 @@ describe('receipt documents', () => {
   let service: any, db: any;
   beforeEach(() => {
     db = { receipt: { findFirst: jest.fn().mockResolvedValue({ id: 'r1', receiptNumber: 'RC-2026-0001', voidedAt: null }),
-      update: jest.fn(async ({ data }) => ({ id: 'r1', receiptNumber: 'RC-2026-0001', ...data })), findMany: jest.fn().mockResolvedValue([]) } };
+      update: jest.fn(async ({ data }) => ({ id: 'r1', receiptNumber: 'RC-2026-0001', ...data })), findMany: jest.fn().mockResolvedValue([]) },
+      invoicePayment: { findMany: jest.fn().mockResolvedValue([{ amount: 97000, whtAmount: 3000, clearedAt: new Date('2026-11-01'), createdAt: new Date('2026-11-01T01:00:00Z') }]) } };
     const { ReceiptsService } = require('./receipts.service');
     service = new ReceiptsService(db);
   });
@@ -17,13 +18,13 @@ describe('receipt documents', () => {
   it('print includes frozen firm data, tax-class lines and payment totals', async () => {
     db.receipt.findFirst.mockResolvedValue({ id: 'r1', receiptNumber: 'RC-2026-0001', firmSnapshot: { legalName: 'Old firm' },
       amountReceived: 97000, amountWht: 3000, amountExempt: 100000, amountTaxable: 0, amountVat: 0, amountDisbursement: 0,
-      payment: { amount: 97000, whtAmount: 3000 },
+      payment: { amount: 97000, whtAmount: 3000, clearedAt: new Date('2026-11-01'), createdAt: new Date('2026-11-01T01:00:00Z') },
       invoice: { totalAmount: 100000, vatAmount: 0, vatRate: 0.07, discountAmount: 0,
         lineItems: [{ amount: 100000, taxClass: 'LITIGATION_EXEMPT' }], billToCustomer: { name: 'Client' } } });
     const result = await service.print(user, 'r1');
     expect(result).toMatchObject({ firmSnapshot: { legalName: 'Old firm' },
       amountReceived: 97000, amountWht: 3000, amountExempt: 100000, amountTaxable: 0, amountVat: 0, amountDisbursement: 0, customer: { name: 'Client' },
-      invoice: { lineItems: [{ taxClass: 'LITIGATION_EXEMPT' }] }, totals: { totalAmount: 100000, amount: 97000, whtAmount: 3000 } });
+      invoice: { lineItems: [{ taxClass: 'LITIGATION_EXEMPT' }] }, totals: { totalAmount: 100000, amount: 97000, whtAmount: 3000 }, outstandingAfter: 0 });
   });
   it('marks a receipt sent and refuses to send a voided receipt', async () => {
     expect((await service.sent(user, 'r1')).sentAt).toBeInstanceOf(Date);

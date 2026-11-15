@@ -4756,6 +4756,8 @@ export interface InvoiceItem {
   invoiceNumber: string;
   status: string;
   /** ยอดสุทธิหลังหักส่วนลดแล้ว */
+  /** ยอดค้างหลังหักเงินที่เคลียร์แล้วและหัก ณ ที่จ่าย (มีในรายการใบแจ้งหนี้ของคดี) */
+  outstanding?: number;
   totalAmount: number;
   discountAmount?: number;
   discountReason?: string | null;

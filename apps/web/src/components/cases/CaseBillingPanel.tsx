@@ -255,8 +255,9 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
   const issued = invoices.filter((inv) => inv.status !== 'DRAFT' && inv.status !== 'VOID' && inv.status !== 'CANCELLED');
   const issuedTotal = issued.reduce((sum, inv) => sum + inv.totalAmount, 0);
-  const paidTotal = issued.filter((inv) => inv.status === 'PAID').reduce((sum, inv) => sum + inv.totalAmount, 0);
-  const outstanding = issuedTotal - paidTotal;
+  // ยอดค้างจริงจาก server (หักเงินที่เคลียร์แล้ว + หัก ณ ที่จ่าย) — ไม่ใช่แค่ใบที่สถานะ PAID
+  const outstanding = issued.reduce((sum, inv) => sum + (inv.outstanding ?? (inv.status === 'PAID' ? 0 : inv.totalAmount)), 0);
+  const paidTotal = issuedTotal - outstanding;
   const card = 'rounded-xl border border-[#e2e0d8] bg-card';
   const hint = 'mt-[.3rem] text-[.82rem] leading-[1.45] text-muted-foreground';
   const label = 'text-[.8rem] text-muted-foreground';
@@ -275,7 +276,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
           const blob = await api.getBillingLogo(token, data.firmSnapshot.logoKey);
           logo = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error()); reader.readAsDataURL(blob); });
         }
-        html = buildReceiptDocHtml(data, logo, receipts.find(r => r.id === data.replacesReceiptId)?.receiptNumber, (await api.getFirmInvoices(token)).find(r => r.id === data.invoiceId)?.outstanding);
+        html = buildReceiptDocHtml(data, logo, receipts.find(r => r.id === data.replacesReceiptId)?.receiptNumber);
       } else {
         const data = await api.getInvoicePrintData(token, documentId);
         html = buildBillingDocHtml({ ...(await invoiceFirmData(token)), kind: 'INVOICE', firmName: user?.firmName ?? '', invoiceNumber: data.invoiceNumber, issuedAt: data.issuedAt, dueAt: data.dueAt, matterLabel: data.case ? `${data.case.ownRef} — ${data.case.title}` : data.intake?.title ?? '', billTo: data.billToCustomer ?? null, lines: data.lineItems, totalAmount: data.totalAmount, discountAmount: data.discountAmount, discountReason: data.discountReason });

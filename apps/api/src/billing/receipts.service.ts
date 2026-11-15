@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, hasFirmCapability } from '@lawfirm/shared';
 import { Invoice, InvoicePayment, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
@@ -75,12 +75,16 @@ export class ReceiptsService {
         billToCustomer: { select: { id: true, name: true, taxId: true, branch: true, address: true, billingEmail: true, billingPhone: true } },
         case: { select: { ownRef: true, title: true } }, intake: { select: { title: true } } } } } });
     if (!receipt) throw new NotFoundException('ไม่พบใบเสร็จ');
-    // Balance as of this receipt, so a reprint never changes when later payments arrive.
-    const upTo = await this.prisma.receipt.findMany({
-      where: { invoiceId: receipt.invoiceId, firmId: user.firmId, voidedAt: null, createdAt: { lte: receipt.createdAt }, id: { not: receipt.id } },
-      select: { amountReceived: true, amountWht: true },
+    // Balance as of this receipt's payment (from cleared payments, so voided receipts don't inflate it
+    // and later payments don't change a reprint).
+    const payments = await this.prisma.invoicePayment.findMany({
+      where: { invoiceId: receipt.invoiceId, firmId: user.firmId, clearedAt: { not: null } },
+      select: { amount: true, whtAmount: true, clearedAt: true, createdAt: true },
     });
-    const settledUpTo = upTo.reduce((sum, r) => sum + r.amountReceived + r.amountWht, 0) + receipt.amountReceived + receipt.amountWht;
+    const mine = receipt.payment;
+    const settledUpTo = payments
+      .filter(p => p.clearedAt! < mine.clearedAt! || (p.clearedAt!.getTime() === mine.clearedAt!.getTime() && p.createdAt <= mine.createdAt))
+      .reduce((sum, p) => sum + p.amount + p.whtAmount, 0);
     const outstandingAfter = Math.max(0, round(receipt.invoice.totalAmount - settledUpTo));
     return { ...receipt, customer: receipt.invoice.billToCustomer, outstandingAfter,
       totals: { totalAmount: round(receipt.amountReceived + receipt.amountWht), discountAmount: receipt.invoice.discountAmount,
@@ -105,6 +109,9 @@ export class ReceiptsService {
       if (!receipt.payment.clearedAt) throw new BadRequestException('รายการรับเงินยังไม่เคลียร์');
       const issuedAt = receipt.payment.method === 'CHEQUE' ? receipt.payment.clearedAt : receipt.payment.receivedAt;
       return issueReceipt(tx, user.firmId, receipt.invoice, receipt.payment, issuedAt, receipt.id);
+    }).catch(error => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('รายการรับเงินนี้มีใบเสร็จที่ยังไม่ยกเลิกแล้ว โหลดหน้าใหม่');
+      throw error;
     });
   }
 

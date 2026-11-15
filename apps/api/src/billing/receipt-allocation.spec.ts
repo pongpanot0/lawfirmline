@@ -12,8 +12,8 @@ describe('receipt allocation and reissue', () => {
     invoice = { id: 'i1', firmId: 'f1', totalAmount: 51400, vatAmount: 1400, vatRate: 0.07, discountAmount: 0 };
     lines = [{ amount: 30000, taxClass: 'LITIGATION_EXEMPT' }, { amount: 20000, taxClass: 'ADVISORY_VAT' }];
     payments = [
-      { id: 'p1', firmId: 'f1', invoiceId: 'i1', amount: 25000, whtAmount: 729.57, method: 'TRANSFER', receivedAt: day, clearedAt: day },
-      { id: 'p2', firmId: 'f1', invoiceId: 'i1', amount: 25670.43, whtAmount: 0, method: 'CHEQUE', receivedAt: day, clearedAt: new Date('2026-11-02') },
+      { id: 'p1', firmId: 'f1', invoiceId: 'i1', amount: 25000, whtAmount: 729.57, method: 'TRANSFER', receivedAt: day, clearedAt: day, createdAt: new Date('2026-11-01T01:00:00Z') },
+      { id: 'p2', firmId: 'f1', invoiceId: 'i1', amount: 25670.43, whtAmount: 0, method: 'CHEQUE', receivedAt: day, clearedAt: new Date('2026-11-02'), createdAt: new Date('2026-11-01T02:00:00Z') },
     ];
     receipts = [];
     const matches = (row: any, where: any) => Object.entries(where).every(([key, value]) => row[key] === value);
@@ -22,6 +22,7 @@ describe('receipt allocation and reissue', () => {
       firm: { findUnique: async () => ({ vatRegistered: true, legalName: 'Law', taxId: '1234567890123', taxBranch: '00000', billingAddress: 'Bangkok', logoKey: null }) },
       invoice: { findFirst: async ({ where }: any) => matches(invoice, where) ? invoice : null },
       invoiceLineItem: { findMany: async () => lines },
+      invoicePayment: { findMany: async ({ where }: any) => payments.filter(p => p.invoiceId === where.invoiceId && p.clearedAt) },
       receipt: {
         findMany: async ({ where }: any) => receipts.filter(r => matches(r, where)),
         findFirst: async ({ where, include }: any) => {
@@ -81,6 +82,15 @@ describe('receipt allocation and reissue', () => {
     const printed = await service.print(user, receipt.id);
     expect(printed.totals).toMatchObject({ totalAmount: 25729.57, amountExempt: 15017.25, amountTaxable: 10011.51, amountVat: 700.81, vatAmount: 700.81, amountDisbursement: 0, amount: 25000, whtAmount: 729.57 });
     expect(printed.invoice.lineItems).toHaveLength(2);
+  });
+
+  it('reprints the balance as of that payment, unaffected by later payments or a voided earlier receipt', async () => {
+    const first = await issue(db, invoice, payments[0]);
+    const last = await issue(db, invoice, payments[1]);
+    expect((await service.print(user, last.id)).outstandingAfter).toBe(0);
+    expect((await service.print(user, first.id)).outstandingAfter).toBe(25670.43);
+    await service.void(user, first.id, 'wrong');
+    expect((await service.print(user, last.id)).outstandingAfter).toBe(0);
   });
 
   it.each([0, 1])('voids and reissues payment %s with a new number, original payment date and the same allocation', async index => {
