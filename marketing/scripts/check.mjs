@@ -5,11 +5,12 @@ import { renderCards } from './render-cards.mjs';
 const marketing = new URL('../',import.meta.url);
 const topics = JSON.parse(await readFile(new URL('topics.json',marketing),'utf8'));
 const sample = JSON.parse(await readFile(new URL('sample-posts.json',marketing),'utf8'));
-assert.equal(topics.length,12);
+const n = topics.length;
+assert.ok(n >= 3 && new Set(topics.map(t=>t.id)).size === n);
 assert.deepEqual(selectTopics(topics,[]).selected.map(t=>t.id),topics.slice(0,3).map(t=>t.id));
 assert.deepEqual(selectTopics(topics,topics.map(t=>t.id)).selected.map(t=>t.id),topics.slice(0,3).map(t=>t.id));
-assert.deepEqual(selectTopics(topics,topics.slice(0,11).map(t=>t.id)).selected.map(t=>t.id),[topics[11].id,topics[0].id,topics[1].id]);
-assert.deepEqual(selectTopics(topics,topics.slice(0,11).map(t=>t.id)).usedIds,[topics[0].id,topics[1].id]);
+assert.deepEqual(selectTopics(topics,topics.slice(0,n-1).map(t=>t.id)).selected.map(t=>t.id),[topics[n-1].id,topics[0].id,topics[1].id]);
+assert.deepEqual(selectTopics(topics,topics.slice(0,n-1).map(t=>t.id)).usedIds,[topics[0].id,topics[1].id]);
 validatePosts(sample,topics);
 for (const mutate of [
   p=>p.posts.pop(),

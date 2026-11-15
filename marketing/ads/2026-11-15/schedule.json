@@ -1,0 +1,23 @@
+[
+  {
+    "concept": "a",
+    "postId": "122111931633520673",
+    "at": "2026-11-16T12:00:00.000Z",
+    "campaign": "ad-test-2026-11-15",
+    "link": "https://samnuan.com/?utm_source=facebook&utm_medium=organic&utm_campaign=ad-test-2026-11-15&utm_content=a"
+  },
+  {
+    "concept": "b",
+    "postId": "122111931069520673",
+    "at": "2026-11-18T12:00:00.000Z",
+    "campaign": "ad-test-2026-11-15",
+    "link": "https://samnuan.com/?utm_source=facebook&utm_medium=organic&utm_campaign=ad-test-2026-11-15&utm_content=b"
+  },
+  {
+    "concept": "c",
+    "postId": "122111931111520673",
+    "at": "2026-11-20T12:00:00.000Z",
+    "campaign": "ad-test-2026-11-15",
+    "link": "https://samnuan.com/?utm_source=facebook&utm_medium=organic&utm_campaign=ad-test-2026-11-15&utm_content=c"
+  }
+]
