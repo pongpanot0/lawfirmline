@@ -53,6 +53,14 @@ describe('CollectionsService', () => {
       expect(result.status).toBe(InvoiceStatus.SENT);
     });
 
+    it('freezes the issuer details with the template snapshot at send', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue({ id: 'i1', firmId: 'firm-1', status: InvoiceStatus.DRAFT, dueAt: null });
+      mockPrisma.firm.findUnique.mockResolvedValue({ vatRegistered: true, legalName: 'สำนักงาน ก', taxId: '0105566012345', taxBranch: '00000', billingAddress: 'กรุงเทพ', logoKey: null });
+      mockPrisma.invoice.update.mockImplementation(({ data }: any) => Promise.resolve({ id: 'i1', ...data }));
+      await service.markSent(owner, 'i1');
+      expect(mockPrisma.invoice.update.mock.calls[0][0].data.templateSnapshot.firm).toEqual({ legalName: 'สำนักงาน ก', address: 'กรุงเทพ', taxId: '0105566012345', taxBranch: '00000', vatRegistered: true, logoKey: null });
+    });
+
     it('does not overwrite a status changed by a concurrent issue or receipt', async () => {
       mockPrisma.invoice.findFirst.mockResolvedValue({ id: 'i1', status: InvoiceStatus.DRAFT, dueAt: null });
       mockPrisma.invoice.update.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('Status changed', { code: 'P2025', clientVersion: 'test' }));

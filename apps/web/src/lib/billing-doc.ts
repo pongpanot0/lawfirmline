@@ -12,7 +12,7 @@ export interface BillingDocLine {
 export interface BillingDocData {
   /** ใบแจ้งหนี้ หรือ ใบเสร็จรับเงิน */
   kind: 'INVOICE' | 'RECEIPT';
-  templateSnapshot?: { layout: TemplateLayout; logoKey: string | null } | null;
+  templateSnapshot?: { layout: TemplateLayout; logoKey: string | null; firm?: { legalName: string | null; address: string | null; taxId: string | null; taxBranch: string | null } | null } | null;
   firmName: string;
   firmProfile?: { legalName: string | null; billingAddress: string | null; taxId: string | null; taxBranch: string | null };
   logoDataUrl?: string;
@@ -82,8 +82,9 @@ function itemsTable(lines: BillingDocLine[], settings?: { columns?: string[]; gr
     const cells: Record<string, string> = { number: String(index + 1), description: escapeHtml(line.description), quantity: String(line.quantity), unitPrice: baht(line.unitPrice), taxClass: line.taxClass ? labels[line.taxClass] : '—', amount: baht(line.amount) };
     return `<tr>${active.map(key => `<td${key === 'amount' || key === 'unitPrice' ? ' class="num"' : ''}>${cells[key]}</td>`).join('')}</tr>`;
   };
+  let seq = 0; // running row number across groups
   const body = settings?.groupByTaxClass
-    ? ([['ค่าวิชาชีพ', lines.filter(l => l.taxClass !== 'DISBURSEMENT')], ['เงินจ่ายแทนลูกความ', lines.filter(l => l.taxClass === 'DISBURSEMENT')]] as const).map(([name, group]) => group.length ? `<tr><th colspan="${Math.max(active.length, 1)}">${name}</th></tr>${group.map(l => row(l, lines.indexOf(l))).join('')}` : '').join('')
+    ? ([['ค่าวิชาชีพ', lines.filter(l => l.taxClass !== 'DISBURSEMENT')], ['เงินจ่ายแทนลูกความ', lines.filter(l => l.taxClass === 'DISBURSEMENT')]] as const).map(([name, group]) => group.length ? `<tr><th colspan="${Math.max(active.length, 1)}">${name}</th></tr>${group.map(l => row(l, seq++)).join('')}` : '').join('')
     : lines.map(row).join('');
   return `<table><thead><tr>${active.map(key => `<th>${headers[key]}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
 }
@@ -97,11 +98,14 @@ function firmTax(taxId?: string | null, branch?: string | null): string {
  * browser dialog — no server-side PDF generation.
  */
 export function buildBillingDocHtml(data: BillingDocData): string {
+  // Sent invoices carry the issuer details frozen at send time; drafts use the live profile.
+  const frozen = data.templateSnapshot?.firm;
+  const fp = frozen ? { legalName: frozen.legalName, billingAddress: frozen.address, taxId: frozen.taxId, taxBranch: frozen.taxBranch } : data.firmProfile;
   const esc = (value: string | null | undefined) => escapeHtml(value ?? '');
   const title = data.kind === 'INVOICE' ? 'ใบแจ้งหนี้' : 'ใบเสร็จรับเงิน';
   const discount = data.discountAmount ?? 0;
   const blocks = {
-    firm: `<div class="firm">${data.logoDataUrl ? `<img alt="โลโก้สำนักงาน" src="${esc(data.logoDataUrl)}">` : ''}<div><b>${esc(data.firmProfile?.legalName || data.firmName)}</b><p>${esc(data.firmProfile?.billingAddress)}</p><p>${firmTax(data.firmProfile?.taxId, data.firmProfile?.taxBranch)}</p></div></div>`,
+    firm: `<div class="firm">${data.logoDataUrl ? `<img alt="โลโก้สำนักงาน" src="${esc(data.logoDataUrl)}">` : ''}<div><b>${esc(fp?.legalName || data.firmName)}</b><p>${esc(fp?.billingAddress)}</p><p>${firmTax(fp?.taxId, fp?.taxBranch)}</p></div></div>`,
     title: `<h1>${title} <small>ต้นฉบับ</small></h1><div class="meta"><span>เลขที่</span><b>${esc(data.invoiceNumber)}</b><span>วันที่</span><b>${esc(thaiDate(data.issuedAt))}</b><span>ครบกำหนดชำระ</span><b>${esc(thaiDate(data.dueAt))}</b>${data.matterLabel ? `<span>เรื่อง-คดี</span><b>${esc(data.matterLabel)}</b>` : ''}</div>`,
     customer: `<section><b>เรียกเก็บจาก / ผู้ว่าจ้าง</b><p>${esc(data.billTo?.name)}</p><p>${esc(data.billTo?.address)}</p><p>${data.billTo?.taxId ? `เลขประจำตัวผู้เสียภาษี ${esc(data.billTo.taxId)}` : ''}${data.billTo?.branch ? ` · สาขาที่ ${esc(data.billTo.branch)}` : ''}</p></section>`,
     items: itemsTable(data.lines),
@@ -112,8 +116,8 @@ export function buildBillingDocHtml(data: BillingDocData): string {
   };
   return renderLayout(title, data.invoiceNumber, blocks, data.templateSnapshot?.layout, {
     logo: data.logoDataUrl ? `<img alt="โลโก้สำนักงาน" src="${esc(data.logoDataUrl)}" style="max-width:64px;max-height:64px">` : '',
-    firm: `<div><b>${esc(data.firmProfile?.legalName || data.firmName)}</b><p>${esc(data.firmProfile?.billingAddress)}</p></div>`,
-    firmTax: `<p>${firmTax(data.firmProfile?.taxId, data.firmProfile?.taxBranch)}</p>`,
+    firm: `<div><b>${esc(fp?.legalName || data.firmName)}</b><p>${esc(fp?.billingAddress)}</p></div>`,
+    firmTax: `<p>${firmTax(fp?.taxId, fp?.taxBranch)}</p>`,
     title: `<h1>${title} <small>ต้นฉบับ</small></h1>`,
     meta: blocks.title.slice(blocks.title.indexOf('<div class="meta">')),
   }, '', data.lines);

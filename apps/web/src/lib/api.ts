@@ -2307,7 +2307,7 @@ export const api = {
   reissueReceipt: (token: string, id: string) => request<ReceiptItem>(`/receipts/${id}/reissue`, { method: 'POST', token }),
   voidReceipt: (token: string, id: string, reason: string) => request<ReceiptItem>(`/receipts/${id}/void`, { method: 'POST', token, body: JSON.stringify({ reason }) }),
   getBillingDocumentTemplates: (token: string, docType: 'INVOICE' | 'RECEIPT') => request<DocumentTemplate[]>(`/document-templates?docType=${docType}`, { token }),
-  resolveDocumentTemplate: (token: string, docType: 'INVOICE' | 'RECEIPT', customerId?: string) => request<ResolvedDocumentTemplate>(`/document-templates/resolve?docType=${docType}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ''}`, { token }),
+  resolveDocumentTemplate: (token: string, docType: 'INVOICE' | 'RECEIPT', customerId?: string, templateId?: string) => request<ResolvedDocumentTemplate>(`/document-templates/resolve?docType=${docType}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ''}${templateId ? `&templateId=${encodeURIComponent(templateId)}` : ''}`, { token }),
   createBillingDocumentTemplate: (token: string, data: { name: string; docType: 'INVOICE' | 'RECEIPT'; copyFromId?: string }) => request<DocumentTemplate>('/document-templates', { token, method: 'POST', body: JSON.stringify(data) }),
   updateBillingDocumentTemplate: (token: string, id: string, data: { name?: string; layout?: TemplateLayout; isDefault?: boolean }) => request<DocumentTemplate>(`/document-templates/${id}`, { token, method: 'PATCH', body: JSON.stringify(data) }),
   archiveBillingDocumentTemplate: (token: string, id: string) => request<DocumentTemplate>(`/document-templates/${id}/archive`, { token, method: 'POST' }),

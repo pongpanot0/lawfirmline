@@ -64,9 +64,9 @@ export class DocumentTemplatesService {
     return activeTemplate(this.prisma, user.firmId, id);
   }
 
-  resolve(user: AuthUser, docType: DocumentType, customerId?: string) {
+  resolve(user: AuthUser, docType: DocumentType, customerId?: string, templateId?: string) {
     this.authorize(user);
-    return resolveTemplate(this.prisma, user.firmId, docType, customerId);
+    return resolveTemplate(this.prisma, user.firmId, docType, customerId, templateId);
   }
 
   private async lockFirm(tx: Prisma.TransactionClient, firmId: string) {

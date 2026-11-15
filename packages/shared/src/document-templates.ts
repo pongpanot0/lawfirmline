@@ -42,7 +42,7 @@ export function validateTemplateLayout(layout: unknown, options: { vatRegistered
   const ids = new Set<string>();
   for (const block of value.blocks) {
     if (!block || typeof block !== 'object' || Array.isArray(block)) { errors.push('บล็อกเอกสารไม่ถูกต้อง'); continue; }
-    if (typeof block.id !== 'string' || !block.id.trim() || ids.has(block.id)) errors.push('รหัสบล็อกต้องไม่ว่างและไม่ซ้ำกัน');
+    if (typeof block.id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(block.id) || ids.has(block.id)) errors.push('รหัสบล็อกต้องเป็นตัวอักษรอังกฤษ ตัวเลข - หรือ _ และไม่ซ้ำกัน');
     ids.add(block.id);
     if (!BLOCK_TYPES.includes(block.type)) errors.push('ประเภทบล็อกไม่ถูกต้อง');
     if (!['left', 'right', 'full'].includes(block.column)) errors.push('เลือกตำแหน่งบล็อกซ้าย ขวา หรือเต็มแถว');
@@ -58,7 +58,7 @@ export function validateTemplateLayout(layout: unknown, options: { vatRegistered
       if (s.columns !== undefined && (!Array.isArray(s.columns) || s.columns.some(c => typeof c !== 'string'))) errors.push('คอลัมน์ต้องเป็นรายการข้อความ');
       if (s.fontSize !== undefined && !['sm', 'md', 'lg'].includes(s.fontSize)) errors.push('เลือกขนาดตัวอักษรเล็ก กลาง หรือใหญ่');
       if (s.groupByTaxClass !== undefined && typeof s.groupByTaxClass !== 'boolean') errors.push('สถานะจัดกลุ่มภาษีไม่ถูกต้อง');
-      if (s.logoSize !== undefined && (typeof s.logoSize !== 'number' || !Number.isFinite(s.logoSize) || s.logoSize <= 0)) errors.push('ขนาดโลโก้ต้องมากกว่า 0');
+      if (s.logoSize !== undefined && (typeof s.logoSize !== 'number' || !Number.isFinite(s.logoSize) || s.logoSize < 32 || s.logoSize > 256)) errors.push('ขนาดโลโก้ต้องอยู่ระหว่าง 32–256 พิกเซล');
     }
   }
   if (options.vatRegistered) {

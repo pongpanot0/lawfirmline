@@ -17,7 +17,7 @@ export class DocumentTemplatesController {
   list(@CurrentUser() user: AuthUser, @Query() query: TemplateQueryDto) { return this.templates.list(user, query.docType); }
 
   @Get('resolve')
-  resolve(@CurrentUser() user: AuthUser, @Query() query: ResolveTemplateDto) { return this.templates.resolve(user, query.docType, query.customerId); }
+  resolve(@CurrentUser() user: AuthUser, @Query() query: ResolveTemplateDto) { return this.templates.resolve(user, query.docType, query.customerId, query.templateId); }
 
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) { return this.templates.get(user, id); }

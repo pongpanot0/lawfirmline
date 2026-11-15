@@ -123,3 +123,21 @@ test('invoice firm tax identifies head office and branches', () => {
   assert.ok(buildBillingDocHtml({ ...base, firmProfile }).includes('เลขประจำตัวผู้เสียภาษี 0105566012345 (สำนักงานใหญ่)'));
   assert.ok(buildBillingDocHtml({ ...base, firmProfile: { ...firmProfile, taxBranch: '00001' } }).includes('เลขประจำตัวผู้เสียภาษี 0105566012345 สาขาที่ 00001'));
 });
+
+test('sent invoice prints the issuer details frozen at send, not the live profile', async () => {
+  const { STANDARD_V1_LAYOUT } = await import('@lawfirm/shared');
+  const html = buildBillingDocHtml({ ...base, firmProfile: { legalName: 'ชื่อใหม่', billingAddress: 'ที่อยู่ใหม่', taxId: '9999999999999', taxBranch: '00000' },
+    templateSnapshot: { layout: STANDARD_V1_LAYOUT, logoKey: null, firm: { legalName: 'ชื่อตอนส่ง', address: 'ที่อยู่ตอนส่ง', taxId: '0105566012345', taxBranch: '00001' } } });
+  assert.ok(html.includes('ชื่อตอนส่ง') && html.includes('0105566012345') && html.includes('สาขาที่ 00001'));
+  assert.ok(!html.includes('ชื่อใหม่'));
+});
+
+test('grouped item rows keep one running sequence', () => {
+  const html = buildBillingDocHtml({ ...base, lines: [
+    { description: 'A', quantity: 1, unitPrice: 1, amount: 1, taxClass: 'LITIGATION_EXEMPT' },
+    { description: 'B', quantity: 1, unitPrice: 1, amount: 1, taxClass: 'DISBURSEMENT' },
+    { description: 'C', quantity: 1, unitPrice: 1, amount: 1, taxClass: 'ADVISORY_VAT' },
+  ], templateSnapshot: { logoKey: null, layout: { version: 1, blocks: [{ id: 'i', type: 'items', column: 'full', settings: { groupByTaxClass: true } }] } } });
+  const nums = [...html.matchAll(/<tr><td>(\d+)<\/td><td>([ABC])<\/td>/g)].map(m => m[2] + m[1]);
+  assert.deepEqual(nums, ['A1', 'C2', 'B3']);
+});

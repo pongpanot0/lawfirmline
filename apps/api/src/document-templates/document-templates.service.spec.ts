@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { AuthUser, FirmRole, REQUIRED_VAT_BLOCKS, STANDARD_V1_LAYOUT } from '@lawfirm/shared';
+import { AuthUser, FirmRole, REQUIRED_VAT_BLOCKS, STANDARD_V1_LAYOUT, validateTemplateLayout } from '@lawfirm/shared';
 import { DocumentTemplatesService, resolveTemplate } from './document-templates.service';
 import { CollectionsService } from '../billing/collections.service';
 import { ReceiptsService } from '../billing/receipts.service';
@@ -177,5 +177,17 @@ describe('document templates and issue snapshots', () => {
     expect(cleared.receipt!.templateSnapshot).toMatchObject({ version: 2, name: 'Second' });
     await receiptService.void(owner, result.receipt!.id, 'replace');
     expect((await receiptService.reissue(owner, result.receipt!.id, t.id)).templateSnapshot).toMatchObject({ version: 2 });
+  });
+});
+
+describe('layout validator hardening', () => {
+  const opts = { vatRegistered: false, docType: 'INVOICE' as const };
+  it('rejects block ids that could break the preview markup', () => {
+    expect(validateTemplateLayout({ version: 1, blocks: [{ id: 'x</style>', type: 'note', column: 'full' }] } as any, opts)).not.toHaveLength(0);
+    expect(validateTemplateLayout({ version: 1, blocks: [{ id: 'note-1', type: 'note', column: 'full' }] } as any, opts)).toHaveLength(0);
+  });
+  it('caps logo size to 32–256 px', () => {
+    expect(validateTemplateLayout({ version: 1, blocks: [{ id: 'l', type: 'logo', column: 'left', settings: { logoSize: 5000 } }] } as any, opts)).not.toHaveLength(0);
+    expect(validateTemplateLayout({ version: 1, blocks: [{ id: 'l', type: 'logo', column: 'left', settings: { logoSize: 96 } }] } as any, opts)).toHaveLength(0);
   });
 });

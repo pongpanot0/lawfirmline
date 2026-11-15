@@ -22,6 +22,10 @@ export class ResolveTemplateDto {
   @ValidateIf((_o, v) => v !== undefined)
   @IsUUID()
   customerId?: string;
+
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsUUID()
+  templateId?: string;
 }
 
 export class CreateDocumentTemplateDto {

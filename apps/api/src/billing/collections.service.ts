@@ -153,11 +153,14 @@ export class CollectionsService {
       if (invoice.status !== InvoiceStatus.DRAFT) throw new BadRequestException('ส่งได้เฉพาะใบแจ้งหนี้ฉบับร่าง');
       const keptTemplateId = (invoice.templateSnapshot as { templateId?: string } | null)?.templateId ?? undefined;
       const templateSnapshot = await resolveTemplate(tx, user.firmId, 'INVOICE', invoice.billToCustomerId, templateId ?? keptTemplateId);
+      // Freeze the issuer's legal details with the invoice, like receipts do, so reprints never change.
+      const firmRow = await tx.firm.findUnique({ where: { id: user.firmId }, select: { legalName: true, taxId: true, taxBranch: true, billingAddress: true, vatRegistered: true, logoKey: true } });
+      const firmSnapshot = firmRow ? { legalName: firmRow.legalName, taxId: firmRow.taxId, taxBranch: firmRow.taxBranch, address: firmRow.billingAddress, vatRegistered: firmRow.vatRegistered, logoKey: firmRow.logoKey } : null;
       const issuedAt = new Date();
       const dueAt = invoice.dueAt ?? new Date(issuedAt.getTime() + 30 * DAY_MS);
       return tx.invoice.update({
         where: { id: invoiceId, firmId: user.firmId, status: InvoiceStatus.DRAFT },
-        data: { status: InvoiceStatus.SENT, issuedAt, dueAt, templateSnapshot: templateSnapshot as unknown as Prisma.InputJsonValue },
+        data: { status: InvoiceStatus.SENT, issuedAt, dueAt, templateSnapshot: { ...templateSnapshot, firm: firmSnapshot } as unknown as Prisma.InputJsonValue },
       });
     }).catch(error => {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') throw new ConflictException('สถานะใบแจ้งหนี้เปลี่ยนแล้ว กรุณาโหลดล่าสุด');
