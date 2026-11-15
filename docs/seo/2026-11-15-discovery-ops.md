@@ -61,7 +61,7 @@
 | คำอธิบาย | รวมข้อมูลคดี เอกสาร และตารางนัดไว้ในที่เดียว ให้ทีมติดตามงานร่วมกัน พร้อมช่องทางให้ลูกความตรวจสอบความคืบหน้าได้ด้วยตนเอง | Cases, documents, court dates and team tasks in one place, with a client portal and LINE updates. Built for Thai courts, Thai holidays and the Buddhist calendar. |
 | หมวด | ซอฟต์แวร์บริหารสำนักงานกฎหมาย | Legal Practice Management |
 | ราคา | เริ่ม 299 บาท/เดือน (Team ไม่เกิน 3 คน) มีแพ็กเกจ Free · ทดลองใช้ฟรี 30 วัน | From THB 299/month (Team, up to 3 users); Free plan; 30-day free trial |
-| แพลตฟอร์ม | เว็บ, iOS, Android | Web, iOS, Android |
+| แพลตฟอร์ม | เว็บ (เปิดบนมือถือได้) — ใส่ iOS/Android หลังแอปขึ้น store แล้ว | Web (mobile-friendly) — add iOS/Android once the store listings are live |
 | ภาษา | ไทย, อังกฤษ | Thai, English |
 | ที่ตั้งข้อมูล | AWS ประเทศไทย | AWS Thailand region |
 | เว็บไซต์ | https://samnuan.com | https://samnuan.com |
