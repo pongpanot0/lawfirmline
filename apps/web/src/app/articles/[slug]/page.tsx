@@ -163,7 +163,7 @@ export default async function ArticlePage({ params }: Props) {
   return (
     <div className="mk font-sans antialiased">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(structured) }} />
-      <MarketingNav active="articles" />
+      <MarketingNav active="articles" path={`/articles/${article.slug}`} />
       <main>
         <div className="mx-auto max-w-[1240px] px-4 md:px-6">
           <nav aria-label="breadcrumb" className="pt-6 text-sm leading-relaxed text-mk-ink-2">

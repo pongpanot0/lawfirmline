@@ -1,4 +1,5 @@
-export function FaqList({ items }: { items: [string, string][] }) {
+import type { Lang } from '@/lib/marketing/i18n';
+export function FaqList({ items }: { items: [string, string][]; lang?: Lang }) {
   return (
     <div className="divide-y divide-mk-rule border-y border-mk-rule">
       {items.map(([q, a]) => (

@@ -1,5 +1,6 @@
+import type { Lang } from '@/lib/marketing/i18n';
 import { Fragment } from 'react';
-export function BalancedHeading({ text }: { text: string }) {
+export function BalancedHeading({ text }: { text: string; lang?: Lang }) {
   return (
     <>
       {text.split('|').map((part, i) => (

@@ -1,4 +1,5 @@
 import { PLAN_CONFIG, SubscriptionPlan } from '@lawfirm/shared';
+import { pagesEn, stageCopyEn } from './features.en.ts';
 
 export type FeatureKey = 'cases' | 'calendar' | 'deadlines' | 'team' | 'portal' | 'billing';
 export type FeaturePage = {
@@ -175,3 +176,11 @@ export const pages: Record<FeatureKey, FeaturePage> = {
     cta: 'เปิดสำนวนแรกใน Samnuan',
   },
 };
+
+export function getStages(lang: import('./i18n').Lang) {
+  return lang === 'en' ? stages.map((stage) => ({ ...stage, ...stageCopyEn[stage.key] })) : stages;
+}
+
+export function getPage(lang: import('./i18n').Lang, key: FeatureKey) {
+  return lang === 'en' ? pagesEn[key] : pages[key];
+}

@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 export default function ArticlesPage() {
   return (
     <div className="mk font-sans antialiased">
-      <MarketingNav active="articles" />
+      <MarketingNav active="articles" path="/articles" />
       <main>
         <section className="mx-auto max-w-[1240px] px-4 pt-16 md:px-6 md:pt-20">
           <h1 className="max-w-3xl font-display text-3xl font-semibold leading-tight md:text-5xl">

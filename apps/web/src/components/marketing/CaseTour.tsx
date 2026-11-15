@@ -1,9 +1,25 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { stages, type FeatureKey } from '@/lib/marketing/features';
+import { getStages, type FeatureKey } from '@/lib/marketing/features';
+import { localePath, type Lang } from '@/lib/marketing/i18n';
 import { AppPanel } from './AppPanels';
 
-export function CaseTour({ active, autoplay }: { active: FeatureKey; autoplay: boolean }) {
+const copy = {
+  th: {
+    s0: 'ขั้นตอนของคดี',
+    s1: 'ดูรายละเอียด →',
+    s2: 'ตัวอย่างหน้าจอ · ข้อมูลสมมติ',
+  },
+  en: {
+    s0: 'Stages of a case',
+    s1: 'Details →',
+    s2: 'Sample screen · fictional data',
+  },
+};
+
+export function CaseTour({ active, autoplay, lang = 'th' }: { active: FeatureKey; autoplay: boolean; lang?: Lang }) {
+  const c = copy[lang];
+  const stages = getStages(lang);
   const [current, setCurrent] = useState(active);
   const root = useRef<HTMLDivElement>(null);
   const stopped = useRef(false);
@@ -46,7 +62,7 @@ export function CaseTour({ active, autoplay }: { active: FeatureKey; autoplay: b
       stopTimer();
       events.forEach((e) => element.removeEventListener(e, stop));
     };
-  }, [autoplay]);
+  }, [autoplay, lang]);
   useEffect(() => {
     const panel = root.current?.querySelector<HTMLElement>(`#panel-${current}`);
     if (!panel) return;
@@ -63,7 +79,7 @@ export function CaseTour({ active, autoplay }: { active: FeatureKey; autoplay: b
     const start = performance.now();
     const tick = (time: number) => {
       const k = Math.min(1, (time - start) / 700);
-      count.textContent = Math.round(53500 * (1 - (1 - k) ** 3)).toLocaleString('th-TH', {
+      count.textContent = Math.round(53500 * (1 - (1 - k) ** 3)).toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       });
@@ -71,7 +87,7 @@ export function CaseTour({ active, autoplay }: { active: FeatureKey; autoplay: b
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [current]);
+  }, [current, lang]);
   // Roving tabindex: arrows/Home/End move between stages (WAI-ARIA tabs pattern, vertical).
   const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     const index = stages.findIndex((s) => s.key === current);
@@ -94,7 +110,7 @@ export function CaseTour({ active, autoplay }: { active: FeatureKey; autoplay: b
       <div
         role="tablist"
         aria-orientation="vertical"
-        aria-label="ขั้นตอนของคดี"
+        aria-label={c.s0}
         className="divide-y divide-mk-rule border-y border-mk-rule lg:sticky lg:top-24 lg:col-span-4"
       >
         {stages.map((s, i) => (
@@ -119,10 +135,10 @@ export function CaseTour({ active, autoplay }: { active: FeatureKey; autoplay: b
               <div className="step-content px-4 pb-4 pl-12 text-sm leading-relaxed text-mk-ink-2">
                 {s.line}
                 <a
-                  href={`/features/${s.slug}`}
+                  href={localePath(lang, `/features/${s.slug}`)}
                   className="mt-2 block min-h-11 whitespace-nowrap font-semibold text-mk-brass hover:underline"
                 >
-                  ดูรายละเอียด →
+                  {c.s1}
                 </a>
               </div>
             )}
@@ -140,11 +156,11 @@ export function CaseTour({ active, autoplay }: { active: FeatureKey; autoplay: b
                 aria-labelledby={`tab-${s.key}`}
                 className={`tour-panel ${current === s.key ? 'is-on' : ''}`}
               >
-                <AppPanel stage={s.key} />
+                <AppPanel stage={s.key} lang={lang} />
               </div>
             ))}
           </div>
-          <figcaption className="mt-3 text-center text-xs text-mk-ink-2">ตัวอย่างหน้าจอ · ข้อมูลสมมติ</figcaption>
+          <figcaption className="mt-3 text-center text-xs text-mk-ink-2">{c.s2}</figcaption>
         </figure>
         <div className="tour-progress mt-4 flex gap-1.5" aria-hidden="true">
           {stages.map((s) => (
