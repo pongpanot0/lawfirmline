@@ -93,7 +93,7 @@ function TodayScreen() {
 export function MarketingHome() {
   return (
     <div className="mk font-sans antialiased">
-      <MarketingNav />
+      <MarketingNav active="features" />
       <main>
         <section className="px-4 pt-16 text-center md:pt-24">
           <h1 className="mx-auto max-w-4xl font-display text-[2.6rem] font-semibold leading-[1.25] tracking-tight md:text-6xl md:leading-[1.2]">
