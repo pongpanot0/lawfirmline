@@ -1,9 +1,10 @@
 import React, { useCallback } from 'react';
-import { StatusBar, StyleSheet, View, type StatusBarProps, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StatusBar, StyleSheet, View, type StatusBarProps, type StyleProp, type ViewStyle } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Plus } from 'lucide-react-native';
 import { Text } from '@/components/AppText';
-import { colors, pageContent, radius, shadow, spacing, typeScale } from '@/theme';
+import { CHROME_MAX_SCALE, colors, pageContent, radius, shadow, spacing, typeScale } from '@/theme';
 
 /** How far the first card under a masthead rides up onto the navy. */
 export const LIFT = 40;
@@ -49,7 +50,19 @@ export const mastheadStyles = StyleSheet.create({
   /** Text sitting on the band. */
   onInk: { color: colors.onInk },
   onInkMuted: { ...typeScale.meta, color: colors.onInkMuted },
+  /** The screen's one create action: a marigold pill on the band. */
+  pill: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.lg, borderRadius: radius.full, backgroundColor: colors.accent },
+  pillText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
 });
+
+/** Marigold "+ label" pill for the masthead's actions slot. */
+export function MastheadPill({ label, a11y, onPress }: { label: string; a11y?: string; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={a11y ?? label} onPress={onPress}
+    style={({ pressed }) => [mastheadStyles.pill, pressed && { opacity: 0.85 }]}>
+    <Plus size={18} color={colors.ink} strokeWidth={2.4} />
+    <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={mastheadStyles.pillText}>{label}</Text>
+  </Pressable>;
+}
 
 /** The one card per screen that carries the strong shadow and overlaps the masthead. */
 export const liftedCard: ViewStyle = { marginTop: -LIFT, borderRadius: radius.xl, ...shadow.lg };

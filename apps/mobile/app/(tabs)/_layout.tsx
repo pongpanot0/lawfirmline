@@ -35,6 +35,7 @@ export default function TabsLayout() {
   const contentHeight = BUTTON_PAD + PILL_HEIGHT + LABEL_GAP + labelLine + BUTTON_PAD + METRICS_SLACK;
   const bottomPad = Math.max(insets.bottom, spacing.xs);
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
@@ -68,21 +69,14 @@ export default function TabsLayout() {
         options={{
           title: 'คดี',
           tabBarIcon: props => <TabIcon Icon={Scale} {...props} />,
-          // The list's only create action lives in the header, so search sits directly above the cases.
-          headerRight: () => (
-            <Pressable accessibilityRole="button" accessibilityLabel="รับเคสใหม่" onPress={() => router.push('/case/new')}
-              style={({ pressed }) => [{ minHeight: TOUCH, minWidth: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-                paddingHorizontal: spacing.lg }, pressed && { opacity: 0.6 }]}>
-              <Plus size={18} color={colors.ink} />
-              <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={{ color: colors.ink, fontWeight: '600' }}>รับเคส</Text>
-            </Pressable>
-          ),
+          headerShown: false,
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
           title: 'ปฏิทิน',
+          headerShown: false,
           tabBarIcon: props => <TabIcon Icon={CalendarDays} {...props} />,
         }}
       />
@@ -98,9 +92,13 @@ export default function TabsLayout() {
         name="team"
         options={{
           title: 'ทีม',
+          headerShown: false,
           tabBarIcon: props => <TabIcon Icon={Users} {...props} />,
         }}
       />
     </Tabs>
+    {/* Every tab opens on a navy masthead with light status-bar text, so the status bar keeps a navy backdrop while content scrolls under it. */}
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: colors.ink }} />
+    </View>
   );
 }

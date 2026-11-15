@@ -24,6 +24,8 @@ export const colors = {
   accent: '#F5A524',
   accentInk: '#8A5A00',
   accentSoft: '#FFF1D1',
+  /** Lightest marigold wash: court-soon cards. */
+  accentWash: '#FFF8E7',
   good: '#0E6E4F',
   goodSoft: '#E7F4EE',
   warn: '#C4262B',

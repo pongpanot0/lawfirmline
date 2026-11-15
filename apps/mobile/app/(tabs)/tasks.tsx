@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, ChevronRight, ListChecks, Plus, X } from 'lucide-react-native';
-import { liftedCard, Masthead } from '@/components/Masthead';
+import { Check, ChevronRight, ListChecks, X } from 'lucide-react-native';
+import { liftedCard, Masthead, MastheadPill } from '@/components/Masthead';
 import { followUpReason, hasFirmCapability, taskStageChip } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
@@ -24,13 +24,23 @@ const VIEWS = [
   { value: 'unassigned', label: 'ยังไม่มีคนรับ', owner: true },
 ] as const;
 
+/** Status tabs under the view switch; each shows its count from the loaded list. */
+const STATUS_TABS = [
+  { value: 'all', label: 'ทั้งหมด' },
+  { value: 'TODO', label: 'ต้องทำ' },
+  { value: 'IN_PROGRESS', label: 'กำลังทำ' },
+  { value: 'PENDING_REVIEW', label: 'รอตรวจ' },
+  { value: 'NEEDS_REVISION', label: 'ส่งกลับแก้' },
+  { value: 'DONE', label: 'เสร็จแล้ว' },
+] as const;
+
 /** Result of a follow-up request, shown on the row instead of two alerts. */
 type FollowState = { ok: true; text: string } | { ok: false; text: string };
 
 export default function TasksScreen() {
   const router = useRouter();
   const client = useQueryClient();
-  const { memberId, view: requestedView } = useLocalSearchParams<{ memberId?: string; view?: string }>();
+  const { memberId, view: requestedView, status: requestedStatus } = useLocalSearchParams<{ memberId?: string; view?: string; status?: string }>();
   const { user } = useAuth();
   const owner = hasFirmCapability(user?.firmRole, 'runOperations');
   const views = VIEWS.filter(item => !('owner' in item) || owner);
@@ -48,10 +58,16 @@ export default function TasksScreen() {
   const queue = (board.data?.tasks ?? []).filter(task => view === 'unassigned'
     ? !task.assigneeId && task.status !== 'DONE'
     : !!task.assigneeId && followUpReason(task, today) !== null);
-  const rows: TaskItem[] = officeQueue ? queue.map(task => {
+  const allRows: TaskItem[] = officeQueue ? queue.map(task => {
     const member = board.data?.members.find(person => person.userId === task.assigneeId);
     return { ...task, assignee: member ? { id: member.userId, firstName: member.firstName, lastName: member.lastName } : null };
   }) : (todos.data ?? []).filter(task => !memberId || task.assigneeId === memberId);
+  const status = !officeQueue && STATUS_TABS.some(item => item.value === requestedStatus) ? requestedStatus! : 'all';
+  const statusTabs = STATUS_TABS.map(item => {
+    const count = item.value === 'all' ? allRows.length : allRows.filter(task => task.status === item.value).length;
+    return { value: item.value, label: query.data ? `${item.label} ${count}` : item.label, count };
+  }).filter(item => item.value === 'all' || item.value === status || item.count > 0);
+  const rows = status === 'all' ? allRows : allRows.filter(task => task.status === status);
   const queueById = new Map(queue.map(task => [task.id, task]));
   const submitted = (t: TaskItem) => view === 'mine' && t.status === 'PENDING_REVIEW' && t.assigneeId === user?.id;
   rows.sort((a, b) => Number(a.status === 'DONE') - Number(b.status === 'DONE') || Number(submitted(a)) - Number(submitted(b)) ||
@@ -85,16 +101,13 @@ export default function TasksScreen() {
       onRefresh={() => query.refetch()}
       ListHeaderComponent={<View style={{ marginBottom: spacing.md, gap: spacing.sm }}>
         <Masthead safeTop title="งาน" subtitle={query.data && !query.isError ? `${rows.length} งาน` : undefined}
-          actions={<Pressable accessibilityRole="button" accessibilityLabel="เพิ่มงาน" onPress={() => router.push('/task/new')}
-            style={({ pressed }) => [styles.addPill, pressed && { opacity: 0.8 }]}>
-            <Plus size={18} color={colors.ink} strokeWidth={2.4} />
-            <Text maxFontSizeMultiplier={1.3} style={styles.addPillText}>เพิ่มงาน</Text>
-          </Pressable>} />
+          actions={<MastheadPill label="เพิ่มงาน" onPress={() => router.push('/task/new')} />} />
         <Card style={[liftedCard, { padding: spacing.sm }]}>{memberId ? <Pressable accessibilityRole="button" accessibilityLabel="เลิกกรองงานของสมาชิก · กลับงานของฉัน"
           style={({ pressed }) => [styles.filter, pressed && { opacity: 0.6 }]} onPress={() => router.replace('/(tabs)/tasks')}>
           <Text style={styles.filterText}>งานของ {workload.data?.members.find(member => member.id === memberId)?.name ?? 'สมาชิกทีม'} · กลับงานของฉัน</Text>
           <X size={16} color={colors.info} />
-        </Pressable> : <FilterTabs items={views} value={view} onChange={value => router.setParams({ view: value })} />}</Card>
+        </Pressable> : <FilterTabs items={views} value={view} onChange={value => router.setParams({ view: value, status: 'all' })} />}
+          {!officeQueue && statusTabs.length > 1 ? <FilterTabs items={statusTabs} value={status} onChange={value => router.setParams({ status: value })} /> : null}</Card>
         {/* A failed refresh keeps the rows already on screen and says so above them. */}
         {query.isError && rows.length > 0 && <InlineError message="รายการอาจยังไม่ล่าสุด · โหลดใหม่ไม่สำเร็จ" onRetry={() => query.refetch()} />}
       </View>}
@@ -168,8 +181,6 @@ export default function TasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  addPill: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.lg, borderRadius: radius.full, backgroundColor: colors.accent },
-  addPillText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   screen: { flex: 1, backgroundColor: colors.bg },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
   rowBody: { flex: 1, minWidth: 0, gap: spacing.xs, minHeight: TOUCH, justifyContent: 'center' },

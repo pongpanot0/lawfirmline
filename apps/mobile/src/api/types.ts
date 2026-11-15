@@ -62,6 +62,7 @@ export interface CaseListItem {
   blackCaseNumber: string | null;
   leadLawyer?: { id: string; firstName: string; lastName: string } | null;
   updatedAt: string;
+  stage?: string | null;
 }
 
 export interface CaseParticipant {
@@ -122,6 +123,7 @@ export interface TaskItem {
   routine?: import('@lawfirm/shared').TaskRoutineSnapshot | null;
   routineCompletedChecks?: number[];
   updatedAt?: string;
+  completedAt?: string | null;
   acknowledgedAt?: string | null;
   assignedAt?: string | null;
   scheduledFor?: string | null;

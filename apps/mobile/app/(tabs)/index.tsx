@@ -20,12 +20,17 @@ import {
   Mic,
   ClipboardList,
   Users,
-  ListTodo,
-  PenLine,
+  CircleCheck,
+  LoaderCircle,
   Eye,
+  History,
+  ClipboardCheck,
   BellRing,
   UserX,
+  CalendarClock,
 } from 'lucide-react-native';
+import { ProgressRing } from '@/components/ProgressRing';
+import type { TaskItem } from '@/api/types';
 import { liftedCard, Masthead, mastheadStyles } from '@/components/Masthead';
 import { useAuth } from '@/api/auth';
 import { listTaskDrafts, taskDraftScope } from '@/api/drafts';
@@ -46,7 +51,7 @@ import {
   Tag,
   TagTone,
 } from '@/components/ui';
-import { bangkokDay, formatMoney, initials, thDateLong, thTime } from '@/format';
+import { bangkokDay, formatMoney, initials, thDate, thDateLong, thTime } from '@/format';
 import { agendaIncludesPerson } from '@/workflow';
 import { leaveFlagsForDate } from '@/lib/leave-flags';
 import { CHROME_MAX_SCALE, colors, fonts, radius, shadow, spacing, typeScale, pageContent } from '@/theme';
@@ -103,6 +108,49 @@ function AgendaRow({ item, onPress, overdue = false }: { item: AgendaItem; onPre
   );
 }
 
+const DAY = 86_400_000;
+const daysLate = (due: string, today: string) => Math.round((Date.parse(today) - Date.parse(bangkokDay(due))) / DAY);
+
+/** "ทำต่อเลย" order: sent back first, then late, due today, in progress, then the rest by due date. */
+function nextUpRank(task: TaskItem, today: string) {
+  const due = task.dueDate ? bangkokDay(task.dueDate) : null;
+  if (task.status === 'NEEDS_REVISION') return 0;
+  if (due && due < today) return 1;
+  if (due === today) return 2;
+  if (task.status === 'IN_PROGRESS') return 3;
+  return 4;
+}
+
+/** One next-up task: what state it is in, the case it belongs to, and the one action that moves it on. */
+function NextUpCard({ task, today, onPress }: { task: TaskItem; today: string; onPress: () => void }) {
+  const late = task.dueDate && bangkokDay(task.dueDate) < today ? daysLate(task.dueDate, today) : 0;
+  const sentBack = task.status === 'NEEDS_REVISION';
+  const tag = sentBack ? 'ส่งกลับแก้ไข' : late ? `ต้องทำ · เลยกำหนด ${late} วัน` : task.status === 'IN_PROGRESS' ? 'กำลังทำ' : 'ต้องทำ';
+  const action = sentBack ? 'แก้งาน' : task.status === 'IN_PROGRESS' ? 'ทำต่อ' : 'เริ่มทำ';
+  const urgent = sentBack || late > 0;
+  const note = sentBack ? task.comments?.[0]?.body : task.case?.title;
+  return <Card style={[styles.nextCard, urgent && styles.nextCardUrgent]}>
+    <View style={styles.nextHead}>
+      <View style={[styles.nextTag, urgent && styles.nextTagUrgent]}>
+        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} numberOfLines={1} style={[styles.nextTagText, urgent && { color: colors.warn }]}>{tag}</Text>
+      </View>
+      {task.case?.ownRef ? <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} numberOfLines={1} style={styles.nextRef}>{task.case.ownRef}</Text> : null}
+    </View>
+    <Text style={styles.nextTitle}>{task.title}</Text>
+    {note ? <Text style={styles.agendaCase} numberOfLines={2}>{note}</Text> : null}
+    <View style={styles.nextFoot}>
+      {task.dueDate ? <View style={styles.nextDue}>
+        <CalendarClock size={16} color={late ? colors.warn : colors.muted} />
+        <Text style={[styles.agendaCase, late ? { color: colors.warn, fontWeight: '600' } : null]}>กำหนดส่ง {thDate(task.dueDate)}</Text>
+      </View> : <View style={{ flex: 1 }} />}
+      <Pressable accessibilityRole="button" accessibilityLabel={`${action} ${task.title}`} onPress={onPress}
+        style={({ pressed }) => [styles.nextButton, pressed && { backgroundColor: colors.inkPressed }]}>
+        <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.nextButtonText}>{action}</Text>
+      </Pressable>
+    </View>
+  </Card>;
+}
+
 /** Non-zero facts only; an idle person reads as one plain sentence instead of four zeros. */
 function DayTags({ items }: { items: Array<{ label: string; count: number | undefined; tone?: TagTone }> }) {
   const shown = items.filter(item => (item.count ?? 0) > 0);
@@ -127,6 +175,7 @@ export default function MyDayScreen() {
   const finance = useOwnerFinance(canFinance);
   const today = bangkokDay(new Date().toISOString());
   const reviews = useTodos('review');
+  const mine = useTodos('mine');
   const daily = useDailyWorkboard(today, owner);
   const peopleToday = daily.data && !daily.isError ? assignmentCandidates(daily.data.members, daily.data.tasks, TaskWorkType.GENERAL, today) : [];
   const decisions = daily.data && !daily.isError ? ownerDecisionTasks(daily.data.tasks, today) : [];
@@ -178,14 +227,34 @@ export default function MyDayScreen() {
     ...(canLeave ? [{ view: 'leave', label: 'ลารออนุมัติ', count: pendingLeaves.isError ? undefined : pendingLeaves.data?.length }] : []),
     ...(canClaim ? [{ view: 'claim', label: 'เบิกรออนุมัติ', count: claims.isError ? undefined : claims.data?.filter(item => item.status === 'PENDING').length }] : []),
   ];
-  // The status strip: one tile per task queue, a red count badge only when the queue is known and non-empty.
+  // My own tasks drive the day ring, the status strip and "ทำต่อเลย"; all from /todos?view=mine (finished ones included).
+  const myTasks = (mine.data ?? []).filter(task => task.assigneeId === user?.id);
+  const openMine = myTasks.filter(task => !['DONE', 'PENDING_REVIEW'].includes(task.status));
+  const dueNow = openMine.filter(task => task.dueDate && bangkokDay(task.dueDate) <= today);
+  const lateCount = dueNow.filter(task => bangkokDay(task.dueDate!) < today).length;
+  const doneToday = myTasks.filter(task => task.status === 'DONE' && task.completedAt && bangkokDay(task.completedAt) === today).length;
+  const dayTotal = doneToday + dueNow.length;
+  const nextUp = [...openMine].sort((a, b) => nextUpRank(a, today) - nextUpRank(b, today)
+    || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999')).slice(0, 4);
+  const nextIds = new Set(nextUp.map(task => task.id));
+  const count = (status: string) => mine.data ? myTasks.filter(task => task.status === status).length : undefined;
+  // The status strip: one tile per state of my work, a red count badge only when the state is known and non-empty.
   const taskViews = [
-    { view: 'mine', label: 'งานของฉัน', a11y: 'งานของฉัน', Icon: ListTodo, count: undefined as number | undefined },
-    { view: 'created', label: 'ฉันสร้าง', a11y: 'งานที่ฉันสร้าง', Icon: PenLine, count: undefined as number | undefined },
-    { view: 'review', label: 'รอตรวจ', a11y: 'รอฉันตรวจ', Icon: Eye, count: reviews.data?.length },
-    ...(owner ? [{ view: 'follow-up', label: 'ต้องตาม', a11y: 'ต้องตาม', Icon: BellRing, count: tasksToFollow?.length },
-      { view: 'unassigned', label: 'ไม่มีคนรับ', a11y: 'ยังไม่มีคนรับ', Icon: UserX, count: unassignedTasks?.length }] : []),
+    { key: 'TODO', label: 'ต้องทำ', Icon: CircleCheck, count: count('TODO'), params: { view: 'mine', status: 'TODO' } },
+    { key: 'IN_PROGRESS', label: 'กำลังทำ', Icon: LoaderCircle, count: count('IN_PROGRESS'), params: { view: 'mine', status: 'IN_PROGRESS' } },
+    { key: 'PENDING_REVIEW', label: 'รอตรวจ', Icon: Eye, count: count('PENDING_REVIEW'), params: { view: 'mine', status: 'PENDING_REVIEW' } },
+    { key: 'NEEDS_REVISION', label: 'ส่งกลับแก้', Icon: History, count: count('NEEDS_REVISION'), params: { view: 'mine', status: 'NEEDS_REVISION' }, urgent: true },
+    { key: 'review', label: 'รอฉันตรวจ', Icon: ClipboardCheck, count: reviews.data?.length, params: { view: 'review' } },
   ];
+  // Office roles chase the team: their strip swaps "รอตรวจ" and "ส่งกลับแก้" for the two team queues.
+  const stripItems = owner ? [
+    ...taskViews.filter(item => ['TODO', 'IN_PROGRESS', 'review'].includes(item.key)),
+    { key: 'follow-up', label: 'ต้องตาม', Icon: BellRing, count: tasksToFollow?.length, params: { view: 'follow-up' }, urgent: true },
+    { key: 'unassigned', label: 'ไม่มีคนรับ', Icon: UserX, count: unassignedTasks?.length, params: { view: 'unassigned' } },
+  ] : taskViews;
+  const lateItems = overdue.filter(item => !(item.kind === 'TASK' && nextIds.has(item.entityId)));
+  // My own tasks already lead in "ทำต่อเลย"; the due-today list keeps everyone else's.
+  const dueTodayList = otherToday.filter(item => !nextIds.has(item.entityId));
 
   return (
     <ScrollView
@@ -198,7 +267,7 @@ export default function MyDayScreen() {
             myDay.refetch();
             stats.refetch();
             appointments.refetch();
-            actions.refetch(); reviews.refetch();
+            actions.refetch(); reviews.refetch(); mine.refetch();
             if (owner) { workload.refetch(); leaves.refetch(); daily.refetch(); }
             if (canClaim) claims.refetch();
             if (canLeave) pendingLeaves.refetch();
@@ -208,10 +277,10 @@ export default function MyDayScreen() {
       }
     >
       <Masthead safeTop title="วันนี้"
-        subtitle={<>
+        subtitle={<View style={{ gap: 2, marginTop: 2 }}>
           <Text style={mastheadStyles.onInkMuted}>{thDateLong(new Date())}</Text>
           <Text style={mastheadStyles.onInkMuted}>สวัสดี คุณ{user?.firstName ?? ''}{openCases ? ` · คดีเปิด ${openCases}` : ''}</Text>
-        </>}
+        </View>}
         actions={<>
           <Pressable accessibilityRole="button" accessibilityLabel="เมนูเพิ่มเติม" style={({ pressed }) => [mastheadStyles.roundButton, pressed && { opacity: 0.7 }]} onPress={() => router.push('/more')}>
             <LayoutGrid size={20} color={colors.onInk} />
@@ -232,12 +301,24 @@ export default function MyDayScreen() {
               </View>
             ) : pendingActions > 0 ? <View style={styles.bellDot} /> : null}
           </Pressable>
-        </>} />
+        </>}>
+        {mine.data ? <View style={styles.dayRow}>
+          <Text style={[styles.dayLeft, { flex: 1 }]}>
+            {dueNow.length ? `เหลือ ${dueNow.length} เรื่อง` : 'งานครบกำหนดเคลียร์แล้ว'}
+            {lateCount ? <Text style={styles.dayLate}>{` · ด่วน ${lateCount}`}</Text> : null}
+          </Text>
+          {dayTotal > 0 ? <View style={{ alignItems: 'center' }}>
+            <ProgressRing value={doneToday} total={dayTotal} size={84} stroke={9} color={colors.accent} track="rgba(255,255,255,0.14)"
+              textColor={colors.onInk} label={`วันนี้เสร็จ ${doneToday} จาก ${dayTotal} เรื่อง`} />
+            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.ringCaption}>เสร็จวันนี้</Text>
+          </View> : null}
+        </View> : null}
+      </Masthead>
 
       {/* The lifted card: every task queue one tap away, counts as badges. */}
       <Card style={[liftedCard, { gap: spacing.md }]}>
         <View style={styles.stripHead}>
-          <Text accessibilityRole="header" style={styles.stripTitle}>งานของฉัน</Text>
+          <Text accessibilityRole="header" style={styles.stripTitle}>{owner ? 'งานของฉันและทีม' : 'งานของฉัน'}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="ดูงานทั้งหมด" hitSlop={8} onPress={() => router.push('/(tabs)/tasks')}
             style={({ pressed }) => [styles.stripLink, pressed && { opacity: 0.6 }]}>
             <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.stripLinkText}>ดูทั้งหมด</Text>
@@ -245,29 +326,31 @@ export default function MyDayScreen() {
           </Pressable>
         </View>
         <View style={styles.strip}>
-          {taskViews.map(item => <Pressable key={item.view} accessibilityRole="button"
-            accessibilityLabel={item.count ? `${item.a11y} ${item.count} งาน` : item.a11y}
+          {stripItems.map(item => <Pressable key={item.key} accessibilityRole="button"
+            accessibilityLabel={item.count ? `${item.label} ${item.count} งาน` : item.label}
             style={({ pressed }) => [styles.stripItem, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { view: item.view } })}>
-            <View style={[styles.stripTile, !!item.count && styles.stripTileOn]}>
-              <item.Icon size={24} color={item.count ? colors.accentIcon : colors.ink} strokeWidth={2} />
+            onPress={() => router.push({ pathname: '/(tabs)/tasks', params: item.params })}>
+            <View style={[styles.stripTile, !!item.count && (item.urgent ? styles.stripTileUrgent : styles.stripTileOn)]}>
+              <item.Icon size={24} color={item.count ? (item.urgent ? colors.warn : colors.accentIcon) : colors.ink} strokeWidth={2} />
               {item.count ? <View style={styles.stripBadge}>
                 <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.bellBadgeText}>{item.count > 99 ? '99+' : item.count}</Text>
               </View> : null}
             </View>
-            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} numberOfLines={1} style={[styles.stripLabel, !!item.count && styles.stripLabelOn]}>{item.label}</Text>
+            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} numberOfLines={1} style={[styles.stripLabel, !!item.count && (item.urgent ? { color: colors.warn, fontWeight: '700' } : styles.stripLabelOn)]}>{item.label}</Text>
           </Pressable>)}
         </View>
+        {mine.isError && <InlineError message="โหลดงานของฉันไม่ได้" onRetry={() => mine.refetch()} />}
         {!isOwner && reviews.isError && <InlineError message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
-        {(!owner ? reviews.data ?? [] : []).slice(0, 3).map(task => <Pressable key={task.id} accessibilityRole="button" accessibilityLabel={`ตรวจงาน ${task.title}`}
-          style={({ pressed }) => [styles.linkRow, styles.linkRowRule, pressed && { backgroundColor: colors.soft }]} onPress={() => router.push(`/task/new?id=${task.id}`)}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.rowTitle}>{task.title}</Text>
-            <Text style={styles.agendaCase}>รอคุณตรวจ</Text>
-          </View>
-          <ChevronRight size={18} color={colors.faint} />
-        </Pressable>)}
       </Card>
+      {nextUp.length > 0 && <>
+        <View style={styles.nextSection}>
+          <Text accessibilityRole="header" style={styles.nextSectionTitle}>ทำต่อเลย</Text>
+          <Text style={styles.agendaCase}>{`${nextUp.length} รายการ`}</Text>
+        </View>
+        <View style={{ gap: spacing.md }}>
+          {nextUp.map(task => <NextUpCard key={task.id} task={task} today={today} onPress={() => router.push(`/task/new?id=${task.id}`)} />)}
+        </View>
+      </>}
       {/* No price, link or "renew on the web" here: App Store anti-steering. Owners get the billing link by email. */}
       {user?.subscriptionStatus && !subscriptionAllowsWrites(user.subscriptionStatus) ? (
         <InlineError style={{ marginTop: spacing.md }} message="สำนักงานอยู่ในโหมดดูอย่างเดียว · การใช้งานหมดอายุแล้ว ยังเปิดดูคดีและเอกสารได้ แต่สร้างหรือแก้ไขข้อมูลไม่ได้" />
@@ -311,14 +394,14 @@ export default function MyDayScreen() {
       ) : null}
 
       {/* Overdue work comes first: it is the one thing on this screen that is already late. */}
-      {overdue.length > 0 ? (
+      {lateItems.length > 0 ? (
         <>
           <View style={styles.overdueHead}>
             <AlertTriangle size={18} color={colors.warn} />
-            <SectionLabel style={{ marginTop: 0, marginBottom: 0, color: colors.warn }}>{`เกินกำหนด · ${overdue.length}`}</SectionLabel>
+            <SectionLabel style={{ marginTop: 0, marginBottom: 0, color: colors.warn }}>{`เกินกำหนด · ${lateItems.length}`}</SectionLabel>
           </View>
           <Card style={styles.overdueCard}>
-            {overdue.map((item, index) => (
+            {lateItems.map((item, index) => (
               <View key={item.id}>
                 {index > 0 && <View style={styles.divider} />}
                 <AgendaRow overdue item={item} onPress={() => openItem(item)} />
@@ -476,12 +559,12 @@ export default function MyDayScreen() {
 
       <SectionLabel>{owner ? 'งานครบกำหนดวันนี้ของทีม' : 'งานครบกำหนดวันนี้'}</SectionLabel>
       <Card style={{ paddingVertical: spacing.xs }}>
-        {otherToday.length === 0 ? (
+        {dueTodayList.length === 0 ? (
           myDay.isLoading ? <LoadingState inline label="กำลังโหลดงานวันนี้…" />
-            : myDay.data ? <EmptyState compact>ไม่มีงานครบกำหนดวันนี้</EmptyState>
+            : myDay.data ? <EmptyState compact>{otherToday.length ? "งานของคุณอยู่ใน “ทำต่อเลย” ด้านบน" : "ไม่มีงานครบกำหนดวันนี้"}</EmptyState>
               : <View style={{ paddingVertical: spacing.sm }}><InlineError message="ยังโหลดงานวันนี้ไม่ได้" onRetry={() => myDay.refetch()} /></View>
         ) : (
-          otherToday.map((item, index) => (
+          dueTodayList.map((item, index) => (
             <View key={item.id}>
               {index > 0 && <View style={styles.divider} />}
               <AgendaRow item={item} onPress={() => openItem(item)} />
@@ -551,6 +634,25 @@ const styles = StyleSheet.create({
   stripItem: { flex: 1, minWidth: 0, alignItems: 'center', gap: spacing.xs, minHeight: 72 },
   stripTile: { width: 52, height: 52, borderRadius: radius.xl, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   stripTileOn: { backgroundColor: colors.accentSoft },
+  stripTileUrgent: { backgroundColor: colors.warnSoft },
+  dayRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: 2 },
+  dayLeft: { ...typeScale.section, color: colors.onInk },
+  dayLate: { color: colors.accent, fontWeight: '700' },
+  ringCaption: { fontSize: 12, lineHeight: 18, color: colors.onInkMuted, marginTop: 2 },
+  nextSection: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: spacing.xl, marginBottom: spacing.md },
+  nextSectionTitle: { ...typeScale.title, color: colors.ink },
+  nextCard: { gap: spacing.sm },
+  nextCardUrgent: { backgroundColor: colors.warnSoft },
+  nextHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  nextTag: { flexShrink: 1, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm, backgroundColor: colors.soft },
+  nextTagUrgent: { backgroundColor: colors.surface },
+  nextTagText: { fontSize: 13, lineHeight: 20, fontWeight: '700', color: colors.muted },
+  nextRef: { marginLeft: 'auto', ...typeScale.meta, color: colors.muted, fontVariant: ['tabular-nums'] },
+  nextTitle: { ...typeScale.section, color: colors.ink },
+  nextFoot: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: spacing.md, marginTop: spacing.xs },
+  nextDue: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  nextButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.action, backgroundColor: colors.ink },
+  nextButtonText: { color: colors.onInk, fontWeight: '700', fontSize: 15 },
   stripBadge: { position: 'absolute', top: -6, right: -8, minWidth: 20, minHeight: 20, borderRadius: 10, backgroundColor: colors.badge,
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.surface },
   stripLabel: { fontSize: 12, lineHeight: 18, color: colors.muted, fontWeight: '600' },

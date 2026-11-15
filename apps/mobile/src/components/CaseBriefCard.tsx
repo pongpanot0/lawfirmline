@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CalendarClock, CalendarPlus, Check, ChevronRight } from 'lucide-react-native';
-import { CASE_STAGE_LABELS_TH, CaseStage } from '@lawfirm/shared';
+import { MAIN_PATH, stageStep } from '@/case-stage';
 import { liftedCard } from '@/components/Masthead';
 import { ProgressRing } from '@/components/ProgressRing';
 import { ApiError } from '@/api/client';
@@ -86,24 +86,18 @@ export function CaseNextHearing({ caseId }: { caseId: string }) {
   </Pressable>;
 }
 
-/** The main path a case walks; APPEAL and SUPREME branch off after judgment and count as step 8 of it. */
-const MAIN_PATH = [CaseStage.INTAKE_REVIEW, CaseStage.FACT_GATHERING, CaseStage.PRE_LITIGATION, CaseStage.FILING, CaseStage.ANSWER,
-  CaseStage.MEDIATION, CaseStage.HEARING, CaseStage.AWAITING_JUDGMENT, CaseStage.ENFORCEMENT, CaseStage.CLOSING];
-
 /** The lifted card under the case masthead: stage ring (n/10), the stage name, what comes next, and the step dots. */
 export function CaseStageCard({ caseId }: { caseId: string }) {
   const brief = useCaseBrief(caseId).data;
-  const stage = brief?.stage as CaseStage | undefined;
-  const branch = stage === CaseStage.APPEAL || stage === CaseStage.SUPREME;
-  const index = stage ? (branch ? MAIN_PATH.indexOf(CaseStage.AWAITING_JUDGMENT) : MAIN_PATH.indexOf(stage)) : -1;
-  const step = index + 1, total = MAIN_PATH.length;
-  const next = index >= 0 && !branch && index < total - 1 ? CASE_STAGE_LABELS_TH[MAIN_PATH[index + 1]] : null;
+  const progress = stageStep(brief?.stage);
+  const index = progress?.index ?? -1, step = progress?.step ?? 0, total = MAIN_PATH.length;
+  const next = progress?.next ?? null;
   return <Card style={[liftedCard, { gap: spacing.lg, marginBottom: spacing.md }]}>
     <View style={styles.stageHead}>
       {step > 0 ? <ProgressRing value={step} total={total} label={`ขั้นที่ ${step} จาก ${total}`} /> : null}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.label}>ความคืบหน้าคดี</Text>
-        <Text accessibilityRole="header" style={styles.stageName}>{stage ? CASE_STAGE_LABELS_TH[stage] ?? stage : 'ยังไม่ระบุขั้นตอน'}</Text>
+        <Text accessibilityRole="header" style={styles.stageName}>{progress?.label ?? (brief?.stage || 'ยังไม่ระบุขั้นตอน')}</Text>
         {next ? <Text style={styles.label}>ถัดไป: {next}</Text>
           : brief?.stageChangedAt ? <Text style={styles.label}>ตั้งแต่ {thDate(brief.stageChangedAt)}</Text> : null}
       </View>
