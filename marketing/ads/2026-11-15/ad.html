@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1080">
+  <title>สำนวน — ชุดโฆษณาร่าง</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600&family=Trirong:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --paper:#f7f4ed; --ink:#142e43; --brass:#8b6d32; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:'Noto Sans Thai',sans-serif; }
+    #ad { position:relative; width:1080px; height:1350px; isolation:isolate; }
+    #ad.square { height:1080px; }
+    #ad.story { height:1920px; }
+    #background { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center bottom; z-index:-2; }
+    #ad::before { content:''; position:absolute; inset:0; background:linear-gradient(180deg,rgba(247,244,237,.96),rgba(247,244,237,.84) 32%,rgba(247,244,237,.1) 58%,transparent 75%); z-index:-1; }
+    #copy { position:absolute; top:60px; left:72px; width:936px; }
+    .story #copy { top:270px; }
+    .wordmark { display:table; font:500 52px/1.4 'Trirong',serif; }
+    .brand-dot { color:var(--brass); }
+    #eyebrow { display:table; margin:18px 0 8px; color:var(--brass); font-size:26px; font-weight:600; line-height:1.5; }
+    #title { width:936px; margin:0; font:500 68px/1.45 'Trirong',serif; word-break:normal; overflow-wrap:normal; }
+    #sub { display:table; max-width:936px; margin:12px 0 0; font-size:32px; line-height:1.55; word-break:normal; overflow-wrap:normal; }
+    #site { display:table; margin-top:22px; padding:9px 22px; border:1px solid var(--brass); border-radius:99px; background:var(--paper); font-size:23px; line-height:1.5; }
+  </style>
+</head>
+<body>
+  <main id="ad" aria-label="ภาพร่างโฆษณาสำนวน">
+    <img id="background" alt="">
+    <section id="copy">
+      <div class="wordmark" data-text>สำนวน<span class="brand-dot">.</span></div>
+      <p id="eyebrow" data-text></p>
+      <h1 id="title" data-text></h1>
+      <p id="sub" data-text></p>
+      <div id="site" data-text>samnuan.com</div>
+    </section>
+  </main>
+  <script type="module">
+    window.adReady = (async () => {
+      const query = new URLSearchParams(location.search);
+      const concept = query.get('c') || 'a';
+      const format = query.get('f') || 'feed';
+      if (!['a','b','c'].includes(concept) || !['feed','square','story'].includes(format)) throw new Error('Unknown concept or format');
+      const response = await fetch('./ads.json');
+      if (!response.ok) throw new Error('Cannot load ads.json');
+      const ad = (await response.json())[concept];
+      document.querySelector('#ad').className = format;
+      for (const field of ['eyebrow','title','sub']) document.getElementById(field).textContent = ad.overlay[field];
+      const background = document.querySelector('#background');
+      background.src = `./bg-${concept}.png`;
+      await background.decode();
+      const faces = await Promise.all([
+        document.fonts.load('500 68px Trirong', ad.overlay.title),
+        document.fonts.load('500 52px Trirong', 'สำนวน.'),
+        document.fonts.load('600 26px "Noto Sans Thai"', ad.overlay.eyebrow),
+        document.fonts.load('400 32px "Noto Sans Thai"', ad.overlay.sub),
+      ]);
+      await document.fonts.ready;
+      if (faces.some(loaded => loaded.length === 0)) throw new Error('Brand fonts unavailable');
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    })();
+    window.adReady.catch(error => { document.body.dataset.error = error.message; });
+  </script>
+</body>
+</html>

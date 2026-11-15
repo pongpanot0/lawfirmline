@@ -1,0 +1,41 @@
+{
+  "a": {
+    "primaryText": "ทนายลาสามวัน งานในแฟ้มก็หยุดสามวัน\nคนรับช่วงไม่รู้ว่านัดถัดไปวันไหน ศาลสั่งอะไรไว้\nกว่าจะรู้ ก็ตอนลูกความโทรมาถาม\nสำนวนเป็นระบบบริหารสำนักงานคดีที่มี AI ช่วยทีมทำงาน ผลนัด กำหนด และงานต่อบันทึกไว้ในคดี คนรับช่วงเปิดดูต่อได้ทันที\nดูรายละเอียดที่ samnuan.com",
+    "headline": "ทนายลา แฟ้มก็เงียบตาม",
+    "description": "งานต่ออยู่ในคดี ไม่อยู่ในหัว",
+    "cta": "LEARN_MORE",
+    "link": "https://samnuan.com",
+    "overlay": {
+      "eyebrow": "ปัญหาเงียบในสำนักงานคดี",
+      "title": "ทนายลา แฟ้มก็เงียบตาม",
+      "sub": "ผลนัดและงานต่ออยู่ในคดี คนรับช่วงเปิดดูได้"
+    },
+    "imagePrompt": "Use case: photorealistic-natural. Generate ONE editorial photograph background, portrait 4:5. Thai litigation office, modest and lived-in, quiet slightly lonely mood, natural light, subtle film grain. Palette paper cream #f7f4ed, deep navy #142e43, small muted brass #8b6d32 accent. Keep the upper 55% an uninterrupted plain softly lit cream wall, calm empty space for later typography. Put all objects low in the bottom 40%, centered horizontally, so square and tall crops remain useful. No text, letters, numbers, logos, signs, screens, UI, watermarks, courthouse names, Thai government emblems or Garuda anywhere. No recognizable faces. No writing even on paper or folder spines. No staged happy team. Scene: late afternoon before a hearing, one empty dark navy chair beside a modest wooden desk, a single closed unlabelled cream case folder on the seat, small brass door handle far behind; nobody present. The empty chair is the focal point, lower center. Real Thai office architecture, no decorations."
+  },
+  "b": {
+    "primaryText": "จะใช้ข้อเท็จจริงทีไร ต้องเปิดแฟ้มหาใหม่\nประโยคสำคัญอยู่กลางเอกสาร ไม่มีใครจำหน้าได้\nพอเตรียมร่างคำร้อง ก็ต้องไล่อ่านซ้ำ\nในสำนวน ทนายเรียก AI ช่วยดึงข้อเท็จจริง พร้อมประโยคต้นฉบับและเลขหน้า แล้วเปิดตรวจและตัดสินใจก่อนใช้\nดูรายละเอียดที่ samnuan.com",
+    "headline": "หาประโยคเดิม อีกครั้ง",
+    "description": "AI ช่วยอ่าน ทนายเปิดตรวจ",
+    "cta": "LEARN_MORE",
+    "link": "https://samnuan.com",
+    "overlay": {
+      "eyebrow": "ปัญหาเงียบในแฟ้มคดี",
+      "title": "หาประโยคเดิม อีกครั้ง",
+      "sub": "AI ชี้ประโยคและหน้า ทนายตรวจ"
+    },
+    "imagePrompt": "Use case: photorealistic-natural. Generate ONE editorial photograph background, portrait 4:5. Thai litigation office, modest and lived-in, quiet slightly lonely mood, natural light, subtle film grain. Palette paper cream #f7f4ed, deep navy #142e43, small muted brass #8b6d32 accent. Keep the upper 55% an uninterrupted plain softly lit cream wall, calm empty space for later typography. Put all objects low in the bottom 40%, centered horizontally, so square and tall crops remain useful. No text, letters, numbers, logos, signs, screens, UI, watermarks, courthouse names, Thai government emblems or Garuda anywhere. No recognizable faces. No writing even on paper or folder spines. No staged happy team. Scene: close editorial still life of a thick unlabelled open case folder on a wooden desk, page backs blank and angled away, one hand in navy sleeve gently lifting a blank sheet from the lower right, a small brass paperclip. No readable document surfaces. Hands only, no person or face visible. The folder sits in the lower center."
+  },
+  "c": {
+    "primaryText": "คดีเงียบไปนาน รู้ตอนลูกความโทรถาม\nทีมยุ่งกับนัดตรงหน้า เรื่องที่ยังไม่ขยับเลยเงียบตาม\nพอถูกถาม จึงค่อยเปิดดูว่างานค้างตรงไหน\nในสำนวน AI เตรียมสรุปให้ทุกเช้า บอกนัด งานค้าง และคดีที่เงียบนาน ทีมดูแล้วตัดสินใจเองว่าจะตามเรื่องไหนต่อ\nดูรายละเอียดที่ samnuan.com",
+    "headline": "คดีเงียบ จนลูกความถาม",
+    "description": "AI สรุปทุกเช้า ทีมตัดสินใจ",
+    "cta": "LEARN_MORE",
+    "link": "https://samnuan.com",
+    "overlay": {
+      "eyebrow": "ปัญหาเงียบก่อนเริ่มวัน",
+      "title": "คดีเงียบ จนลูกความถาม",
+      "sub": "AI สรุปทุกเช้า ทีมตัดสินใจว่าจะตามอะไร"
+    },
+    "imagePrompt": "Use case: photorealistic-natural. Generate ONE editorial photograph background, portrait 4:5. Thai litigation office, modest and lived-in, quiet slightly lonely mood, natural light, subtle film grain. Palette paper cream #f7f4ed, deep navy #142e43, small muted brass #8b6d32 accent. Keep the upper 55% an uninterrupted plain softly lit cream wall, calm empty space for later typography. Put all objects low in the bottom 40%, centered horizontally, so square and tall crops remain useful. No text, letters, numbers, logos, signs, screens, UI, watermarks, courthouse names, Thai government emblems or Garuda anywhere. No recognizable faces. No writing even on paper or folder spines. No staged happy team. Scene: early morning in an empty modest Thai law office, soft slanted sunlight on a desk with three closed unlabelled cream case folders and one plain ceramic coffee cup, empty navy chair slightly pulled out, small brass desk-lamp base. No clocks, calendars or electronics. The folders sit lower center. The stillness suggests work waiting to be noticed."
+  }
+}

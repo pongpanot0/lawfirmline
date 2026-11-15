@@ -1,0 +1,40 @@
+2026-11-15 — observations for handoff (design only)
+
+node -e JSON.parse: PASS
+Counts use Unicode code points (including Thai vowels/tone marks).
+a primaryText 244/300
+a headline 20/40
+a description 26/30
+a overlay.eyebrow 23/24
+a overlay.title 20/32
+a overlay.sub 27/48
+b primaryText 247/300
+b headline 21/40
+b description 24/30
+b overlay.eyebrow 19/24
+b overlay.title 21/32
+b overlay.sub 28/48
+c primaryText 256/300
+c headline 21/40
+c description 26/30
+c overlay.eyebrow 22/24
+c overlay.title 21/32
+c overlay.sub 29/48
+CTA allowlist and https://samnuan.com link: PASS
+Renderer and inline HTML script syntax: PASS
+Three built-in imagegen photos saved as bg-a.png, bg-b.png, bg-c.png.
+Visual background review: quiet cream/navy/brass office scenes, empty upper area;
+no visible text, screens, recognizable faces, watermarks or government emblems observed.
+
+Render attempt: FAILED before any output PNG.
+Initial local HTTP server could not bind: listen EPERM 127.0.0.1.
+Renderer now fulfils only local ad assets through Playwright routing; no listening server.
+Actual final renderer invocation: node marketing/ads/render-ads.mjs
+Chromium launch failed:
+browserType.launch: Target page, context or browser has been closed
+FATAL:base/apple/mach_port_rendezvous_mac.cc:159
+bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer: Permission denied (1100)
+
+No rendered-output, font-loading, Thai-wrapping, overflow, 30%-area or safe-zone pass claimed.
+No Meta API calls, publishing, scheduling, credentials loading or commits performed.
+Pre-existing marketing changes observed and preserved; controller observes, no controller report received.
