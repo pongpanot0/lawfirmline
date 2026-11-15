@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ActivityType, AuthUser, caseStageIndex, computeFeePackage, FeeComponent, FeeInputs, FeeMilestone, hasFirmCapability, MONEY_MAX, splitMilestones, validateFeePackage } from '@lawfirm/shared';
 import { MilestoneStatus, NotificationCategory, Prisma, TaxClass } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
@@ -13,6 +13,7 @@ const reached = (stage: string, current: string) => caseStageIndex(stage) >= 0 &
 
 @Injectable()
 export class FeePackagesService {
+  private readonly logger = new Logger(FeePackagesService.name);
   constructor(private prisma: PrismaService, private caseFeed: CaseFeedService, private notifier: AssignmentNotifierService) {}
 
   private authorize(user: AuthUser, writePackage = false) {
@@ -116,7 +117,8 @@ export class FeePackagesService {
       if (agreedAmount !== standardAmount && !reason) throw new BadRequestException('ระบุเหตุผลที่แก้ราคา');
       const milestones = snapshot?.milestones ?? [];
       const retained = before?.milestones.filter(m => m.status !== MilestoneStatus.PENDING) ?? [];
-      // Settled/closed instalments retain their identity and amount; distribute only the remaining agreement.
+      // Settled/closed instalments retain their identity and FULL slot: a waived or partially collected slot is money the
+      // firm chose to forgo, so a later re-price must not push it onto the other pending instalments.
       const remaining = round2(agreedAmount - retained.reduce((sum, m) => sum + m.amount, 0));
       const packageId = source?.id ?? before?.packageId ?? null;
       const previousMilestones = (before?.packageSnapshot as unknown as PackageSnapshot | null)?.milestones ?? [];
@@ -190,11 +192,16 @@ export class FeePackagesService {
       return { legalCase, milestones: due };
     });
     for (const m of due.milestones) {
+      // At-most-once by design (notifiedAt is claimed above); one failed delivery must not skip the others.
+      try {
       const params = { firmId, actorUserId: '', category: NotificationCategory.BILLING,
         summaryText: `ถึงงวด ${m.label} ของคดี ${due.legalCase.ownRef} · ฿${(m.closeAmount ?? m.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} — ออกใบแจ้งหนี้ได้`, entityPath: `/cases/${caseId}?tab=billing` };
       // Exclude the lead from the owners call: a lead who is also owner receives one message.
       await this.notifier.notifyFirmOwners({ ...params, actorUserId: due.legalCase.leadLawyerId });
       await this.notifier.notifyAssigned({ ...params, userIds: [due.legalCase.leadLawyerId] });
+      } catch (error) {
+        this.logger.warn(`milestone ${m.id} notification failed: ${error instanceof Error ? error.message : error}`);
+      }
     }
   }
 }

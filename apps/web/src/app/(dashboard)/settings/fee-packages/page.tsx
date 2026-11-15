@@ -52,7 +52,7 @@ export default function FeePackagesPage() {
     finally { setLoading(false); }
   }, [token, canRead]);
   useEffect(() => { void load(); }, [load]);
-  const choose = (item: Package | null) => { setDraft(item ? structuredClone(item) : null); setOriginal(item ? JSON.stringify(item) : ''); setInputs({}); setErrors([]); };
+  const choose = (item: Package | null) => { setDraft(item ? structuredClone(item) : null); setOriginal(item ? JSON.stringify(item) : ''); setInputs(current => (item && item.id === draft?.id ? current : {})); setErrors([]); };
   const mayLeave = () => !dirty || window.confirm('มีข้อมูลที่ยังไม่ได้บันทึก ต้องการละทิ้งการแก้ไขหรือไม่');
   const tiers = packages.filter(p => p.caseTypeId === selectedType).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   const patch = (change: Partial<Package>) => setDraft(current => current ? { ...current, ...change } : null);

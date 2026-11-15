@@ -35,7 +35,7 @@ export function CaseFeeSection({ caseId, customerId }: { caseId: string; custome
         <Text style={{ color: colors.ink, fontWeight: '700' }}>{m.label} · {formatMoney(m.closeAmount ?? m.amount)} ฿</Text>
         <Text style={{ color: colors.muted }}>{CASE_STAGE_LABELS_TH[m.stage] ?? m.stage}</Text>
         <Tag tone={m.reached && m.status === 'PENDING' ? 'court' : 'plain'}>{statusLabels[m.status]}{m.reached && m.status === 'PENDING' ? ' · ถึงขั้นตอนแล้ว' : ''}</Tag>
-        {m.reached && m.status === 'PENDING' && <Button title="ออกใบแจ้งหนี้งวดนี้" accessibilityHint="สร้างใบแจ้งหนี้ฉบับร่างสำหรับงวดนี้" disabled={create.isPending || fee.isFetching || fee.isError} onPress={() => Alert.alert('สร้างใบแจ้งหนี้งวดนี้', `${m.label} · ${formatMoney(m.amount)} ฿\nสร้างเป็นฉบับร่างเพื่อตรวจสอบก่อนวางบิล`, [{ text: 'ยกเลิก', style: 'cancel' }, { text: 'สร้างใบแจ้งหนี้', onPress: () => create.mutate(m.id) }])} />}
+        {m.reached && (m.status === 'PENDING' || m.status === 'PARTIAL') && <Button title="ออกใบแจ้งหนี้งวดนี้" accessibilityHint="สร้างใบแจ้งหนี้ฉบับร่างสำหรับงวดนี้" disabled={create.isPending || fee.isFetching || fee.isError} onPress={() => Alert.alert('สร้างใบแจ้งหนี้งวดนี้', `${m.label} · ${formatMoney(m.closeAmount ?? m.amount)} ฿\nสร้างเป็นฉบับร่างเพื่อตรวจสอบก่อนวางบิล`, [{ text: 'ยกเลิก', style: 'cancel' }, { text: 'สร้างใบแจ้งหนี้', onPress: () => create.mutate(m.id) }])} />}
       </View>)}
       {!fee.data.milestones.length && <Text style={{ color: colors.muted }}>ยังไม่มีงวดค่าวิชาชีพ</Text>}
     </>}

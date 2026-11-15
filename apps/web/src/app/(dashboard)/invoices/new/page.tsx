@@ -73,9 +73,9 @@ export default function InvoiceComposer() {
   if (loading || !matter || !profile) return <div className="p-6">{error ? <LoadFailed message={error} onRetry={() => setRevision(v => v + 1)} /> : 'กำลังโหลดข้อมูล…'}</div>;
   return <div className="mx-auto max-w-[1800px] space-y-6 px-4 pb-20 sm:px-6">
     <PageHeader title="ออกใบแจ้งหนี้" description={`${matter.ownRef} · ${matter.title}`} />
-    <div className="grid gap-4 rounded-lg border bg-card p-4 sm:p-5 md:grid-cols-3">
+    <div className="grid items-start gap-4 rounded-lg border bg-card p-4 sm:p-5 md:grid-cols-3">
       <label className="text-sm">ผู้ว่าจ้าง<select className={input} value={customerId} onChange={e => setCustomerId(e.target.value)}><option value="">{matter?.customers?.length ? 'เลือกผู้ว่าจ้าง' : 'ลูกความของคดี (ค่าเริ่มต้น)'}</option>{matter.customers?.map(c => <option key={c.customerId} value={c.customerId}>{c.customer.name}</option>)}</select><span className={hint}>เลือกผู้รับใบแจ้งหนี้จากคดี</span></label>
-      <div className="text-sm"><ThaiDateInput label="วันครบกำหนด" value={dueAt} onChange={setDueAt} /><span className={hint}>กำหนดวันชำระเงิน</span></div>
+      <div className="text-sm"><span aria-hidden="true">วันครบกำหนด</span><div className="[&_input]:h-11 [&_select]:h-11"><ThaiDateInput label="วันครบกำหนด" value={dueAt} onChange={setDueAt} /></div><span className={hint}>กำหนดวันชำระเงิน</span></div>
       <label className="text-sm">เทมเพลต<select className={input} value={templateId} onChange={e => setTemplateId(e.target.value)}>{!resolved?.templateId && <option value="">{resolved?.name ?? 'กำลังโหลด…'}</option>}{templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select><span className={hint}>ใช้กับใบนี้ตอนพิมพ์และส่ง</span></label>
     </div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

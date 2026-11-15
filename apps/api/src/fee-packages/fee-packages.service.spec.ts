@@ -82,6 +82,13 @@ describe('FeePackagesService', () => {
     db.caseFee.findFirst.mockResolvedValue({ ...saved, milestones: [{ ...first, stage: 'APPEAL' }, { ...second, stage: 'ENFORCEMENT' }] });
     expect((await service.getCaseFee(owner, 'c'))?.milestones.map(m => m.reached)).toEqual([true, false]);
   });
+  it('keeps notifying the other reached milestones when one delivery fails', async () => {
+    db.case.findFirst.mockResolvedValue({ stage: 'ENFORCEMENT', ownRef: 'C-1', leadLawyerId: 'lead' });
+    db.caseFeeMilestone.findMany.mockResolvedValue([{ ...first, stage: 'FILING' }, { ...second, stage: 'FILING' }]);
+    notifier.notifyFirmOwners.mockRejectedValueOnce(new Error('push down'));
+    await expect(service.onStageChanged('c', 'f')).resolves.toBeUndefined();
+    expect(notifier.notifyFirmOwners).toHaveBeenCalledTimes(2);
+  });
   it('claims each notification once and reaches only current/earlier stages', async () => {
     db.caseFeeMilestone.findMany.mockImplementation(() => db.caseFeeMilestone.update.mock.calls.length ? [] : [first, second]);
     await service.onStageChanged('c', 'f');
