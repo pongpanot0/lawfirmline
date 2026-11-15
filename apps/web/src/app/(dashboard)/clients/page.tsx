@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { hasFirmCapability } from '@lawfirm/shared';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Copy, Check, ChevronRight, Folder, LayoutGrid, Users, ReceiptText, Info, AlertCircle } from 'lucide-react';
+import { buildClientsCsv, downloadCsv } from '@/lib/csv-export';
+import { ArrowLeft, Download, Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Copy, Check, ChevronRight, Folder, LayoutGrid, Users, ReceiptText, Info, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, ClientItem, Client360Overview, ContactCaseAccessEntry } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -259,13 +260,19 @@ export default function ClientsPage() {
     return () => { active = false; };
   }, [token, clients, selected, search, searchParams]);
 
+  const exportButton = (
+    <Button size="sm" variant="outline" className="whitespace-nowrap" title="ดาวน์โหลดรายชื่อลูกความที่แสดงอยู่เป็นไฟล์ CSV" disabled={loading || clients.length === 0} onClick={() => downloadCsv(buildClientsCsv(clients), 'ลูกความ')}>
+      <Download className="h-4 w-4" aria-hidden />ดาวน์โหลด CSV
+    </Button>
+  );
+
   if (selected) {
     const primary = selected.contacts.find((c) => c.isPrimary) ?? selected.contacts[0];
     const selectedOverview = clientOverviews[selected.id];
     const roles = selectedOverview?.cases.flatMap((item) => item.roles) ?? [];
     return (
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-        <aside className="hidden min-w-0 space-y-4 lg:block"><div className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-2xl font-bold">ลูกความ <span className="text-sm text-muted-foreground">{clients.length} ราย</span></h1><Button variant="outline" onClick={() => router.push('/clients/new')}><Plus className="h-4 w-4" aria-hidden />เพิ่มลูกความ</Button></div><p className="text-sm text-muted-foreground">รายชื่อบุคคลและนิติบุคคลที่สำนักงานรับว่าความให้</p><Input aria-label="ค้นหาลูกความ" placeholder="ค้นหาชื่อ เบอร์โทร หรืออีเมลลูกความ" value={search} onChange={(e) => setSearch(e.target.value)} /><div className="space-y-2">{clients.map((client) => <button type="button" key={client.id} onClick={() => { if (token) void api.getClient(token, client.id).then((item) => { setSelected(item); setTab('overview'); setEditingInfo(false); }).catch(() => setLoadError(true)); }} className={`flex min-h-11 w-full items-center gap-3 rounded-lg border bg-card p-4 text-left ${selected.id === client.id ? 'border-l-4 border-l-[var(--color-brass)]' : ''}`}><Avatar fallback={client.name.slice(0, 2)} /><span className="min-w-0 flex-1 break-words font-semibold">{client.name}<span className="block text-xs font-normal text-muted-foreground">{client.openCaseCount !== undefined && <span className="inline-flex flex-wrap items-center gap-1"><Folder className="h-3.5 w-3.5" aria-hidden />{client.openCaseCount} คดีเปิด{(client.openTaskCount ?? 0) > 0 && <span className="ml-2 inline-flex items-center gap-1 text-destructive"><AlertCircle className="h-3.5 w-3.5" aria-hidden />{client.openTaskCount} งานค้าง</span>}</span>}</span></span><ChevronRight className="h-4 w-4 shrink-0" aria-hidden /></button>)}</div>{loadError && <p role="alert" className="text-sm text-destructive">โหลดข้อมูลไม่สำเร็จ</p>}</aside>
+        <aside className="hidden min-w-0 space-y-4 lg:block"><div className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-2xl font-bold">ลูกความ <span className="text-sm text-muted-foreground">{clients.length} ราย</span></h1><div className="flex flex-wrap gap-2">{exportButton}<Button variant="outline" size="sm" onClick={() => router.push('/clients/new')}><Plus className="h-4 w-4" aria-hidden />เพิ่มลูกความ</Button></div></div><p className="text-sm text-muted-foreground">รายชื่อบุคคลและนิติบุคคลที่สำนักงานรับว่าความให้</p><Input aria-label="ค้นหาลูกความ" placeholder="ค้นหาชื่อ เบอร์โทร หรืออีเมลลูกความ" value={search} onChange={(e) => setSearch(e.target.value)} /><div className="space-y-2">{clients.map((client) => <button type="button" key={client.id} onClick={() => { if (token) void api.getClient(token, client.id).then((item) => { setSelected(item); setTab('overview'); setEditingInfo(false); }).catch(() => setLoadError(true)); }} className={`flex min-h-11 w-full items-center gap-3 rounded-lg border bg-card p-4 text-left ${selected.id === client.id ? 'border-l-4 border-l-[var(--color-brass)]' : ''}`}><Avatar fallback={client.name.slice(0, 2)} /><span className="min-w-0 flex-1 break-words font-semibold">{client.name}<span className="block text-xs font-normal text-muted-foreground">{client.openCaseCount !== undefined && <span className="inline-flex flex-wrap items-center gap-1"><Folder className="h-3.5 w-3.5" aria-hidden />{client.openCaseCount} คดีเปิด{(client.openTaskCount ?? 0) > 0 && <span className="ml-2 inline-flex items-center gap-1 text-destructive"><AlertCircle className="h-3.5 w-3.5" aria-hidden />{client.openTaskCount} งานค้าง</span>}</span>}</span></span><ChevronRight className="h-4 w-4 shrink-0" aria-hidden /></button>)}</div>{loadError && <p role="alert" className="text-sm text-destructive">โหลดข้อมูลไม่สำเร็จ</p>}</aside>
       <div className="min-w-0">
         <button type="button" onClick={() => setSelected(null)} className="mb-2 inline-flex min-h-11 items-center gap-1 text-sm text-primary hover:underline lg:hidden">
           <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -649,11 +656,12 @@ export default function ClientsPage() {
       <PageHeader
         title={d.clients.title}
         description={d.clients.description}
-        actions={
+        actions={<div className="flex flex-wrap gap-2">
+          {exportButton}
           <Button size="sm" onClick={() => router.push('/clients/new')}>
             <Plus className="h-4 w-4" aria-hidden />{d.clients.addClient}
           </Button>
-        }
+        </div>}
       />
       <Card className="mb-4"><CardContent className="flex flex-wrap items-center gap-2 p-4">
         <div className="relative min-w-0 flex-1 basis-48"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
