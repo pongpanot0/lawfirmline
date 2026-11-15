@@ -2,7 +2,7 @@
   "expo": {
     "name": "Samnuan",
     "slug": "lexflow-mobile",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "scheme": "lexflow",
     "icon": "./assets/icon.png",
     "orientation": "default",
