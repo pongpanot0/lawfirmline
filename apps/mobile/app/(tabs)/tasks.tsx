@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, ChevronRight, ListChecks, X } from 'lucide-react-native';
+import { Check, ChevronRight, ListChecks, Plus, X } from 'lucide-react-native';
+import { liftedCard, Masthead } from '@/components/Masthead';
 import { followUpReason, hasFirmCapability, taskStageChip } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
@@ -83,13 +84,17 @@ export default function TasksScreen() {
       refreshing={query.isRefetching}
       onRefresh={() => query.refetch()}
       ListHeaderComponent={<View style={{ marginBottom: spacing.md, gap: spacing.sm }}>
-        {memberId ? <Pressable accessibilityRole="button" accessibilityLabel="เลิกกรองงานของสมาชิก · กลับงานของฉัน"
+        <Masthead safeTop title="งาน" subtitle={query.data && !query.isError ? `${rows.length} งาน` : undefined}
+          actions={<Pressable accessibilityRole="button" accessibilityLabel="เพิ่มงาน" onPress={() => router.push('/task/new')}
+            style={({ pressed }) => [styles.addPill, pressed && { opacity: 0.8 }]}>
+            <Plus size={18} color={colors.ink} strokeWidth={2.4} />
+            <Text maxFontSizeMultiplier={1.3} style={styles.addPillText}>เพิ่มงาน</Text>
+          </Pressable>} />
+        <Card style={[liftedCard, { padding: spacing.sm }]}>{memberId ? <Pressable accessibilityRole="button" accessibilityLabel="เลิกกรองงานของสมาชิก · กลับงานของฉัน"
           style={({ pressed }) => [styles.filter, pressed && { opacity: 0.6 }]} onPress={() => router.replace('/(tabs)/tasks')}>
           <Text style={styles.filterText}>งานของ {workload.data?.members.find(member => member.id === memberId)?.name ?? 'สมาชิกทีม'} · กลับงานของฉัน</Text>
           <X size={16} color={colors.info} />
-        </Pressable> : <FilterTabs items={views} value={view} onChange={value => router.setParams({ view: value })} />}
-        <Button title="เพิ่มงาน" onPress={() => router.push('/task/new')} />
-        {query.data && !query.isError ? <Text style={styles.meta}>{`${rows.length} งาน`}</Text> : null}
+        </Pressable> : <FilterTabs items={views} value={view} onChange={value => router.setParams({ view: value })} />}</Card>
         {/* A failed refresh keeps the rows already on screen and says so above them. */}
         {query.isError && rows.length > 0 && <InlineError message="รายการอาจยังไม่ล่าสุด · โหลดใหม่ไม่สำเร็จ" onRetry={() => query.refetch()} />}
       </View>}
@@ -163,6 +168,8 @@ export default function TasksScreen() {
 }
 
 const styles = StyleSheet.create({
+  addPill: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.lg, borderRadius: radius.full, backgroundColor: colors.accent },
+  addPillText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   screen: { flex: 1, backgroundColor: colors.bg },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
   rowBody: { flex: 1, minWidth: 0, gap: spacing.xs, minHeight: TOUCH, justifyContent: 'center' },

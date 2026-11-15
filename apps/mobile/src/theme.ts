@@ -1,42 +1,51 @@
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4
  * genre: modern-minimal · macrostructure: Workbench · design-system: design.md · designed-as-app */
-/** Editorial Juris: paper cream, navy controls; mirrors the root design.md. */
+/** Palette A (2026-11-15 mockups): cool white canvas, navy masthead and controls, marigold accent for court and the active tab. */
 export const colors = {
   /** Surface hierarchy: bg (paper) < surface (cards, fields) < raised (selected pills, sheets, popovers). */
-  bg: '#F7F4ED',
-  surface: '#FFFDFA',
+  bg: '#F4F5F7',
+  surface: '#FFFFFF',
   raised: '#FFFFFF',
   /** Recessed tracks behind segmented controls and disabled fields; one step below paper. */
-  sunken: '#EEEAE1',
-  ink: '#142E43',
+  sunken: '#ECEEF1',
+  ink: '#0F2A44',
   /** Pressed state of navy controls. */
-  inkPressed: '#0D2233',
-  text: '#142E43',
-  muted: '#52616B',
-  faint: '#52616B',
+  inkPressed: '#0A1E31',
+  text: '#0F2A44',
+  muted: '#5B6573',
+  faint: '#5B6573',
   /** Card and control outlines; slightly warmer and darker than the old #DFE0DC so edges read on paper. */
-  line: '#D9D5CB',
+  line: '#E3E6EA',
   /** Field outlines: inputs must read as editable, so they sit one step darker than card edges (3:1 vs surface). */
-  lineStrong: '#8D9297',
+  lineStrong: '#8C939D',
   /** Row separators inside a card. */
-  divider: '#E8E4DB',
-  soft: '#EDEAE3',
-  accent: '#8B6D32',
-  accentInk: '#73520C',
-  accentSoft: '#F7F3EB',
-  good: '#227050',
-  goodSoft: '#EAF3ED',
-  warn: '#A83232',
-  warnSoft: '#FAEDEB',
-  info: '#36566B',
-  infoSoft: '#E8EDF0',
+  divider: '#EEF0F3',
+  soft: '#F0F2F5',
+  accent: '#F5A524',
+  accentInk: '#8A5A00',
+  accentSoft: '#FFF1D1',
+  good: '#0E6E4F',
+  goodSoft: '#E7F4EE',
+  warn: '#C4262B',
+  warnSoft: '#FFF1F1',
+  info: '#2F5677',
+  infoSoft: '#EAF0F6',
   /** Edges for tinted chips and notices: the same hue as the fill, about 30% stronger. */
-  accentEdge: '#E6D9BF',
-  warnEdge: '#EFCFCB',
-  goodEdge: '#C9E0D1',
-  infoEdge: '#CBD6DE',
+  accentEdge: '#F7D58F',
+  warnEdge: '#F6CACA',
+  goodEdge: '#BFE0D1',
+  infoEdge: '#C9D7E5',
   /** Navy-tinted backdrop behind modal sheets and the calendar picker. */
-  scrim: 'rgba(20,46,67,0.45)',
+  scrim: 'rgba(15,42,68,0.45)',
+  /** Marigold fill under the active tab and court highlights; icon strokes on it use accentIcon. */
+  accentIcon: '#B87400',
+  /** Count badges (tab bar, bell): solid red with white text, 4.8:1. */
+  badge: '#D92D20',
+  /** Text and icons on the navy masthead. */
+  onInk: '#FFFFFF',
+  onInkMuted: 'rgba(255,255,255,0.72)',
+  /** Round buttons sitting on the masthead. */
+  inkRaised: 'rgba(255,255,255,0.12)',
 } as const;
 
 /**
@@ -64,15 +73,16 @@ export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48
 export const shadow = {
   /** An explicit empty list, so spreading it after sm/md actually clears the shadow (e.g. on press). */
   none: { boxShadow: [] as ReadonlyArray<never> },
-  sm: { boxShadow: '0px 1px 2px rgba(20, 46, 67, 0.06), 0px 1px 3px rgba(20, 46, 67, 0.05)' },
-  md: { boxShadow: '0px 2px 4px rgba(20, 46, 67, 0.06), 0px 4px 12px rgba(20, 46, 67, 0.08)' },
+  /** Whisper shadow: cards are borderless white on the cool canvas. */
+  sm: { boxShadow: '0px 1px 2px rgba(15, 42, 68, 0.05), 0px 2px 8px rgba(15, 42, 68, 0.05)' },
+  md: { boxShadow: '0px 2px 4px rgba(15, 42, 68, 0.06), 0px 4px 12px rgba(15, 42, 68, 0.08)' },
   /** Sticky bottom action bars: the shadow falls upward onto the scrolling content. */
-  bar: { boxShadow: '0px -1px 0px rgba(20, 46, 67, 0.04), 0px -4px 12px rgba(20, 46, 67, 0.07)' },
-  lg: { boxShadow: '0px 8px 24px rgba(20, 46, 67, 0.14), 0px 2px 6px rgba(20, 46, 67, 0.08)' },
+  bar: { boxShadow: '0px -1px 0px rgba(15, 42, 68, 0.04), 0px -4px 12px rgba(15, 42, 68, 0.07)' },
+  lg: { boxShadow: '0px 8px 24px rgba(15, 42, 68, 0.14), 0px 2px 6px rgba(15, 42, 68, 0.08)' },
   /** Focus ring drawn outside a focused field's border (does not shift layout). */
-  focus: { boxShadow: '0px 0px 0px 3px rgba(20, 46, 67, 0.16)' },
+  focus: { boxShadow: '0px 0px 0px 3px rgba(15, 42, 68, 0.16)' },
   /** Same ring in the warning hue, for a focused field that has an error. */
-  focusWarn: { boxShadow: '0px 0px 0px 3px rgba(168, 50, 50, 0.16)' },
+  focusWarn: { boxShadow: '0px 0px 0px 3px rgba(196, 38, 43, 0.16)' },
 } as const;
 
 /** Type ramp (sizes before the in-app text scale, which AppText applies). */

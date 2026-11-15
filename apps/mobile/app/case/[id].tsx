@@ -18,7 +18,8 @@ import {
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { CaseEmailTab } from '@/components/CaseEmailTab';
 import { CustomFieldsSection } from '@/components/CustomFieldsSection';
-import { CaseBriefCard } from '@/components/CaseBriefCard';
+import { CaseBriefCard, CaseNextHearing, CaseStageCard } from '@/components/CaseBriefCard';
+import { Masthead } from '@/components/Masthead';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
   Card,
@@ -84,7 +85,7 @@ function InfoRow({ label, value, onPress, first = false }: { label: string; valu
   return (
     <View style={[styles.infoRow, !first && styles.infoRowRule]}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>
+      <Text style={[styles.infoValue, !value && { color: colors.muted }]}>
         {value || '—'}
       </Text>
     </View>
@@ -139,6 +140,10 @@ export default function CaseDetailScreen() {
     <>
       <Stack.Screen options={{
         title: 'คดี',
+        // Navy header flows into the masthead below it.
+        headerStyle: { backgroundColor: colors.ink },
+        headerTintColor: colors.onInk,
+        headerShadowVisible: false,
         headerRight: () => <Pressable accessibilityRole="button" accessibilityLabel="แก้ไขคดี" accessibilityHint="แก้รายละเอียดและจัดคนหลักคนรอง"
           onPress={() => router.push(`/case/new?id=${id}`)} style={({ pressed }) => [styles.headerAction, pressed && { opacity: 0.6 }]}>
           <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.headerActionText}>แก้ไข</Text>
@@ -154,7 +159,7 @@ export default function CaseDetailScreen() {
           />
         }
       >
-        <View style={styles.header}>
+        <Masthead style={{ paddingTop: spacing.xs }}>
           <Text accessibilityRole="header" style={styles.caseTitle}>{detail.title}</Text>
           <View style={styles.meta}>
             {detail.ownRef ? <View style={styles.refPill}>
@@ -162,7 +167,8 @@ export default function CaseDetailScreen() {
             </View> : null}
             <Tag tone={status.tone}>{status.label}</Tag>
           </View>
-        </View>
+        </Masthead>
+        <CaseStageCard caseId={id} />
         <View accessibilityRole="tablist" style={styles.segment}>
           {TABS.map((name) => (
             <Pressable
@@ -181,9 +187,10 @@ export default function CaseDetailScreen() {
 
         {tab === 'ภาพรวม' ? (
           <>
-          <CaseBriefCard caseId={id} />
-          <CustomFieldsSection entityKind="CASE" id={id} values={detail.customFields} caseTypeId={detail.caseTypeId} onSaved={() => void caseQuery.refetch()} />
+          {/* Court-first order: the next appointment, then the facts asked for at the counter, then progress and extras. */}
+          <CaseNextHearing caseId={id} />
           <Card>
+            <Text accessibilityRole="header" style={styles.cardTitle}>ข้อมูลคดี</Text>
             <InfoRow
               first
               label="คนหลัก"
@@ -226,6 +233,8 @@ export default function CaseDetailScreen() {
               </>
             ) : null}
           </Card>
+          <CaseBriefCard caseId={id} />
+          <CustomFieldsSection entityKind="CASE" id={id} values={detail.customFields} caseTypeId={detail.caseTypeId} onSaved={() => void caseQuery.refetch()} />
           <Card style={{ marginTop: spacing.md }}>
             <View style={styles.cardHead}>
               <Text accessibilityRole="header" style={styles.cardTitle}>คู่ความ</Text>
@@ -495,14 +504,14 @@ export default function CaseDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   headerAction: { minWidth: TOUCH, minHeight: TOUCH, justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: spacing.xs },
-  headerActionText: { color: colors.ink, fontWeight: '600', fontSize: 16 },
+  headerActionText: { color: colors.onInk, fontWeight: '600', fontSize: 16 },
   header: { gap: spacing.sm, paddingTop: spacing.xs },
-  caseTitle: { fontFamily: typeScale.display.fontFamily, fontSize: 22, lineHeight: 32, color: colors.ink },
+  caseTitle: { fontFamily: typeScale.display.fontFamily, fontSize: 24, lineHeight: 36, color: colors.onInk },
   meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
-  // The firm reference reads as a filed label: small outlined tile, tabular figures (no monospace costume).
-  refPill: { borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 1,
-    backgroundColor: colors.raised },
-  metaText: { fontSize: 12, lineHeight: 20, color: colors.ink, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  // The firm reference reads as a filed label on the navy band: translucent tile, tabular figures.
+  refPill: { borderWidth: 1, borderColor: 'transparent', backgroundColor: colors.inkRaised, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 1,
+  },
+  metaText: { fontSize: 12, lineHeight: 20, color: colors.onInk, fontWeight: '600', fontVariant: ['tabular-nums'] },
   /** Sunken track; the selected tab is a raised pill lifted by shadow.sm. */
   segment: {
     flexDirection: 'row',

@@ -200,7 +200,8 @@ export function EmptyNote({ children, action }: { children: React.ReactNode; act
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderColor: colors.line,
+    // Borderless white on the cool canvas; the whisper shadow carries the edge (transparent keeps the 1pt layout).
+    borderColor: 'transparent',
     borderWidth: 1,
     borderRadius: radius.card,
     padding: spacing.lg,

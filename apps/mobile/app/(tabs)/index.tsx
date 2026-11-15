@@ -20,7 +20,13 @@ import {
   Mic,
   ClipboardList,
   Users,
+  ListTodo,
+  PenLine,
+  Eye,
+  BellRing,
+  UserX,
 } from 'lucide-react-native';
+import { liftedCard, Masthead, mastheadStyles } from '@/components/Masthead';
 import { useAuth } from '@/api/auth';
 import { listTaskDrafts, taskDraftScope } from '@/api/drafts';
 import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange, useTodos, useDailyWorkboard, usePendingLeaves, useOwnerFinance, useUnreadNotifications } from '@/api/hooks';
@@ -172,11 +178,13 @@ export default function MyDayScreen() {
     ...(canLeave ? [{ view: 'leave', label: 'ลารออนุมัติ', count: pendingLeaves.isError ? undefined : pendingLeaves.data?.length }] : []),
     ...(canClaim ? [{ view: 'claim', label: 'เบิกรออนุมัติ', count: claims.isError ? undefined : claims.data?.filter(item => item.status === 'PENDING').length }] : []),
   ];
+  // The status strip: one tile per task queue, a red count badge only when the queue is known and non-empty.
   const taskViews = [
-    { view: 'created', label: 'งานที่ฉันสร้าง', count: undefined as number | undefined },
-    { view: 'review', label: 'รอฉันตรวจ', count: reviews.data?.length },
-    ...(owner ? [{ view: 'follow-up', label: 'ต้องตาม', count: tasksToFollow?.length },
-      { view: 'unassigned', label: 'ยังไม่มีคนรับ', count: unassignedTasks?.length }] : []),
+    { view: 'mine', label: 'งานของฉัน', a11y: 'งานของฉัน', Icon: ListTodo, count: undefined as number | undefined },
+    { view: 'created', label: 'ฉันสร้าง', a11y: 'งานที่ฉันสร้าง', Icon: PenLine, count: undefined as number | undefined },
+    { view: 'review', label: 'รอตรวจ', a11y: 'รอฉันตรวจ', Icon: Eye, count: reviews.data?.length },
+    ...(owner ? [{ view: 'follow-up', label: 'ต้องตาม', a11y: 'ต้องตาม', Icon: BellRing, count: tasksToFollow?.length },
+      { view: 'unassigned', label: 'ไม่มีคนรับ', a11y: 'ยังไม่มีคนรับ', Icon: UserX, count: unassignedTasks?.length }] : []),
   ];
 
   return (
@@ -199,49 +207,73 @@ export default function MyDayScreen() {
         />
       }
     >
+      <Masthead safeTop title="วันนี้"
+        subtitle={<>
+          <Text style={mastheadStyles.onInkMuted}>{thDateLong(new Date())}</Text>
+          <Text style={mastheadStyles.onInkMuted}>สวัสดี คุณ{user?.firstName ?? ''}{openCases ? ` · คดีเปิด ${openCases}` : ''}</Text>
+        </>}
+        actions={<>
+          <Pressable accessibilityRole="button" accessibilityLabel="เมนูเพิ่มเติม" style={({ pressed }) => [mastheadStyles.roundButton, pressed && { opacity: 0.7 }]} onPress={() => router.push('/more')}>
+            <LayoutGrid size={20} color={colors.onInk} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={unread ? `การแจ้งเตือน ยังไม่อ่าน ${unread} รายการ` : pendingActions ? `การแจ้งเตือน รอจัดการ ${pendingActions} เรื่อง` : 'การแจ้งเตือน'}
+            style={({ pressed }) => [mastheadStyles.roundButton, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push('/notifications')}
+          >
+            <Bell size={20} color={colors.onInk} />
+            {/* The number is unread news; a bare dot means only the waiting queue has items. */}
+            {unread > 0 ? (
+              <View style={styles.bellBadge}>
+                <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.bellBadgeText}>
+                  {unread > 99 ? '99+' : unread}
+                </Text>
+              </View>
+            ) : pendingActions > 0 ? <View style={styles.bellDot} /> : null}
+          </Pressable>
+        </>} />
+
+      {/* The lifted card: every task queue one tap away, counts as badges. */}
+      <Card style={[liftedCard, { gap: spacing.md }]}>
+        <View style={styles.stripHead}>
+          <Text accessibilityRole="header" style={styles.stripTitle}>งานของฉัน</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="ดูงานทั้งหมด" hitSlop={8} onPress={() => router.push('/(tabs)/tasks')}
+            style={({ pressed }) => [styles.stripLink, pressed && { opacity: 0.6 }]}>
+            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.stripLinkText}>ดูทั้งหมด</Text>
+            <ChevronRight size={16} color={colors.muted} />
+          </Pressable>
+        </View>
+        <View style={styles.strip}>
+          {taskViews.map(item => <Pressable key={item.view} accessibilityRole="button"
+            accessibilityLabel={item.count ? `${item.a11y} ${item.count} งาน` : item.a11y}
+            style={({ pressed }) => [styles.stripItem, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { view: item.view } })}>
+            <View style={[styles.stripTile, !!item.count && styles.stripTileOn]}>
+              <item.Icon size={24} color={item.count ? colors.accentIcon : colors.ink} strokeWidth={2} />
+              {item.count ? <View style={styles.stripBadge}>
+                <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.bellBadgeText}>{item.count > 99 ? '99+' : item.count}</Text>
+              </View> : null}
+            </View>
+            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} numberOfLines={1} style={[styles.stripLabel, !!item.count && styles.stripLabelOn]}>{item.label}</Text>
+          </Pressable>)}
+        </View>
+        {!isOwner && reviews.isError && <InlineError message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
+        {(!owner ? reviews.data ?? [] : []).slice(0, 3).map(task => <Pressable key={task.id} accessibilityRole="button" accessibilityLabel={`ตรวจงาน ${task.title}`}
+          style={({ pressed }) => [styles.linkRow, styles.linkRowRule, pressed && { backgroundColor: colors.soft }]} onPress={() => router.push(`/task/new?id=${task.id}`)}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.rowTitle}>{task.title}</Text>
+            <Text style={styles.agendaCase}>รอคุณตรวจ</Text>
+          </View>
+          <ChevronRight size={18} color={colors.faint} />
+        </Pressable>)}
+      </Card>
       {/* No price, link or "renew on the web" here: App Store anti-steering. Owners get the billing link by email. */}
       {user?.subscriptionStatus && !subscriptionAllowsWrites(user.subscriptionStatus) ? (
-        <InlineError style={{ marginBottom: spacing.md }} message="สำนักงานอยู่ในโหมดดูอย่างเดียว · การใช้งานหมดอายุแล้ว ยังเปิดดูคดีและเอกสารได้ แต่สร้างหรือแก้ไขข้อมูลไม่ได้" />
+        <InlineError style={{ marginTop: spacing.md }} message="สำนักงานอยู่ในโหมดดูอย่างเดียว · การใช้งานหมดอายุแล้ว ยังเปิดดูคดีและเอกสารได้ แต่สร้างหรือแก้ไขข้อมูลไม่ได้" />
       ) : null}
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text accessibilityRole="header" style={styles.hello}>สวัสดี คุณ{user?.firstName ?? ''}</Text>
-          <Text style={styles.date}>{thDateLong(new Date())}{openCases ? ` · คดีเปิด ${openCases}` : ''}</Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="เมนูเพิ่มเติม" style={styles.bell} hitSlop={8} onPress={() => router.push('/more')}>
-          <LayoutGrid size={19} color={colors.surface} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={unread ? `การแจ้งเตือน ยังไม่อ่าน ${unread} รายการ` : pendingActions ? `การแจ้งเตือน รอจัดการ ${pendingActions} เรื่อง` : 'การแจ้งเตือน'}
-          style={styles.bell}
-          hitSlop={8}
-          onPress={() => router.push('/notifications')}
-        >
-          <Bell size={20} color={colors.surface} />
-          {/* The number is unread news; a bare dot means only the waiting queue has items. */}
-          {unread > 0 ? (
-            <View style={styles.bellBadge}>
-              <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.bellBadgeText}>
-                {unread > 99 ? '99+' : unread}
-              </Text>
-            </View>
-          ) : pendingActions > 0 ? <View style={styles.bellDot} /> : null}
-        </Pressable>
-      </View>
 
-      <Pressable accessibilityRole="button" accessibilityLabel="เลขา · พิมพ์หรือพูดถามข้อมูลคดี"
-        onPress={() => router.push('/secretary')} style={({ pressed }) => pressed && { opacity: 0.7 }}>
-        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 80, marginBottom: spacing.md }}>
-          <Mic size={30} color={colors.ink} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ ...typeScale.section, color: colors.ink }}>เลขา</Text>
-            <Text style={{ ...typeScale.meta, color: colors.muted }}>พิมพ์หรือพูดถามข้อมูลคดี</Text>
-          </View>
-          <ChevronRight size={22} color={colors.muted} />
-        </Card>
-      </Pressable>
-      {hasFirmCapability(user?.firmRole, 'viewAllCases') ? <View style={{ marginBottom: spacing.md }}>
+      {hasFirmCapability(user?.firmRole, 'viewAllCases') ? <View style={{ marginVertical: spacing.md }}>
         <Button title="สรุปประจำวัน" icon={ClipboardList} variant="secondary" onPress={() => router.push('/brief')} />
       </View> : null}
 
@@ -357,28 +389,6 @@ export default function MyDayScreen() {
             onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { view: 'follow-up' } })} />}
         </Card>
       </>}
-
-      <SectionLabel>งานที่ต้องจัดการ</SectionLabel>
-      <Card style={{ gap: spacing.sm }}>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          {/* A count appears only once it is known and above zero, so no chip reads "· —" or "· 0". */}
-          {taskViews.map(item => <Pressable key={item.view} accessibilityRole="button"
-            accessibilityLabel={item.count ? `${item.label} ${item.count} งาน` : item.label}
-            style={({ pressed }) => [styles.viewChip, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { view: item.view } })}>
-            <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.viewChipText}>{item.label}{item.count ? ` · ${item.count}` : ''}</Text>
-          </Pressable>)}
-        </View>
-        {!isOwner && reviews.isError && <InlineError message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
-        {(!owner ? reviews.data ?? [] : []).slice(0, 3).map(task => <Pressable key={task.id} accessibilityRole="button" accessibilityLabel={`ตรวจงาน ${task.title}`}
-          style={({ pressed }) => [styles.linkRow, styles.linkRowRule, pressed && { backgroundColor: colors.soft }]} onPress={() => router.push(`/task/new?id=${task.id}`)}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.rowTitle}>{task.title}</Text>
-            <Text style={styles.agendaCase}>รอคุณตรวจ</Text>
-          </View>
-          <ChevronRight size={18} color={colors.faint} />
-        </Pressable>)}
-      </Card>
 
       {!!localDrafts.data?.length && <>
         <SectionLabel>กลับมาทำร่างต่อ · ในเครื่องนี้</SectionLabel>
@@ -515,22 +525,38 @@ export default function MyDayScreen() {
           </View>
         </Card>
       </>}
+
+      <Pressable accessibilityRole="button" accessibilityLabel="ถามเลขา · พิมพ์หรือพูดถามข้อมูลคดี"
+        onPress={() => router.push('/secretary')} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+        <Card style={styles.secretary}>
+          <View style={styles.secretaryIcon}><Mic size={22} color={colors.ink} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ ...typeScale.section, color: colors.ink }}>ถามเลขา</Text>
+            <Text style={{ ...typeScale.meta, color: colors.muted }}>พิมพ์หรือพูดถามข้อมูลคดี</Text>
+          </View>
+          <ChevronRight size={22} color={colors.muted} />
+        </Card>
+      </Pressable>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  bell: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.full,
-    backgroundColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.sm,
-  },
+  stripHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stripTitle: { ...typeScale.section, color: colors.ink },
+  stripLink: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 2 },
+  stripLinkText: { ...typeScale.meta, color: colors.muted },
+  strip: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.xs },
+  stripItem: { flex: 1, minWidth: 0, alignItems: 'center', gap: spacing.xs, minHeight: 72 },
+  stripTile: { width: 52, height: 52, borderRadius: radius.xl, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  stripTileOn: { backgroundColor: colors.accentSoft },
+  stripBadge: { position: 'absolute', top: -6, right: -8, minWidth: 20, minHeight: 20, borderRadius: 10, backgroundColor: colors.badge,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.surface },
+  stripLabel: { fontSize: 12, lineHeight: 18, color: colors.muted, fontWeight: '600' },
+  stripLabelOn: { color: colors.accentInk, fontWeight: '700' },
+  secretary: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 80, marginTop: spacing.xl },
+  secretaryIcon: { width: 48, height: 48, borderRadius: radius.full, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   // Width follows the number so "99+" and enlarged text never spill out of a fixed box.
   bellBadge: {
     position: 'absolute',
@@ -539,17 +565,15 @@ const styles = StyleSheet.create({
     minWidth: 18,
     minHeight: 18,
     borderRadius: 9,
-    backgroundColor: colors.warn,
+    backgroundColor: colors.badge,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: colors.bg,
+    borderColor: colors.ink,
   },
   bellBadgeText: { color: colors.surface, fontSize: 10, lineHeight: 14, fontWeight: '700' },
-  bellDot: { position: 'absolute', top: 8, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.warn, borderWidth: 1.5, borderColor: colors.bg },
-  hello: { ...typeScale.display, color: colors.ink },
-  date: { ...typeScale.meta, color: colors.muted, marginTop: 2 },
+  bellDot: { position: 'absolute', top: 8, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.badge, borderWidth: 1.5, borderColor: colors.ink },
   overdueHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.sm },
   // Late work is the one warning-tinted card on the screen: soft red fill, a red hairline all round, lifted a step.
   overdueCard: { borderColor: colors.warnEdge, backgroundColor: colors.warnSoft, paddingVertical: spacing.xs, ...shadow.md },
@@ -566,9 +590,7 @@ const styles = StyleSheet.create({
   claimTile: { flex: 1, minHeight: 72, gap: spacing.xs },
   claimTileRule: { borderLeftWidth: 1, borderLeftColor: colors.divider, paddingLeft: spacing.lg },
   claimValue: { ...typeScale.title, fontVariant: ['tabular-nums'] },
-  viewChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, backgroundColor: colors.infoSoft, borderRadius: radius.button },
-  viewChipText: { color: colors.info, fontWeight: '600', fontSize: 14 },
-  linkRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
+    linkRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
   linkRowRule: { borderTopWidth: 1, borderTopColor: colors.divider },
   rowTitle: { color: colors.ink, fontWeight: '600', fontSize: 15, lineHeight: 22 },
   rowWarn: { color: colors.warn, fontSize: 13, lineHeight: 20, fontWeight: '600' },
