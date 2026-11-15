@@ -1304,11 +1304,26 @@ export class BillingService {
     target: { caseId?: string; intakeId?: string },
     dto: CreateInvoiceDto,
   ) {
+    if (dto.milestoneLines?.length) {
+      if (!target.caseId) throw new BadRequestException('เรียกเก็บงวดได้เฉพาะใบแจ้งหนี้ของคดี');
+      return this.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT "id" FROM "Case" WHERE "id" = ${target.caseId} AND "firmId" = ${user.firmId} FOR UPDATE`;
+        return this.createInvoiceInTransaction(user, target, dto, tx);
+      });
+    }
+    return this.createInvoiceInTransaction(user, target, dto);
+  }
+
+  private async createInvoiceInTransaction(
+    user: AuthUser, target: { caseId?: string; intakeId?: string }, dto: CreateInvoiceDto,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
     const { caseId, intakeId } = target;
-    if (caseId && !await this.prisma.case.findFirst({ where: { id: caseId, firmId: user.firmId }, select: { id: true } })) {
+    if (caseId && !await db.case.findFirst({ where: { id: caseId, firmId: user.firmId }, select: { id: true } })) {
       throw new NotFoundException('ไม่พบคดี');
     }
-    if (intakeId && !await this.prisma.intake.findFirst({ where: { id: intakeId, firmId: user.firmId }, select: { id: true } })) {
+    if (intakeId && !await db.intake.findFirst({ where: { id: intakeId, firmId: user.firmId }, select: { id: true } })) {
       throw new NotFoundException('ไม่พบเรื่องรับเข้า');
     }
     if (dto.splits && dto.billToCustomerId) {
@@ -1316,9 +1331,18 @@ export class BillingService {
     }
     // Who gets billed must be this firm's client: the invoice then prints their
     // tax id and address, and reminders go to their contacts.
-    await assertFirmRefs(this.prisma, user.firmId, {
+    await assertFirmRefs(db, user.firmId, {
       clientIds: [dto.billToCustomerId, ...(dto.splits ?? []).map((split) => split.customerId)],
     });
+
+    const milestoneLines = dto.milestoneLines ?? [];
+    const milestoneIds = milestoneLines.map(line => line.id);
+    const milestones = milestoneIds.length ? await db.caseFeeMilestone.findMany({
+      where: { id: { in: milestoneIds }, firmId: user.firmId, caseId, invoiceId: null, status: { in: ['PENDING', 'PARTIAL'] } },
+      include: { caseFee: { select: { feeTaxClass: true } } },
+    }) : [];
+    if (milestones.length !== milestoneIds.length) throw new BadRequestException('งวดถูกออกบิลแล้ว ยกเว้นแล้ว หรือไม่ได้อยู่ในคดีนี้');
+    const milestoneById = new Map(milestones.map(m => [m.id, m]));
 
     const timeEntryLines: NonNullable<CreateInvoiceDto['timeEntryLines']> = dto.timeEntryLines ?? (dto.timeEntryIds ?? []).map(id => ({ id }));
     const expenseLines: NonNullable<CreateInvoiceDto['expenseLines']> = dto.expenseLines ?? (dto.expenseIds ?? []).map(id => ({ id }));
@@ -1333,13 +1357,13 @@ export class BillingService {
     // ยอดของงานในคดีอ่านจาก DB เสมอ — ราคาที่ client ส่งมาเชื่อไม่ได้
     const [billedTime, billedExpenses] = await Promise.all([
       caseId && timeEntryIds.length
-        ? this.prisma.timeEntry.findMany({
+        ? db.timeEntry.findMany({
             where: { id: { in: timeEntryIds }, caseId, case: { firmId: user.firmId }, ...unbilledTimeWhere() },
             orderBy: { date: 'asc' },
           })
         : [],
       caseId && expenseIds.length
-        ? this.prisma.expense.findMany({
+        ? db.expense.findMany({
             where: { id: { in: expenseIds }, caseId, case: { firmId: user.firmId }, ...unbilledExpenseWhere() },
             orderBy: { date: 'asc' },
           })
@@ -1381,8 +1405,14 @@ export class BillingService {
           taxClass: line.taxClass ?? TaxClass.DISBURSEMENT,
         };
       }),
+      ...milestoneLines.map((line, index) => {
+        const m = milestoneById.get(line.id)!;
+        const amount = m.closeAmount ?? m.amount;
+        return { sortOrder: line.sortOrder ?? billedTime.length + billedExpenses.length + index,
+          description: line.description ?? m.label, quantity: 1, unitPrice: amount, amount, taxClass: m.caseFee.feeTaxClass };
+      }),
       ...(dto.lineItems ?? []).map((item, index) => ({
-        sortOrder: item.sortOrder ?? billedTime.length + billedExpenses.length + index,
+        sortOrder: item.sortOrder ?? billedTime.length + billedExpenses.length + milestones.length + index,
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
@@ -1400,18 +1430,18 @@ export class BillingService {
     const discountAmount = dto.discountAmount ?? 0;
     const discountReason = dto.discountReason?.trim() || null;
     this.assertValidDiscount(subtotal, discountAmount, discountReason);
-    const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId }, select: { vatRegistered: true } });
+    const firm = await db.firm.findUnique({ where: { id: user.firmId }, select: { vatRegistered: true } });
     if (!firm) throw new NotFoundException('ไม่พบสำนักงาน');
 
     // ลูกค้าของงาน: จากคดีก่อน ไม่มีคดีก็จากเรื่องที่รับเข้ามา
     const caseCustomers = caseId
-      ? await this.prisma.caseCustomer.findMany({
+      ? await db.caseCustomer.findMany({
           where: { caseId, case: { firmId: user.firmId } },
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
           select: { customerId: true, sharePercent: true },
         })
       : intakeId
-        ? await this.prisma.intakeCustomer.findMany({
+        ? await db.intakeCustomer.findMany({
             where: { intakeId, intake: { firmId: user.firmId } },
             orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
             select: { customerId: true, sharePercent: true },
@@ -1454,7 +1484,7 @@ export class BillingService {
     })));
     const totals = recipientLines.map(lines => this.invoiceTotals(lines, recipients.length === 1 ? discountAmount : 0, firm.vatRegistered, 0.07));
 
-    return this.prisma.$transaction(async (tx) => {
+    const create = async (tx: Prisma.TransactionClient) => {
       // เทมเพลตที่เลือกตอนออกใบ — ตรวจว่าเป็นของสำนักงานนี้ แล้วเก็บไว้กับใบ (ส่งเมื่อไรก็ใช้เทมเพลตนี้ เว้นแต่เลือกใหม่)
       const templateSnapshots = dto.templateId
         ? await Promise.all(recipients.map(r => resolveTemplate(tx, user.firmId, 'INVOICE', r.customerId, dto.templateId)))
@@ -1518,7 +1548,15 @@ export class BillingService {
         if (claimed.count !== billedExpenses.length) throw new ConflictException('ค่าใช้จ่ายถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
       }
 
+      if (milestoneIds.length) {
+        const claimed = await tx.caseFeeMilestone.updateMany({
+          where: { id: { in: milestoneIds }, firmId: user.firmId, caseId, invoiceId: null, status: { in: ['PENDING', 'PARTIAL'] } },
+          data: { status: 'INVOICED', invoiceId: primaryInvoiceId },
+        });
+        if (claimed.count !== milestoneIds.length) throw new ConflictException('งวดถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
+      }
       return invoices;
-    });
+    };
+    return tx ? create(tx) : this.prisma.$transaction(create);
   }
 }

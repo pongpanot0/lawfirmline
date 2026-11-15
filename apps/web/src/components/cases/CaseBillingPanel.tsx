@@ -1,5 +1,6 @@
 'use client';
 
+import { CaseFeeSection } from '@/components/cases/CaseFeeSection';
 import { AiBadge } from '@/components/AiBadge';
 
 import { useEffect, useState } from 'react';
@@ -150,6 +151,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [receipts, setReceipts] = useState<ReceiptItem[]>([]);
   const [printError, setPrintError] = useState('');
+  const [caseTypeId, setCaseTypeId] = useState<string | undefined>();
   const [agreedFee, setAgreedFee] = useState<number | null>(null);
   const [writeOffTarget, setWriteOffTarget] = useState<string | null>(null);
   const canApprove = hasFirmCapability(user?.firmRole, 'approveExpenses');
@@ -168,6 +170,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         setReceipts(docs);
         setInvoices(invs);
         setAgreedFee(detail?.estimatedFee ?? null);
+        setCaseTypeId(detail?.caseType?.id);
         setTimeEntries(entries);
         setExpenses(exps);
         setTotalSpent(summary.totalSpent);
@@ -283,7 +286,8 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const invoicePill = (inv: InvoiceItem) => { const amount = formatCurrency(inv.totalAmount); return inv.status === 'PAID' ? <span className="rounded-full bg-[#e6f3ec] px-3 py-1 font-semibold text-[#227052]">ชำระแล้ว {amount}</span> : inv.status === 'DRAFT' ? <span className="rounded-full bg-[#eeebe3] px-3 py-1 font-semibold">ร่าง {amount}</span> : <span className="rounded-full bg-[#fbf3e0] px-3 py-1 font-semibold text-[#6b4f0b]">รอชำระ {amount}</span>; };
   const expenseState = (e: ExpenseItem) => e.writtenOffAt ? <span className="text-muted-foreground">ตัดทิ้ง</span> : e.status === ExpenseStatus.PAID ? <span className="text-[#227052]">จ่ายแล้ว</span> : e.status === ExpenseStatus.APPROVED ? <span className="text-[#227052]">อนุมัติแล้ว</span> : e.status === ExpenseStatus.REJECTED ? <span className="text-[#a83232]">ไม่อนุมัติ</span> : e.status === ExpenseStatus.PENDING ? <span className="text-[#6b4f0b]">รออนุมัติ</span> : <span className="text-muted-foreground">ร่าง</span>;
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {canWriteOff && token && <CaseFeeSection token={token} caseId={id} caseTypeId={caseTypeId} invoices={invoices} receipts={receipts} onChanged={load} />}
       <div className="grid gap-4 md:grid-cols-4">
         <div className={`${card} p-5`}><div className={label}>ค่าวิชาชีพที่ตกลง</div><div className="text-2xl font-bold">{agreedFee != null ? formatCurrency(agreedFee) : <span className="text-base font-semibold text-muted-foreground">ยังไม่ได้ระบุ</span>}</div></div>
         <div className={`${card} p-5`}><div className={label}>ออกใบแจ้งหนี้แล้ว</div><div className="text-2xl font-bold">{formatCurrency(issuedTotal)}</div></div>

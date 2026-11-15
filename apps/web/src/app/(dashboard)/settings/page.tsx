@@ -462,6 +462,7 @@ function SettingsContent() {
             </Card>
           )}
           {hasFirmCapability(user?.firmRole, 'manageAiConnections') && <AiFirmSettings />}
+          {hasFirmCapability(user?.firmRole, 'manageInvoices') && <Link href="/settings/fee-packages" title="จัดการตารางค่าธรรมเนียมตามประเภทคดี" className="flex min-h-11 items-center gap-3 rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted">ตารางราคากลางค่าวิชาชีพ<ChevronRight className="ml-auto h-4 w-4" /></Link>}
           {hasFirmCapability(user?.firmRole, 'manageInvoices') && <Link href="/settings/document-templates" title="จัดการรูปแบบเอกสาร" className="flex min-h-11 items-center gap-3 rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted">เทมเพลตเอกสาร<ChevronRight className="ml-auto h-4 w-4" /></Link>}
           {<BillingProfileCard canEdit={canSetPrefix} />}
           {canSetPrefix && <CaseNumberPrefixCard />}

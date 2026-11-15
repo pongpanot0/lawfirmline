@@ -291,7 +291,16 @@ export class InvoiceSourceLineDto {
   sortOrder?: number;
 }
 
+export class InvoiceMilestoneLineDto {
+  @IsUUID('4') id!: string;
+  @IsOptional() @Trim() @IsString() @IsNotEmpty() @MaxLength(500) description?: string;
+  @ValidateIf((_object, value) => value !== undefined) @IsInt() @Min(0) @Max(2147483647) sortOrder?: number;
+}
+
 export class CreateInvoiceDto {
+  @IsOptional() @IsArray() @ArrayMaxSize(12) @ValidateNested({ each: true }) @Type(() => InvoiceMilestoneLineDto)
+  milestoneLines?: InvoiceMilestoneLineDto[];
+
   /** เทมเพลตใบแจ้งหนี้ที่เลือกในหน้าออกใบ — ว่างได้ (ใช้ค่าตั้งต้นตอนส่ง) */
   @IsOptional()
   @IsUUID('4', { message: 'เลือกเทมเพลตที่ถูกต้อง' })

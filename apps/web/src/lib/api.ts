@@ -4820,6 +4820,7 @@ export interface InvoiceDraft {
 }
 
 export interface CreateInvoiceInput {
+  milestoneLines?: { id: string; description?: string; sortOrder?: number }[];
   templateId?: string;
   lineItems?: { description: string; quantity: number; unitPrice: number; taxClass?: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT'; sortOrder?: number }[];
   timeEntryLines?: { id: string; description?: string; taxClass?: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT'; sortOrder?: number }[];

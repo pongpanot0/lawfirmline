@@ -444,6 +444,9 @@ enum ClosingEmailRecipientKind {
 }
 
 model Firm {
+  feePackages FeePackage[]
+  caseFees CaseFee[]
+  feeMilestones CaseFeeMilestone[]
   legalName      String?
   taxId          String?
   taxBranch      String?
@@ -905,6 +908,7 @@ model DeviceToken {
 }
 
 model CaseType {
+  feePackages FeePackage[]
   id                String   @id @default(uuid())
   firmId            String
   name              String
@@ -1073,6 +1077,8 @@ model Court {
 }
 
 model Case {
+  fee CaseFee?
+  feeMilestones CaseFeeMilestone[]
   id                   String      @id @default(uuid())
   firmId               String
   ownRef               String
@@ -2362,6 +2368,7 @@ enum TaxClass {
 }
 
 model Invoice {
+  feeMilestones CaseFeeMilestone[]
   templateSnapshot Json?
   feeTaxClass TaxClass @default(LITIGATION_EXEMPT)
   vatRate     Float    @default(0.07)
@@ -3586,4 +3593,75 @@ model BillingDocumentTemplate {
   receiptClients Client[] @relation("ClientReceiptTemplate")
 
   @@index([firmId, docType])
+}
+
+model FeePackage {
+  id String @id @default(uuid())
+  firmId String
+  caseTypeId String
+  name String
+  sortOrder Int @default(0)
+  components Json
+  milestones Json
+  feeTaxClass TaxClass @default(LITIGATION_EXEMPT)
+  version Int @default(1)
+  archivedAt DateTime?
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  caseType CaseType @relation(fields: [caseTypeId], references: [id])
+  caseFees CaseFee[]
+  @@index([firmId, caseTypeId])
+}
+
+model CaseFee {
+  id String @id @default(uuid())
+  firmId String
+  caseId String @unique
+  packageId String?
+  packageSnapshot Json?
+  inputs Json?
+  standardAmount Float
+  agreedAmount Float
+  overrideReason String?
+  feeTaxClass TaxClass
+  updatedById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  package FeePackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  milestones CaseFeeMilestone[]
+}
+
+enum MilestoneStatus {
+  PENDING
+  INVOICED
+  PARTIAL
+  WAIVED
+}
+
+model CaseFeeMilestone {
+  id String @id @default(uuid())
+  firmId String
+  caseId String
+  caseFeeId String
+  label String
+  stage CaseStage
+  percent Float
+  amount Float
+  sortOrder Int
+  status MilestoneStatus @default(PENDING)
+  invoiceId String?
+  reachedAt DateTime?
+  notifiedAt DateTime?
+  closeAmount Float?
+  closeReason String?
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseFee CaseFee @relation(fields: [caseFeeId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  @@index([firmId, status])
+  @@index([caseId])
 }
