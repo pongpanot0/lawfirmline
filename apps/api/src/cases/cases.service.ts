@@ -1,3 +1,4 @@
+import { settledAmount } from '../billing/settlement';
 import { customFieldFilter } from '../custom-fields/custom-field-filter';
 import { mergeCustomFieldPatch, redactCustomFields } from '../custom-fields/custom-field-rules';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
@@ -1218,12 +1219,12 @@ export class CasesService {
       }),
       this.prisma.invoice.findMany({
         where: { caseId: id, firmId: user.firmId, status: { in: ['SENT', 'DRAFT'] } },
-        select: { status: true, totalAmount: true, payments: { select: { amount: true } } },
+        select: { status: true, totalAmount: true, payments: { select: { amount: true, whtAmount: true, clearedAt: true } } },
       }),
     ]);
     const round = (amount: number) => Math.round(amount * 100) / 100;
     const unpaidAmounts = invoices.filter(invoice => invoice.status === 'SENT')
-      .map(invoice => round(invoice.totalAmount - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0)))
+      .map(invoice => round(invoice.totalAmount - settledAmount(invoice.payments)))
       .filter(amount => amount > 0);
     const draftCount = invoices.filter(invoice => invoice.status === 'DRAFT').length;
 

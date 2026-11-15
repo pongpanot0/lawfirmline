@@ -27,7 +27,7 @@ import {
   MONEY_MAX,
   MONEY_MIN,
 } from '@lawfirm/shared';
-import { PaymentMethod } from '../../generated/prisma';
+import { PaymentMethod, TaxClass } from '../../generated/prisma';
 
 /** Trim incoming strings so "   " does not pass @IsNotEmpty. */
 const Trim = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
@@ -223,6 +223,10 @@ export class SubmitExpensesDto {
 }
 
 export class InvoiceLineItemDto {
+  @IsOptional()
+  @IsEnum(TaxClass, { message: 'เลือกประเภทภาษีที่ถูกต้อง' })
+  taxClass?: TaxClass;
+
   @Trim()
   @IsString()
   @IsNotEmpty()
@@ -258,6 +262,10 @@ export class SetExpenseBillableDto {
 }
 
 export class CreateInvoiceDto {
+  @IsOptional()
+  @IsEnum(TaxClass, { message: 'เลือกประเภทภาษีค่าบริการที่ถูกต้อง' })
+  feeTaxClass?: TaxClass;
+
   @IsOptional()
   @IsString()
   invoiceNumber?: string;
@@ -361,6 +369,24 @@ export class ConfirmTimeEntriesDto {
 
 export class RecordPaymentDto {
   @ValidateIf((_object, value) => value !== undefined)
+  @IsNumber(money, { message: 'ระบุภาษีหัก ณ ที่จ่ายเป็นตัวเลขไม่เกิน 2 ตำแหน่ง' })
+  @Min(0, { message: 'ภาษีหัก ณ ที่จ่ายต้องไม่ติดลบ' })
+  @Max(MONEY_MAX, { message: 'ภาษีหัก ณ ที่จ่ายเกินวงเงิน กรุณาลดยอด' })
+  whtAmount?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ระบุอัตราภาษีเป็นตัวเลข เช่น 0.03' })
+  @Min(0, { message: 'อัตราภาษีต้องไม่ติดลบ' })
+  @Max(1, { message: 'ระบุอัตราภาษีไม่เกิน 1 เช่น 0.03' })
+  whtRate?: number | null;
+
+  @IsOptional()
+  @Trim()
+  @IsString({ message: 'ระบุเลขหนังสือรับรองเป็นข้อความ' })
+  @MaxLength(120, { message: 'เลขหนังสือรับรองต้องไม่เกิน 120 ตัวอักษร' })
+  whtCertificateNo?: string | null;
+
+  @ValidateIf((_object, value) => value !== undefined)
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
@@ -424,4 +450,46 @@ export class SetInvoiceDiscountDto {
   @IsString()
   @MaxLength(500)
   discountReason?: string;
+}
+
+export class ClearChequeDto {
+  @IsDateString({ strict: true }, { message: 'ระบุวันที่เช็คผ่านที่ถูกต้อง' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'ระบุวันที่เช็คผ่านเป็น YYYY-MM-DD' })
+  clearedAt!: string;
+}
+
+export class VoidReceiptDto {
+  @Trim()
+  @IsString({ message: 'ระบุเหตุผลยกเลิก' })
+  @IsNotEmpty({ message: 'ระบุเหตุผลยกเลิก' })
+  @MaxLength(500, { message: 'เหตุผลต้องไม่เกิน 500 ตัวอักษร' })
+  reason!: string;
+}
+
+export class BillingProfileDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @Trim()
+  @IsString({ message: 'ระบุชื่อจดทะเบียนเป็นข้อความ' })
+  @MaxLength(500, { message: 'ชื่อต้องไม่เกิน 500 ตัวอักษร' })
+  legalName?: string;
+
+  @ValidateIf((_object, value) => value !== undefined && value !== '')
+  @Matches(/^\d{13}$/, { message: 'ระบุเลขประจำตัวผู้เสียภาษี 13 หลัก' })
+  taxId?: string;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @Trim()
+  @IsString({ message: 'ระบุรหัสสาขาเป็นข้อความ' })
+  @MaxLength(20, { message: 'รหัสสาขาต้องไม่เกิน 20 ตัวอักษร' })
+  taxBranch?: string;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @Trim()
+  @IsString({ message: 'ระบุที่อยู่ออกบิลเป็นข้อความ' })
+  @MaxLength(2000, { message: 'ที่อยู่ต้องไม่เกิน 2000 ตัวอักษร' })
+  billingAddress?: string;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean({ message: 'เลือกสถานะจดทะเบียน VAT เป็น true หรือ false' })
+  vatRegistered?: boolean;
 }

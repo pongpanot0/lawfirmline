@@ -12,7 +12,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { allocateShares } from '@/lib/invoice-split';
-import { buildBillingDocHtml, openBillingDocWindow } from '@/lib/billing-doc';
+import { buildBillingDocHtml, invoiceFirmData, openBillingDocWindow } from '@/lib/billing-doc';
 import { hasFirmCapability, MONEY_MAX } from '@lawfirm/shared';
 import { formatCurrency } from '@/lib/utils';
 import { InlineEmptyState } from '@/components/ui/misc';
@@ -80,16 +80,18 @@ export function InvoicePanel({
   const handlePrint = async (invoiceId: string, kind: 'INVOICE' | 'RECEIPT') => {
     if (!token) return;
     setError('');
+    const win = window.open('', '_blank');
+    if (!win) { setError('เปิดหน้าพิมพ์ไม่ได้ ให้อนุญาตป๊อปอัปแล้วลองใหม่อีกครั้ง'); return; }
     try {
       const data = await api.getInvoicePrintData(token, invoiceId);
+      const firm = await invoiceFirmData(token);
       const lines = [
-        ...data.lineItems.map((l) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, amount: l.amount })),
-        ...data.timeEntries.map((t) => ({ description: t.description || 'ค่าทนายความ (ตามเวลา)', quantity: t.hours, unitPrice: t.rate, amount: t.amount })),
-        ...data.expenses.map((e) => ({ description: e.description, quantity: 1, unitPrice: e.amount, amount: e.amount })),
+        ...data.lineItems.map((l) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, amount: l.amount, taxClass: l.taxClass })),
       ];
       const ok = openBillingDocWindow(
         buildBillingDocHtml({
           kind,
+          ...firm,
           firmName: user?.firmName ?? '',
           invoiceNumber: data.invoiceNumber,
           issuedAt: data.issuedAt,
@@ -100,10 +102,11 @@ export function InvoicePanel({
           totalAmount: data.totalAmount,
           discountAmount: data.discountAmount,
           discountReason: data.discountReason,
-        }),
+        }), win,
       );
       if (!ok) setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาตป๊อปอัปของเว็บไซต์นี้ในเบราว์เซอร์');
     } catch {
+      win.close();
       setError('โหลดข้อมูลใบแจ้งหนี้ไม่สำเร็จ กรุณาลองใหม่');
     }
   };
@@ -548,10 +551,10 @@ export function InvoicePanel({
               </div>
               <button
                 type="button"
-                onClick={() => void handlePrint(inv.id, inv.status === 'PAID' ? 'RECEIPT' : 'INVOICE')}
+                onClick={() => void handlePrint(inv.id, 'INVOICE')}
                 className="min-h-11 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent sm:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {inv.status === 'PAID' ? 'พิมพ์ใบเสร็จ' : 'พิมพ์ใบแจ้งหนี้'}
+                พิมพ์ใบแจ้งหนี้
               </button>
               {canDiscount && inv.status === 'DRAFT' && editingDiscountId !== inv.id && (
                 <button

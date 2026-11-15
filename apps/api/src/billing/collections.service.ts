@@ -2,7 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenEx
 import { AuthUser, FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { InvoiceStatus, Invoice, InvoicePayment, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
-import { CollectionFollowUpDto, RecordPaymentDto } from './dto/billing.dto';
+import { CollectionFollowUpDto, RecordPaymentDto, ClearChequeDto } from './dto/billing.dto';
 import { agingBucket, daysOverdue, summarizeBuckets } from './receivables';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { ContactNotificationPreferenceService } from '../notifications/contact-notification-preference.service';
@@ -10,13 +10,16 @@ import { bangkokMonthOf, monthRange } from '../operations/owner-kpis';
 import { unbilledExpenseWhere, unbilledTimeWhere } from './unbilled';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 
+import { settledAmount } from './settlement';
+import { issueReceipt } from './receipts.service';
+
 const round = (n: number) => Math.round(n * 100) / 100;
 const DAY_MS = 86400000;
 const INVOICE_INCLUDE = {
   payments: true,
-  billToCustomer: { select: { name: true } },
+  billToCustomer: { select: { name: true, type: true } },
   intake: { select: { title: true, clientName: true } },
-  case: { select: { ownRef: true, title: true, clientName: true, client: { select: { name: true } } } },
+  case: { select: { ownRef: true, title: true, clientName: true, client: { select: { name: true, type: true } } } },
   collectionOwner: { select: { id: true, firstName: true, lastName: true } },
 } as const;
 
@@ -35,11 +38,12 @@ export class CollectionsService {
   }
 
   private row(invoice: Prisma.InvoiceGetPayload<{ include: typeof INVOICE_INCLUDE }>, today: Date) {
-    const paidAmount = round(invoice.payments.reduce((sum, p) => sum + p.amount, 0));
+    const paidAmount = round(settledAmount(invoice.payments));
     const days = daysOverdue(invoice.dueAt, today);
     return {
       id: invoice.id, invoiceNumber: invoice.invoiceNumber, status: invoice.status,
       customerName: invoice.billToCustomer?.name ?? invoice.case?.client?.name ?? invoice.case?.clientName ?? invoice.intake?.clientName ?? null,
+      clientType: invoice.billToCustomer?.type ?? invoice.case?.client?.type ?? null,
       caseId: invoice.caseId, caseRef: invoice.case?.ownRef ?? null,
       subject: invoice.case?.title ?? invoice.intake?.title ?? 'ใบแจ้งหนี้สำนักงาน',
       totalAmount: invoice.totalAmount, paidAmount, outstanding: round(invoice.totalAmount - paidAmount),
@@ -48,6 +52,10 @@ export class CollectionsService {
       collectionOwner: invoice.collectionOwner ?? null,
       collectionNextAt: invoice.collectionNextAt?.toISOString().slice(0, 10) ?? null,
       collectionNote: invoice.collectionNote ?? null, updatedAt: invoice.updatedAt?.toISOString() ?? null,
+      // เช็คที่ยังไม่ผ่าน — hub แสดง "เช็ครอเคลียร์" โดยไม่ต้องดึงรายการรับเงินทีละใบ
+      pendingCheques: invoice.payments
+        .filter(p => p.clearedAt == null)
+        .map(p => ({ id: p.id, amount: p.amount, whtAmount: p.whtAmount, receivedAt: p.receivedAt.toISOString().slice(0, 10) })),
     };
   }
 
@@ -72,7 +80,7 @@ export class CollectionsService {
     // ponytail: full worklists suit a small office; paginate rows separately from totals when volume grows.
     const [invoices, payments, timeEntries, expenses, payable] = await Promise.all([
       this.prisma.invoice.findMany({ where: { firmId: user.firmId }, include: INVOICE_INCLUDE, orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }] }),
-      this.prisma.invoicePayment.findMany({ where: { firmId: user.firmId, receivedAt: { gte: start, lt: end } },
+      this.prisma.invoicePayment.findMany({ where: { firmId: user.firmId, clearedAt: { gte: start, lt: end } },
         include: { invoice: { select: { invoiceNumber: true } } }, orderBy: [{ receivedAt: 'desc' }, { id: 'asc' }] }),
       this.prisma.timeEntry.findMany({ where: { ...unbilledTimeWhere(), case: { firmId: user.firmId, deletedAt: null } },
         include: { case: { select: caseSelect } }, orderBy: { date: 'asc' } }),
@@ -109,7 +117,7 @@ export class CollectionsService {
     const drafts = rows.filter(row => row.status === InvoiceStatus.DRAFT);
     return {
       month: resolvedMonth,
-      totals: { received: round(payments.reduce((sum, payment) => sum + payment.amount, 0)),
+      totals: { received: settledAmount(payments),
         billed: round(billed.reduce((sum, row) => sum + row.totalAmount, 0)),
         unbilled: round(unbilled.reduce((sum, group) => sum + group.amount, 0) + drafts.reduce((sum, row) => sum + row.totalAmount, 0)),
         payable: round(payable.reduce((sum, expense) => sum + expense.amount, 0)),
@@ -157,8 +165,12 @@ export class CollectionsService {
     user: AuthUser,
     invoiceId: string,
     dto: RecordPaymentDto,
-  ): Promise<{ invoice: Invoice; payment: InvoicePayment; outstanding: number }> {
+  ) {
     this.owner(user);
+    const whtAmount = dto.whtAmount ?? 0;
+    if (!Number.isFinite(dto.amount) || dto.amount <= 0 || !Number.isFinite(whtAmount) || whtAmount < 0) {
+      throw new BadRequestException('ระบุยอดรับมากกว่า 0 และภาษีหัก ณ ที่จ่ายไม่ติดลบ');
+    }
     const receivedAt = new Date(dto.receivedAt);
     if (Number.isNaN(receivedAt.getTime()) || bangkokDayKey(receivedAt) > bangkokDayKey(new Date())) {
       throw new BadRequestException('วันที่รับเงินต้องเป็นวันที่รับจริงและไม่อยู่ในอนาคต');
@@ -173,12 +185,12 @@ export class CollectionsService {
       });
       if (!invoice) throw new NotFoundException('Invoice not found');
       if (dto.createRequestId) {
-        const existing = await tx.invoicePayment.findUnique({ where: { firmId_createRequestId: { firmId: user.firmId, createRequestId: dto.createRequestId } } });
+        const existing = await tx.invoicePayment.findUnique({ where: { firmId_createRequestId: { firmId: user.firmId, createRequestId: dto.createRequestId } }, include: { receipts: { where: { voidedAt: null } } } });
         if (existing) {
-          if (existing.invoiceId !== invoiceId || existing.amount !== dto.amount || existing.receivedAt.toISOString().slice(0, 10) !== receivedAt.toISOString().slice(0, 10) || existing.method !== (dto.method ?? 'TRANSFER') || (existing.note ?? '') !== (dto.note ?? '')) {
+          if (existing.invoiceId !== invoiceId || existing.amount !== dto.amount || existing.receivedAt.toISOString().slice(0, 10) !== receivedAt.toISOString().slice(0, 10) || existing.method !== (dto.method ?? 'TRANSFER') || (existing.note ?? '') !== (dto.note ?? '') || existing.whtAmount !== whtAmount || existing.whtRate !== (dto.whtRate ?? null) || (existing.whtCertificateNo ?? '') !== (dto.whtCertificateNo ?? '')) {
             throw new ConflictException('รายการรับเงินนี้ถูกบันทึกไปแล้วด้วยข้อมูลอื่น ตรวจประวัติรับเงินก่อนบันทึกซ้ำ');
           }
-          return { invoice, payment: existing, outstanding: round(invoice.totalAmount - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0)) };
+          return { invoice, payment: existing, receipt: existing.receipts[0] ?? null, outstanding: round(invoice.totalAmount - settledAmount(invoice.payments)) };
         }
       }
       if (invoice.status === InvoiceStatus.DRAFT) {
@@ -187,16 +199,20 @@ export class CollectionsService {
       if (invoice.status === InvoiceStatus.PAID) {
         throw new BadRequestException('ใบแจ้งหนี้นี้ชำระครบแล้ว');
       }
-      const paidSoFar = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
+      const paidSoFar = settledAmount(invoice.payments);
       const outstandingBefore = round(invoice.totalAmount - paidSoFar);
-      if (dto.amount > outstandingBefore + 0.005) {
-        throw new BadRequestException('ยอดรับเกินยอดค้าง');
+      if (round(dto.amount + whtAmount) > outstandingBefore) {
+        throw new BadRequestException('ยอดรับรวมภาษีหัก ณ ที่จ่ายเกินยอดค้าง กรุณาลดยอด');
       }
       const payment = await tx.invoicePayment.create({
         data: {
           firmId: user.firmId,
           invoiceId,
           amount: dto.amount,
+          whtAmount,
+          whtRate: dto.whtRate,
+          whtCertificateNo: dto.whtCertificateNo,
+          clearedAt: dto.method === 'CHEQUE' ? null : receivedAt,
           method: dto.method,
           receivedAt,
           createRequestId: dto.createRequestId,
@@ -204,18 +220,45 @@ export class CollectionsService {
           recordedById: user.id,
         },
       });
-      const outstanding = round(outstandingBefore - dto.amount);
-      // Not flipping to PAID: `invoice` here is the pre-payment row (its
-      // `.payments` doesn't include the one just created). Callers wanting
-      // the new payment already get it back separately as `payment`.
+      const receipt = dto.method === 'CHEQUE' ? null : await issueReceipt(tx, user.firmId, invoice, payment, receivedAt);
+      const outstanding = round(outstandingBefore - (dto.method === 'CHEQUE' ? 0 : dto.amount + whtAmount));
       const updatedInvoice: Invoice =
         outstanding <= 0.005
-          ? await tx.invoice.update({ where: { id: invoiceId }, data: { status: InvoiceStatus.PAID } })
+          ? await tx.invoice.update({ where: { id: invoiceId, firmId: user.firmId }, data: { status: InvoiceStatus.PAID } })
           : invoice;
-      return { invoice: updatedInvoice, payment, outstanding };
+      return { invoice: updatedInvoice, payment, receipt, outstanding };
     }).catch(error => {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('รายการรับเงินนี้ถูกบันทึกไปแล้ว ตรวจประวัติรับเงิน');
       throw error;
+    });
+  }
+
+  async clearCheque(user: AuthUser, invoiceId: string, paymentId: string, dto: ClearChequeDto) {
+    this.owner(user);
+    const clearedAt = new Date(dto.clearedAt);
+    if (Number.isNaN(clearedAt.getTime()) || bangkokDayKey(clearedAt) > bangkokDayKey(new Date())) {
+      throw new BadRequestException('ระบุวันที่เช็คผ่านไม่เกินวันนี้');
+    }
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id" = ${invoiceId} AND "firmId" = ${user.firmId} FOR UPDATE`;
+      const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, firmId: user.firmId }, include: { payments: true } });
+      if (!invoice) throw new NotFoundException('ไม่พบใบแจ้งหนี้');
+      const payment = await tx.invoicePayment.findFirst({ where: { id: paymentId, invoiceId, firmId: user.firmId }, include: { receipts: { where: { voidedAt: null } } } });
+      if (!payment) throw new NotFoundException('ไม่พบรายการรับเงิน');
+      if (payment.method !== 'CHEQUE') throw new BadRequestException('เลือกรายการรับเงินด้วยเช็ค');
+      if (clearedAt < payment.receivedAt) throw new BadRequestException('วันที่เช็คผ่านต้องไม่ก่อนวันที่รับเช็ค');
+      const outstandingBefore = round(invoice.totalAmount - settledAmount(invoice.payments));
+      if (payment.clearedAt) {
+        if (payment.clearedAt.getTime() !== clearedAt.getTime()) throw new ConflictException('เช็คผ่านแล้ว กรุณาใช้วันที่เดิม');
+        return { payment, receipt: payment.receipts[0] ?? null, outstanding: outstandingBefore };
+      }
+      const settled = round(payment.amount + payment.whtAmount);
+      if (settled > outstandingBefore) throw new BadRequestException('ยอดเช็ครวมภาษีเกินยอดค้าง กรุณาตรวจรายการรับเงิน');
+      const updated = await tx.invoicePayment.update({ where: { id: paymentId, firmId: user.firmId, invoiceId }, data: { clearedAt } });
+      const receipt = await issueReceipt(tx, user.firmId, invoice, updated, clearedAt);
+      const outstanding = round(outstandingBefore - settled);
+      if (outstanding <= 0.005) await tx.invoice.update({ where: { id: invoiceId, firmId: user.firmId }, data: { status: InvoiceStatus.PAID } });
+      return { payment: updated, receipt, outstanding };
     });
   }
 
@@ -223,7 +266,7 @@ export class CollectionsService {
     this.owner(user);
     const invoice = await this.prisma.invoice.findFirst({ where: { id: invoiceId, firmId: user.firmId } });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    return this.prisma.invoicePayment.findMany({ where: { invoiceId }, orderBy: { receivedAt: 'desc' } });
+    return this.prisma.invoicePayment.findMany({ where: { invoiceId, firmId: user.firmId }, orderBy: { receivedAt: 'desc' } });
   }
 
   async getReceivables(user: AuthUser, today: Date = new Date(), caseFilter?: Prisma.CaseWhereInput) {
@@ -253,7 +296,7 @@ export class CollectionsService {
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
 
-    const paidSoFar = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
+    const paidSoFar = settledAmount(invoice.payments);
     const outstanding = round(invoice.totalAmount - paidSoFar);
     if (invoice.status !== InvoiceStatus.SENT || outstanding <= 0.005) {
       throw new BadRequestException('ต้องส่งใบแจ้งหนี้และมียอดค้างชำระก่อนทวงได้');

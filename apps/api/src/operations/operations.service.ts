@@ -1,3 +1,4 @@
+import { settledAmount } from '../billing/settlement';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, AssignmentType, CaseStatus, Role, TaskStatus } from '@lawfirm/shared';
 import { InvoiceStatus, Prisma } from '../generated/prisma';
@@ -464,11 +465,11 @@ export class OperationsService {
           issuedAt: true,
           totalAmount: true,
           case: { select: { leadLawyerId: true } },
-          payments: { select: { amount: true } },
+          payments: { select: { amount: true, whtAmount: true, clearedAt: true } },
         },
       }),
-      this.prisma.invoicePayment.aggregate({ _sum: { amount: true }, where: { firmId, receivedAt: { gte: start, lt: end } } }),
-      this.prisma.invoicePayment.aggregate({ _sum: { amount: true }, where: { firmId, receivedAt: { gte: prevStart, lt: start } } }),
+      this.prisma.invoicePayment.aggregate({ _sum: { amount: true, whtAmount: true }, where: { firmId, clearedAt: { gte: start, lt: end } } }),
+      this.prisma.invoicePayment.aggregate({ _sum: { amount: true, whtAmount: true }, where: { firmId, clearedAt: { gte: prevStart, lt: start } } }),
       this.prisma.case.findMany({
         where: { firmId, deletedAt: null, status: { notIn: [CaseStatus.CLOSED, CaseStatus.ARCHIVED] } },
         select: { leadLawyerId: true, stage: true, stageChangedAt: true, createdAt: true },
@@ -486,7 +487,7 @@ export class OperationsService {
     const unbilledHours = round(timeEntries.reduce((sum, e) => sum + e.hours, 0));
 
     const billedInvoices = invoices.filter((inv) => inv.issuedAt && inv.issuedAt >= yearAgo);
-    const paidOf = (inv: (typeof invoices)[number]) => inv.payments.reduce((sum, p) => sum + p.amount, 0);
+    const paidOf = (inv: (typeof invoices)[number]) => settledAmount(inv.payments);
     const billed = round(billedInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0));
     const collected = round(billedInvoices.reduce((sum, inv) => sum + paidOf(inv), 0));
 
@@ -537,8 +538,8 @@ export class OperationsService {
       collectionRate: { value: collectionRate(billed, collected), target: 0.95 as const, billed, collected },
       avgDaysOutstanding,
       revenue: {
-        month: round(revenueAgg._sum.amount ?? 0),
-        previousMonth: round(prevRevenueAgg._sum.amount ?? 0),
+        month: round((revenueAgg._sum.amount ?? 0) + (revenueAgg._sum.whtAmount ?? 0)),
+        previousMonth: round((prevRevenueAgg._sum.amount ?? 0) + (prevRevenueAgg._sum.whtAmount ?? 0)),
       },
       byLawyer,
       stuckByStage: stuckByStage(openCases, sla.stuckStatusDays, now),

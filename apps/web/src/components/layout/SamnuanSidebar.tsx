@@ -65,13 +65,13 @@ const NAV_ITEMS = [
   { href: '/timesheet', labelKey: 'timesheet' as const, icon: Clock, group: 'work', children: [] as const },
   { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, group: 'work', children: [] as const },
   { href: '/getting-started', labelKey: 'gettingStarted' as const, icon: Flag, capability: 'manageFirmContent' as const, group: 'firm', children: [] as const },
+  { href: '/invoices', labelKey: 'invoices' as const, icon: Receipt, capability: 'manageInvoices' as const, group: 'firm', children: [] as const },
   {
     href: '/expenses',
     labelKey: 'expenses' as const,
     icon: Receipt,
     group: 'firm',
     children: [
-      { href: '/invoices', labelKey: 'invoices' as const, icon: Receipt, capability: 'manageInvoices' as const },
       { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, capability: 'viewFirmReports' as const },
     ],
   },

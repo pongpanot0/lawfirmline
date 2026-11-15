@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { CreateExpenseDto, CreateStandaloneExpenseDto, ReturnCashAdvanceDto, SettleCashAdvanceDto,
-  CashAdvanceReconciliationDto, UpdateExpenseReceiptNoDto } from './billing.dto';
+  CashAdvanceReconciliationDto, UpdateExpenseReceiptNoDto, RecordPaymentDto, ClearChequeDto, VoidReceiptDto, BillingProfileDto } from './billing.dto';
 
 describe('Cash advance and receipt DTOs', () => {
   it.each([CreateExpenseDto, CreateStandaloneExpenseDto])('accepts and trims optional officialReceiptNo on %p', async (Dto) => {
@@ -50,5 +50,24 @@ describe('Cash advance and receipt DTOs', () => {
   it('rejects an unknown reconciliation status', async () => {
     expect((await validate(plainToInstance(CashAdvanceReconciliationDto, { status: 'other' })))
       .some((error) => error.property === 'status')).toBe(true);
+  });
+});
+
+describe('round 1 billing input validation', () => {
+  it.each([-1, 1.001, null, '3000', Infinity])('rejects invalid WHT %s', async whtAmount => {
+    const errors = await validate(plainToInstance(RecordPaymentDto, { amount: 97000, whtAmount, receivedAt: '2026-11-01' }));
+    expect(errors.some(e => e.property === 'whtAmount')).toBe(true);
+  });
+  it('accepts a nullable optional WHT rate and certificate with a nonnegative amount', async () => {
+    expect(await validate(plainToInstance(RecordPaymentDto, { amount: 97000, whtAmount: 3000, whtRate: null, whtCertificateNo: null, receivedAt: '2026-11-01' }))).toEqual([]);
+  });
+  it.each(['2026-02-30', '2026-11-01T12:00:00Z', 'invalid'])('rejects an invalid clearing day %s', async clearedAt => {
+    expect((await validate(plainToInstance(ClearChequeDto, { clearedAt }))).length).toBeGreaterThan(0);
+  });
+  it.each([' ', 'x'.repeat(501)])('rejects a blank or oversized void reason', async reason => {
+    expect((await validate(plainToInstance(VoidReceiptDto, { reason }))).length).toBeGreaterThan(0);
+  });
+  it.each([{ taxId: '123' }, { vatRegistered: null }, { legalName: null }, { billingAddress: null }])('rejects an invalid billing profile %p', async profile => {
+    expect((await validate(plainToInstance(BillingProfileDto, profile))).length).toBeGreaterThan(0);
   });
 });

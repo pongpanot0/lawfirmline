@@ -9,6 +9,7 @@ import { api, ApiError, LineIntegrationStatus, LinePersonalStatus, NotificationP
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { MfaToggle } from '@/components/settings/MfaToggle';
 import { SessionsPanel } from '@/components/settings/SessionsPanel';
+import { BillingProfileCard } from '@/components/billing/BillingProfileCard';
 import { CaseNumberPrefixCard } from '@/components/settings/CaseNumberPrefixCard';
 import { AiConnectionsSection } from '@/components/settings/AiConnectionsSection';
 import { AiFirmSettings } from '@/components/settings/AiFirmSettings';
@@ -461,6 +462,7 @@ function SettingsContent() {
             </Card>
           )}
           {hasFirmCapability(user?.firmRole, 'manageAiConnections') && <AiFirmSettings />}
+          {<BillingProfileCard canEdit={canSetPrefix} />}
           {canSetPrefix && <CaseNumberPrefixCard />}
         </div>
       )}

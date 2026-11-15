@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import { ReceiptsService } from './receipts.service';
 import { BillingService } from './billing.service';
 import { CashAdvanceService } from './cash-advance.service';
 import { CollectionsService } from './collections.service';
@@ -35,6 +36,8 @@ import {
   CashAdvanceReconciliationDto,
   UpdateExpenseReceiptNoDto,
   RecordPaymentDto,
+  ClearChequeDto,
+  VoidReceiptDto,
   CollectionFollowUpDto,
   WriteOffDto,
   SetInvoiceDiscountDto,
@@ -61,7 +64,51 @@ export class BillingController {
     private cashAdvanceService: CashAdvanceService,
     private collectionsService: CollectionsService,
     private timeSuggestionsService: TimeSuggestionsService,
+    private receiptsService: ReceiptsService,
   ) {}
+
+  @Post('invoices/:invoiceId/payments/:paymentId/clear')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  clearCheque(@CurrentUser() user: AuthUser, @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string, @Body() dto: ClearChequeDto) {
+    return this.collectionsService.clearCheque(user, invoiceId, paymentId, dto);
+  }
+
+  @Get('receipts')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  listReceipts(@CurrentUser() user: AuthUser, @Query('status') status?: string) {
+    return this.receiptsService.list(user, status);
+  }
+
+  @Get('receipts/:id/print')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  printReceipt(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.receiptsService.print(user, id);
+  }
+
+  @Patch('receipts/:id/sent')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  sendReceipt(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.receiptsService.sent(user, id);
+  }
+
+  @Post('receipts/:id/void')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  voidReceipt(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: VoidReceiptDto) {
+    return this.receiptsService.void(user, id, dto.reason);
+  }
+
+  @Post('receipts/:id/reissue')
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageInvoices')
+  reissueReceipt(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.receiptsService.reissue(user, id);
+  }
 
   @Get('time-entries/default-rate')
   async getDefaultTimeRate(@CurrentUser() user: AuthUser) {

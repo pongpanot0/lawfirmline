@@ -60,7 +60,7 @@ export const dashboardCopy = {
       timesheet: 'บันทึกเวลา',
       documents: 'เอกสาร',
       expenses: 'ค่าใช้จ่าย',
-      invoices: 'ใบแจ้งหนี้',
+      invoices: 'ใบแจ้งหนี้ / ใบเสร็จ',
       reports: 'รายงาน',
       team: 'จัดการทีม',
       operations: 'ภาระงานทีม',

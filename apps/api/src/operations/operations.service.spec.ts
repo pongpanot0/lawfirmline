@@ -128,18 +128,18 @@ describe('OperationsService.getOwnerKpis', () => {
         issuedAt: new Date('2026-09-01'),
         totalAmount: 1000,
         case: { leadLawyerId: 'a' },
-        payments: [{ amount: 400 }],
+        payments: [{ amount: 388, whtAmount: 12, clearedAt: new Date('2026-09-01') }, { amount: 600, whtAmount: 0, clearedAt: null }],
       },
       {
         status: 'PAID',
         issuedAt: new Date('2026-08-01'),
         totalAmount: 2000,
         case: { leadLawyerId: 'a' },
-        payments: [{ amount: 2000 }],
+        payments: [{ amount: 1940, whtAmount: 60, clearedAt: new Date('2026-08-01') }],
       },
     ]);
     mockPrisma.invoicePayment.aggregate
-      .mockResolvedValueOnce({ _sum: { amount: 2400 } }) // this month
+      .mockResolvedValueOnce({ _sum: { amount: 2328, whtAmount: 72 } }) // this month
       .mockResolvedValueOnce({ _sum: { amount: 0 } }); // previous month
     mockPrisma.case.findMany.mockResolvedValue([
       { leadLawyerId: 'a', stage: 'FILING', stageChangedAt: new Date('2026-01-01'), createdAt: new Date('2026-01-01') },

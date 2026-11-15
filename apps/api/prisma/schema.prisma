@@ -444,6 +444,13 @@ enum ClosingEmailRecipientKind {
 }
 
 model Firm {
+  legalName      String?
+  taxId          String?
+  taxBranch      String?
+  billingAddress String?
+  vatRegistered  Boolean @default(false)
+  logoKey        String?
+  receipts       Receipt[]
   standupPromptLogs     StandupPromptLog[]
   dailyStandups         DailyStandup[]
   coachingNotes         CoachingNote[]
@@ -2343,7 +2350,17 @@ model DocumentTemplate {
   @@index([firmId])
 }
 
+enum TaxClass {
+  LITIGATION_EXEMPT
+  ADVISORY_VAT
+  DISBURSEMENT
+}
+
 model Invoice {
+  feeTaxClass TaxClass @default(LITIGATION_EXEMPT)
+  vatRate     Float    @default(0.07)
+  vatAmount   Float    @default(0)
+  receipts    Receipt[]
   id                String        @id @default(uuid())
   firmId            String
   /// ใบแจ้งหนี้ออกได้โดยไม่มีคดี — จากเรื่องที่รับเข้ามา หรือออกเปล่าให้ลูกค้าดูก่อน
@@ -2389,6 +2406,11 @@ model Invoice {
 }
 
 model InvoicePayment {
+  whtAmount        Float     @default(0)
+  whtRate          Float?
+  whtCertificateNo String?
+  clearedAt        DateTime? @db.Date
+  receipts         Receipt[]
   id              String        @id @default(uuid())
   firmId          String
   invoiceId       String
@@ -2480,6 +2502,7 @@ model IntakeClient {
 }
 
 model InvoiceLineItem {
+  taxClass TaxClass @default(LITIGATION_EXEMPT)
   id          String @id @default(uuid())
   invoiceId   String
   description String
@@ -3494,4 +3517,38 @@ model PlanAddOn {
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
 
   @@index([firmId])
+}
+
+model Receipt {
+  id              String   @id @default(uuid())
+  firmId          String
+  invoiceId       String
+  paymentId       String
+  replacesReceiptId String?
+  amountExempt       Float @default(0)
+  amountTaxable      Float @default(0)
+  amountVat          Float @default(0)
+  amountDisbursement Float @default(0)
+  amountReceived     Float @default(0)
+  amountWht          Float @default(0)
+  receiptNumber   String   @unique
+  issuedAt        DateTime @db.Date
+  isTaxInvoice    Boolean
+  firmSnapshot    Json
+  templateVersion String   @default("standard-v1")
+  sentAt          DateTime?
+  voidedAt        DateTime?
+  voidReason      String?
+  voidedById      String?
+  createdAt       DateTime @default(now())
+
+  firm    Firm           @relation(fields: [firmId], references: [id], onDelete: Restrict)
+  invoice Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  payment InvoicePayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  replacesReceipt Receipt? @relation("ReceiptReplacement", fields: [replacesReceiptId], references: [id], onDelete: Restrict)
+  replacements Receipt[] @relation("ReceiptReplacement")
+
+  // One active receipt per payment is enforced by the partial unique index in SQL.
+  @@index([paymentId])
+  @@index([firmId, issuedAt])
 }

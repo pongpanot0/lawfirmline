@@ -32,7 +32,7 @@ describe('ReportsService.getFirmMetrics', () => {
       },
       timeEntry: { findMany: jest.fn().mockResolvedValue(entries) },
       invoice: { findMany: jest.fn().mockResolvedValue(invoices) },
-      invoicePayment: { findMany: jest.fn().mockResolvedValue(payments) },
+      invoicePayment: { findMany: jest.fn().mockResolvedValue(payments.map(p => ({ whtAmount: 0, clearedAt: new Date('2026-11-01'), ...p }))) },
     } as any;
     const suggest = jest.fn().mockResolvedValue(Array.from({ length: suggestPerDay }));
     const svc = new ReportsService(prisma, {} as any, { suggest } as any);
@@ -78,7 +78,7 @@ describe('ReportsService.getFirmMetrics', () => {
         { id: 'm2', splitGroupId: 'g', totalAmount: 40 },
         { id: 's', splitGroupId: null, totalAmount: 100 },
       ],
-      [{ invoiceId: 'm2', amount: 60 }, { invoiceId: 's', amount: 50 }],
+      [{ invoiceId: 'm2', amount: 58, whtAmount: 2 }, { invoiceId: 's', amount: 50 }, { invoiceId: 's', amount: 50, clearedAt: null }],
     );
     const r = await svc.getFirmMetrics(owner, 'this_month', NOW);
     const a = r.members.find((m: any) => m.userId === 'a')!;

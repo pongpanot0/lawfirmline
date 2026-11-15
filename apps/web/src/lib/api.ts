@@ -1191,10 +1191,13 @@ export interface FirmInvoiceItem {
   intakeId?: string | null;
   createdAt?: string;
   customerName?: string;
+  clientType?: 'COMPANY' | 'INDIVIDUAL' | null;
   subject?: string;
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+  outstanding: number;
+  paidAmount: number;
   issuedAt?: string | null;
   dueAt?: string | null;
   ownRef: string;
@@ -1209,6 +1212,10 @@ export interface InvoicePaymentItem {
   note?: string | null;
   recordedById: string;
   createdAt: string;
+  clearedAt: string | null;
+  whtAmount: number;
+  whtRate: number | null;
+  whtCertificateNo: string | null;
 }
 
 export interface RecordInvoicePaymentInput {
@@ -1216,12 +1223,45 @@ export interface RecordInvoicePaymentInput {
   method?: 'TRANSFER' | 'CHEQUE' | 'CASH' | 'OTHER';
   receivedAt: string;
   note?: string;
+  createRequestId?: string;
+  whtAmount?: number;
+  whtRate?: number | null;
+  whtCertificateNo?: string;
 }
 
 export interface RecordInvoicePaymentResult {
   invoice: FirmInvoiceItem;
   payment: InvoicePaymentItem;
+  receipt: ReceiptItem | null;
   outstanding: number;
+}
+
+export interface ReceiptItem {
+  id: string;
+  invoiceId: string;
+  receiptNumber: string;
+  invoiceNumber: string;
+  customerName: string | null;
+  issuedAt: string;
+  amount: number;
+  whtAmount: number;
+  sentAt: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  isTaxInvoice: boolean;
+  replacesReceiptId: string | null;
+}
+
+export interface BillingProfile { legalName: string | null; taxId: string | null; taxBranch: string | null; billingAddress: string | null; vatRegistered: boolean; logoKey: string | null }
+export interface ReceiptPrintData extends ReceiptItem {
+  isTaxInvoice: boolean;
+  /** ยอดคงค้าง ณ วันที่ออกใบเสร็จนี้ — ไม่เปลี่ยนเมื่อพิมพ์ซ้ำ */
+  outstandingAfter?: number;
+  firmSnapshot: { legalName: string | null; taxId: string | null; taxBranch: string | null; address: string | null; logoKey: string | null };
+  customer: InvoicePrintData['billToCustomer'];
+  payment: InvoicePaymentItem;
+  invoice: { invoiceNumber: string; totalAmount: number; lineItems: Array<{ description: string; quantity: number; unitPrice: number; amount: number; taxClass: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT' }>; case: { ownRef: string; title: string } | null; intake: { title: string | null } | null };
+  totals: { amountExempt: number; amountTaxable: number; amountVat: number; amountDisbursement: number; amountReceived: number; amountWht: number; totalAmount: number; discountAmount: number; vatAmount: number; vatRate: number; amount: number; whtAmount: number };
 }
 
 export interface ReceivablesRow {
@@ -1238,6 +1278,7 @@ export interface ReceivablesRow {
   daysOverdue: number;
   bucket: '0-30' | '31-60' | '61-90' | '90+';
   lastReminderAt: string | null;
+  pendingCheques: { id: string; amount: number; whtAmount: number; receivedAt: string }[];
 }
 
 export interface ReceivablesResult {
@@ -2250,6 +2291,18 @@ export const api = {
 
   getInvoicePayments: (token: string, invoiceId: string) =>
     request<InvoicePaymentItem[]>(`/invoices/${invoiceId}/payments`, { token }),
+
+  clearInvoiceCheque: (token: string, invoiceId: string, paymentId: string, clearedAt: string) =>
+    request<{ payment: InvoicePaymentItem; receipt: ReceiptItem; outstanding: number }>(`/invoices/${invoiceId}/payments/${paymentId}/clear`, { method: 'POST', token, body: JSON.stringify({ clearedAt }) }),
+  getReceipts: (token: string) => request<ReceiptItem[]>('/receipts', { token }),
+  getReceiptPrintData: (token: string, id: string) => request<ReceiptPrintData>(`/receipts/${id}/print`, { token }),
+  markReceiptSent: (token: string, id: string) => request<ReceiptItem>(`/receipts/${id}/sent`, { method: 'PATCH', token }),
+  reissueReceipt: (token: string, id: string) => request<ReceiptItem>(`/receipts/${id}/reissue`, { method: 'POST', token }),
+  voidReceipt: (token: string, id: string, reason: string) => request<ReceiptItem>(`/receipts/${id}/void`, { method: 'POST', token, body: JSON.stringify({ reason }) }),
+  getBillingProfile: (token: string) => request<BillingProfile>('/firm/billing-profile', { token }),
+  updateBillingProfile: (token: string, data: Omit<BillingProfile, 'logoKey'>) => request<BillingProfile>('/firm/billing-profile', { method: 'PATCH', token, body: JSON.stringify(data) }),
+  uploadBillingLogo: (token: string, file: File) => { const body = new FormData(); body.append('logo', file); return request<{ logoKey: string }>('/firm/billing-profile/logo', { method: 'POST', token, body }); },
+  getBillingLogo: (token: string, key: string) => fetchBlob(`/firm/billing-profile/logo?key=${encodeURIComponent(key)}`, { token }),
 
   getReceivables: (token: string) =>
     request<ReceivablesResult>('/invoices/receivables', { token }),
@@ -4719,7 +4772,7 @@ export interface InvoicePrintData {
   discountReason?: string | null;
   issuedAt: string | null;
   dueAt: string | null;
-  lineItems: { description: string; quantity: number; unitPrice: number; amount: number }[];
+  lineItems: { description: string; quantity: number; unitPrice: number; amount: number; taxClass: 'LITIGATION_EXEMPT' | 'ADVISORY_VAT' | 'DISBURSEMENT' }[];
   timeEntries: { description?: string | null; hours: number; rate: number; amount: number }[];
   expenses: { description: string; amount: number }[];
   billToCustomer?: {

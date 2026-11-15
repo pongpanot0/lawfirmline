@@ -1,3 +1,4 @@
+import { settledAmount } from '../billing/settlement';
 import { Injectable, Logger } from '@nestjs/common';
 import { AuthUser, FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
@@ -68,7 +69,7 @@ export class ReportsService {
       });
       const payments = await this.prisma.invoicePayment.findMany({
         where: { firmId, invoiceId: { in: groupInvoices.map((i) => i.id) } },
-        select: { invoiceId: true, amount: true },
+        select: { invoiceId: true, amount: true, whtAmount: true, clearedAt: true },
       });
       const groupByInvoice = new Map(groupInvoices.map((i) => [i.id, groupOf(i)]));
       const totals = new Map<string, { paid: number; total: number }>();
@@ -76,7 +77,7 @@ export class ReportsService {
       for (const i of groupInvoices) slot(groupOf(i)).total += i.totalAmount;
       for (const p of payments) {
         const g = groupByInvoice.get(p.invoiceId);
-        if (g) slot(g).paid += p.amount;
+        if (g) slot(g).paid += settledAmount([p]);
       }
       for (const [g, t] of totals) ratioByGroup.set(g, groupCollectedRatio(t.paid, t.total));
     }

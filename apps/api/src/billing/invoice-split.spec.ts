@@ -23,12 +23,14 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
   let billing: BillingService;
   let nextNumber: number;
   const mockPrisma = {
+    firm: { findUnique: jest.fn().mockResolvedValue({ vatRegistered: false }) },
     caseCustomer: { findMany: jest.fn() },
     intakeCustomer: { findMany: jest.fn().mockResolvedValue([]) },
     invoice: { create: jest.fn() },
     timeEntry: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
     expense: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
-    case: { findUnique: jest.fn() },
+    case: { findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }) },
+    intake: { findFirst: jest.fn().mockResolvedValue({ id: 'intake-1' }) },
     // Every named customer belongs to the firm unless a test says otherwise.
     client: { count: jest.fn(async ({ where }: any) => where.id.in.filter((id: string) => !id.startsWith('other-firm')).length) },
     $queryRaw: jest.fn(),
@@ -194,8 +196,8 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
 
       expect((invoices[0] as any).totalAmount).toBe(16200);
       expect((invoices[0] as any).lineItems.create).toEqual([
-        { description: 'ว่าความนัดสืบพยาน', quantity: 6, unitPrice: 2500, amount: 15000 },
-        { description: 'ค่าเดินทางไปศาล', quantity: 1, unitPrice: 1200, amount: 1200 },
+        { description: 'ว่าความนัดสืบพยาน', quantity: 6, unitPrice: 2500, amount: 15000, taxClass: 'LITIGATION_EXEMPT' },
+        { description: 'ค่าเดินทางไปศาล', quantity: 1, unitPrice: 1200, amount: 1200, taxClass: 'DISBURSEMENT' },
       ]);
     });
 
@@ -207,7 +209,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       await billing.createInvoice(user, { caseId: 'case-1' }, { timeEntryIds: ['t1'] } as any);
 
       expect(mockPrisma.timeEntry.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: ['t1'] }, invoiceId: null, caseId: 'case-1', billable: true, writtenOffAt: null },
+        where: { id: { in: ['t1'] }, invoiceId: null, caseId: 'case-1', case: { firmId: user.firmId }, billable: true, writtenOffAt: null },
         data: { invoiceId: 'invoice-INV-00001' },
       });
     });

@@ -21,10 +21,12 @@ describe('unbilled filters', () => {
 
 describe('BillingService — WIP write-off, discount, split groups', () => {
   const mockPrisma = {
+    firm: { findUnique: jest.fn().mockResolvedValue({ vatRegistered: false }) },
     timeEntry: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
     expense: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
     invoice: { create: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn() },
-    case: { findUnique: jest.fn() },
+    case: { findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue({ id: 'case-1' }) },
+    intake: { findFirst: jest.fn().mockResolvedValue({ id: 'intake-1' }) },
     caseCustomer: { findMany: jest.fn() },
     intakeCustomer: { findMany: jest.fn() },
     client: { count: jest.fn(async ({ where }: any) => where.id.in.length) },
@@ -116,7 +118,7 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
   });
 
   describe('expense write-off', () => {
-    const expense = { id: 'ex-1', caseId: 'case-1', invoiceId: null, writtenOffAt: null, billable: true, status: 'APPROVED', amount: 300 };
+    const expense = { id: 'ex-1', caseId: 'case-1', case: { firmId: user.firmId }, invoiceId: null, writtenOffAt: null, billable: true, status: 'APPROVED', amount: 300 };
 
     it('writes off scoped by the firm expense filter, with audit', async () => {
       mockPrisma.expense.findFirst.mockResolvedValue(expense);
@@ -277,7 +279,7 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
   describe('setInvoiceDiscount', () => {
     const draft = (extra: object = {}) => ({
       id: 'inv-1', firmId: 'firm-1', status: 'DRAFT', discountAmount: 0,
-      lineItems: [{ amount: 600 }, { amount: 400 }], ...extra,
+      vatRate: 0.07, lineItems: [{ amount: 600, taxClass: 'LITIGATION_EXEMPT' }, { amount: 400, taxClass: 'LITIGATION_EXEMPT' }], ...extra,
     });
 
     it('recomputes totalAmount on a DRAFT, with audit', async () => {
@@ -286,7 +288,7 @@ describe('BillingService — WIP write-off, discount, split groups', () => {
       await billing.setInvoiceDiscount(user, 'inv-1', { discountAmount: 100, discountReason: 'ต่อรอง' });
       expect(mockPrisma.invoice.updateMany).toHaveBeenCalledWith({
         where: { id: 'inv-1', firmId: 'firm-1', status: 'DRAFT' },
-        data: { discountAmount: 100, discountReason: 'ต่อรอง', totalAmount: 900 },
+        data: { discountAmount: 100, discountReason: 'ต่อรอง', totalAmount: 900, vatAmount: 0 },
       });
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ action: 'INVOICE_DISCOUNT_SET' }),
