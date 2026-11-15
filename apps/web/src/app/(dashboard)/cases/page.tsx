@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import { csvCell } from '@/lib/petty-cash-csv';
+import { buildCasesCsv, downloadCsv } from '@/lib/csv-export';
 import { WhoActsTabs } from '@/components/process/WhoActsTabs';
 import { FilterChips } from '@/components/process/FilterChips';
 import { StepTracker } from '@/components/process/StepTracker';
@@ -230,47 +230,8 @@ function CasesPageContent() {
   };
 
   const exportCsv = () => {
-    const escape = csvCell;
-    const header = [
-      'Own Ref',
-      'Customer Ref',
-      'Black Case Number',
-      'Red Case Number',
-      'ศาล',
-      'โจทก์',
-      'จำเลย',
-      'ชื่อคดี',
-      'ลูกความ',
-      'หมายเหตุ',
-      'เจ้าของคดี',
-      'รายได้โดยประมาณ',
-      'สถานะ',
-      'ขั้นตอน',
-    ];
-    const rows = sorted.map((c) => [
-        c.ownRef,
-        c.customerRef ?? '',
-        c.blackCaseNumber ?? '',
-        c.redCaseNumber ?? '',
-        c.courtName ?? '',
-        casePartyDisplay(c.participants ?? [], 'plaintiff'),
-        casePartyDisplay(c.participants ?? [], 'defendant'),
-        c.title,
-        c.clientName ?? '',
-        c.description ?? '',
-        `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}`,
-        c.estimatedFee != null ? String(c.estimatedFee) : '',
-        getCaseStatusDisplay(c.status, d.caseStatus).label,
-        c.stage ? caseStageLabel(c.stage, 'th') : '',
-      ]);
-    const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
-    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `matters-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const nextCourt = new Map(progress.map((p) => [p.caseId, p.nextCourtDate]));
+    downloadCsv(buildCasesCsv(sorted, { statusLabel: (s) => getCaseStatusDisplay(s, d.caseStatus).label, nextCourtDate: (id) => nextCourt.get(id) }), 'matters');
   };
 
   const phases: Record<string, string[]> = { PRE: ['INTAKE_REVIEW', 'FACT_GATHERING', 'PRE_LITIGATION'], COURT: ['FILING', 'ANSWER', 'MEDIATION', 'HEARING', 'AWAITING_JUDGMENT', 'APPEAL', 'SUPREME'], ENFORCEMENT: ['ENFORCEMENT', 'CLOSING'] };

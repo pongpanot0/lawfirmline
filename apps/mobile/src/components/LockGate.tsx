@@ -4,6 +4,7 @@ import { Text } from '@/components/AppText';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { LockKeyhole } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
+import { useAppLockEnabled } from '@/app-lock';
 import { Button } from './Button';
 import { InlineError } from './States';
 import { colors, radius, shadow, spacing, typeScale } from '@/theme';
@@ -12,7 +13,8 @@ import { colors, radius, shadow, spacing, typeScale } from '@/theme';
 const RELOCK_AFTER_MS = 60 * 1000;
 
 /**
- * Biometric/passcode gate. It challenges in exactly two situations:
+ * Biometric/passcode gate, only when the person turned it on in บัญชี (off by default —
+ * an automatic iPhone-passcode prompt after login confused people). When on, it challenges in exactly two situations:
  * a cold start that RESTORED a stored session (someone else may hold the
  * phone), and returning from >1 minute in the background while signed in.
  * A session created by typing the password just now is never re-challenged,
@@ -21,6 +23,7 @@ const RELOCK_AFTER_MS = 60 * 1000;
  */
 export function LockGate({ children }: { children: React.ReactNode }) {
   const { user, restored, logout } = useAuth();
+  const enabled = useAppLockEnabled();
   const [locked, setLocked] = useState(false);
   const [failed, setFailed] = useState(false);
   const backgroundedAt = useRef<number | null>(null);
@@ -52,7 +55,12 @@ export function LockGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Cold start with a restored session: lock once and challenge.
+  // The choice as saved when the app started: turning the lock on mid-session must not lock right away.
+  const enabledAtStart = useRef<boolean | null>(null);
+  if (enabledAtStart.current === null && enabled !== null) enabledAtStart.current = enabled;
+
   useEffect(() => {
+    if (enabledAtStart.current !== true || enabled !== true) return; // off means never lock
     if (user && restored && !challengedRestore.current) {
       challengedRestore.current = true;
       setLocked(true);
@@ -62,12 +70,12 @@ export function LockGate({ children }: { children: React.ReactNode }) {
       setLocked(false);
       challengedRestore.current = false;
     }
-  }, [user, restored, challenge]);
+  }, [user, restored, challenge, enabled]);
 
   // Re-lock after a long stay in the background, only while signed in.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (!user) return;
+      if (!user || enabled !== true) return;
       if (state === 'background') backgroundedAt.current = Date.now();
       if (state === 'active' && backgroundedAt.current) {
         if (Date.now() - backgroundedAt.current > RELOCK_AFTER_MS) {
@@ -78,9 +86,9 @@ export function LockGate({ children }: { children: React.ReactNode }) {
       }
     });
     return () => sub.remove();
-  }, [user, challenge]);
+  }, [user, challenge, enabled]);
 
-  if (!user || !locked) return <>{children}</>;
+  if (!user || !locked || enabled !== true) return <>{children}</>;
 
   return (
     <View style={styles.screen}>
