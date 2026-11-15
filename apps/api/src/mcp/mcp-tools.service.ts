@@ -78,7 +78,7 @@ export class McpToolsService {
     // Team load is counts only (no case or task content) — the same numbers as the app's ทีม page, owners/office managers only.
     if (hasFirmCapability(user.firmRole, 'runOperations')) {
       server.registerTool('team_workload', {
-        description: `Workload of every firm member for 7 days from a date (default today, Asia/Bangkok): open task points vs each member's own standard (standardPoints, from points they finished per week over the last 8 weeks), overdue and review counts, and per-day task points, appointments, court dates and leave. Counts only — no case or task details. Use it for "who is free / overloaded".`,
+        description: `Workload of every firm member for 7 days from a date (default today, Asia/Bangkok): open task points vs each member's own standard (standardPoints, from points they finished per week over the last 4 weeks), overdue and review counts, and per-day task points, appointments, court dates and leave. Counts only — no case or task details. Use it for "who is free / overloaded".`,
         inputSchema: { from: date.optional() },
       }, (args: Record<string, unknown>) => handle(async () => teamWorkload(await this.operations.radar(user, (args.from as string | undefined) ?? bangkokDayKey(new Date())))));
     }

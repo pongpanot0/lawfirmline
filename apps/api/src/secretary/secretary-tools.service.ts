@@ -89,7 +89,7 @@ export class SecretaryToolsService {
         { minDaysOverdue: { type: 'number' } }, []),
       tool('petty_cash_balance', 'Current petty cash fund balance (THB).', {}, []),
       tool('my_work', 'The caller\'s own work right now, the same as their "my day" screen: overdue items, today, tomorrow, the next days, tasks waiting for their review, and schedule warnings. Use it for broad questions like "what work do I/we have".', {}, []),
-      tool('team_workload', `Workload of every firm member for 7 days from a date (default today, Asia/Bangkok): open task points vs each member's own standard (standardPoints, from points they finished per week over the last 8 weeks), overdue and review counts, and per-day task points, appointments, court dates and leave. Counts only — no case or task details. Use it for "who is free / overloaded".`,
+      tool('team_workload', `Workload of every firm member for 7 days from a date (default today, Asia/Bangkok): open task points vs each member's own standard (standardPoints, from points they finished per week over the last 4 weeks), overdue and review counts, and per-day task points, appointments, court dates and leave. Counts only — no case or task details. Use it for "who is free / overloaded".`,
         { from: { type: 'string', description: 'YYYY-MM-DD' } }, []),
     ].filter((d) => canUse(user, d.function.name));
   }

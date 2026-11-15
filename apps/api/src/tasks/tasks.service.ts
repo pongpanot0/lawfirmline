@@ -31,6 +31,8 @@ import {
   taskRoutineSnapshot,
   routineMissing,
   dailyUpdateParts,
+  sizeFromHistory,
+  TaskWorkType,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -598,6 +600,14 @@ export class TasksService {
     }
   }
 
+  /** Size for a new task nobody sized: the typical size of its work type from the last 100 finished ones, else undefined (DB default M). */
+  private async typicalSize(firmId: string, workType?: TaskWorkType | null) {
+    if (!workType) return undefined;
+    const done = await this.prisma.task.findMany({ where: { firmId, workType, status: TaskStatus.DONE, completedAt: { not: null } },
+      select: { completedAt: true, acknowledgedAt: true, assignedAt: true, createdAt: true }, orderBy: { completedAt: 'desc' }, take: 100 });
+    return sizeFromHistory(done.map((t) => (t.completedAt!.getTime() - (t.acknowledgedAt ?? t.assignedAt ?? t.createdAt).getTime()) / 86400000)) ?? undefined;
+  }
+
   async create(
     user: AuthUser,
     caseId: string | null,
@@ -640,6 +650,7 @@ export class TasksService {
     }
     await this.validateReview(user, dto.requiresReview ?? false, dto.reviewerId, { caseId, assigneeId: dto.assigneeId });
     await this.validateObservers(dto.observerIds, !!caseId, user.firmId);
+    const size = dto.size ?? await this.typicalSize(user.firmId, dto.workType);
 
     const createTask = (db: Prisma.TransactionClient) => db.task.create({
       data: {
@@ -665,7 +676,7 @@ export class TasksService {
         firmId: user.firmId,
         queuePosition,
         workType: dto.workType,
-        size: dto.size,
+        size,
         scheduledFor: dto.scheduledFor ? new Date(`${dto.scheduledFor.slice(0, 10)}T00:00:00Z`) : undefined,
         requiresReview: dto.requiresReview,
         requiresAttachment: dto.requiresAttachment ?? false,

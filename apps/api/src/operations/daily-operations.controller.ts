@@ -18,6 +18,7 @@ export class DailyOperationsController {
   @Patch('tasks/:id/size') size(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: TaskSizeDto) { return this.daily.size(user, id, dto.size); }
   @Post('tasks/:id/follow-up') followUp(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.daily.followUp(user, id); }
   @Patch('tasks/:id/order') move(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: MoveDailyTaskDto) { return this.daily.move(user, id, dto.direction); }
+  @Get('people/:id/summary') summary(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) { return this.daily.summary(user, id); }
   @Patch('members/:id/work-types') types(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: WorkTypesDto) { return this.daily.workTypes(user, id, dto.workTypes); }
 }
 

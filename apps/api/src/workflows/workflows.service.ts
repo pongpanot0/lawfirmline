@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
-import { AuthUser, WorkflowStepDefinition, FirmRole } from '@lawfirm/shared';
+import { AuthUser, WorkflowStepDefinition, FirmRole, sizeFromDays } from '@lawfirm/shared';
 import { DeadlineDayBasis } from '@lawfirm/shared';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -257,7 +257,7 @@ export class WorkflowsService {
             assigneeId: assignees[i], assignedAt: new Date(), dueDate: dueDates[i],
             blockedById: previousTaskId,
             requiresReview: Boolean(step.requiresReview && reviewerId), reviewerId,
-            workflowRunId: created.id, workflowStep: i, workflowDurationDays: step.durationDays,
+            workflowRunId: created.id, workflowStep: i, workflowDurationDays: step.durationDays, size: sizeFromDays(step.durationDays),
             labels: [`workflow:${created.id}`], createdById: user.id,
           },
           select: { id: true },
