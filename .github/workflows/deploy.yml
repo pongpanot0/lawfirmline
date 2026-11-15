@@ -152,11 +152,19 @@ jobs:
             # restart. --no-recreate still creates caddy on a fresh box.
             docker compose -f docker-compose.prod.yml up -d --no-deps api web
             docker compose -f docker-compose.prod.yml up -d --no-recreate caddy
-            # The Caddyfile is a bind mount: `up -d` does not recreate caddy when only
-            # its content changes, so reload it explicitly (no downtime; a bad config
-            # is rejected and the running one stays).
-            docker compose -f docker-compose.prod.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile \
-              || echo "::warning::caddy reload failed; previous Caddyfile still active"
+            # The Caddyfile is a single-file bind mount, pinned to the inode at container
+            # start: once git replaces the file, the container still sees the old one and
+            # `caddy reload` reports "config is unchanged". Recreate caddy (~1 s blip) only
+            # when the file it sees differs from the checkout, and only after the new file
+            # validates, so a broken Caddyfile keeps the running proxy instead of taking it down.
+            if ! docker compose -f docker-compose.prod.yml exec -T caddy cat /etc/caddy/Caddyfile | cmp -s - Caddyfile; then
+              if docker compose -f docker-compose.prod.yml run --rm --no-deps -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
+                echo "Caddyfile changed; recreating caddy"
+                docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate caddy
+              else
+                echo "::warning::new Caddyfile is invalid; previous caddy config still active"
+              fi
+            fi
             # Apply pending Prisma migrations from the image just deployed.
             # migrate deploy is a no-op when nothing is pending, so running it
             # on every deploy keeps schema and code in the same release.
