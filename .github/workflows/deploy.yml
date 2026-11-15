@@ -147,7 +147,11 @@ jobs:
               echo "swap enabled"
             fi
             docker compose -f docker-compose.prod.yml pull api web
-            docker compose -f docker-compose.prod.yml up -d
+            # Recreate only api and web. A plain `up -d` also recreates caddy (it depends_on
+            # both), dropping every open connection; caddy now holds requests while api/web
+            # restart. --no-recreate still creates caddy on a fresh box.
+            docker compose -f docker-compose.prod.yml up -d --no-deps api web
+            docker compose -f docker-compose.prod.yml up -d --no-recreate caddy
             # The Caddyfile is a bind mount: `up -d` does not recreate caddy when only
             # its content changes, so reload it explicitly (no downtime; a bad config
             # is rejected and the running one stays).

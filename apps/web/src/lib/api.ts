@@ -1,7 +1,7 @@
 import type { TemplateLayout } from '@lawfirm/shared';
 import type { CustomFieldDefinitionDto, CustomFieldEntity, CustomFieldValue } from '@lawfirm/shared';
 import type { BillingUsage, AiCreditsEstimate, AddOnKind } from '@lawfirm/shared';
-import { PLAN_LIMIT_AI } from '@lawfirm/shared';
+import { PLAN_LIMIT_AI, fetchWithRetry } from '@lawfirm/shared';
 import { withFirmSlugHeaders } from './firm-slug';
 import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { taskUpdatePath } from './task-detail';
@@ -151,7 +151,7 @@ async function send<T>(path: string, options: RequestOptions): Promise<T> {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`;
   }
 
-  let res = await fetch(`${API_URL}${path}`, {
+  let res = await fetchWithRetry(`${API_URL}${path}`, {
     ...fetchOptions,
     headers,
     cache: 'no-store',
