@@ -13,6 +13,7 @@ import {
   formatBangkokDateThai,
   formatBangkokTime,
 } from '../common/utils/bangkok-time';
+import { isBangkokWorkingDay, usersOnLeave } from '../holidays/working-day';
 
 type TextChannel = 'line' | 'email';
 type PushChannel = 'push-evening' | 'push-morning';
@@ -82,6 +83,9 @@ export class DailyDigestScheduler {
   }
 
   private async run(target: Date, pushChannel: PushChannel, withText: boolean): Promise<void> {
+    // Nothing on a holiday, nor for a holiday tomorrow; the next working morning's run sends the list.
+    const now = new Date();
+    if (!(await isBangkokWorkingDay(this.prisma, now)) || !(await isBangkokWorkingDay(this.prisma, target))) return;
     const digestDate = bangkokDateOnly(target);
 
     const members = await this.prisma.firmMember.findMany({
@@ -112,7 +116,12 @@ export class DailyDigestScheduler {
     const textSent = new Set(logs.filter((l) => !l.channel?.startsWith('push')).map((l) => l.userId));
     const pushSent = new Set(logs.filter((l) => l.channel === pushChannel).map((l) => l.userId));
 
+    // Someone on leave today or on the day covered gets nothing; their first morning back sends it.
+    const ids = members.map((m) => m.user.id);
+    const away = new Set([...(await usersOnLeave(this.prisma, ids, now)), ...(await usersOnLeave(this.prisma, ids, target))]);
+
     for (const member of members) {
+      if (away.has(member.user.id)) continue;
       const text = withText && !textSent.has(member.user.id);
       const push = !pushSent.has(member.user.id);
       if (!text && !push) continue;

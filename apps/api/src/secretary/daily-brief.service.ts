@@ -9,6 +9,7 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 import { RagService } from '../rag/rag.service';
 import { MatterBriefService } from './matter-brief.service';
 import { bangkokDaysBetween, isStuck, rankStuck } from './stuck';
+import { isBangkokWorkingDay } from '../holidays/working-day';
 
 const UNASSIGNED = 'ยังไม่มีผู้รับผิดชอบ';
 const DAY_MS = 86_400_000;
@@ -30,6 +31,7 @@ export class DailyBriefService {
 
   /** Only firms named in AI_DAILY_BRIEF_FIRM_SLUGS get a brief; one firm failing never stops the rest. */
   async runAll(now: Date): Promise<void> {
+    if (!(await isBangkokWorkingDay(this.prisma, now))) return; // no brief on a public holiday
     const slugs = (this.config.get<string>('AI_DAILY_BRIEF_FIRM_SLUGS') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
     if (!slugs.length) return;
     const firms = await this.prisma.firm.findMany({ where: { slug: { in: slugs } }, select: { id: true } });

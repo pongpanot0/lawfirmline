@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { AssignmentNotifierService } from './assignment-notifier.service';
 import { AutomationLogService } from '../common/services/automation-log.service';
 import { formatCaseNotificationReference } from './reference-label';
+import { isBangkokWorkingDay } from '../holidays/working-day';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FOLLOW_UP_INTERVAL_DAYS = 7;
@@ -54,6 +55,7 @@ export class EscalationScheduler {
 
   @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async run() {
+    if (!(await isBangkokWorkingDay(this.prisma, new Date()))) return; // public holiday: the next working day escalates
     await this.escalateOverdueTasks().catch((err) => this.logger.error('escalation failed', err));
     await this.chaseOnHoldFollowUps().catch((err) => this.logger.error('follow-up chase failed', err));
   }

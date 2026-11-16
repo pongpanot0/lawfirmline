@@ -2,7 +2,7 @@ import { CoachingNotifierService } from './coaching-notifier.service';
 
 const notification = { id: 'n1', firmId: 'f1', userId: 'u1', category: 'COACHING', title: 'คำแนะนำ', path: '/coaching/mine', appPath: null, body: null } as any;
 function build(pushEnabled = true) {
-  const center = { channelsFor: jest.fn().mockResolvedValue(new Map([['u1', { push: pushEnabled }]])), unreadCounts: jest.fn().mockResolvedValue(new Map([['u1', 3]])) };
+  const center = { isOff: jest.fn().mockResolvedValue(false), hold: jest.fn(), channelsFor: jest.fn().mockResolvedValue(new Map([['u1', { push: pushEnabled }]])), unreadCounts: jest.fn().mockResolvedValue(new Map([['u1', 3]])) };
   const push = { send: jest.fn().mockResolvedValue(true) };
   return { center, push, svc: new CoachingNotifierService(center as never, push as never) };
 }

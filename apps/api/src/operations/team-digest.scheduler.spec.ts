@@ -14,7 +14,7 @@ const member = (id = 'u1', lineUserId: string | null = 'L1', firmId = 'f1') => (
 
 describe('TeamDigestScheduler', () => {
   let scheduler: TeamDigestScheduler;
-  const prisma = { taskComment: { findMany: jest.fn() }, firmMember: { findMany: jest.fn() }, dailyDigestLog: { findMany: jest.fn(), create: jest.fn() } };
+  const prisma = { publicHoliday: { findUnique: jest.fn().mockResolvedValue(null) }, leaveRequest: { findMany: jest.fn().mockResolvedValue([]) },  taskComment: { findMany: jest.fn() }, firmMember: { findMany: jest.fn() }, dailyDigestLog: { findMany: jest.fn(), create: jest.fn() } };
   const operations = { board: jest.fn(), radar: jest.fn() };
   const line = { sendText: jest.fn() };
   const email = { sendTeamDigestEmail: jest.fn(), getAppUrl: jest.fn() };

@@ -7,7 +7,6 @@ import {
   formatBangkokDateTime,
   isBangkokWeekend,
   isBangkokOfficeHours,
-  bangkokQuietWindow,
 } from './bangkok-time';
 
 describe('bangkok-time', () => {
@@ -124,11 +123,4 @@ describe('office hours', () => {
     expect(isBangkokOfficeHours(new Date('2026-09-05T04:00:00Z'))).toBe(false); // Sat 11:00
   });
 
-  it('the quiet window runs from the last weekday 17:00 to today 09:00', () => {
-    expect(bangkokQuietWindow(new Date('2026-09-07T02:00:00Z'))).toEqual({ // Mon → from Fri
-      from: new Date('2026-09-04T10:00:00Z'),
-      to: new Date('2026-09-07T02:00:00Z'),
-    });
-    expect(bangkokQuietWindow(new Date('2026-09-08T02:00:00Z')).from).toEqual(new Date('2026-09-07T10:00:00Z')); // Tue → Mon
-  });
 });

@@ -868,11 +868,15 @@ model Notification {
   /// Mobile route the app opens on tap; null when the app has no screen for it.
   appPath   String?
   readAt    DateTime?
+  /// Recorded while the recipient was off (outside Mon–Fri 09:00–17:00, a public holiday, or on leave);
+  /// push/LINE was skipped and the next 09:00 summary on their working day covers it.
+  held      Boolean              @default(false)
   createdAt DateTime             @default(now())
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([held, userId])
   @@index([userId, firmId, createdAt])
   @@index([userId, firmId, readAt])
   @@index([createdAt])

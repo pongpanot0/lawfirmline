@@ -8,7 +8,7 @@ import { FirmLinkService } from './firm-link.service';
 import { PushService } from './push.service';
 import { NotificationCenterService } from './notification-center.service';
 import { toAppRoute } from './app-route';
-import { bangkokQuietWindow, isBangkokOfficeHours } from '../common/utils/bangkok-time';
+import { isBangkokWorkingDay, usersOff, usersOnLeave } from '../holidays/working-day';
 
 export interface NotifyParams {
   /** Null only when the trigger has no firm in hand (a standalone todo); the
@@ -112,16 +112,15 @@ export class AssignmentNotifierService {
       for (const { firmId, params, users: group } of groups.values()) {
         const userIds = group.map((u) => u.id);
         const channels = await this.center.channelsFor(userIds, params.category);
-        const notificationIds = await this.recordInbox(firmId, userIds, params);
-        // Outside Mon–Fri 09:00–17:00 only the inbox row is written; sendHeldSummary covers it at 09:00.
-        if (!isBangkokOfficeHours(new Date())) {
-          result.recipients += group.length;
-          continue;
-        }
-        const push = await this.sendPush(firmId, userIds, channels, notificationIds, params);
-        const line = params.line === false
+        // Off now (outside office hours, a holiday, or on leave): inbox row only, held for sendHeldSummary.
+        const off = await usersOff(this.prisma, userIds, new Date());
+        const notificationIds = await this.recordInbox(firmId, userIds, params, off);
+        const live = group.filter((u) => !off.has(u.id));
+        const liveIds = live.map((u) => u.id);
+        const push = liveIds.length ? await this.sendPush(firmId, liveIds, channels, notificationIds, params) : false;
+        const line = params.line === false || !live.length
           ? false
-          : await this.sendLine(firmId, group.filter((u) => channels.get(u.id)?.line), params);
+          : await this.sendLine(firmId, live.filter((u) => channels.get(u.id)?.line), params);
         result.recipients += group.length;
         result.push ||= push;
         result.line ||= line;
@@ -147,25 +146,31 @@ export class AssignmentNotifierService {
   }
 
   /**
-   * 09:00 Mon–Fri: one push + LINE per person listing what was held since the
-   * last weekday's 17:00 (Friday's on a Monday). Read rows are not repeated.
+   * 09:00 on working days: one push + LINE per person listing their held, still
+   * unread rows (nights, weekends, holidays, their own leave). Someone still on
+   * leave keeps theirs until the first morning they are back.
    * ponytail: ignores per-category channel switches; filter here if someone turns everything off and still gets it.
    */
   @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendHeldSummary(now: Date = new Date()): Promise<number> {
-    const { from, to } = bangkokQuietWindow(now);
-    const rows = await this.prisma.notification.findMany({
-      where: { createdAt: { gte: from, lt: to }, readAt: null },
+    if (!(await isBangkokWorkingDay(this.prisma, now))) return 0;
+    const heldRows = await this.prisma.notification.findMany({
+      where: { held: true },
       orderBy: { createdAt: 'asc' },
-      select: { userId: true, firmId: true, title: true, user: { select: { lineUserId: true } } },
+      select: { id: true, userId: true, firmId: true, title: true, readAt: true, user: { select: { lineUserId: true } } },
     });
+    const away = await usersOnLeave(this.prisma, [...new Set(heldRows.map((r) => r.userId))], now);
+    const due = heldRows.filter((r) => !away.has(r.userId));
+    // Released before sending: a crash mid-loop must not repeat the summary tomorrow.
+    if (due.length) await this.prisma.notification.updateMany({ where: { id: { in: due.map((r) => r.id) } }, data: { held: false } });
+    const rows = due.filter((r) => !r.readAt);
     const byUser = new Map<string, typeof rows>();
     for (const row of rows) byUser.set(`${row.firmId}:${row.userId}`, [...(byUser.get(`${row.firmId}:${row.userId}`) ?? []), row]);
 
     let sent = 0;
     for (const held of byUser.values()) {
       const { userId, firmId, user } = held[0];
-      const title = `🔔 แจ้งเตือนนอกเวลาทำการ ${held.length} รายการ`;
+      const title = `🔔 แจ้งเตือนระหว่างที่คุณไม่อยู่ ${held.length} รายการ`;
       const list = held.slice(0, SUMMARY_LINES).map((r) => `• ${r.title}`);
       if (held.length > SUMMARY_LINES) list.push(`และอีก ${held.length - SUMMARY_LINES} รายการ`);
       try {
@@ -188,7 +193,7 @@ export class AssignmentNotifierService {
   }
 
   /** userId → inbox row id. An inbox failure still lets push and LINE go out. */
-  private async recordInbox(firmId: string, userIds: string[], params: NotifyParams) {
+  private async recordInbox(firmId: string, userIds: string[], params: NotifyParams, held: Set<string>) {
     const [title, ...rest] = params.summaryText.split('\n');
     try {
       const rows = await this.prisma.notification.createManyAndReturn({
@@ -200,6 +205,7 @@ export class AssignmentNotifierService {
           body: rest.join('\n').trim() || null,
           path: params.entityPath,
           appPath: this.appPath(params),
+          held: held.has(userId),
         })),
         select: { id: true, userId: true },
       });

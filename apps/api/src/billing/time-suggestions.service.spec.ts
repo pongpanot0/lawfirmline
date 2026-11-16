@@ -20,7 +20,7 @@ function addDays(dateStr: string, days: number): string {
 }
 
 describe('TimeSuggestionsService', () => {
-  const mockPrisma = {
+  const mockPrisma = { publicHoliday: { findUnique: jest.fn().mockResolvedValue(null) }, leaveRequest: { findMany: jest.fn().mockResolvedValue([]) }, 
     calendarEvent: { findMany: jest.fn() },
     task: { findMany: jest.fn() },
     reviewDecision: { findMany: jest.fn() },
@@ -407,7 +407,7 @@ describe('TimeSuggestionsService', () => {
         .mockResolvedValueOnce([{ sourceKey: 'a', source: 'task', caseId: 'c', caseRef: null, description: 'x', hours: null, date: '2026-09-26' }]);
       mockLine.pushTo.mockResolvedValue(true);
 
-      const sent = await service.sendDailyDigest(new Date('2026-09-26T11:00:00.000Z'));
+      const sent = await service.sendDailyDigest(new Date('2026-09-25T09:30:00.000Z')) // Fri 16:30 Bangkok;
 
       expect(mockLine.pushTo).toHaveBeenCalledTimes(1);
       expect(mockLine.pushTo).toHaveBeenCalledWith('line-2', expect.stringContaining('1 รายการ'));

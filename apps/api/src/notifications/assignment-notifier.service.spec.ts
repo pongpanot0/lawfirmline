@@ -3,10 +3,10 @@ import { FirmLinkService } from './firm-link.service';
 
 const CASE_ID = '11111111-2222-3333-4444-555555555555';
 
-const prisma = {
+const prisma = { publicHoliday: { findUnique: jest.fn().mockResolvedValue(null) }, leaveRequest: { findMany: jest.fn().mockResolvedValue([]) }, 
   user: { findMany: jest.fn() },
   firmMember: { findMany: jest.fn() },
-  notification: { createManyAndReturn: jest.fn(), findMany: jest.fn() },
+  notification: { createManyAndReturn: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
 } as any;
 const line = { pushTo: jest.fn() } as any;
 const push = { send: jest.fn() } as any;
@@ -88,22 +88,44 @@ describe('AssignmentNotifierService', () => {
     expect(result).toEqual({ recipients: 2, push: false, line: false });
   });
 
-  it('Monday 09:00 summarises unread rows held since Friday 17:00, one message per person', async () => {
+  it('holds push and LINE on a public holiday', async () => {
+    prisma.publicHoliday.findUnique.mockResolvedValueOnce({ id: 'h' });
+    prisma.user.findMany.mockResolvedValue(users);
+    await svc.notifyAssigned({ firmId: 'f1', userIds: ['u2'], actorUserId: '', category: 'TASK', summaryText: 'งานใหม่', entityPath: '/todos' });
+    expect(push.send).not.toHaveBeenCalled();
+    expect(prisma.notification.createManyAndReturn.mock.calls[0][0].data[0]).toEqual(expect.objectContaining({ held: true }));
+  });
+
+  it('holds only the recipient on leave; the rest are pushed', async () => {
+    prisma.leaveRequest.findMany.mockResolvedValueOnce([{ userId: 'u2' }]);
+    prisma.user.findMany.mockResolvedValue(users);
+    await svc.notifyAssigned({ firmId: 'f1', userIds: ['u2', 'u3'], actorUserId: '', category: 'TASK', summaryText: 'งานใหม่', entityPath: '/todos' });
+    expect(prisma.notification.createManyAndReturn.mock.calls[0][0].data.map((r: any) => [r.userId, r.held])).toEqual([['u2', true], ['u3', false]]);
+    expect(push.send.mock.calls[0][0].map((m: any) => m.userId)).toEqual(['u3']);
+    expect(line.pushTo).not.toHaveBeenCalled();
+  });
+
+  it('09:00 summarises each person\'s held unread rows once, skipping anyone still on leave', async () => {
     prisma.notification.findMany.mockResolvedValue([
-      { userId: 'u2', firmId: 'f1', title: 'งาน A', user: { lineUserId: 'L2' } },
-      { userId: 'u3', firmId: 'f1', title: 'งาน B', user: { lineUserId: null } },
-      { userId: 'u2', firmId: 'f1', title: 'งาน C', user: { lineUserId: 'L2' } },
+      { id: 'n1', userId: 'u2', firmId: 'f1', title: 'งาน A', readAt: null, user: { lineUserId: 'L2' } },
+      { id: 'n2', userId: 'u3', firmId: 'f1', title: 'งาน B', readAt: null, user: { lineUserId: null } },
+      { id: 'n3', userId: 'u2', firmId: 'f1', title: 'งาน C', readAt: null, user: { lineUserId: 'L2' } },
+      { id: 'n4', userId: 'u2', firmId: 'f1', title: 'อ่านแล้ว', readAt: new Date(), user: { lineUserId: 'L2' } },
     ]);
+    prisma.leaveRequest.findMany.mockResolvedValueOnce([{ userId: 'u3' }]);
     const sent = await svc.sendHeldSummary(new Date('2026-09-14T02:00:00Z')); // Mon 09:00 Bangkok
 
-    expect(prisma.notification.findMany.mock.calls[0][0].where).toEqual({
-      createdAt: { gte: new Date('2026-09-11T10:00:00Z'), lt: new Date('2026-09-14T02:00:00Z') }, // Fri 17:00 → Mon 09:00
-      readAt: null,
-    });
-    expect(sent).toBe(2);
-    expect(push.send).toHaveBeenCalledWith([expect.objectContaining({ userId: 'u2', title: '🔔 แจ้งเตือนนอกเวลาทำการ 2 รายการ', body: '• งาน A\n• งาน C' })]);
-    expect(line.pushTo).toHaveBeenCalledTimes(1);
+    expect(prisma.notification.findMany.mock.calls[0][0].where).toEqual({ held: true });
+    expect(prisma.notification.updateMany).toHaveBeenCalledWith({ where: { id: { in: ['n1', 'n3', 'n4'] } }, data: { held: false } });
+    expect(sent).toBe(1);
+    expect(push.send).toHaveBeenCalledWith([expect.objectContaining({ userId: 'u2', title: '🔔 แจ้งเตือนระหว่างที่คุณไม่อยู่ 2 รายการ', body: '• งาน A\n• งาน C' })]);
     expect(line.pushTo).toHaveBeenCalledWith('L2', expect.stringContaining('• งาน C'));
+  });
+
+  it('sends no summary on a public holiday', async () => {
+    prisma.publicHoliday.findUnique.mockResolvedValueOnce({ id: 'h' });
+    expect(await svc.sendHeldSummary(new Date('2026-09-14T02:00:00Z'))).toBe(0);
+    expect(prisma.notification.findMany).not.toHaveBeenCalled();
   });
 
   it('an explicit appPath wins over the mapped web path', async () => {
