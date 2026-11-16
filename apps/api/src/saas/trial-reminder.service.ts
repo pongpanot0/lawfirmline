@@ -30,7 +30,7 @@ export class TrialReminderService {
     private email: EmailService,
   ) {}
 
-  @Cron('0 9 * * *', { timeZone: 'Asia/Bangkok' })
+  @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async run(now = new Date()) {
     const window = { lte: new Date(now.getTime() + REMIND_AT[REMIND_AT.length - 1] * DAY_MS), gte: new Date(now.getTime() - EXPIRED_GRACE_MS) };
     const firms = await this.prisma.firm.findMany({

@@ -60,6 +60,32 @@ export function isBangkokWeekend(date: Date): boolean {
   return weekday === 0 || weekday === 6;
 }
 
+/** Staff notifications go out Mon–Fri 09:00–17:00 Bangkok; the rest waits for the next 09:00 summary. */
+export const OFFICE_START_HOUR = 9;
+export const OFFICE_END_HOUR = 17;
+const HOUR_MS = 60 * 60 * 1000;
+
+/** True inside Mon–Fri 09:00–17:00 Bangkok. */
+export function isBangkokOfficeHours(date: Date): boolean {
+  if (isBangkokWeekend(date)) return false;
+  const hour = toBangkokWallClock(date).getUTCHours();
+  return hour >= OFFICE_START_HOUR && hour < OFFICE_END_HOUR;
+}
+
+/**
+ * The quiet stretch that ends at today's 09:00: from the last weekday's 17:00
+ * (Friday's on a Monday) to today's 09:00.
+ */
+export function bangkokQuietWindow(date: Date): { from: Date; to: Date } {
+  const today = bangkokDayStart(date);
+  let prev = addBangkokDays(today, -1);
+  while (isBangkokWeekend(prev)) prev = addBangkokDays(prev, -1);
+  return {
+    from: new Date(prev.getTime() + OFFICE_END_HOUR * HOUR_MS),
+    to: new Date(today.getTime() + OFFICE_START_HOUR * HOUR_MS),
+  };
+}
+
 /** `DD/MM/YYYY HH:mm` in Bangkok local time. */
 export function formatBangkokDateTime(date: Date): string {
   const wall = toBangkokWallClock(date);

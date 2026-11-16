@@ -10,7 +10,7 @@ export class StandupScheduler {
   private readonly logger = new Logger(StandupScheduler.name);
   constructor(private prisma: PrismaService, private standup: StandupService, private notifier: CoachingNotifierService) {}
 
-  @Cron('30 8 * * 1-5', { timeZone: 'Asia/Bangkok' })
+  @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendPrompts(): Promise<void> {
     const now = new Date();
     if (isBangkokWeekend(now)) return;

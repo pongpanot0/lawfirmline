@@ -317,7 +317,7 @@ export class TimeSuggestionsService {
   }
 
   /** ponytail: no send-once ledger; fine for a single api instance, add LeaveNoticeLog-style key if we scale out */
-  @Cron('0 18 * * 1-5', { timeZone: 'Asia/Bangkok' })
+  @Cron('30 16 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendDailyDigest(now: Date = new Date()): Promise<number> {
     const date = bangkokDayKey(now);
     const members = await this.prisma.firmMember.findMany({

@@ -21,7 +21,7 @@ export class TeamDigestScheduler {
     private push: PushService,
   ) {}
 
-  @Cron('30 8 * * 1-5', { timeZone: 'Asia/Bangkok' })
+  @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendDigests(): Promise<void> {
     const today = bangkokDayStart(new Date());
     const digestDate = bangkokDateOnly(today);

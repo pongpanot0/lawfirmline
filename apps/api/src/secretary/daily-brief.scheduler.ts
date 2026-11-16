@@ -8,7 +8,7 @@ export class DailyBriefScheduler {
 
   constructor(private readonly brief: DailyBriefService) {}
 
-  @Cron('30 7 * * *', { timeZone: 'Asia/Bangkok' })
+  @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async run() {
     try {
       await this.brief.runAll(new Date());

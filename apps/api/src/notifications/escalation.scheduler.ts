@@ -34,7 +34,7 @@ function groupedSummary(items: EscalationItem[]): string {
 }
 
 /**
- * Overdue-task escalation chain (ทุกเช้า 08:30 กทม.):
+ * Overdue-task escalation chain (จ.–ศ. 09:00 กทม.):
  *   ครบกำหนดพรุ่งนี้        → เตือน assignee
  *   เลยกำหนด ≥ 1 วัน       → เตือน assignee + lead lawyer ของคดี
  *   เลยกำหนด ≥ 3 วัน       → + เจ้าของสำนักงาน (OWNER)
@@ -52,7 +52,7 @@ export class EscalationScheduler {
     private automationLog: AutomationLogService,
   ) {}
 
-  @Cron('30 8 * * *', { timeZone: 'Asia/Bangkok' })
+  @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async run() {
     await this.escalateOverdueTasks().catch((err) => this.logger.error('escalation failed', err));
     await this.chaseOnHoldFollowUps().catch((err) => this.logger.error('follow-up chase failed', err));
@@ -134,7 +134,7 @@ export class EscalationScheduler {
       await this.automationLog.record({
         firmId,
         automation: 'task-escalation',
-        trigger: { cron: '08:30 Asia/Bangkok' },
+        trigger: { cron: '09:00 Mon-Fri Asia/Bangkok' },
         result: { tasksNotified: count },
       });
     }

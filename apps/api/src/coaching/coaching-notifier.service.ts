@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Notification, NotificationCategory, Prisma } from '../generated/prisma';
 import { NotificationCenterService } from '../notifications/notification-center.service';
 import { PushService } from '../notifications/push.service';
+import { isBangkokOfficeHours } from '../common/utils/bangkok-time';
 
 /** Inbox and business record commit together; push follows the recipient's category preference. */
 @Injectable()
@@ -15,6 +16,8 @@ export class CoachingNotifierService {
 
   // shortcut: push after commit is best effort; add an outbox when delivery retries are required.
   async send(notification: Notification): Promise<void> {
+    // Outside office hours the inbox row waits for the 09:00 summary (AssignmentNotifierService.sendHeldSummary).
+    if (!isBangkokOfficeHours(new Date())) return;
     try {
       const channels = await this.center.channelsFor([notification.userId], notification.category);
       if (!channels.get(notification.userId)?.push) return;

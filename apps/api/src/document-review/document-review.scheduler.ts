@@ -11,7 +11,7 @@ export class DocumentReviewScheduler {
 
   constructor(private prisma: PrismaService, private notifier: AssignmentNotifierService) {}
 
-  @Cron('30 8 * * *', { timeZone: 'Asia/Bangkok' })
+  @Cron('0 9 * * *', { timeZone: 'Asia/Bangkok' })
   async run() {
     const sent = await this.remindDueTomorrow().catch((err) => {
       this.logger.error('review due reminder failed', err);

@@ -44,8 +44,8 @@ describe('TeamDigestScheduler', () => {
   });
   afterEach(() => jest.useRealTimers());
 
-  it('runs weekdays at 08:30 Bangkok', () => {
-    expect(Reflect.getMetadata(SCHEDULE_CRON_OPTIONS, scheduler.sendDigests)).toMatchObject({ cronTime: '30 8 * * 1-5', timeZone: 'Asia/Bangkok' });
+  it('runs weekdays at 09:00 Bangkok', () => {
+    expect(Reflect.getMetadata(SCHEDULE_CRON_OPTIONS, scheduler.sendDigests)).toMatchObject({ cronTime: '0 9 * * 1-5', timeZone: 'Asia/Bangkok' });
   });
 
   it('queries only enabled owners, managers and senior lawyers; reuses board/radar once per firm', async () => {
