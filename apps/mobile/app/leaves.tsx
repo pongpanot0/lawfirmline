@@ -18,7 +18,15 @@ const TYPES = [
   { value: 'VACATION', label: 'ลาพักร้อน' },
 ];
 
-const dateRange = (start: string, end: string) => start === end ? thDate(start) : `${thDate(start)} – ${thDate(end)}`;
+const PERIODS = [
+  { value: 'FULL', label: 'ทั้งวัน' },
+  { value: 'MORNING', label: 'ครึ่งเช้า (09:00–12:00)' },
+  { value: 'AFTERNOON', label: 'ครึ่งบ่าย (12:00–17:00)' },
+];
+const PERIOD_SHORT = { MORNING: 'ครึ่งเช้า', AFTERNOON: 'ครึ่งบ่าย' } as const;
+
+const dateRange = (start: string, end: string, period?: LeaveItem['period']) =>
+  start === end ? `${thDate(start)}${period ? ` (${PERIOD_SHORT[period]})` : ''}` : `${thDate(start)} – ${thDate(end)}`;
 
 export default function LeavesScreen() {
   const { user } = useAuth();
@@ -27,22 +35,24 @@ export default function LeavesScreen() {
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [multiple, setMultiple] = useState(false);
+  const [periodValue, setPeriodValue] = useState('FULL');
   const [sent, setSent] = useState('');
   const history = useLeaves(today, bangkokDay(new Date(Date.now() + 180 * 86400000).toISOString()));
   const request = useRequestLeave();
   const endDate = multiple ? end : start;
+  const period = multiple || periodValue === 'FULL' ? null : (periodValue as NonNullable<LeaveItem['period']>);
   // The pickers already block past days; these checks only catch a stale value (e.g. a form left open past midnight).
   const startError = start < today ? 'วันเริ่มลาต้องไม่ย้อนหลัง' : undefined;
   const endError = endDate < start ? 'วันสิ้นสุดต้องไม่ก่อนวันเริ่ม' : undefined;
   // Sending a leave request keeps its confirm (it notifies the owner); the result shows inline, not in a second alert.
   const submit = () => {
     if (startError || endError) return;
-    const label = `${TYPES.find((item) => item.value === type)?.label} · ${dateRange(start, endDate)}`;
+    const label = `${TYPES.find((item) => item.value === type)?.label} · ${dateRange(start, endDate, period)}`;
     Alert.alert('ยืนยันขอลา', label, [
       { text: 'ยกเลิก', style: 'cancel' },
       { text: 'ส่งคำขอ', onPress: () => {
         setSent('');
-        request.mutate({ type, startDate: start, endDate }, {
+        request.mutate({ type, startDate: start, endDate, period }, {
           onSuccess: (data) => setSent(`${label} · ${data.status === 'APPROVED' ? 'บันทึกการลาแล้ว' : 'ส่งคำขอแล้ว รอเจ้าของสำนักงานอนุมัติ'}`),
         });
       } },
@@ -57,6 +67,8 @@ export default function LeavesScreen() {
       <DatePicker label={multiple ? 'วันเริ่มลา' : 'วันที่ลา'} required value={start} minDate={today} error={startError} disabled={request.isPending}
         onChange={(value) => { setStart(value); if (end < value) setEnd(value); }} />
       <SwitchRow label="ลาหลายวัน" value={multiple} onValueChange={setMultiple} disabled={request.isPending} />
+      {!multiple && <Dropdown inline label="ช่วงเวลา" fieldLabel="ช่วงเวลาที่ลา" value={periodValue} options={PERIODS}
+        onChange={setPeriodValue} disabled={request.isPending} />}
       {multiple && <DatePicker label="ถึงวันที่" required value={end} minDate={start} error={endError} onChange={setEnd} disabled={request.isPending} />}
       <InlineError message={request.isError ? `ส่งไม่สำเร็จ · ${request.error.message}` : undefined} />
       {!!sent && <View accessibilityLiveRegion="polite" style={styles.sent}>
@@ -75,7 +87,7 @@ export default function LeavesScreen() {
         <View style={styles.iconTile}><CalendarOff size={18} color={colors.info} /></View>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>{TYPES.find((option) => option.value === item.type)?.label ?? 'ลา'}</Text>
-          <Text style={{ color: colors.muted, fontSize: 14 }}>{dateRange(item.startDate, item.endDate)}</Text>
+          <Text style={{ color: colors.muted, fontSize: 14 }}>{dateRange(item.startDate, item.endDate, item.period)}</Text>
           {item.decidedBy && <Text style={{ color: colors.muted, fontSize: 14 }}>
             {item.status === 'REJECTED' ? 'ปฏิเสธ' : 'อนุมัติ'}โดย {item.decidedBy.firstName} {item.decidedBy.lastName}
           </Text>}

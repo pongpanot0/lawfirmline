@@ -204,6 +204,17 @@ describe('LeaveService approval workflow', () => {
     expect(leave.status).toBe(LeaveStatus.PENDING);
   });
 
+  it('half-day leave is stored with its period and must be a single day', async () => {
+    const prisma = makePrisma();
+    const line = { sendText: jest.fn(async () => true), push: jest.fn(async () => true) } as any;
+    const svc = new LeaveService(prisma, line, notifier, center);
+    const alice = { id: 'alice', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any;
+    await svc.create(alice, { type: LeaveType.PERSONAL, startDate: inDays(1), endDate: inDays(1), period: 'MORNING' as any });
+    expect(prisma.leaveRequest.create.mock.calls[0][0].data.period).toBe('MORNING');
+    await expect(svc.create(alice, { type: LeaveType.PERSONAL, startDate: inDays(1), endDate: inDays(2), period: 'AFTERNOON' as any })).rejects.toThrow('ลาครึ่งวันได้ทีละ 1 วัน');
+    await expect(svc.create(alice, { type: LeaveType.PERSONAL, startDate: inDays(1), endDate: inDays(1), period: 'NOON' as any })).rejects.toThrow('ช่วงเวลาลาไม่ถูกต้อง');
+  });
+
   it('an audited (MCP) request writes the leave and its audit row in one transaction', async () => {
     const prisma = makePrisma({ auditLog: { create: jest.fn() } });
     prisma.$transaction = jest.fn((fn: any) => fn(prisma));

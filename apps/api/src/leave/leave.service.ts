@@ -1,12 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuthUser, FirmRole, hasFirmCapability, rolesWithCapability } from '@lawfirm/shared';
-import { EventType, LeaveStatus, LeaveType, NotificationCategory, Prisma } from '../generated/prisma';
+import { EventType, LeavePeriod, LeaveStatus, LeaveType, NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { buildActionCard, LineMessagingService } from '../notifications/line-messaging.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { NotificationCenterService } from '../notifications/notification-center.service';
-import { addBangkokDays, bangkokDayKey, bangkokDayStart, bangkokDayEnd, formatBangkokDateThai, formatBangkokDateTime, isBangkokWeekend } from '../common/utils/bangkok-time';
+import { addBangkokDays, bangkokDayKey, bangkokDayStart, bangkokDayEnd, formatBangkokDateThai, formatBangkokDateTime, isBangkokWeekend, bangkokHour } from '../common/utils/bangkok-time';
 import { eventForUserWhere } from '../calendar/event-people';
 import { canSeeLeaveDetail, leaveVisibleWhere } from './leave-visibility';
 
@@ -17,9 +17,9 @@ const LABEL: Record<LeaveType, string> = {
 };
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const key = (value: Date) => value.toISOString().slice(0, 10);
-const bangkokHour = (now: Date) => (now.getUTCHours() + 7) % 24;
 /** The "who's out today" round goes at 09:00; anything approved for today after that goes out as an add-on. */
 const MORNING_HOUR = 9;
+const PERIOD_LABEL: Record<LeavePeriod, string> = { MORNING: 'ครึ่งเช้า', AFTERNOON: 'ครึ่งบ่าย' };
 
 type Leave = {
   id: string;
@@ -29,6 +29,7 @@ type Leave = {
   status: LeaveStatus;
   startDate: Date;
   endDate: Date;
+  period?: LeavePeriod | null;
   user: { firstName: string; lastName: string; lineUserId?: string | null };
 };
 
@@ -67,8 +68,8 @@ export class LeaveService {
     return Promise.all(leaves.map(async (leave) => {
       if (!canSeeLeaveDetail(user, leave.userId)) {
         // Someone else's approved leave: who is out and when, nothing more.
-        const { id, userId, status, startDate, endDate, user: person } = leave;
-        return { id, userId, status, startDate, endDate, user: person, type: null, decidedAt: null, decidedBy: null };
+        const { id, userId, status, startDate, endDate, period, user: person } = leave;
+        return { id, userId, status, startDate, endDate, period, user: person, type: null, decidedAt: null, decidedBy: null };
       }
       return {
         ...leave,
@@ -110,7 +111,7 @@ export class LeaveService {
   }
 
   /** `audit` (MCP) is written in the same transaction as the leave row. */
-  async create(user: AuthUser, input: { type: LeaveType; startDate: string; endDate: string }, audit?: (entityId: string) => Prisma.AuditLogUncheckedCreateInput) {
+  async create(user: AuthUser, input: { type: LeaveType; startDate: string; endDate: string; period?: LeavePeriod | null }, audit?: (entityId: string) => Prisma.AuditLogUncheckedCreateInput) {
     if (!Object.values(LeaveType).includes(input.type)) throw new BadRequestException('ประเภทการลาไม่ถูกต้อง');
     const startDate = this.parseDate(input.startDate);
     const endDate = this.parseDate(input.endDate);
@@ -118,6 +119,9 @@ export class LeaveService {
     if (startDate < today || endDate < startDate || endDate.getTime() - startDate.getTime() > 89 * 86400000 || startDate.getTime() - today.getTime() > 365 * 86400000) {
       throw new BadRequestException('กรุณาเลือกวันเริ่มตั้งแต่วันนี้ ช่วงลาไม่เกิน 90 วัน และล่วงหน้าไม่เกิน 1 ปี');
     }
+    const period = input.period ?? null;
+    if (period !== null && !Object.values(LeavePeriod).includes(period)) throw new BadRequestException('ช่วงเวลาลาไม่ถูกต้อง');
+    if (period !== null && startDate.getTime() !== endDate.getTime()) throw new BadRequestException('ลาครึ่งวันได้ทีละ 1 วัน');
     const member = await this.prisma.firmMember.findUnique({ where: { firmId_userId: { firmId: user.firmId, userId: user.id } } });
     if (!member) throw new ForbiddenException('ไม่ใช่สมาชิกสำนักงานนี้');
     const overlap = await this.prisma.leaveRequest.findFirst({
@@ -129,7 +133,7 @@ export class LeaveService {
     let leave: Leave;
     try {
       const insert = (db: Prisma.TransactionClient) => db.leaveRequest.create({
-        data: { firmId: user.firmId, userId: user.id, type: input.type, startDate, endDate, status },
+        data: { firmId: user.firmId, userId: user.id, type: input.type, startDate, endDate, period, status },
         include: { user: { select: { firstName: true, lastName: true } } },
       });
       leave = audit
@@ -204,7 +208,7 @@ export class LeaveService {
   }
 
   /** "ชื่อ · ช่วงวัน" — what anyone but the approvers is told about someone's leave. */
-  who(leave: Pick<Leave, 'user' | 'startDate' | 'endDate'>, showRange = true) {
+  who(leave: Pick<Leave, 'user' | 'startDate' | 'endDate' | 'period'>, showRange = true) {
     const name = `${leave.user.firstName} ${leave.user.lastName}`.trim();
     return showRange ? `${name} · ${this.rangeText(leave)}` : name;
   }
@@ -222,9 +226,9 @@ export class LeaveService {
     return new Set(userIds.filter((id) => channels.get(id)?.line));
   }
 
-  private rangeText(leave: Pick<Leave, 'startDate' | 'endDate'>) {
+  private rangeText(leave: Pick<Leave, 'startDate' | 'endDate' | 'period'>) {
     return leave.startDate.getTime() === leave.endDate.getTime()
-      ? formatBangkokDateThai(leave.startDate)
+      ? `${formatBangkokDateThai(leave.startDate)}${leave.period ? ` (${PERIOD_LABEL[leave.period]})` : ''}`
       : `${formatBangkokDateThai(leave.startDate)}–${formatBangkokDateThai(leave.endDate)}`;
   }
 

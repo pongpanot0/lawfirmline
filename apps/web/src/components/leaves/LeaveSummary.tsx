@@ -98,7 +98,7 @@ export function LeaveSummary({ token, userId, seeAll, reloadKey }: { token: stri
                                     {own.map((leave) => (
                                       <li key={leave.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                         <span className="font-medium">{leave.type ? LEAVE_TYPE_TH[leave.type] : 'ลา'}</span>
-                                        <span className="text-muted-foreground">{leave.startDate === leave.endDate ? formatDate(leave.startDate) : `${formatDate(leave.startDate)} – ${formatDate(leave.endDate)}`} · {leaveDaysInYear(leave, year)} วัน</span>
+                                        <span className="text-muted-foreground">{leave.startDate === leave.endDate ? `${formatDate(leave.startDate)}${leave.period ? (leave.period === 'MORNING' ? ' (ครึ่งเช้า)' : ' (ครึ่งบ่าย)') : ''}` : `${formatDate(leave.startDate)} – ${formatDate(leave.endDate)}`} · {leaveDaysInYear(leave, year)} วัน</span>
                                         <Badge variant={leave.status === 'APPROVED' ? 'success' : leave.status === 'REJECTED' ? 'destructive' : 'warning'}>{STATUS_TH[leave.status]}</Badge>
                                         {leaveDecisionText(leave) && <span className="text-muted-foreground">{leaveDecisionText(leave)}</span>}
                                       </li>

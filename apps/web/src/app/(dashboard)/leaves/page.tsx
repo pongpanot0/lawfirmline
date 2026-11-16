@@ -24,10 +24,16 @@ import { LeaveSummary } from '@/components/leaves/LeaveSummary';
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
+const PERIOD_LABEL = { MORNING: 'ครึ่งเช้า', AFTERNOON: 'ครึ่งบ่าย' } as const;
+type Period = keyof typeof PERIOD_LABEL;
+
 const rangeText = (leave: LeaveItem) =>
   leave.startDate === leave.endDate
-    ? formatDate(leave.startDate)
+    ? `${formatDate(leave.startDate)}${leave.period ? ` (${PERIOD_LABEL[leave.period]})` : ''}`
     : `${formatDate(leave.startDate)} – ${formatDate(leave.endDate)}`;
+
+const dayCount = (leave: LeaveItem): string =>
+  leave.period ? 'ครึ่งวัน' : `${Math.floor((Date.parse(leave.endDate.slice(0, 10)) - Date.parse(leave.startDate.slice(0, 10))) / 86400000) + 1} วัน`;
 
 function StatusBadge({ status, d }: { status: LeaveItem['status']; d: ReturnType<typeof useDashboardT> }) {
   if (status === 'APPROVED') return <Badge variant="success">{d.leaves.statusApproved}</Badge>;
@@ -52,11 +58,13 @@ export default function LeavesPage() {
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
-  const [form, setForm] = useState<{ type: 'SICK' | 'PERSONAL' | 'VACATION'; startDate: string; endDate: string }>({
+  const [form, setForm] = useState<{ type: 'SICK' | 'PERSONAL' | 'VACATION'; startDate: string; endDate: string; period: Period | null }>({
     type: 'SICK',
     startDate: '',
     endDate: '',
+    period: null,
   });
+  const singleDay = !!form.startDate && form.startDate === form.endDate;
   const [formOpen, setFormOpen] = useState(false);
   const closeForm = useCallback(() => setFormOpen(false), []);
   const [submitting, setSubmitting] = useState(false);
@@ -90,8 +98,8 @@ export default function LeavesPage() {
     setSubmitting(true);
     setSubmitError('');
     try {
-      const created = await api.createLeave(token, form);
-      setForm({ type: 'SICK', startDate: '', endDate: '' });
+      const created = await api.createLeave(token, { ...form, period: singleDay ? form.period : null });
+      setForm({ type: 'SICK', startDate: '', endDate: '', period: null });
       setFormOpen(false);
       setTab(created.status === 'PENDING' ? 'MY' : 'DONE');
       setReloadKey((k) => k + 1);
@@ -188,6 +196,20 @@ export default function LeavesPage() {
               <ThaiDateField id="leave-end" value={form.endDate} onChange={(value) => setForm({ ...form, endDate: value })} required />
             </div>
           </div>
+          {singleDay && (
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium">ช่วงเวลา</legend>
+              <div className="grid grid-cols-3 gap-1 rounded-lg border bg-muted/50 p-1">
+                {([null, 'MORNING', 'AFTERNOON'] as const).map((period) => (
+                  <label key={period ?? 'FULL'} className={`relative inline-flex min-h-11 cursor-pointer items-center justify-center whitespace-nowrap rounded-md px-3 text-sm focus-within:ring-2 focus-within:ring-ring ${form.period === period ? 'bg-primary font-medium text-primary-foreground shadow-sm' : 'hover:bg-card'}`}>
+                    <input type="radio" name="leave-period" value={period ?? 'FULL'} checked={form.period === period} onChange={() => setForm({ ...form, period })} className="sr-only" />
+                    {form.period === period && <Check className="mr-1.5 h-4 w-4" aria-hidden />}{period ? PERIOD_LABEL[period] : 'ทั้งวัน'}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">ครึ่งเช้า 09:00–12:00 · ครึ่งบ่าย 12:00–17:00 · ไม่มีแจ้งเตือนช่วงที่ลา</p>
+            </fieldset>
+          )}
           {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
           <div className="flex flex-wrap items-start justify-between gap-3 border-t pt-4">
             <Button type="button" variant="outline" onClick={closeForm}>ยกเลิก</Button>
@@ -226,7 +248,7 @@ export default function LeavesPage() {
                     <div>
                       <p className="font-medium">{leave.user.firstName} {leave.user.lastName}</p>
                       <p className="text-sm text-muted-foreground">
-                        {(leave.type ? typeLabel[leave.type] : 'ลา')} · {Math.floor((Date.parse(leave.endDate.slice(0, 10)) - Date.parse(leave.startDate.slice(0, 10))) / 86400000) + 1} วัน · {rangeText(leave)}{leave.createdAt ? ` · ยื่น ${formatDate(leave.createdAt)}` : ''}
+                        {(leave.type ? typeLabel[leave.type] : 'ลา')} · {dayCount(leave)} · {rangeText(leave)}{leave.createdAt ? ` · ยื่น ${formatDate(leave.createdAt)}` : ''}
                       </p>
                     </div>
                     <StatusBadge status={leave.status} d={d} />
@@ -273,7 +295,7 @@ export default function LeavesPage() {
             (tab === 'MY' ? activeLeaves : completedLeaves).map((leave) => (
               <div key={leave.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4">
                 <div>
-                  <p className="font-medium">{leave.user.firstName} {leave.user.lastName} · {(leave.type ? typeLabel[leave.type] : 'ลา')} · {Math.floor((Date.parse(leave.endDate.slice(0, 10)) - Date.parse(leave.startDate.slice(0, 10))) / 86400000) + 1} วัน</p>
+                  <p className="font-medium">{leave.user.firstName} {leave.user.lastName} · {(leave.type ? typeLabel[leave.type] : 'ลา')} · {dayCount(leave)}</p>
                   <p className="text-sm text-muted-foreground">{rangeText(leave)}{leave.createdAt ? ` · ยื่น ${formatDate(leave.createdAt)}` : ''}</p>{leaveDecisionText(leave) && <p className="text-sm font-medium">{leaveDecisionText(leave)}</p>}<div className="mt-2 min-w-48"><StepTracker variant="mini" steps={['ยื่นแล้ว', 'รออนุมัติ', leave.status === 'REJECTED' ? 'ไม่อนุมัติ' : 'อนุมัติแล้ว'].map((label, i) => { const current = leave.status === 'PENDING' ? 1 : 2; return { key: label, label, state: i < current ? 'done' : i === current ? 'current' : 'todo' }; })} /></div>
                 </div>
                 <div className="flex items-center gap-2">
