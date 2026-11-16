@@ -59,6 +59,12 @@ enum LeaveType {
   VACATION
 }
 
+/// Half of a one-day leave; null on LeaveRequest.period means the whole day.
+enum LeavePeriod {
+  MORNING
+  AFTERNOON
+}
+
 enum SubscriptionPlan {
   FREE
   SOLO
@@ -2014,6 +2020,8 @@ model LeaveRequest {
   type        LeaveType
   startDate   DateTime    @db.Date
   endDate     DateTime    @db.Date
+  /// Half-day leave (single day only); null = whole day(s). Morning = before 12:00, afternoon = from 12:00.
+  period      LeavePeriod?
   status      LeaveStatus @default(PENDING)
   decidedById String?
   decidedAt   DateTime?

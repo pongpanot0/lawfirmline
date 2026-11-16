@@ -64,6 +64,11 @@ export function isBangkokWeekend(date: Date): boolean {
 export const OFFICE_START_HOUR = 9;
 export const OFFICE_END_HOUR = 17;
 
+/** The Bangkok wall-clock hour (0–23). */
+export function bangkokHour(date: Date): number {
+  return toBangkokWallClock(date).getUTCHours();
+}
+
 /** True inside Mon–Fri 09:00–17:00 Bangkok. */
 export function isBangkokOfficeHours(date: Date): boolean {
   if (isBangkokWeekend(date)) return false;

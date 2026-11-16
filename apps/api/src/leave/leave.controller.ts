@@ -4,7 +4,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 import { RequireCapability } from '../saas/decorators/saas.decorators';
-import { LeaveType } from '../generated/prisma';
+import { LeavePeriod, LeaveType } from '../generated/prisma';
 import { LeaveService } from './leave.service';
 import { DecideLeaveDto } from './dto/decide-leave.dto';
 
@@ -24,7 +24,7 @@ export class LeaveController {
   }
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() body: { type: LeaveType; startDate: string; endDate: string }) {
+  create(@CurrentUser() user: AuthUser, @Body() body: { type: LeaveType; startDate: string; endDate: string; period?: LeavePeriod | null }) {
     return this.leaves.create(user, body);
   }
 

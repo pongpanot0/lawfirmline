@@ -238,6 +238,8 @@ export interface LeaveItem {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   startDate: string;
   endDate: string;
+  /** Half-day leave (single day only); null/absent = whole day(s). */
+  period?: 'MORNING' | 'AFTERNOON' | null;
   user?: { firstName: string; lastName: string };
   decidedBy?: { firstName: string; lastName: string } | null;
   courtConflicts?: Array<{ eventId: string; caseId: string; caseRef: string; title: string; courtName: string | null; startAt: string }>;

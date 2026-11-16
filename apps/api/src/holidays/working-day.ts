@@ -1,6 +1,9 @@
-import { LeaveStatus } from '../generated/prisma';
+import { LeavePeriod, LeaveStatus } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
-import { bangkokDateOnly, isBangkokOfficeHours, isBangkokWeekend } from '../common/utils/bangkok-time';
+import { bangkokDateOnly, bangkokHour, isBangkokOfficeHours, isBangkokWeekend } from '../common/utils/bangkok-time';
+
+/** Half-day leave splits at noon: morning leave is off before 12:00, afternoon leave from 12:00. */
+export const LEAVE_SPLIT_HOUR = 12;
 
 type Db = Pick<PrismaService, 'publicHoliday' | 'leaveRequest'>;
 
@@ -11,12 +14,19 @@ export async function isBangkokWorkingDay(db: Db, date: Date): Promise<boolean> 
   return !holiday;
 }
 
-/** Which of `userIds` have approved leave covering the Bangkok day of `date`. */
-export async function usersOnLeave(db: Db, userIds: string[], date: Date): Promise<Set<string>> {
+/**
+ * Which of `userIds` have approved leave covering the Bangkok day of `date`.
+ * Whole-day leave only, unless `atTime`: then half-day leave counts during its half.
+ */
+export async function usersOnLeave(db: Db, userIds: string[], date: Date, atTime = false): Promise<Set<string>> {
   if (!userIds.length) return new Set();
   const today = bangkokDateOnly(date);
+  const half = bangkokHour(date) < LEAVE_SPLIT_HOUR ? LeavePeriod.MORNING : LeavePeriod.AFTERNOON;
   const rows = await db.leaveRequest.findMany({
-    where: { userId: { in: userIds }, status: LeaveStatus.APPROVED, startDate: { lte: today }, endDate: { gte: today } },
+    where: {
+      userId: { in: userIds }, status: LeaveStatus.APPROVED, startDate: { lte: today }, endDate: { gte: today },
+      OR: [{ period: null }, ...(atTime ? [{ period: half }] : [])],
+    },
     select: { userId: true },
   });
   return new Set(rows.map((r) => r.userId));
@@ -28,5 +38,5 @@ export async function usersOnLeave(db: Db, userIds: string[], date: Date): Promi
  */
 export async function usersOff(db: Db, userIds: string[], now: Date): Promise<Set<string>> {
   if (!isBangkokOfficeHours(now) || !(await isBangkokWorkingDay(db, now))) return new Set(userIds);
-  return usersOnLeave(db, userIds, now);
+  return usersOnLeave(db, userIds, now, true);
 }

@@ -1,4 +1,4 @@
-import { isBangkokWorkingDay, usersOff } from './working-day';
+import { isBangkokWorkingDay, usersOff, usersOnLeave } from './working-day';
 
 const db = (holiday: boolean, onLeave: string[] = []) => ({
   publicHoliday: { findUnique: jest.fn().mockResolvedValue(holiday ? { id: 'h' } : null) },
@@ -16,5 +16,15 @@ describe('working day', () => {
     expect([...(await usersOff(db(false), ['a', 'b'], new Date('2026-09-14T11:00:00Z')))]).toEqual(['a', 'b']); // Mon 18:00
     expect([...(await usersOff(db(true), ['a', 'b'], new Date('2026-09-14T04:00:00Z')))]).toEqual(['a', 'b']); // holiday
     expect([...(await usersOff(db(false, ['b']), ['a', 'b'], new Date('2026-09-14T04:00:00Z')))]).toEqual(['b']);
+  });
+
+  it('half-day leave counts only during its half, and only when asked at a time', async () => {
+    const d = db(false);
+    await usersOnLeave(d, ['a'], new Date('2026-09-14T03:00:00Z'), true); // 10:00
+    expect(d.leaveRequest.findMany.mock.calls[0][0].where.OR).toEqual([{ period: null }, { period: 'MORNING' }]);
+    await usersOnLeave(d, ['a'], new Date('2026-09-14T05:00:00Z'), true); // 12:00
+    expect(d.leaveRequest.findMany.mock.calls[1][0].where.OR).toEqual([{ period: null }, { period: 'AFTERNOON' }]);
+    await usersOnLeave(d, ['a'], new Date('2026-09-14T03:00:00Z'));
+    expect(d.leaveRequest.findMany.mock.calls[2][0].where.OR).toEqual([{ period: null }]);
   });
 });

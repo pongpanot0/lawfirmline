@@ -440,6 +440,8 @@ export interface LeaveItem {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   startDate: string;
   endDate: string;
+  /** Half-day leave (single day only); null/absent = whole day(s). */
+  period?: 'MORNING' | 'AFTERNOON' | null;
   decidedAt: string | null;
   user: { firstName: string; lastName: string };
   decidedBy?: { firstName: string; lastName: string } | null;
@@ -2945,7 +2947,7 @@ export const api = {
 
   getLeaves: (token: string, from: string, to: string) =>
     request<LeaveItem[]>(`/leaves?${new URLSearchParams({ from, to })}`, { token }),
-  createLeave: (token: string, data: { type: 'SICK' | 'PERSONAL' | 'VACATION'; startDate: string; endDate: string }) =>
+  createLeave: (token: string, data: { type: 'SICK' | 'PERSONAL' | 'VACATION'; startDate: string; endDate: string; period?: 'MORNING' | 'AFTERNOON' | null }) =>
     request<LeaveItem>('/leaves', { token, method: 'POST', body: JSON.stringify(data) }),
   decideLeave: (token: string, id: string, decision: 'APPROVED' | 'REJECTED') =>
     request<LeaveItem>(`/leaves/${id}/decision`, { token, method: 'PATCH', body: JSON.stringify({ decision }) }),

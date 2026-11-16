@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leaveApprovalQueue, leaveDayEvents, leaveDecisionText, leaveFlagsForDate, leaveSummaryByPerson, leaveWarning } from './leave-flags.ts';
+import { leaveApprovalQueue, leaveDayEvents, leaveDaysInYear, leaveDecisionText, leaveFlagsForDate, leaveSummaryByPerson, leaveWarning } from './leave-flags.ts';
 
 const base = { userId: 'u1', type: 'SICK' as const, startDate: '2026-10-01', endDate: '2026-10-05' };
 
@@ -98,4 +98,10 @@ test('leaveSummaryByPerson counts approved days by type, clips to the year, and 
     { userId: 'a', name: 'Ann A', SICK: 3, PERSONAL: 0, VACATION: 2, total: 5, pending: 1 },
     { userId: 'b', name: 'Ben B', SICK: 0, PERSONAL: 0, VACATION: 0, total: 0, pending: 0 },
   ]);
+});
+
+test('half-day leave counts as half a day in its own year only', () => {
+  assert.equal(leaveDaysInYear({ startDate: '2026-09-14', endDate: '2026-09-14', period: 'MORNING' }, 2026), 0.5);
+  assert.equal(leaveDaysInYear({ startDate: '2026-09-14', endDate: '2026-09-14', period: 'MORNING' }, 2027), 0);
+  assert.equal(leaveDaysInYear({ startDate: '2026-09-14', endDate: '2026-09-15' }, 2026), 2);
 });

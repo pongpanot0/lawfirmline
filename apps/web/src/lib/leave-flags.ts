@@ -94,7 +94,8 @@ export function leaveDecisionText(leave: Pick<LeaveItem, 'status' | 'decidedAt' 
 export type LeaveSummaryRow = { userId: string; name: string; SICK: number; PERSONAL: number; VACATION: number; total: number; pending: number };
 
 /** Number of calendar days of `leave` inside `year` (0 when it falls outside). */
-export function leaveDaysInYear(leave: Pick<LeaveItem, 'startDate' | 'endDate'>, year: number): number {
+export function leaveDaysInYear(leave: Pick<LeaveItem, 'startDate' | 'endDate' | 'period'>, year: number): number {
+  if (leave.period) return leave.startDate.slice(0, 4) === String(year) ? 0.5 : 0;
   const start = leave.startDate.slice(0, 10) > `${year}-01-01` ? leave.startDate.slice(0, 10) : `${year}-01-01`;
   const end = leave.endDate.slice(0, 10) < `${year}-12-31` ? leave.endDate.slice(0, 10) : `${year}-12-31`;
   return start > end ? 0 : (Date.parse(end) - Date.parse(start)) / 86400000 + 1;
@@ -106,7 +107,7 @@ export function leaveDaysInYear(leave: Pick<LeaveItem, 'startDate' | 'endDate'>,
  * requests. `people` adds a zero row for anyone without leave. Sorted by name.
  */
 export function leaveSummaryByPerson(
-  leaves: Pick<LeaveItem, 'userId' | 'status' | 'type' | 'startDate' | 'endDate' | 'user'>[],
+  leaves: Pick<LeaveItem, 'userId' | 'status' | 'type' | 'startDate' | 'endDate' | 'period' | 'user'>[],
   year: number,
   people: { id: string; firstName: string; lastName: string }[] = [],
 ): LeaveSummaryRow[] {

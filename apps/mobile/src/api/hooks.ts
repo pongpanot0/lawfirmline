@@ -653,7 +653,7 @@ export function useReviewClaim(id: string) {
 export function useRequestLeave() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (body: { type: NonNullable<LeaveItem['type']>; startDate: string; endDate: string }) =>
+    mutationFn: (body: { type: NonNullable<LeaveItem['type']>; startDate: string; endDate: string; period?: LeaveItem['period'] }) =>
       api<LeaveItem>('/leaves', { method: 'POST', body }),
     retry: false,
     onSettled: () => {

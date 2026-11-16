@@ -146,12 +146,12 @@ export class AssignmentNotifierService {
   }
 
   /**
-   * 09:00 on working days: one push + LINE per person listing their held, still
-   * unread rows (nights, weekends, holidays, their own leave). Someone still on
-   * leave keeps theirs until the first morning they are back.
+   * 09:00 and 12:00 on working days: one push + LINE per person listing their
+   * held, still unread rows (nights, weekends, holidays, their own leave). Someone
+   * still on leave keeps theirs; 12:00 is when a morning half-day leave ends.
    * ponytail: ignores per-category channel switches; filter here if someone turns everything off and still gets it.
    */
-  @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
+  @Cron('0 9,12 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendHeldSummary(now: Date = new Date()): Promise<number> {
     if (!(await isBangkokWorkingDay(this.prisma, now))) return 0;
     const heldRows = await this.prisma.notification.findMany({
@@ -159,7 +159,7 @@ export class AssignmentNotifierService {
       orderBy: { createdAt: 'asc' },
       select: { id: true, userId: true, firmId: true, title: true, readAt: true, user: { select: { lineUserId: true } } },
     });
-    const away = await usersOnLeave(this.prisma, [...new Set(heldRows.map((r) => r.userId))], now);
+    const away = await usersOnLeave(this.prisma, [...new Set(heldRows.map((r) => r.userId))], now, true);
     const due = heldRows.filter((r) => !away.has(r.userId));
     // Released before sending: a crash mid-loop must not repeat the summary tomorrow.
     if (due.length) await this.prisma.notification.updateMany({ where: { id: { in: due.map((r) => r.id) } }, data: { held: false } });
