@@ -44,9 +44,11 @@ type DigestMember = {
 };
 
 /**
- * Sends each member a single message the evening before, so tomorrow's work is
- * known without opening the app, plus a short push at 18:00 (tomorrow) and
- * 08:00 (today) that opens the app's calendar. `dailyDigestEnabled` mutes all of it.
+ * Sends each member a single message the afternoon before, so tomorrow's work is
+ * known without opening the app, plus a short push at 16:30 (tomorrow) and
+ * 09:00 (today) that opens the app's calendar. `dailyDigestEnabled` mutes all of it.
+ * Office hours only (Mon–Fri 09:00–17:00): Monday has no Sunday-afternoon send,
+ * so its full list goes out with the Monday 09:00 push instead.
  *
  * This is deliberately separate from `ReminderScheduler`: that one counts down
  * to one event and notifies everyone staffed on the case, whereas this answers
@@ -64,16 +66,19 @@ export class DailyDigestScheduler {
     private push: PushService,
   ) {}
 
-  /** 18:00 Asia/Bangkok — pinned, because the server may run anywhere. */
-  @Cron('0 18 * * *', { timeZone: 'Asia/Bangkok' })
+  /** 16:30 Mon–Thu Asia/Bangkok (tomorrow = Tue–Fri) — pinned, because the server may run anywhere. */
+  @Cron('30 16 * * 1-4', { timeZone: 'Asia/Bangkok' })
   async sendDigests(): Promise<void> {
     await this.run(addBangkokDays(bangkokDayStart(new Date()), 1), 'push-evening', true);
   }
 
-  /** 08:00 Asia/Bangkok — push only; the full list went out over LINE/email last night. */
-  @Cron('0 8 * * *', { timeZone: 'Asia/Bangkok' })
+  /**
+   * 09:00 Mon–Fri. The full list normally went out the afternoon before, and the
+   * per-day text log keeps it from repeating; only Monday (no Sunday send) gets it here.
+   */
+  @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendMorningPush(): Promise<void> {
-    await this.run(bangkokDayStart(new Date()), 'push-morning', false);
+    await this.run(bangkokDayStart(new Date()), 'push-morning', true);
   }
 
   private async run(target: Date, pushChannel: PushChannel, withText: boolean): Promise<void> {
@@ -143,7 +148,7 @@ export class DailyDigestScheduler {
 
     const lines = this.buildLines(brief.items);
     if (text) {
-      await this.sendText(member, target, digestDate, lines, brief.warnings.map((w) => w.message));
+      await this.sendText(member, target, digestDate, lines, brief.warnings.map((w) => w.message), target.getTime() === bangkokDayStart(new Date()).getTime());
     }
     if (pushChannel) await this.sendPush(member.user.id, digestDate, lines, pushChannel);
   }
@@ -154,12 +159,13 @@ export class DailyDigestScheduler {
     digestDate: Date,
     lines: string[],
     warnings: string[],
+    today = false,
   ): Promise<void> {
     const channel: TextChannel = member.user.lineUserId ? 'line' : 'email';
 
     const sent =
       channel === 'line'
-        ? await this.line.sendText(this.buildMessage(target, lines, warnings), [
+        ? await this.line.sendText(this.buildMessage(target, lines, warnings, today), [
             member.user.lineUserId as string,
           ])
         : await this.email.sendDailyDigestEmail({
@@ -221,9 +227,9 @@ export class DailyDigestScheduler {
     return lines;
   }
 
-  private buildMessage(day: Date, lines: string[], warnings: string[]): string {
+  private buildMessage(day: Date, lines: string[], warnings: string[], today = false): string {
     return [
-      `📋 งานพรุ่งนี้ (${formatBangkokDateThai(day)})`,
+      `📋 งาน${today ? 'วันนี้' : 'พรุ่งนี้'} (${formatBangkokDateThai(day)})`,
       '',
       ...lines.map((line) => `• ${line}`),
       ...(warnings.length ? ['', ...warnings.map((w) => `⚠️ ${w}`)] : []),

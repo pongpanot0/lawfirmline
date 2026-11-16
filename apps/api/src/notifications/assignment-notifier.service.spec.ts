@@ -6,7 +6,7 @@ const CASE_ID = '11111111-2222-3333-4444-555555555555';
 const prisma = {
   user: { findMany: jest.fn() },
   firmMember: { findMany: jest.fn() },
-  notification: { createManyAndReturn: jest.fn() },
+  notification: { createManyAndReturn: jest.fn(), findMany: jest.fn() },
 } as any;
 const line = { pushTo: jest.fn() } as any;
 const push = { send: jest.fn() } as any;
@@ -28,6 +28,7 @@ describe('AssignmentNotifierService', () => {
   let svc: AssignmentNotifierService;
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers({ now: new Date('2026-09-08T04:00:00Z'), doNotFake: ['nextTick', 'setImmediate'] }); // Tue 11:00 Bangkok
     line.pushTo.mockResolvedValue(true);
     push.send.mockResolvedValue(true);
     firmPrisma.firm.findUnique.mockResolvedValue({ slug: 'acme' });
@@ -67,6 +68,42 @@ describe('AssignmentNotifierService', () => {
     expect(line.pushTo).toHaveBeenCalledTimes(1);
     expect(line.pushTo).toHaveBeenCalledWith('L2', expect.stringContaining(`https://acme.example.com/cases/${CASE_ID}?tab=tasks`), undefined);
     expect(result).toEqual({ recipients: 2, push: true, line: true });
+  });
+
+  afterEach(() => jest.useRealTimers());
+
+  it.each([
+    ['Tue 17:00 Bangkok', '2026-09-08T10:00:00Z'],
+    ['Tue 08:59 Bangkok', '2026-09-08T01:59:00Z'],
+    ['Sat 11:00 Bangkok', '2026-09-12T04:00:00Z'],
+  ])('outside office hours (%s) only writes the inbox row', async (_label, at) => {
+    jest.setSystemTime(new Date(at));
+    prisma.user.findMany.mockResolvedValue(users);
+    const result = await svc.notifyAssigned({
+      firmId: 'f1', userIds: ['u2', 'u3'], actorUserId: '', category: 'TASK', summaryText: 'งานใหม่', entityPath: '/todos',
+    });
+    expect(prisma.notification.createManyAndReturn).toHaveBeenCalledTimes(1);
+    expect(push.send).not.toHaveBeenCalled();
+    expect(line.pushTo).not.toHaveBeenCalled();
+    expect(result).toEqual({ recipients: 2, push: false, line: false });
+  });
+
+  it('Monday 09:00 summarises unread rows held since Friday 17:00, one message per person', async () => {
+    prisma.notification.findMany.mockResolvedValue([
+      { userId: 'u2', firmId: 'f1', title: 'งาน A', user: { lineUserId: 'L2' } },
+      { userId: 'u3', firmId: 'f1', title: 'งาน B', user: { lineUserId: null } },
+      { userId: 'u2', firmId: 'f1', title: 'งาน C', user: { lineUserId: 'L2' } },
+    ]);
+    const sent = await svc.sendHeldSummary(new Date('2026-09-14T02:00:00Z')); // Mon 09:00 Bangkok
+
+    expect(prisma.notification.findMany.mock.calls[0][0].where).toEqual({
+      createdAt: { gte: new Date('2026-09-11T10:00:00Z'), lt: new Date('2026-09-14T02:00:00Z') }, // Fri 17:00 → Mon 09:00
+      readAt: null,
+    });
+    expect(sent).toBe(2);
+    expect(push.send).toHaveBeenCalledWith([expect.objectContaining({ userId: 'u2', title: '🔔 แจ้งเตือนนอกเวลาทำการ 2 รายการ', body: '• งาน A\n• งาน C' })]);
+    expect(line.pushTo).toHaveBeenCalledTimes(1);
+    expect(line.pushTo).toHaveBeenCalledWith('L2', expect.stringContaining('• งาน C'));
   });
 
   it('an explicit appPath wins over the mapped web path', async () => {

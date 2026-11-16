@@ -50,11 +50,11 @@ describe('LeaveService notices', () => {
 
   afterEach(() => jest.useRealTimers());
 
-  it('08:00 on a working day: today, week and three-day rounds, all types, names only, LINE and app, once', async () => {
+  it('09:00 on a working day: today, week and three-day rounds, all types, names only, LINE and app, once', async () => {
     const { line, notify, service } = setup([alice, carol, bob]);
-    const monday = new Date('2026-09-28T01:00:00Z'); // 08:00 Bangkok
+    const monday = new Date('2026-09-28T02:00:00Z'); // 09:00 Bangkok
     await service.sendNotices(monday);
-    await service.sendNotices(new Date('2026-09-28T01:10:00Z'));
+    await service.sendNotices(new Date('2026-09-28T02:10:00Z'));
 
     const toBob = textsTo(line, 'line-bob');
     expect(toBob.find((t) => t.startsWith('📅 วันนี้ไม่อยู่ ('))).toMatch(/• Alice A\n• Carol C$/);
@@ -75,7 +75,7 @@ describe('LeaveService notices', () => {
 
   it('skips the today and week rounds on a public holiday; the three-day heads-up still goes', async () => {
     const { line, service } = setup([alice, carol, bob], ['2026-09-28']);
-    await service.sendNotices(new Date('2026-09-28T01:00:00Z'));
+    await service.sendNotices(new Date('2026-09-28T02:00:00Z'));
     const all = line.sendText.mock.calls.map(([text]: any) => text as string);
     expect(all.some((t: string) => t.startsWith('📅 วันนี้ไม่อยู่') || t.startsWith('📅 คนลาสัปดาห์นี้'))).toBe(false);
     expect(all.some((t: string) => t.startsWith('📅 แจ้งลาล่วงหน้า 3 วัน'))).toBe(true);
@@ -84,14 +84,14 @@ describe('LeaveService notices', () => {
   it('skips the today round on a weekend', async () => {
     const saturday = { ...alice, startDate: new Date('2026-10-03'), endDate: new Date('2026-10-03') };
     const { line, service } = setup([saturday]);
-    await service.sendNotices(new Date('2026-10-03T01:00:00Z'));
+    await service.sendNotices(new Date('2026-10-03T02:00:00Z'));
     expect(line.sendText).not.toHaveBeenCalled();
   });
 
-  it('leave approved for today after 08:00 goes out at once as an add-on, only once', async () => {
+  it('leave approved for today after 09:00 goes out at once as an add-on, only once', async () => {
     const late: any = { ...bob, status: LeaveStatus.PENDING, startDate: new Date('2026-09-29'), endDate: new Date('2026-09-29'), user: { ...person('Bob'), lineUserId: null } };
     const { prisma, line, service } = setup([{ ...alice, startDate: new Date('2026-09-29'), endDate: new Date('2026-09-29') }, late]); // Tuesday: no week round
-    await service.sendNotices(new Date('2026-09-29T01:00:00Z'));
+    await service.sendNotices(new Date('2026-09-29T02:00:00Z'));
     line.sendText.mockClear();
     prisma.leaveRequest.findFirst = jest.fn(async () => late);
     prisma.leaveRequest.updateMany = jest.fn(async () => { late.status = LeaveStatus.APPROVED; return { count: 1 }; });
@@ -105,7 +105,7 @@ describe('LeaveService notices', () => {
     expect(textsTo(line, 'line-bob')).toEqual([]);
   });
 
-  it('a sick day filed before 08:00 tells nobody until the morning round', async () => {
+  it('a sick day filed before 09:00 tells nobody until the morning round', async () => {
     jest.useFakeTimers({ now: new Date('2026-09-28T00:00:00Z'), doNotFake: ['nextTick', 'setImmediate'] }); // 07:00 Bangkok
     const { prisma, line, service } = setup([]);
     prisma.firmMember.findUnique = jest.fn(async () => ({ userId: 'alice' }));

@@ -89,8 +89,8 @@ export class LawyerLicenseService {
     return { success: true };
   }
 
-  /** 08:00 Bangkok daily. One log row per (user, expiry, milestone) is the send claim. */
-  @Cron('0 8 * * *', { timeZone: 'Asia/Bangkok' })
+  /** 09:00 Bangkok daily (weekend runs are held for Monday's summary). One log row per (user, expiry, milestone) is the send claim. */
+  @Cron('0 9 * * *', { timeZone: 'Asia/Bangkok' })
   async sendLicenseReminders(now: Date = new Date()) {
     const users = await this.prisma.user.findMany({
       where: { lawyerLicenseType: LawyerLicenseType.TWO_YEAR, lawyerLicenseExpiresAt: { not: null } },

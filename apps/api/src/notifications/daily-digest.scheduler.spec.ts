@@ -171,8 +171,9 @@ describe('DailyDigestScheduler', () => {
     });
   });
 
-  it('pushes today\'s count at 08:00 without re-sending LINE or email', async () => {
-    jest.setSystemTime(new Date('2026-09-08T01:00:00Z')); // Tue 8 Sep, 08:00 Bangkok
+  it('pushes today\'s count at 09:00 without re-sending LINE or email', async () => {
+    jest.setSystemTime(new Date('2026-09-08T02:00:00Z')); // Tue 8 Sep, 09:00 Bangkok
+    mockPrisma.dailyDigestLog.findMany.mockResolvedValue([{ userId: 'user-1', channel: 'line' }]); // sent Monday afternoon
 
     await scheduler.sendMorningPush();
 
@@ -184,6 +185,15 @@ describe('DailyDigestScheduler', () => {
     expect(mockPrisma.dailyDigestLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ channel: 'push-morning' }),
     });
+  });
+
+  it('Monday 09:00 sends the full list as today\'s, since nothing went out on Sunday', async () => {
+    jest.setSystemTime(new Date('2026-09-07T02:00:00Z')); // Mon 7 Sep, 09:00 Bangkok
+
+    await scheduler.sendMorningPush();
+
+    expect(mockLine.sendText.mock.calls[0][0]).toMatch(/^📋 งานวันนี้ /);
+    expect(mockPush.sendToUsers.mock.calls[0][1].title).toBe('📋 วันนี้มี 1 รายการ');
   });
 
   it('does not push twice in one morning', async () => {

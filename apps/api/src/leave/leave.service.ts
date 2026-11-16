@@ -18,8 +18,8 @@ const LABEL: Record<LeaveType, string> = {
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const key = (value: Date) => value.toISOString().slice(0, 10);
 const bangkokHour = (now: Date) => (now.getUTCHours() + 7) % 24;
-/** The "who's out today" round goes at 08:00; anything approved for today after that goes out as an add-on. */
-const MORNING_HOUR = 8;
+/** The "who's out today" round goes at 09:00; anything approved for today after that goes out as an add-on. */
+const MORNING_HOUR = 9;
 
 type Leave = {
   id: string;
@@ -302,7 +302,7 @@ export class LeaveService {
 
   /**
    * "Who's out today" for one firm: every approved leave covering today not yet announced today.
-   * Each leave is claimed once a day, so the 08:00 round and an approval racing it never announce
+   * Each leave is claimed once a day, so the 09:00 round and an approval racing it never announce
    * it twice; the first batch is the morning notice and anything after is an add-on.
    * ponytail: a crash between claim and send drops that batch; add a sentAt reclaim if it ever bites.
    */
@@ -323,7 +323,7 @@ export class LeaveService {
     await this.broadcast(firmId, fresh, title, false, `out:${todayKey}:${fresh[0].id}`);
   }
 
-  /** Approved leave that covers today, after the 08:00 round, goes out now instead of waiting for tomorrow. */
+  /** Approved leave that covers today, after the 09:00 round, goes out now instead of waiting for tomorrow. */
   private async announceIfToday(leave: Pick<Leave, 'firmId' | 'startDate' | 'endDate'>, now = new Date()) {
     const today = day(bangkokDayKey(now));
     if (leave.startDate > today || leave.endDate < today || bangkokHour(now) < MORNING_HOUR) return;

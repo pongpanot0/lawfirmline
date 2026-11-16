@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { FirmRole } from '@lawfirm/shared';
 import { NotificationCategory } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
@@ -7,6 +8,7 @@ import { FirmLinkService } from './firm-link.service';
 import { PushService } from './push.service';
 import { NotificationCenterService } from './notification-center.service';
 import { toAppRoute } from './app-route';
+import { bangkokQuietWindow, isBangkokOfficeHours } from '../common/utils/bangkok-time';
 
 export interface NotifyParams {
   /** Null only when the trigger has no firm in hand (a standalone todo); the
@@ -55,6 +57,8 @@ function forExternal(params: NotifyParams): NotifyParams {
 /** Expo rejects a message over ~4 KB; Thai is 3 bytes a character, so stay well under. */
 const PUSH_TITLE_MAX = 120;
 const PUSH_BODY_MAX = 400;
+/** Titles listed in the 09:00 summary before "และอีก N รายการ". */
+const SUMMARY_LINES = 5;
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
 /**
@@ -109,6 +113,11 @@ export class AssignmentNotifierService {
         const userIds = group.map((u) => u.id);
         const channels = await this.center.channelsFor(userIds, params.category);
         const notificationIds = await this.recordInbox(firmId, userIds, params);
+        // Outside Mon–Fri 09:00–17:00 only the inbox row is written; sendHeldSummary covers it at 09:00.
+        if (!isBangkokOfficeHours(new Date())) {
+          result.recipients += group.length;
+          continue;
+        }
         const push = await this.sendPush(firmId, userIds, channels, notificationIds, params);
         const line = params.line === false
           ? false
@@ -135,6 +144,43 @@ export class AssignmentNotifierService {
     } catch (err) {
       this.logger.error('Failed to notify firm owners', err);
     }
+  }
+
+  /**
+   * 09:00 Mon–Fri: one push + LINE per person listing what was held since the
+   * last weekday's 17:00 (Friday's on a Monday). Read rows are not repeated.
+   * ponytail: ignores per-category channel switches; filter here if someone turns everything off and still gets it.
+   */
+  @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
+  async sendHeldSummary(now: Date = new Date()): Promise<number> {
+    const { from, to } = bangkokQuietWindow(now);
+    const rows = await this.prisma.notification.findMany({
+      where: { createdAt: { gte: from, lt: to }, readAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: { userId: true, firmId: true, title: true, user: { select: { lineUserId: true } } },
+    });
+    const byUser = new Map<string, typeof rows>();
+    for (const row of rows) byUser.set(`${row.firmId}:${row.userId}`, [...(byUser.get(`${row.firmId}:${row.userId}`) ?? []), row]);
+
+    let sent = 0;
+    for (const held of byUser.values()) {
+      const { userId, firmId, user } = held[0];
+      const title = `🔔 แจ้งเตือนนอกเวลาทำการ ${held.length} รายการ`;
+      const list = held.slice(0, SUMMARY_LINES).map((r) => `• ${r.title}`);
+      if (held.length > SUMMARY_LINES) list.push(`และอีก ${held.length - SUMMARY_LINES} รายการ`);
+      try {
+        const badges = await this.center.unreadCounts([userId], firmId);
+        await this.push.send([{ userId, title, body: clip(list.join('\n'), PUSH_BODY_MAX), data: { url: '/notifications' }, badge: badges.get(userId) ?? 0 }]);
+        if (user.lineUserId) {
+          const link = await this.firmLink.linkFor(firmId, '/my-day');
+          await this.line.pushTo(user.lineUserId, `${title}\n${list.join('\n')}\n\n🔗 ${link}`);
+        }
+        sent++;
+      } catch (err) {
+        this.logger.error(`Held-notification summary failed for user ${userId}`, err);
+      }
+    }
+    return sent;
   }
 
   private appPath(params: NotifyParams) {
