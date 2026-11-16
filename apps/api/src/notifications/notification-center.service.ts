@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { NotificationCategory } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
+import { usersOff } from '../holidays/working-day';
 
 const PAGE_SIZE = 30;
 /** Inbox rows older than this are pruned; the work itself lives on in its own screens. */
@@ -91,6 +92,16 @@ export class NotificationCenterService {
     });
     const saved = new Map(rows.map((row) => [row.userId, row]));
     return new Map(userIds.map((id) => [id, { push: saved.get(id)?.push ?? true, line: saved.get(id)?.line ?? true }]));
+  }
+
+  /** True when `userId` must not be pushed right now (outside office hours, a holiday, or on leave). */
+  async isOff(userId: string, now = new Date()): Promise<boolean> {
+    return (await usersOff(this.prisma, [userId], now)).has(userId);
+  }
+
+  /** Marks an inbox row for the next 09:00 summary instead of pushing it now. */
+  async hold(id: string) {
+    await this.prisma.notification.update({ where: { id }, data: { held: true } });
   }
 
   @Cron('15 3 * * *', { timeZone: 'Asia/Bangkok' })

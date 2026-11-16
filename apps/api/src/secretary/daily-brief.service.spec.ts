@@ -10,12 +10,12 @@ const row = (o: Partial<StuckTaskRow>): StuckTaskRow => ({
 });
 
 describe('DailyBriefService', () => {
-  const now = new Date('2026-10-31T00:30:00Z'); // 07:30 Bangkok
+  const now = new Date('2026-10-30T02:00:00Z'); // Fri 09:00 Bangkok
   let fetchSpy: jest.SpyInstance;
   const aiOk = { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'สรุป' } }], usage: { prompt_tokens: 5, completion_tokens: 3 } }) } as any;
 
   function build(env: Record<string, string> = {}, slaConfig: unknown = null, rows: StuckTaskRow[] = []) {
-    const prisma = {
+    const prisma = { publicHoliday: { findUnique: jest.fn().mockResolvedValue(null) }, leaveRequest: { findMany: jest.fn().mockResolvedValue([]) }, 
       firm: {
         findMany: jest.fn().mockResolvedValue([{ id: 'f1' }]),
         findUnique: jest.fn().mockResolvedValue({ slaConfig }),
@@ -57,7 +57,7 @@ describe('DailyBriefService', () => {
     const { svc, prisma, notifier } = build();
     prisma.dailyBrief.findUnique.mockResolvedValue({ id: 'x' });
     expect(await svc.generateForFirm('f1', now)).toBe('exists');
-    expect(prisma.dailyBrief.findUnique.mock.calls[0][0].where).toEqual({ firmId_date: { firmId: 'f1', date: '2026-10-31' } });
+    expect(prisma.dailyBrief.findUnique.mock.calls[0][0].where).toEqual({ firmId_date: { firmId: 'f1', date: '2026-10-30' } });
     expect(notifier.notifyFirmOwners).not.toHaveBeenCalled();
   });
 
@@ -99,10 +99,10 @@ describe('DailyBriefService', () => {
   it('includes stuck cases past stuckStatusDays', async () => {
     const d = build({}, { stuckStatusDays: 10 });
     d.prisma.case.findMany.mockResolvedValue([
-      { id: 'c1', title: 'คดี A', stage: 'FIRST_INSTANCE', openedAt: new Date('2026-09-01T00:00:00Z'), statusLogs: [{ createdAt: new Date('2026-10-01T00:00:00Z') }] },
+      { id: 'c1', title: 'คดี A', stage: 'FIRST_INSTANCE', openedAt: new Date('2026-09-01T00:00:00Z'), statusLogs: [{ createdAt: new Date('2026-09-30T00:00:00Z') }] },
     ]);
     await d.svc.generateForFirm('f1', now);
-    expect(d.prisma.case.findMany.mock.calls[0][0].where.statusLogs).toEqual({ none: { createdAt: { gte: new Date('2026-10-21T00:30:00Z') } } });
+    expect(d.prisma.case.findMany.mock.calls[0][0].where.statusLogs).toEqual({ none: { createdAt: { gte: new Date('2026-10-20T02:00:00Z') } } });
     expect(saved(d.prisma).data.stuckCases).toEqual([{ caseId: 'c1', title: 'คดี A', stage: 'FIRST_INSTANCE', daysSinceStageChange: 30 }]);
   });
 

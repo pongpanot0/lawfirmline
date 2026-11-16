@@ -31,7 +31,7 @@ function item(over: Record<string, unknown> = {}) {
 
 describe('DailyDigestScheduler', () => {
   let scheduler: DailyDigestScheduler;
-  const mockPrisma = {
+  const mockPrisma = { publicHoliday: { findUnique: jest.fn().mockResolvedValue(null) }, leaveRequest: { findMany: jest.fn().mockResolvedValue([]) }, 
     firmMember: { findMany: jest.fn() },
     dailyDigestLog: { findMany: jest.fn(), create: jest.fn() },
   };
@@ -194,6 +194,17 @@ describe('DailyDigestScheduler', () => {
 
     expect(mockLine.sendText.mock.calls[0][0]).toMatch(/^📋 งานวันนี้ /);
     expect(mockPush.sendToUsers.mock.calls[0][1].title).toBe('📋 วันนี้มี 1 รายการ');
+  });
+
+  it('sends nothing to a member on leave, and nothing at all for a holiday tomorrow', async () => {
+    mockPrisma.leaveRequest.findMany.mockResolvedValueOnce([{ userId: 'user-1' }]);
+    await scheduler.sendDigests();
+    expect(mockLine.sendText).not.toHaveBeenCalled();
+    expect(mockPush.sendToUsers).not.toHaveBeenCalled();
+
+    mockPrisma.publicHoliday.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'h' });
+    await scheduler.sendDigests();
+    expect(mockPrisma.firmMember.findMany).toHaveBeenCalledTimes(1);
   });
 
   it('does not push twice in one morning', async () => {

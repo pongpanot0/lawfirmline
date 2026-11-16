@@ -14,7 +14,7 @@ const task = (id: string, overdue: number, assigneeId = 'u-assignee') => ({
 });
 
 describe('EscalationScheduler', () => {
-  const prisma = {
+  const prisma = { publicHoliday: { findUnique: jest.fn().mockResolvedValue(null) }, leaveRequest: { findMany: jest.fn().mockResolvedValue([]) }, 
     task: { findMany: jest.fn() },
     firmMember: { findMany: jest.fn().mockResolvedValue([{ firmId: 'firm-1', userId: 'u-owner' }]) },
     taskOnHold: { findMany: jest.fn().mockResolvedValue([]) },

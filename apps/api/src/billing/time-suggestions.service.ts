@@ -11,6 +11,7 @@ import { ConfirmTimeEntryDto } from './dto/billing.dto';
 import { eventForUserWhere } from '../calendar/event-people';
 import { BillingService } from './billing.service';
 import { emailTimeSuggestions } from './email-time';
+import { isBangkokWorkingDay } from '../holidays/working-day';
 
 export type TimeSuggestion = {
   sourceKey: string;
@@ -319,6 +320,7 @@ export class TimeSuggestionsService {
   /** ponytail: no send-once ledger; fine for a single api instance, add LeaveNoticeLog-style key if we scale out */
   @Cron('30 16 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendDailyDigest(now: Date = new Date()): Promise<number> {
+    if (!(await isBangkokWorkingDay(this.prisma, now))) return 0; // public holiday
     const date = bangkokDayKey(now);
     const members = await this.prisma.firmMember.findMany({
       where: { user: { lineUserId: { not: null } } },

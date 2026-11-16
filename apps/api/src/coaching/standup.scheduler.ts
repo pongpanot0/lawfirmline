@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.module';
-import { bangkokDayKey, isBangkokWeekend } from '../common/utils/bangkok-time';
+import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { StandupService } from './standup.service';
 import { CoachingNotifierService } from './coaching-notifier.service';
+import { isBangkokWorkingDay } from '../holidays/working-day';
 
 @Injectable()
 export class StandupScheduler {
@@ -13,7 +14,7 @@ export class StandupScheduler {
   @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendPrompts(): Promise<void> {
     const now = new Date();
-    if (isBangkokWeekend(now)) return;
+    if (!(await isBangkokWorkingDay(this.prisma, now))) return;
     const day = bangkokDayKey(now);
     const date = new Date(`${day}T00:00:00Z`);
     const members = await this.prisma.firmMember.findMany({ where: { role: { in: ['LAWYER', 'SENIOR_LAWYER'] } }, select: { firmId: true, userId: true } });

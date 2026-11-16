@@ -8,6 +8,7 @@ import { PushService } from '../notifications/push.service';
 import { addBangkokDays, bangkokDateOnly, bangkokDayKey, bangkokDayStart, formatBangkokDateThai } from '../common/utils/bangkok-time';
 import { dailyTaskScope, DailyOperationsService } from './daily-operations.service';
 import { buildTeamDigest, previousWorkingDay } from './team-digest';
+import { isBangkokWorkingDay } from '../holidays/working-day';
 
 @Injectable()
 export class TeamDigestScheduler {
@@ -23,6 +24,7 @@ export class TeamDigestScheduler {
 
   @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendDigests(): Promise<void> {
+    if (!(await isBangkokWorkingDay(this.prisma, new Date()))) return; // public holiday
     const today = bangkokDayStart(new Date());
     const digestDate = bangkokDateOnly(today);
     const recipients = await this.prisma.firmMember.findMany({
