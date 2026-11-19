@@ -46,6 +46,8 @@ export interface DailyDigestEmailParams {
   dayLabel: string;
   /** One line per agenda item, already formatted. */
   lines: string[];
+  /** Per line, a link to its case (same index as `lines`), or null. */
+  links?: (string | null)[];
   /** Schedule conflicts to call out above the list. */
   warnings: string[];
   appUrl: string;
@@ -389,7 +391,7 @@ export class EmailService {
     const text = [
       `${subject}`,
       '',
-      ...params.lines,
+      ...params.lines.map((line, i) => (params.links?.[i] ? `${line}\n  ${params.links[i]}` : line)),
       ...(params.warnings.length ? ['', ...params.warnings] : []),
       '',
       params.appUrl,
@@ -400,7 +402,13 @@ export class EmailService {
         <h2 style="margin:0 0 12px">${escapeHtml(subject)}</h2>
         <p style="margin:0 0 12px">สวัสดี ${escapeHtml(params.recipientName)}</p>
         <ul style="padding-left:18px;margin:0 0 16px">
-          ${params.lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}
+          ${params.lines
+            .map((line, i) => {
+              const link = params.links?.[i];
+              const body = escapeHtml(line).replace(/\n/g, '<br>');
+              return `<li>${link ? `<a href="${escapeHtml(link)}">${body}</a>` : body}</li>`;
+            })
+            .join('')}
         </ul>
         ${
           params.warnings.length

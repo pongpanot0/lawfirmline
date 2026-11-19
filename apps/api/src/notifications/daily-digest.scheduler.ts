@@ -14,6 +14,7 @@ import {
   formatBangkokTime,
 } from '../common/utils/bangkok-time';
 import { isBangkokWorkingDay, usersOnLeave } from '../holidays/working-day';
+import { formatCaseNotificationReference } from './reference-label';
 
 type TextChannel = 'line' | 'email';
 type PushChannel = 'push-evening' | 'push-morning';
@@ -27,6 +28,18 @@ const KIND_LABEL: Record<AgendaItemKind, string> = {
   [AgendaItemKind.DEADLINE]: 'ครบกำหนด',
   [AgendaItemKind.TASK]: 'งาน',
   [AgendaItemKind.OTHER]: 'นัดหมาย',
+};
+
+/** One agenda item as text, with a link to its case when it has one. */
+type DigestLine = { text: string; url: string | null };
+
+type DigestCase = {
+  id: string;
+  title: string;
+  ownRef: string;
+  blackCaseNumber: string | null;
+  redCaseNumber: string | null;
+  courtName: string | null;
 };
 
 type DigestMember = {
@@ -155,7 +168,7 @@ export class DailyDigestScheduler {
     // how a digest gets muted.
     if (brief.items.length === 0) return;
 
-    const lines = this.buildLines(brief.items);
+    const lines = await this.buildLines(member.firmId, brief.items);
     if (text) {
       await this.sendText(member, target, digestDate, lines, brief.warnings.map((w) => w.message), target.getTime() === bangkokDayStart(new Date()).getTime());
     }
@@ -166,7 +179,7 @@ export class DailyDigestScheduler {
     member: DigestMember,
     target: Date,
     digestDate: Date,
-    lines: string[],
+    lines: DigestLine[],
     warnings: string[],
     today = false,
   ): Promise<void> {
@@ -181,7 +194,8 @@ export class DailyDigestScheduler {
             to: member.user.email,
             recipientName: `${member.user.firstName} ${member.user.lastName}`.trim(),
             dayLabel: formatBangkokDateThai(target),
-            lines,
+            lines: lines.map((l) => l.text),
+            links: lines.map((l) => l.url),
             warnings,
             appUrl: `${this.email.getAppUrl()}/my-day`,
           });
@@ -197,14 +211,14 @@ export class DailyDigestScheduler {
   private async sendPush(
     userId: string,
     digestDate: Date,
-    lines: string[],
+    lines: DigestLine[],
     channel: PushChannel,
   ): Promise<void> {
     const day = channel === 'push-morning' ? 'วันนี้' : 'พรุ่งนี้';
     const more = lines.length > 1 ? ` และอีก ${lines.length - 1} รายการ` : '';
     const sent = await this.push.sendToUsers([userId], {
       title: `📋 ${day}มี ${lines.length} รายการ`,
-      body: `${lines[0]}${more}`,
+      body: `${lines[0].text}${more}`,
       data: { url: DIGEST_APP_ROUTE },
     });
     // No device or no accepted ticket: leave it unlogged, nothing reached them.
@@ -217,30 +231,54 @@ export class DailyDigestScheduler {
     });
   }
 
-  /** One line per item, shared by every channel so they never drift apart. */
-  private buildLines(items: AgendaItem[]): string[] {
-    const lines: string[] = [];
-    for (const item of items) {
+  /**
+   * One line per item, shared by every channel so they never drift apart. A case
+   * item names the case (title, black/red number, court) and links to it, since
+   * the firm's own ref means nothing to whoever reads it at the court door.
+   */
+  private async buildLines(firmId: string, items: AgendaItem[]): Promise<DigestLine[]> {
+    const caseIds = [...new Set(items.map((i) => i.caseId).filter((id): id is string => Boolean(id)))];
+    const cases: DigestCase[] = caseIds.length
+      ? await this.prisma.case.findMany({
+          where: { id: { in: caseIds }, firmId },
+          select: { id: true, title: true, ownRef: true, blackCaseNumber: true, redCaseNumber: true, courtName: true },
+        })
+      : [];
+    const byId = new Map(cases.map((c) => [c.id, c]));
+    const appUrl = this.email.getAppUrl();
+
+    return items.map((item) => {
       const when = item.allDay ? 'ทั้งวัน' : formatBangkokTime(new Date(item.at));
-      const ref = item.caseRef ? ` [${item.caseRef}]` : '';
       const detail: string[] = [];
       if (item.location) detail.push(item.location);
       if (item.departBy) {
         detail.push(`ออกจากสำนักงาน ${formatBangkokTime(new Date(item.departBy))}`);
       }
-      lines.push(
-        `${when} ${KIND_LABEL[item.kind]} — ${item.title}${ref}` +
-          (detail.length ? ` (${detail.join(' · ')})` : ''),
-      );
-    }
-    return lines;
+      const c = item.caseId ? byId.get(item.caseId) : undefined;
+      const text =
+        `${when} ${KIND_LABEL[item.kind]} — ${item.title}` +
+        (detail.length ? ` (${detail.join(' · ')})` : '') +
+        (c ? `\n  ${this.caseLabel(c, item.location)}` : item.caseRef ? ` [${item.caseRef}]` : '');
+      return { text, url: c ? `${appUrl}/cases/${c.id}` : null };
+    });
   }
 
-  private buildMessage(day: Date, lines: string[], warnings: string[], today = false): string {
+  /** `คดี <title> · หมายเลขคดีดำ … · หมายเลขคดีแดง … · <court>`; the court is left out when it is already the item's location. */
+  private caseLabel(c: DigestCase, location: string | null): string {
+    return [
+      `คดี ${c.title}`,
+      formatCaseNotificationReference(c),
+      c.courtName && c.courtName !== location ? c.courtName : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  private buildMessage(day: Date, lines: DigestLine[], warnings: string[], today = false): string {
     return [
       `📋 งาน${today ? 'วันนี้' : 'พรุ่งนี้'} (${formatBangkokDateThai(day)})`,
       '',
-      ...lines.map((line) => `• ${line}`),
+      ...lines.map((line) => `• ${line.text}${line.url ? `\n  ${line.url}` : ''}`),
       ...(warnings.length ? ['', ...warnings.map((w) => `⚠️ ${w}`)] : []),
     ].join('\n');
   }
