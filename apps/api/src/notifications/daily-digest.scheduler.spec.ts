@@ -33,6 +33,7 @@ describe('DailyDigestScheduler', () => {
   let scheduler: DailyDigestScheduler;
   const mockPrisma = { publicHoliday: { findUnique: jest.fn().mockResolvedValue(null) }, leaveRequest: { findMany: jest.fn().mockResolvedValue([]) }, 
     firmMember: { findMany: jest.fn() },
+    case: { findMany: jest.fn() },
     dailyDigestLog: { findMany: jest.fn(), create: jest.fn() },
   };
   const mockAgenda = { getDayBrief: jest.fn() };
@@ -55,6 +56,7 @@ describe('DailyDigestScheduler', () => {
     jest.useFakeTimers().setSystemTime(NOW);
     mockPrisma.firmMember.findMany.mockResolvedValue([member]);
     mockPrisma.dailyDigestLog.findMany.mockResolvedValue([]);
+    mockPrisma.case.findMany.mockResolvedValue([]);
     mockPrisma.dailyDigestLog.create.mockResolvedValue({});
     mockLine.sendText.mockResolvedValue(true);
     mockEmail.sendDailyDigestEmail.mockResolvedValue(true);
@@ -225,6 +227,26 @@ describe('DailyDigestScheduler', () => {
     expect(mockPrisma.firmMember.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { user: { dailyDigestEnabled: true } } }),
     );
+  });
+
+  it('names the case by title, black/red number and court, with a link, instead of the firm ref', async () => {
+    mockAgenda.getDayBrief.mockResolvedValue({
+      date: '2026-09-08',
+      items: [item({ kind: AgendaItemKind.TASK, allDay: true, location: null, departBy: null, caseRef: 'TSBREF20260015', title: 'เตรียมตัวไปศาล: สืบพยาน' })],
+      warnings: [],
+    });
+    mockPrisma.case.findMany.mockResolvedValue([
+      { id: 'case-1', title: 'นาย ก ฟ้อง บริษัท ข', ownRef: 'TSBREF20260015', blackCaseNumber: 'พ.123/2569', redCaseNumber: null, courtName: 'ศาลแพ่ง' },
+    ]);
+
+    await scheduler.sendDigests();
+
+    expect(mockPrisma.case.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['case-1'] }, firmId: 'firm-1' } }),
+    );
+    const [message] = mockLine.sendText.mock.calls[0];
+    expect(message).toContain('• ทั้งวัน งาน — เตรียมตัวไปศาล: สืบพยาน\n  คดี นาย ก ฟ้อง บริษัท ข · หมายเลขคดีดำ พ.123/2569 · ศาลแพ่ง\n  https://app.example/cases/case-1');
+    expect(message).not.toContain('TSBREF20260015');
   });
 
   it('emails a member who has not linked LINE', async () => {
