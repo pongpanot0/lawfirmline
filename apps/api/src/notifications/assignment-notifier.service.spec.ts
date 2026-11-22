@@ -6,6 +6,7 @@ const CASE_ID = '11111111-2222-3333-4444-555555555555';
 const prisma = { publicHoliday: { findUnique: jest.fn().mockResolvedValue(null) }, leaveRequest: { findMany: jest.fn().mockResolvedValue([]) }, 
   user: { findMany: jest.fn() },
   firmMember: { findMany: jest.fn() },
+  calendarEvent: { findMany: jest.fn().mockResolvedValue([]) },
   notification: { createManyAndReturn: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
 } as any;
 const line = { pushTo: jest.fn() } as any;
@@ -107,11 +108,12 @@ describe('AssignmentNotifierService', () => {
 
   it('09:00 summarises each person\'s held unread rows once, skipping anyone still on leave', async () => {
     prisma.notification.findMany.mockResolvedValue([
-      { id: 'n1', userId: 'u2', firmId: 'f1', title: 'งาน A', readAt: null, user: { lineUserId: 'L2' } },
+      { id: 'n1', userId: 'u2', firmId: 'f1', title: 'งาน A', body: 'คดี ก ข · หมายเลขคดีดำ พ.1/2569\nอื่น\nไม่แสดง', path: '/cases/c1', readAt: null, user: { lineUserId: 'L2' } },
       { id: 'n2', userId: 'u3', firmId: 'f1', title: 'งาน B', readAt: null, user: { lineUserId: null } },
       { id: 'n3', userId: 'u2', firmId: 'f1', title: 'งาน C', readAt: null, user: { lineUserId: 'L2' } },
       { id: 'n4', userId: 'u2', firmId: 'f1', title: 'อ่านแล้ว', readAt: new Date(), user: { lineUserId: 'L2' } },
     ]);
+    prisma.firmMember.findMany.mockResolvedValueOnce([]);
     prisma.leaveRequest.findMany.mockResolvedValueOnce([{ userId: 'u3' }]);
     const sent = await svc.sendHeldSummary(new Date('2026-09-14T02:00:00Z')); // Mon 09:00 Bangkok
 
@@ -120,6 +122,38 @@ describe('AssignmentNotifierService', () => {
     expect(sent).toBe(1);
     expect(push.send).toHaveBeenCalledWith([expect.objectContaining({ userId: 'u2', title: '🔔 แจ้งเตือนระหว่างที่คุณไม่อยู่ 2 รายการ', body: '• งาน A\n• งาน C' })]);
     expect(line.pushTo).toHaveBeenCalledWith('L2', expect.stringContaining('• งาน C'));
+    // Each held item keeps its case line and its own link.
+    expect(line.pushTo.mock.calls[0][1]).toContain('• งาน A\n  คดี ก ข · หมายเลขคดีดำ พ.1/2569\n  อื่น\n  🔗 https://acme.example.com/cases/c1');
+    expect(line.pushTo.mock.calls[0][1]).not.toContain('ไม่แสดง');
+  });
+
+  it('09:00 sends every staff member one brief: held items, who is out, and who is in court where', async () => {
+    prisma.notification.findMany.mockResolvedValue([
+      { id: 'n1', userId: 'u2', firmId: 'f1', title: '🗓 คำขอลา · รออนุมัติ', body: 'ขนิษฐา · ลาป่วย', path: '/leaves', readAt: null, user: { lineUserId: 'L2' } },
+    ]);
+    prisma.firmMember.findMany.mockResolvedValueOnce([
+      { firmId: 'f1', userId: 'u2', user: { lineUserId: 'L2' } },
+      { firmId: 'f1', userId: 'u4', user: { lineUserId: 'L4' } },
+    ]);
+    prisma.leaveRequest.findMany
+      .mockResolvedValueOnce([{ firmId: 'f1', userId: 'u4', period: 'AFTERNOON', user: { firstName: 'อรนันท์', lastName: 'ยุบลเพลิด' } }])
+      .mockResolvedValueOnce([]); // nobody off at 09:00 (u4 is off only in the afternoon)
+    prisma.calendarEvent.findMany.mockResolvedValueOnce([{
+      startAt: new Date('2026-09-14T02:30:00Z'), courtName: null, assignees: [{ user: { firstName: 'พงศ์ปณต', lastName: 'ส' } }],
+      case: { id: 'c9', firmId: 'f1', title: 'นาย ก กับพวก', ownRef: 'R1', blackCaseNumber: 'พ.12/2569', redCaseNumber: 'พ.34/2569', courtName: 'ศาลแพ่งกรุงเทพใต้', leadLawyer: { firstName: 'x', lastName: 'y' } },
+    }]);
+    expect(await svc.sendHeldSummary(new Date('2026-09-14T02:00:00Z'))).toBe(2);
+
+    expect(line.pushTo).toHaveBeenCalledTimes(2);
+    const forU2 = line.pushTo.mock.calls.find((c: any[]) => c[0] === 'L2')[1];
+    expect(forU2).toContain('☀️ สรุปเช้านี้');
+    expect(forU2).toContain('• 🗓 คำขอลา · รออนุมัติ\n  ขนิษฐา · ลาป่วย\n  🔗 https://acme.example.com/leaves');
+    expect(forU2).toContain('📅 วันนี้ไม่อยู่\n• อรนันท์ ยุบลเพลิด (ครึ่งบ่าย)');
+    expect(forU2).toContain('⚖️ นัดศาลวันนี้ 1 นัด\n• 09:30 พงศ์ปณต ส — ศาลแพ่งกรุงเทพใต้\n  คดี นาย ก กับพวก · หมายเลขคดีดำ พ.12/2569 · หมายเลขคดีแดง พ.34/2569\n  🔗 https://acme.example.com/cases/c9');
+    const forU4 = line.pushTo.mock.calls.find((c: any[]) => c[0] === 'L4')[1];
+    expect(forU4).not.toContain('วันนี้ไม่อยู่'); // not told about their own leave
+    expect(forU4).toContain('⚖️ นัดศาลวันนี้');
+    expect(push.send).toHaveBeenCalledTimes(1); // push stays the held summary only
   });
 
   it('sends no summary on a public holiday', async () => {
