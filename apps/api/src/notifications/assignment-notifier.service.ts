@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { FirmRole } from '@lawfirm/shared';
+import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { EventType, LeavePeriod, LeaveStatus, NotificationCategory } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService, QuickReplyItem } from './line-messaging.service';
@@ -11,12 +11,13 @@ import { toAppRoute } from './app-route';
 import { isBangkokWorkingDay, LEAVE_SPLIT_HOUR, usersOff, usersOnLeave } from '../holidays/working-day';
 import { bangkokDateOnly, bangkokDayEnd, bangkokDayStart, bangkokHour, formatBangkokDateThai, formatBangkokTime } from '../common/utils/bangkok-time';
 import { formatCaseNotificationReference } from './reference-label';
+import { CaseAccessService } from '../common/services/case-access.service';
 
 /** `firmId:userId` → a manager's one-line team summary for the 09:00 brief (built by TeamDigestScheduler). */
 export type TeamBriefLines = Map<string, { lineUserId: string; summary: string }>;
 
 /** The firm's day for the 09:00 brief. */
-type FirmDay = { out: { userId: string; text: string }[]; court: { text: string; path: string }[] };
+type FirmDay = { out: { userId: string; text: string }[]; court: { caseId: string; text: string; path: string }[] };
 const HALF_DAY: Record<LeavePeriod, string> = { MORNING: 'ครึ่งเช้า', AFTERNOON: 'ครึ่งบ่าย' };
 
 export interface NotifyParams {
@@ -92,6 +93,7 @@ export class AssignmentNotifierService {
     private firmLink: FirmLinkService,
     private push: PushService,
     private center: NotificationCenterService,
+    private caseAccess: CaseAccessService,
   ) {}
 
   async notifyAssigned(params: NotifyParams): Promise<NotifyResult> {
@@ -181,7 +183,7 @@ export class AssignmentNotifierService {
     const staff = morning
       ? await this.prisma.firmMember.findMany({
           where: { role: { not: FirmRole.EXTERNAL }, user: { lineUserId: { not: null } } },
-          select: { firmId: true, userId: true, user: { select: { lineUserId: true } } },
+          select: { firmId: true, userId: true, role: true, user: { select: { lineUserId: true } } },
         })
       : [];
     const days = await this.firmDays([...new Set(staff.map((s) => s.firmId))], now);
@@ -190,7 +192,7 @@ export class AssignmentNotifierService {
     // Released before sending: a crash mid-loop must not repeat the summary tomorrow.
     if (due.length) await this.prisma.notification.updateMany({ where: { id: { in: due.map((r) => r.id) } }, data: { held: false } });
 
-    type Brief = { firmId: string; userId: string; lineUserId: string | null; held: typeof due; day: FirmDay | null; team?: string };
+    type Brief = { firmId: string; userId: string; lineUserId: string | null; held: typeof due; day: FirmDay | null; role?: string; team?: string };
     const briefs = new Map<string, Brief>();
     const brief = (firmId: string, userId: string, lineUserId: string | null) => {
       const key = `${firmId}:${userId}`;
@@ -203,12 +205,12 @@ export class AssignmentNotifierService {
     }
     for (const row of due) if (!row.readAt) brief(row.firmId, row.userId, row.user.lineUserId).held.push(row);
     for (const s of staff) {
-      if (!away.has(s.userId) && days.has(s.firmId)) brief(s.firmId, s.userId, s.user.lineUserId).day = days.get(s.firmId)!;
+      if (!away.has(s.userId) && days.has(s.firmId)) Object.assign(brief(s.firmId, s.userId, s.user.lineUserId), { day: days.get(s.firmId)!, role: s.role });
     }
 
     const origins = new Map<string, string>();
     let sent = 0;
-    for (const { firmId, userId, lineUserId, held, day, team: teamSummary } of briefs.values()) {
+    for (const { firmId, userId, lineUserId, held, day, role, team: teamSummary } of briefs.values()) {
       try {
         if (!origins.has(firmId)) origins.set(firmId, await this.firmLink.linkFor(firmId, ''));
         const origin = origins.get(firmId)!;
@@ -228,10 +230,12 @@ export class AssignmentNotifierService {
         }
         const out = day?.out.filter((o) => o.userId !== userId) ?? [];
         if (out.length) sections.push(['📅 วันนี้ไม่อยู่', ...out.map((o) => o.text)].join('\n'));
-        if (day?.court.length) {
-          const shown = day.court.slice(0, COURT_LINES).map((c) => `${c.text}\n  🔗 ${origin}${c.path}`);
-          if (day.court.length > COURT_LINES) shown.push(`และอีก ${day.court.length - COURT_LINES} นัด · ${origin}/calendar`);
-          sections.push([`⚖️ นัดศาลวันนี้ ${day.court.length} นัด`, ...shown].join('\n'));
+        // Only court dates of cases this person may open — the same rule as the calendar and case pages.
+        const court = day?.court.length && role ? await this.visibleCourt(firmId, userId, role, day.court) : [];
+        if (court.length) {
+          const shown = court.slice(0, COURT_LINES).map((c) => `${c.text}\n  🔗 ${origin}${c.path}`);
+          if (court.length > COURT_LINES) shown.push(`และอีก ${court.length - COURT_LINES} นัด · ${origin}/calendar`);
+          sections.push([`⚖️ นัดศาลวันนี้ ${court.length} นัด`, ...shown].join('\n'));
         }
         if (teamSummary) sections.push(`📋 ทีมวันนี้: ${teamSummary}\n  🔗 ${origin}/operations`);
         if (!sections.length) continue;
@@ -245,6 +249,16 @@ export class AssignmentNotifierService {
       }
     }
     return sent;
+  }
+
+  private async visibleCourt(firmId: string, userId: string, role: string, court: FirmDay['court']) {
+    const user = { id: userId, firmId, firmRole: role as FirmRole } as AuthUser;
+    const allowed = await this.prisma.case.findMany({
+      where: { id: { in: [...new Set(court.map((c) => c.caseId))] }, ...this.caseAccess.getCaseFilterForUser(user) },
+      select: { id: true },
+    });
+    const ids = new Set(allowed.map((c) => c.id));
+    return court.filter((c) => ids.has(c.caseId));
   }
 
   /** Per firm: who is on approved leave today and every court date today, with who attends and the case. */
@@ -283,6 +297,7 @@ export class AssignmentNotifierService {
       const caseLine = [`คดี ${e.case.title}`, formatCaseNotificationReference(e.case)].filter(Boolean).join(' · ');
       day(e.case.firmId).court.push({
         text: `• ${formatBangkokTime(e.startAt)} ${people.join(', ')}${court ? ` — ${court}` : ''}\n  ${caseLine}`,
+        caseId: e.case.id,
         path: `/cases/${e.case.id}`,
       });
     }
