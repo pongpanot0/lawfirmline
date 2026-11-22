@@ -50,23 +50,22 @@ describe('LeaveService notices', () => {
 
   afterEach(() => jest.useRealTimers());
 
-  it('09:00 on a working day: today, week and three-day rounds, all types, names only, LINE and app, once', async () => {
+  it('09:00 on a working day: today (app only — LINE rides the morning brief), week and three-day rounds, names only, once', async () => {
     const { line, notify, service } = setup([alice, carol, bob]);
     const monday = new Date('2026-09-28T02:00:00Z'); // 09:00 Bangkok
     await service.sendNotices(monday);
     await service.sendNotices(new Date('2026-09-28T02:10:00Z'));
 
     const toBob = textsTo(line, 'line-bob');
-    expect(toBob.find((t) => t.startsWith('📅 วันนี้ไม่อยู่ ('))).toMatch(/• Alice A\n• Carol C$/);
+    expect(toBob.some((t) => t.startsWith('📅 วันนี้ไม่อยู่'))).toBe(false);
     expect(toBob.some((t) => t.startsWith('📅 คนลาสัปดาห์นี้'))).toBe(true);
-    expect(textsTo(line, 'line-alice').find((t) => t.startsWith('📅 วันนี้ไม่อยู่ ('))).toMatch(/• Carol C$/);
     expect(textsTo(line, 'line-alice').some((t) => t.startsWith('📅 แจ้งลาล่วงหน้า 3 วัน') && t.includes('Bob B'))).toBe(true);
     // Nobody but the approvers is told the type, and nobody hears about their own leave.
     const all = line.sendText.mock.calls.map(([text]: any) => text as string);
     expect(all.some((t: string) => /ลากิจ|ลาป่วย|พักร้อน/.test(t))).toBe(false);
     expect(textsTo(line, 'line-bob').some((t) => t.includes('Bob B'))).toBe(false);
-    // 3 today + 3 week + 2 three-day, none repeated on the second run.
-    expect(line.sendText).toHaveBeenCalledTimes(8);
+    // 3 week + 2 three-day, none repeated on the second run.
+    expect(line.sendText).toHaveBeenCalledTimes(5);
     // The app gets each round once, including dave who has no LINE.
     const appTexts = notify.notifyAssigned.mock.calls.map(([p]: any) => p);
     expect(appTexts.filter((p: any) => p.summaryText.startsWith('📅 วันนี้ไม่อยู่')).flatMap((p: any) => p.userIds).sort()).toEqual(['alice', 'bob', 'carol', 'dave']);

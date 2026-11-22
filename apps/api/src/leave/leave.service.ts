@@ -276,7 +276,8 @@ export class LeaveService {
    * Tell every member (EXTERNAL excluded) who is out — names and dates, never the type,
    * and never their own leave — on LINE (once per member per `stamp`) and in the app (once per `stamp`).
    */
-  private async broadcast(firmId: string, leaves: Leave[], title: string, showRange: boolean, stamp: string) {
+  /** `dm: false` keeps the inbox row and push only — the 09:00 brief carries the LINE copy. */
+  private async broadcast(firmId: string, leaves: Leave[], title: string, showRange: boolean, stamp: string, dm = true) {
     const members = await this.prisma.firmMember.findMany({
       where: { firmId, role: { not: FirmRole.EXTERNAL } },
       select: { userId: true, user: { select: { lineUserId: true } } },
@@ -289,7 +290,7 @@ export class LeaveService {
       if (!others.length) continue;
       const text = `${title}\n${others.map((leave) => `• ${this.who(leave, showRange)}`).join('\n')}`;
       byText.set(text, [...(byText.get(text) ?? []), member.userId]);
-      if (!member.user.lineUserId || !lineOk.has(member.userId)) continue;
+      if (!dm || !member.user.lineUserId || !lineOk.has(member.userId)) continue;
       try { await this.sendOnce(`${stamp}:${member.userId}`, member.user.lineUserId, text); }
       catch (error) { this.logger.error(`Leave notice ${stamp} failed for ${member.userId}: ${(error as Error).message}`); }
     }
@@ -310,7 +311,7 @@ export class LeaveService {
    * it twice; the first batch is the morning notice and anything after is an add-on.
    * ponytail: a crash between claim and send drops that batch; add a sentAt reclaim if it ever bites.
    */
-  private async announceToday(firmId: string, now: Date) {
+  private async announceToday(firmId: string, now: Date, dm = true) {
     const todayKey = bangkokDayKey(now);
     const today = day(todayKey);
     if (!(await this.isWorkingDay(today))) return;
@@ -324,7 +325,7 @@ export class LeaveService {
     if (!fresh.length) return;
     const first = await this.claim(`out:${todayKey}:${firmId}`);
     const title = first ? `📅 วันนี้ไม่อยู่ (${formatBangkokDateThai(today)})` : '📅 วันนี้ไม่อยู่เพิ่ม';
-    await this.broadcast(firmId, fresh, title, false, `out:${todayKey}:${fresh[0].id}`);
+    await this.broadcast(firmId, fresh, title, false, `out:${todayKey}:${fresh[0].id}`, dm);
   }
 
   /** Approved leave that covers today, after the 09:00 round, goes out now instead of waiting for tomorrow. */
@@ -370,6 +371,7 @@ export class LeaveService {
     const threeDays = day(bangkokDayKey(addBangkokDays(now, 3)));
     const weekEnd = day(bangkokDayKey(addBangkokDays(now, 6)));
     const monday = today.getUTCDay() === 1;
+    const morningTick = bangkokHour(now) === MORNING_HOUR && now.getUTCMinutes() < 10;
     const leaves = await this.prisma.leaveRequest.findMany({
       where: { status: LeaveStatus.APPROVED, startDate: { lte: monday ? weekEnd : threeDays }, endDate: { gte: today } },
       include: { user: { select: { firstName: true, lastName: true } } },
@@ -381,7 +383,8 @@ export class LeaveService {
     const weekly = monday && (await this.isWorkingDay(today));
     for (const [firmId, firmLeaves] of byFirm) {
       try {
-        if (firmLeaves.some((l) => l.startDate <= today)) await this.announceToday(firmId, now);
+        // The 09:00 tick's LINE copy is in the notifier's morning brief (sendHeldSummary); later add-ons still DM.
+        if (firmLeaves.some((l) => l.startDate <= today)) await this.announceToday(firmId, now, !morningTick);
         if (weekly) await this.broadcast(firmId, firmLeaves, `📅 คนลาสัปดาห์นี้ (${formatBangkokDateThai(today)})`, true, `week:${todayKey}:${firmId}`);
         const soon = firmLeaves.filter((l) => key(l.startDate) === key(threeDays));
         if (soon.length) await this.broadcast(firmId, soon, '📅 แจ้งลาล่วงหน้า 3 วัน', true, `three:${todayKey}:${firmId}`);
