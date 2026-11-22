@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { LineMessagingService } from '../notifications/line-messaging.service';
 import { EmailService } from '../notifications/email.service';
 import { PushService } from '../notifications/push.service';
+import { AssignmentNotifierService, TeamBriefLines } from '../notifications/assignment-notifier.service';
 import { addBangkokDays, bangkokDateOnly, bangkokDayKey, bangkokDayStart, formatBangkokDateThai } from '../common/utils/bangkok-time';
 import { dailyTaskScope, DailyOperationsService } from './daily-operations.service';
 import { buildTeamDigest, previousWorkingDay } from './team-digest';
@@ -17,13 +17,27 @@ export class TeamDigestScheduler {
   constructor(
     private prisma: PrismaService,
     private operations: DailyOperationsService,
-    private line: LineMessagingService,
     private email: EmailService,
     private push: PushService,
+    private notifier: AssignmentNotifierService,
   ) {}
 
+  /**
+   * The one 09:00 entry point: managers on LINE get the team as one summary line
+   * inside the morning brief (AssignmentNotifierService.sendHeldSummary), the rest
+   * the full digest by email; everyone gets the push.
+   */
   @Cron('0 9 * * 1-5', { timeZone: 'Asia/Bangkok' })
   async sendDigests(): Promise<void> {
+    const team: TeamBriefLines = new Map();
+    try {
+      await this.buildDigests(team);
+    } finally {
+      await this.notifier.sendHeldSummary(new Date(), team);
+    }
+  }
+
+  private async buildDigests(team: TeamBriefLines): Promise<void> {
     if (!(await isBangkokWorkingDay(this.prisma, new Date()))) return; // public holiday
     const today = bangkokDayStart(new Date());
     const digestDate = bangkokDateOnly(today);
@@ -75,13 +89,13 @@ export class TeamDigestScheduler {
           const recipientKey = `${user.id}:${firmId}`;
           try {
             if (!textSent.has(recipientKey)) {
-              const channel = user.lineUserId ? `team-line:${firmId}` : `team-email:${firmId}`;
-              const sent = user.lineUserId
-                ? await this.line.sendText(digest.text, [user.lineUserId])
-                : await this.email.sendTeamDigestEmail({ to: user.email,
-                    dayLabel: formatBangkokDateThai(today), lines: digest.lines });
-              if (sent) {
-                await this.prisma.dailyDigestLog.create({ data: { userId: user.id, digestDate, channel, itemCount: digest.memberCount } });
+              if (user.lineUserId) {
+                // ponytail: logged as handed to the brief, not as delivered; a failed brief is not retried today.
+                team.set(`${firmId}:${user.id}`, { lineUserId: user.lineUserId, summary: digest.summary });
+                await this.prisma.dailyDigestLog.create({ data: { userId: user.id, digestDate, channel: `team-line:${firmId}`, itemCount: digest.memberCount } });
+                textSent.add(recipientKey);
+              } else if (await this.email.sendTeamDigestEmail({ to: user.email, dayLabel: formatBangkokDateThai(today), lines: digest.lines })) {
+                await this.prisma.dailyDigestLog.create({ data: { userId: user.id, digestDate, channel: `team-email:${firmId}`, itemCount: digest.memberCount } });
                 textSent.add(recipientKey);
               }
             }

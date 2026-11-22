@@ -7,6 +7,7 @@ import { TeamDigestScheduler } from './team-digest.scheduler';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { EmailService } from '../notifications/email.service';
 import { PushService } from '../notifications/push.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 
 const member = (id = 'u1', lineUserId: string | null = 'L1', firmId = 'f1') => ({
   firmId, firm: { name: `Firm ${firmId}` }, user: { id, email: `${id}@example.com`, lineUserId },
@@ -19,6 +20,9 @@ describe('TeamDigestScheduler', () => {
   const line = { sendText: jest.fn() };
   const email = { sendTeamDigestEmail: jest.fn(), getAppUrl: jest.fn() };
   const push = { sendToUsers: jest.fn() };
+  const notifier = { sendHeldSummary: jest.fn() };
+  /** The team lines handed to the 09:00 brief. */
+  const team = (): Map<string, { lineUserId: string; summary: string }> => notifier.sendHeldSummary.mock.calls[0][1];
   let recipients: ReturnType<typeof member>[];
 
   beforeEach(async () => {
@@ -39,6 +43,7 @@ describe('TeamDigestScheduler', () => {
     const module = await Test.createTestingModule({ providers: [TeamDigestScheduler,
       { provide: PrismaService, useValue: prisma }, { provide: DailyOperationsService, useValue: operations },
       { provide: LineMessagingService, useValue: line }, { provide: EmailService, useValue: email }, { provide: PushService, useValue: push },
+      { provide: AssignmentNotifierService, useValue: notifier },
     ] }).compile();
     scheduler = module.get(TeamDigestScheduler);
   });
@@ -69,10 +74,12 @@ describe('TeamDigestScheduler', () => {
     });
   });
 
-  it('chooses LINE when linked, otherwise email, and sends one short team push', async () => {
+  it('LINE managers get one summary line in the 09:00 brief, the rest the email, and everyone one short team push', async () => {
     recipients.push(member('u2', null));
     await scheduler.sendDigests();
-    expect(line.sendText).toHaveBeenCalledWith(expect.stringContaining('🆕 สมชาย ใจดี (เข้าใหม่ 5 วัน)'), ['L1']);
+    expect(line.sendText).not.toHaveBeenCalled();
+    expect(notifier.sendHeldSummary).toHaveBeenCalledTimes(1);
+    expect([...team()]).toEqual([['f1:u1', { lineUserId: 'L1', summary: 'เกินเกณฑ์ 0 คน · เลยกำหนด 0 งาน · ไม่ได้อัปเดต 0 คน · คนใหม่ 1 คน' }]]);
     expect(email.sendTeamDigestEmail).toHaveBeenCalledWith({ to: 'u2@example.com', dayLabel: 'จ. 9 พ.ย. 2569',
       lines: expect.arrayContaining(['ดูรายละเอียดในแอป: https://app.example/operations']) });
     expect(push.sendToUsers).toHaveBeenCalledWith(['u1'], { title: '📋 สรุปทีมวันนี้ · Firm f1',
@@ -87,7 +94,7 @@ describe('TeamDigestScheduler', () => {
     prisma.dailyDigestLog.findMany.mockResolvedValue([{ userId: 'u1', channel: 'team-email:f1' }, { userId: 'u1', channel: 'team-push:f1' }]);
     await scheduler.sendDigests();
     expect(operations.board).not.toHaveBeenCalled();
-    expect(line.sendText).not.toHaveBeenCalled();
+    expect(team().size).toBe(0);
     expect(push.sendToUsers).not.toHaveBeenCalled();
   });
 
@@ -102,27 +109,27 @@ describe('TeamDigestScheduler', () => {
   it('ignores ordinary digest logs and skips an already logged team push', async () => {
     prisma.dailyDigestLog.findMany.mockResolvedValue([{ userId: 'u1', channel: 'line' }, { userId: 'u1', channel: 'team-push:f1' }]);
     await scheduler.sendDigests();
-    expect(line.sendText).toHaveBeenCalledTimes(1);
+    expect(team().size).toBe(1);
     expect(push.sendToUsers).not.toHaveBeenCalled();
   });
 
   it('counts a completed-later task comment without loading the previous board', async () => {
+    recipients = [member('u1', null)];
     operations.board.mockResolvedValue({ members: [{ userId: 'u1', firstName: 'สมชาย', lastName: 'ใจดี', role: 'LAWYER', onLeave: false }],
       tasks: [{ assigneeId: 'u1', status: 'DONE', blocker: null, holdReason: null, blockedBy: null, case: null }] });
     prisma.taskComment.findMany.mockResolvedValue([{ authorId: 'u1', body: 'ทำถึงไหน: ส่งเอกสาร\nเหลืออะไร: รอรับ\nติดอะไร: ไม่มี',
       createdAt: new Date('2026-11-06T10:00:00Z'), task: { case: null } }]);
     await scheduler.sendDigests();
     expect(operations.board).toHaveBeenCalledTimes(1);
-    expect(line.sendText).toHaveBeenCalledWith(expect.stringContaining('✅ ส่งเอกสาร'), ['L1']);
+    expect(email.sendTeamDigestEmail.mock.calls[0][0].lines.join('\n')).toContain('✅ ส่งเอกสาร');
   });
 
   it('sends both text and push to the same user in two firms', async () => {
     recipients.push(member('u1', 'L1', 'f2'));
     await scheduler.sendDigests();
-    expect(line.sendText).toHaveBeenCalledTimes(2);
+    expect([...team().keys()]).toEqual(['f1:u1', 'f2:u1']);
     expect(push.sendToUsers).toHaveBeenCalledTimes(2);
     for (const firmId of ['f1', 'f2']) {
-      expect(line.sendText).toHaveBeenCalledWith(expect.stringContaining(`📋 สรุปทีมประจำวัน Firm ${firmId}`), ['L1']);
       expect(push.sendToUsers).toHaveBeenCalledWith(['u1'], expect.objectContaining({ title: `📋 สรุปทีมวันนี้ · Firm ${firmId}` }));
       for (const channel of ['team-line', 'team-push']) {
         expect(prisma.dailyDigestLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 'u1', channel: `${channel}:${firmId}` }) });
@@ -139,13 +146,12 @@ describe('TeamDigestScheduler', () => {
     await scheduler.sendDigests();
     expect(operations.board).toHaveBeenCalledTimes(1);
     expect(operations.board).toHaveBeenCalledWith(expect.objectContaining({ firmId: 'f2' }), '2026-11-09');
-    expect(line.sendText).toHaveBeenCalledWith(expect.stringContaining('Firm f2'), ['L1']);
+    expect([...team().keys()]).toEqual(['f2:u1']);
     expect(push.sendToUsers).toHaveBeenCalledTimes(1);
   });
 
   it('does not log when any sender returns false', async () => {
-    recipients.push(member('u2', null));
-    line.sendText.mockResolvedValue(false);
+    recipients = [member('u2', null)];
     email.sendTeamDigestEmail.mockResolvedValue(false);
     push.sendToUsers.mockResolvedValue(false);
     await scheduler.sendDigests();
@@ -153,21 +159,20 @@ describe('TeamDigestScheduler', () => {
   });
 
   it('keeps pushing and sending to the next recipient when text throws', async () => {
-    recipients.push(member('u2', 'L2'));
-    line.sendText.mockRejectedValueOnce(new Error('bad LINE'));
+    recipients = [member('u1', null), member('u2', null)];
+    email.sendTeamDigestEmail.mockRejectedValueOnce(new Error('bad SMTP'));
     await scheduler.sendDigests();
-    expect(line.sendText).toHaveBeenCalledTimes(2);
+    expect(email.sendTeamDigestEmail).toHaveBeenCalledTimes(2);
     expect(push.sendToUsers).toHaveBeenCalledTimes(2);
-    expect(prisma.dailyDigestLog.create).not.toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 'u1', channel: 'team-line:f1' }) });
-    expect(prisma.dailyDigestLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 'u2', channel: 'team-line:f1' }) });
+    expect(prisma.dailyDigestLog.create).not.toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 'u1', channel: 'team-email:f1' }) });
+    expect(prisma.dailyDigestLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 'u2', channel: 'team-email:f1' }) });
   });
 
   it('continues to other firms when one firm fails', async () => {
     recipients.push(member('u2', 'L2', 'f2'));
     operations.board.mockRejectedValueOnce(new Error('bad firm'));
     await scheduler.sendDigests();
-    expect(line.sendText).toHaveBeenCalledTimes(1);
-    expect(line.sendText.mock.calls[0][1]).toEqual(['L2']);
+    expect([...team().keys()]).toEqual(['f2:u2']);
   });
 
   it('handles an empty recipient list without loading anything', async () => {
@@ -175,5 +180,12 @@ describe('TeamDigestScheduler', () => {
     await scheduler.sendDigests();
     expect(prisma.dailyDigestLog.findMany).not.toHaveBeenCalled();
     expect(operations.board).not.toHaveBeenCalled();
+    expect(notifier.sendHeldSummary).toHaveBeenCalledTimes(1); // the brief still goes to everyone else
+  });
+
+  it('still runs the brief when building the team digest throws', async () => {
+    prisma.dailyDigestLog.findMany.mockRejectedValue(new Error('db down'));
+    await expect(scheduler.sendDigests()).rejects.toThrow('db down');
+    expect(team().size).toBe(0);
   });
 });
