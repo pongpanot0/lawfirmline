@@ -156,6 +156,15 @@ describe('AssignmentNotifierService', () => {
     expect(push.send).toHaveBeenCalledTimes(1); // push stays the held summary only
   });
 
+  it('09:00 adds a manager\'s team summary line with a link to the team page', async () => {
+    prisma.notification.findMany.mockResolvedValue([]);
+    prisma.firmMember.findMany.mockResolvedValueOnce([]);
+    const team = new Map([['f1:u2', { lineUserId: 'L2', summary: 'เกินเกณฑ์ 1 คน · เลยกำหนด 5 งาน' }]]);
+    expect(await svc.sendHeldSummary(new Date('2026-09-14T02:00:00Z'), team)).toBe(1);
+    expect(line.pushTo).toHaveBeenCalledWith('L2', expect.stringMatching(/^☀️ สรุปเช้านี้[^]*📋 ทีมวันนี้: เกินเกณฑ์ 1 คน · เลยกำหนด 5 งาน\n  🔗 https:\/\/acme\.example\.com\/operations$/));
+    expect(push.send).not.toHaveBeenCalled();
+  });
+
   it('sends no summary on a public holiday', async () => {
     prisma.publicHoliday.findUnique.mockResolvedValueOnce({ id: 'h' });
     expect(await svc.sendHeldSummary(new Date('2026-09-14T02:00:00Z'))).toBe(0);

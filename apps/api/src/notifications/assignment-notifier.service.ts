@@ -12,6 +12,9 @@ import { isBangkokWorkingDay, LEAVE_SPLIT_HOUR, usersOff, usersOnLeave } from '.
 import { bangkokDateOnly, bangkokDayEnd, bangkokDayStart, bangkokHour, formatBangkokDateThai, formatBangkokTime } from '../common/utils/bangkok-time';
 import { formatCaseNotificationReference } from './reference-label';
 
+/** `firmId:userId` → a manager's one-line team summary for the 09:00 brief (built by TeamDigestScheduler). */
+export type TeamBriefLines = Map<string, { lineUserId: string; summary: string }>;
+
 /** The firm's day for the 09:00 brief. */
 type FirmDay = { out: { userId: string; text: string }[]; court: { text: string; path: string }[] };
 const HALF_DAY: Record<LeavePeriod, string> = { MORNING: 'ครึ่งเช้า', AFTERNOON: 'ครึ่งบ่าย' };
@@ -161,11 +164,13 @@ export class AssignmentNotifierService {
    * with its case line and link. Someone still on leave keeps theirs; 12:00 is
    * when a morning half-day leave ends.
    * At 09:00 the same LINE message is the morning brief for every staff member:
-   * who is out today and who is in court where, so the morning is one message.
+   * who is out today and who is in court where, plus the team summary line for
+   * managers, so the morning is one message. 09:00 is run by TeamDigestScheduler
+   * (it builds the team lines first); 12:00 by the cron here.
    * ponytail: ignores per-category channel switches; filter here if someone turns everything off and still gets it.
    */
-  @Cron('0 9,12 * * 1-5', { timeZone: 'Asia/Bangkok' })
-  async sendHeldSummary(now: Date = new Date()): Promise<number> {
+  @Cron('0 12 * * 1-5', { timeZone: 'Asia/Bangkok' })
+  async sendHeldSummary(now: Date = new Date(), team: TeamBriefLines = new Map()): Promise<number> {
     if (!(await isBangkokWorkingDay(this.prisma, now))) return 0;
     const heldRows = await this.prisma.notification.findMany({
       where: { held: true },
@@ -185,13 +190,17 @@ export class AssignmentNotifierService {
     // Released before sending: a crash mid-loop must not repeat the summary tomorrow.
     if (due.length) await this.prisma.notification.updateMany({ where: { id: { in: due.map((r) => r.id) } }, data: { held: false } });
 
-    type Brief = { firmId: string; userId: string; lineUserId: string | null; held: typeof due; day: FirmDay | null };
+    type Brief = { firmId: string; userId: string; lineUserId: string | null; held: typeof due; day: FirmDay | null; team?: string };
     const briefs = new Map<string, Brief>();
     const brief = (firmId: string, userId: string, lineUserId: string | null) => {
       const key = `${firmId}:${userId}`;
       if (!briefs.has(key)) briefs.set(key, { firmId, userId, lineUserId, held: [], day: null });
       return briefs.get(key)!;
     };
+    for (const [key, t] of team) {
+      const [firmId, userId] = key.split(':');
+      if (!away.has(userId)) brief(firmId, userId, t.lineUserId).team = t.summary;
+    }
     for (const row of due) if (!row.readAt) brief(row.firmId, row.userId, row.user.lineUserId).held.push(row);
     for (const s of staff) {
       if (!away.has(s.userId) && days.has(s.firmId)) brief(s.firmId, s.userId, s.user.lineUserId).day = days.get(s.firmId)!;
@@ -199,7 +208,7 @@ export class AssignmentNotifierService {
 
     const origins = new Map<string, string>();
     let sent = 0;
-    for (const { firmId, userId, lineUserId, held, day } of briefs.values()) {
+    for (const { firmId, userId, lineUserId, held, day, team: teamSummary } of briefs.values()) {
       try {
         if (!origins.has(firmId)) origins.set(firmId, await this.firmLink.linkFor(firmId, ''));
         const origin = origins.get(firmId)!;
@@ -224,9 +233,10 @@ export class AssignmentNotifierService {
           if (day.court.length > COURT_LINES) shown.push(`และอีก ${day.court.length - COURT_LINES} นัด · ${origin}/calendar`);
           sections.push([`⚖️ นัดศาลวันนี้ ${day.court.length} นัด`, ...shown].join('\n'));
         }
+        if (teamSummary) sections.push(`📋 ทีมวันนี้: ${teamSummary}\n  🔗 ${origin}/operations`);
         if (!sections.length) continue;
         if (lineUserId) {
-          const text = day ? [`☀️ สรุปเช้านี้ (${formatBangkokDateThai(now)})`, ...sections].join('\n\n') : sections.join('\n\n');
+          const text = day || teamSummary ? [`☀️ สรุปเช้านี้ (${formatBangkokDateThai(now)})`, ...sections].join('\n\n') : sections.join('\n\n');
           await this.line.pushTo(lineUserId, clip(text, LINE_TEXT_MAX));
         }
         sent++;
