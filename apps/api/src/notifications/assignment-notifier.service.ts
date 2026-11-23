@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
-import { EventType, LeavePeriod, LeaveStatus, NotificationCategory } from '../generated/prisma';
+import { EventType, LeavePeriod, NotificationCategory } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService, QuickReplyItem } from './line-messaging.service';
 import { FirmLinkService } from './firm-link.service';
@@ -12,6 +12,7 @@ import { isBangkokWorkingDay, LEAVE_SPLIT_HOUR, usersOff, usersOnLeave } from '.
 import { bangkokDateOnly, bangkokDayEnd, bangkokDayStart, bangkokHour, formatBangkokDateThai, formatBangkokTime } from '../common/utils/bangkok-time';
 import { formatCaseNotificationReference } from './reference-label';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { ANNOUNCED_LEAVE, pendingMark } from '../leave/leave-visibility';
 
 /** `firmId:userId` → a manager's one-line team summary for the 09:00 brief (built by TeamDigestScheduler). */
 export type TeamBriefLines = Map<string, { lineUserId: string; summary: string }>;
@@ -268,8 +269,8 @@ export class AssignmentNotifierService {
     const today = bangkokDateOnly(now);
     const [leaves, events] = await Promise.all([
       this.prisma.leaveRequest.findMany({
-        where: { firmId: { in: firmIds }, status: LeaveStatus.APPROVED, startDate: { lte: today }, endDate: { gte: today } },
-        select: { firmId: true, userId: true, period: true, user: { select: { firstName: true, lastName: true } } },
+        where: { firmId: { in: firmIds }, ...ANNOUNCED_LEAVE, startDate: { lte: today }, endDate: { gte: today } },
+        select: { firmId: true, userId: true, period: true, status: true, user: { select: { firstName: true, lastName: true } } },
         orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
       }),
       this.prisma.calendarEvent.findMany({
@@ -289,7 +290,7 @@ export class AssignmentNotifierService {
     };
     const name = (u: { firstName: string; lastName: string }) => `${u.firstName} ${u.lastName}`.trim();
     for (const l of leaves) {
-      day(l.firmId).out.push({ userId: l.userId, text: `• ${name(l.user)}${l.period ? ` (${HALF_DAY[l.period]})` : ''}` });
+      day(l.firmId).out.push({ userId: l.userId, text: `• ${name(l.user)}${l.period ? ` (${HALF_DAY[l.period]})` : ''}${pendingMark(l)}` });
     }
     for (const e of events) {
       const people = e.assignees.length ? e.assignees.map((a) => name(a.user)) : [name(e.case.leadLawyer)];

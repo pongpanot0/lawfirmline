@@ -174,7 +174,7 @@ describe('SecretaryToolsService', () => {
     ]);
     const { content } = await svc.run(lawyer, 'list_leaves', { from: '2026-11-10', to: '2026-11-20' }) as any;
     // Same rule as GET /leaves: own leave in full, others' approved leave without the type.
-    expect(prisma.leaveRequest.findMany.mock.calls[0][0].where.AND[0]).toEqual({ firmId: 'f1', OR: [{ userId: 'u2' }, { status: 'APPROVED' }] });
+    expect(prisma.leaveRequest.findMany.mock.calls[0][0].where.AND[0]).toEqual({ firmId: 'f1', OR: [{ userId: 'u2' }, { OR: [{ status: 'APPROVED' }, { status: 'PENDING', type: { in: ['SICK', 'PERSONAL'] } }] }] });
     expect(content.leaves.map((l: any) => l.type)).toEqual(['VACATION', null]);
   });
 
