@@ -8,7 +8,7 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 import { NotificationCenterService } from '../notifications/notification-center.service';
 import { addBangkokDays, bangkokDayKey, bangkokDayStart, bangkokDayEnd, formatBangkokDateThai, formatBangkokDateTime, isBangkokWeekend, bangkokHour } from '../common/utils/bangkok-time';
 import { eventForUserWhere } from '../calendar/event-people';
-import { canSeeLeaveDetail, leaveVisibleWhere } from './leave-visibility';
+import { ANNOUNCED_LEAVE, canSeeLeaveDetail, isAnnounced, leaveVisibleWhere, pendingMark } from './leave-visibility';
 
 const LABEL: Record<LeaveType, string> = {
   SICK: 'ลาป่วย',
@@ -155,9 +155,9 @@ export class LeaveService {
         roles: rolesWithCapability('approveLeave'),
         summaryText: `🗓 คำขอลา · รออนุมัติ\n${this.detail(leave)}`, entityPath: '/leaves',
       });
-    } else {
-      await this.announceIfToday(leave);
     }
+    // Sick and personal leave reach everyone while still pending; vacation only once approved.
+    if (isAnnounced(leave)) await this.announceIfToday(leave);
     return leave;
   }
 
@@ -189,6 +189,11 @@ export class LeaveService {
       } catch (error) { this.logger.error(`Leave decision notice ${leaveId} failed: ${(error as Error).message}`); }
     }
     if (decision === LeaveStatus.APPROVED) await this.announceIfToday(decided);
+    else if (isAnnounced(leave)) {
+      // Everyone was already told about this sick/personal leave; take it back without saying why.
+      try { await this.broadcast(leave.firmId, [decided], '❌ ยกเลิกการลา', true, `cancel:${leave.id}`); }
+      catch (error) { this.logger.error(`Leave ${leave.id} retraction failed: ${(error as Error).message}`); }
+    }
     return decided;
   }
 
@@ -200,8 +205,8 @@ export class LeaveService {
     if (!leave) throw new NotFoundException('ไม่พบรายการลา');
     if (leave.userId !== user.id && !hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('ยกเลิกได้เฉพาะรายการลาของตนเอง');
     await this.prisma.leaveRequest.delete({ where: { id } });
-    // Members were only ever told about approved leave — nothing to retract otherwise.
-    if (leave.status !== LeaveStatus.APPROVED) return { deleted: true };
+    // Members were only told about announced leave — nothing to retract otherwise.
+    if (!isAnnounced(leave)) return { deleted: true };
     try { await this.broadcast(leave.firmId, [leave], '❌ ยกเลิกการลา', true, `cancel:${leave.id}`); }
     catch (error) { this.logger.error(`Leave ${leave.id} cancellation notice failed: ${(error as Error).message}`); }
     return { deleted: true };
@@ -288,7 +293,9 @@ export class LeaveService {
     for (const member of members) {
       const others = leaves.filter((leave) => leave.userId !== member.userId);
       if (!others.length) continue;
-      const text = `${title}\n${others.map((leave) => `• ${this.who(leave, showRange)}`).join('\n')}`;
+      // A cancellation names the leave being withdrawn; its pending state no longer matters.
+      const mark = (leave: Leave) => (title.startsWith('❌') ? '' : pendingMark(leave));
+      const text = `${title}\n${others.map((leave) => `• ${this.who(leave, showRange)}${mark(leave)}`).join('\n')}`;
       byText.set(text, [...(byText.get(text) ?? []), member.userId]);
       if (!dm || !member.user.lineUserId || !lineOk.has(member.userId)) continue;
       try { await this.sendOnce(`${stamp}:${member.userId}`, member.user.lineUserId, text); }
@@ -316,7 +323,7 @@ export class LeaveService {
     const today = day(todayKey);
     if (!(await this.isWorkingDay(today))) return;
     const leaves = await this.prisma.leaveRequest.findMany({
-      where: { firmId, status: LeaveStatus.APPROVED, startDate: { lte: today }, endDate: { gte: today } },
+      where: { firmId, ...ANNOUNCED_LEAVE, startDate: { lte: today }, endDate: { gte: today } },
       include: { user: { select: { firstName: true, lastName: true } } },
       orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
     });
@@ -373,7 +380,7 @@ export class LeaveService {
     const monday = today.getUTCDay() === 1;
     const morningTick = bangkokHour(now) === MORNING_HOUR && now.getUTCMinutes() < 10;
     const leaves = await this.prisma.leaveRequest.findMany({
-      where: { status: LeaveStatus.APPROVED, startDate: { lte: monday ? weekEnd : threeDays }, endDate: { gte: today } },
+      where: { ...ANNOUNCED_LEAVE, startDate: { lte: monday ? weekEnd : threeDays }, endDate: { gte: today } },
       include: { user: { select: { firstName: true, lastName: true } } },
       orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
     });

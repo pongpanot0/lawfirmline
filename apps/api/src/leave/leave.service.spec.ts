@@ -22,7 +22,8 @@ describe('LeaveService notices', () => {
     const prisma = {
       leaveRequest: {
         findMany: jest.fn(async ({ where }: any) => leaves.filter((l) =>
-          (!where.firmId || l.firmId === where.firmId) && l.status === LeaveStatus.APPROVED
+          (!where.firmId || l.firmId === where.firmId)
+          && where.OR.some((c: any) => c.status === l.status && (!c.type || c.type.in.includes(l.type)))
           && l.startDate <= where.startDate.lte && l.endDate >= where.endDate.gte)),
       },
       publicHoliday: { findUnique: jest.fn(async ({ where }: any) => (holidays.includes(where.date.toISOString().slice(0, 10)) ? { id: 'h' } : null)) },
@@ -123,6 +124,55 @@ describe('LeaveService notices', () => {
     expect(textsTo(line, 'line-bob')).toEqual([expect.stringMatching(/^❌ ยกเลิกการลา\n• Alice A · /)]);
     expect(line.sendText.mock.calls.some(([text]: any) => text.includes('ลากิจ'))).toBe(false);
   });
+
+  it('pending sick and personal leave reach everyone marked รออนุมัติ; pending vacation waits', async () => {
+    const pendingCarol = { ...carol, status: LeaveStatus.PENDING };
+    const pendingAlice = { ...alice, status: LeaveStatus.PENDING };
+    const pendingVacation = { ...bob, status: LeaveStatus.PENDING, startDate: new Date('2026-09-28'), endDate: new Date('2026-10-01') };
+    const { line, notify, service } = setup([pendingCarol, pendingAlice, pendingVacation]);
+    await service.sendNotices(new Date('2026-09-28T02:00:00Z')); // Mon 09:00
+    const week = textsTo(line, 'line-bob').find((t) => t.startsWith('📅 คนลาสัปดาห์นี้'))!;
+    expect(week).toMatch(/• Alice A · .* \(รออนุมัติ\)/);
+    expect(week).toMatch(/• Carol C · .* \(รออนุมัติ\)/);
+    const app = notify.notifyAssigned.mock.calls.map(([p]: any) => p.summaryText as string).find((t: string) => t.startsWith('📅 วันนี้ไม่อยู่') && t.includes('Alice'))!;
+    expect(app).toContain('• Alice A (รออนุมัติ)');
+    // Bob's vacation is still pending: nobody hears of it in any round.
+    expect(line.sendText.mock.calls.some(([t]: any) => t.includes('Bob B'))).toBe(false);
+    expect(notify.notifyAssigned.mock.calls.some(([p]: any) => p.summaryText.includes('Bob B'))).toBe(false);
+  });
+
+  it('a sick day filed during the day goes out to everyone at once, before approval', async () => {
+    jest.useFakeTimers({ now: new Date('2026-09-28T03:00:00Z'), doNotFake: ['nextTick', 'setImmediate'] }); // Mon 10:00
+    const filed = { ...carol, status: LeaveStatus.PENDING, endDate: new Date('2026-09-28') };
+    const { prisma, line, service } = setup([filed]);
+    prisma.firmMember.findUnique = jest.fn(async () => ({ userId: 'carol' }));
+    prisma.firmMember.findMany = jest.fn(async () => [
+      { userId: 'alice', user: { lineUserId: 'line-alice' } }, { userId: 'carol', user: { lineUserId: 'line-carol' } },
+    ]);
+    prisma.leaveRequest.findFirst = jest.fn(async () => null);
+    prisma.leaveRequest.create = jest.fn(async () => filed);
+    await service.create({ id: 'carol', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any, { type: LeaveType.SICK, startDate: '2026-09-28', endDate: '2026-09-28' });
+    expect(textsTo(line, 'line-alice')).toEqual([expect.stringMatching(/^📅 วันนี้ไม่อยู่ \(.*\)\n• Carol C \(รออนุมัติ\)$/)]);
+    expect(textsTo(line, 'line-carol')).toEqual([]);
+  });
+
+  it('rejecting an already announced sick leave takes it back from everyone, without saying why', async () => {
+    const pending = { ...carol, status: LeaveStatus.PENDING, user: { ...carol.user, lineUserId: null } };
+    const { prisma, line, service } = setup([]);
+    prisma.leaveRequest.findFirst = jest.fn(async () => pending);
+    prisma.leaveRequest.updateMany = jest.fn(async () => ({ count: 1 }));
+    await service.decide({ id: 'owner-1', firmId: 'firm-a', firmRole: FirmRole.OWNER } as any, 'c', 'REJECTED');
+    expect(textsTo(line, 'line-bob')).toEqual([expect.stringMatching(/^❌ ยกเลิกการลา\n• Carol C · [^(]*$/)]);
+  });
+
+  it('rejecting a pending vacation tells nobody (it was never announced)', async () => {
+    const pending = { ...bob, status: LeaveStatus.PENDING, user: { ...bob.user, lineUserId: null } };
+    const { prisma, line, service } = setup([]);
+    prisma.leaveRequest.findFirst = jest.fn(async () => pending);
+    prisma.leaveRequest.updateMany = jest.fn(async () => ({ count: 1 }));
+    await service.decide({ id: 'owner-1', firmId: 'firm-a', firmRole: FirmRole.OWNER } as any, 'b', 'REJECTED');
+    expect(line.sendText).not.toHaveBeenCalled();
+  });
 });
 
 describe('LeaveService.list visibility', () => {
@@ -136,7 +186,9 @@ describe('LeaveService.list visibility', () => {
 
   it('a member sees their own leave in full and others\' approved leave as name and dates only', async () => {
     const { where, result } = await run(FirmRole.LAWYER);
-    expect(where.AND[0]).toEqual({ firmId: 'firm-a', OR: [{ userId: 'me' }, { status: LeaveStatus.APPROVED }] });
+    expect(where.AND[0]).toEqual({ firmId: 'firm-a', OR: [{ userId: 'me' }, { OR: [
+      { status: LeaveStatus.APPROVED }, { status: LeaveStatus.PENDING, type: { in: [LeaveType.SICK, LeaveType.PERSONAL] } },
+    ] }] });
     expect(result[0]).toMatchObject({ id: 'mine', type: LeaveType.VACATION, courtConflicts: [] });
     expect(result[1]).toEqual({ id: 'theirs', userId: 'bob', status: LeaveStatus.APPROVED, startDate: other.startDate, endDate: other.endDate,
       user: other.user, type: null, decidedAt: null, decidedBy: null });
@@ -343,7 +395,7 @@ describe('LeaveService approval workflow', () => {
   });
 
   it('a requester who muted LEAVE on LINE still gets the decision in the app, not on LINE', async () => {
-    const leave = { id: 'leave-2', firmId: 'firm-a', userId: 'muted-bob', type: LeaveType.PERSONAL, status: LeaveStatus.PENDING, startDate: new Date('2026-10-05'), endDate: new Date('2026-10-05'), user: { lineUserId: 'line-bob' } };
+    const leave = { id: 'leave-2', firmId: 'firm-a', userId: 'muted-bob', type: LeaveType.VACATION, status: LeaveStatus.PENDING, startDate: new Date('2026-10-05'), endDate: new Date('2026-10-05'), user: { lineUserId: 'line-bob' } };
     const prisma = makeDecidePrisma(leave);
     const line = { sendText: jest.fn(async () => true), push: jest.fn(async () => true) } as any;
     notifier.notifyAssigned.mockClear();
