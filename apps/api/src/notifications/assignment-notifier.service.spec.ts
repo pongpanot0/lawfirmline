@@ -1,5 +1,6 @@
 import { AssignmentNotifierService } from './assignment-notifier.service';
 import { FirmLinkService } from './firm-link.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 
 const CASE_ID = '11111111-2222-3333-4444-555555555555';
 
@@ -7,6 +8,7 @@ const prisma = { publicHoliday: { findUnique: jest.fn().mockResolvedValue(null) 
   user: { findMany: jest.fn() },
   firmMember: { findMany: jest.fn() },
   calendarEvent: { findMany: jest.fn().mockResolvedValue([]) },
+  case: { findMany: jest.fn() },
   notification: { createManyAndReturn: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
 } as any;
 const line = { pushTo: jest.fn() } as any;
@@ -38,7 +40,7 @@ describe('AssignmentNotifierService', () => {
     prisma.notification.createManyAndReturn.mockImplementation(async ({ data }: any) =>
       data.map((row: any) => ({ id: `n-${row.userId}`, userId: row.userId })),
     );
-    svc = new AssignmentNotifierService(prisma, line, new FirmLinkService(firmPrisma, config), push, center);
+    svc = new AssignmentNotifierService(prisma, line, new FirmLinkService(firmPrisma, config), push, center, new CaseAccessService(prisma));
   });
 
   const users = [
@@ -132,9 +134,10 @@ describe('AssignmentNotifierService', () => {
       { id: 'n1', userId: 'u2', firmId: 'f1', title: '🗓 คำขอลา · รออนุมัติ', body: 'ขนิษฐา · ลาป่วย', path: '/leaves', readAt: null, user: { lineUserId: 'L2' } },
     ]);
     prisma.firmMember.findMany.mockResolvedValueOnce([
-      { firmId: 'f1', userId: 'u2', user: { lineUserId: 'L2' } },
-      { firmId: 'f1', userId: 'u4', user: { lineUserId: 'L4' } },
+      { firmId: 'f1', userId: 'u2', role: 'OWNER', user: { lineUserId: 'L2' } },
+      { firmId: 'f1', userId: 'u4', role: 'LAWYER', user: { lineUserId: 'L4' } },
     ]);
+    prisma.case.findMany.mockImplementation(async () => [{ id: 'c9' }]);
     prisma.leaveRequest.findMany
       .mockResolvedValueOnce([{ firmId: 'f1', userId: 'u4', period: 'AFTERNOON', user: { firstName: 'อรนันท์', lastName: 'ยุบลเพลิด' } }])
       .mockResolvedValueOnce([]); // nobody off at 09:00 (u4 is off only in the afternoon)
@@ -154,6 +157,36 @@ describe('AssignmentNotifierService', () => {
     expect(forU4).not.toContain('วันนี้ไม่อยู่'); // not told about their own leave
     expect(forU4).toContain('⚖️ นัดศาลวันนี้');
     expect(push.send).toHaveBeenCalledTimes(1); // push stays the held summary only
+    // Each recipient's list is checked against the calendar's case-access rule for their role.
+    const lawyerQuery = prisma.case.findMany.mock.calls.find((c: any[]) => c[0].where.OR)[0].where;
+    expect(lawyerQuery).toEqual(expect.objectContaining({ id: { in: ['c9'] }, firmId: 'f1', deletedAt: null,
+      OR: expect.arrayContaining([{ leadLawyerId: 'u4' }, { assignments: { some: { userId: 'u4' } } }]) }));
+  });
+
+  it('09:00 leaves out court dates of cases the recipient may not open', async () => {
+    prisma.notification.findMany.mockResolvedValue([]);
+    prisma.firmMember.findMany.mockResolvedValueOnce([{ firmId: 'f1', userId: 'u4', role: 'LAWYER', user: { lineUserId: 'L4' } }]);
+    prisma.leaveRequest.findMany.mockResolvedValueOnce([{ firmId: 'f1', userId: 'u5', period: null, user: { firstName: 'ก', lastName: 'ข' } }]).mockResolvedValueOnce([]);
+    const event = (id: string, title: string) => ({ startAt: new Date('2026-09-14T02:30:00Z'), courtName: 'ศาลแพ่ง', assignees: [{ user: { firstName: 'A', lastName: 'B' } }],
+      case: { id, firmId: 'f1', title, ownRef: null, blackCaseNumber: `ดำ-${id}`, redCaseNumber: null, courtName: null, leadLawyer: { firstName: 'x', lastName: 'y' } } });
+    prisma.calendarEvent.findMany.mockResolvedValueOnce([event('mine', 'คดีของฉัน'), event('secret', 'คดีลับ')]);
+    prisma.case.findMany.mockResolvedValueOnce([{ id: 'mine' }]);
+    await svc.sendHeldSummary(new Date('2026-09-14T02:00:00Z'));
+    const text = line.pushTo.mock.calls[0][1];
+    expect(text).toContain('⚖️ นัดศาลวันนี้ 1 นัด');
+    expect(text).toContain('คดีของฉัน');
+    expect(text).not.toMatch(/คดีลับ|ดำ-secret|\/cases\/secret/);
+  });
+
+  it('09:00 sends no court section at all when none is visible', async () => {
+    prisma.notification.findMany.mockResolvedValue([]);
+    prisma.firmMember.findMany.mockResolvedValueOnce([{ firmId: 'f1', userId: 'u4', role: 'LAWYER', user: { lineUserId: 'L4' } }]);
+    prisma.leaveRequest.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    prisma.calendarEvent.findMany.mockResolvedValueOnce([{ startAt: new Date('2026-09-14T02:30:00Z'), courtName: 'ศาล', assignees: [],
+      case: { id: 'secret', firmId: 'f1', title: 'คดีลับ', ownRef: null, blackCaseNumber: null, redCaseNumber: null, courtName: null, leadLawyer: { firstName: 'x', lastName: 'y' } } }]);
+    prisma.case.findMany.mockResolvedValueOnce([]);
+    expect(await svc.sendHeldSummary(new Date('2026-09-14T02:00:00Z'))).toBe(0);
+    expect(line.pushTo).not.toHaveBeenCalled();
   });
 
   it('09:00 adds a manager\'s team summary line with a link to the team page', async () => {
