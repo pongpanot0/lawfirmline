@@ -108,16 +108,25 @@ export class DailyOperationsService {
       ] }] }, include: {
         case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true } }, onHold: true,
         blockedBy: { select: { title: true, status: true } },
-        assignmentLogs: { orderBy: { createdAt: 'desc' }, take: 1 },
-        comments: { where: { kind: 'DAILY_UPDATE', createdAt: { lt: end } }, orderBy: { createdAt: 'desc' }, take: 1,
-          include: { author: { select: { firstName: true, lastName: true } } } },
       }, orderBy: [{ queuePosition: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] }),
       this.prisma.leaveRequest.findMany({ where: { firmId: user.firmId, status: 'APPROVED', startDate: { lte: dateOnly }, endDate: { gte: dateOnly } }, select: { userId: true } }),
       this.prisma.calendarEvent.findMany({ where: { case: { firmId: user.firmId, deletedAt: null }, startAt: { lt: end }, OR: [{ endAt: { gte: start } }, { endAt: null, startAt: { gte: start } }] }, include: { assignees: true, case: { select: { leadLawyerId: true } } }, orderBy: { startAt: 'asc' } }),
       this.prisma.case.findMany({ where: { firmId: user.firmId, deletedAt: null, status: { not: 'CLOSED' } }, select: { id: true, ownRef: true, title: true }, orderBy: { ownRef: 'asc' } }),
       this.standards(user.firmId),
     ]);
-    const followUps = await this.prisma.taskComment.findMany({ where: { kind: 'FOLLOW_UP', taskId: { in: rows.map((t) => t.id) }, createdAt: { gte: start, lt: end } }, select: { taskId: true, createdAt: true }, orderBy: { createdAt: 'desc' } });
+    const taskIds = rows.map((t) => t.id);
+    const [followUps, updates] = await Promise.all([
+      this.prisma.taskComment.findMany({ where: { kind: 'FOLLOW_UP', taskId: { in: taskIds }, createdAt: { gte: start, lt: end } }, select: { taskId: true, createdAt: true }, orderBy: { createdAt: 'desc' } }),
+      // Only each task's latest daily update: Prisma's `take: 1` on a relation loads every update and trims in memory.
+      taskIds.length ? this.prisma.$queryRaw<{ taskId: string; body: string; createdAt: Date; authorId: string; firstName: string; lastName: string }[]>`
+        SELECT DISTINCT ON (c."taskId") c."taskId", c."body", c."createdAt", c."authorId", u."firstName", u."lastName"
+        FROM "TaskComment" c JOIN "User" u ON u."id" = c."authorId"
+        WHERE c."kind" = 'DAILY_UPDATE' AND c."taskId" = ANY(${taskIds}) AND c."createdAt" < ${end}
+        ORDER BY c."taskId", c."createdAt" DESC, c."id" DESC` : [],
+    ]);
+    const followedUpAt = new Map<string, Date>();
+    for (const f of followUps) if (!followedUpAt.has(f.taskId)) followedUpAt.set(f.taskId, f.createdAt);
+    const latestUpdate = new Map(updates.map((u) => [u.taskId, u]));
     return {
       date, fetchedAt: new Date().toISOString(), cases,
       members: members.map((m) => ({ ...m.user, userId: m.userId, role: m.role, workTypes: m.taskWorkTypes,
@@ -125,18 +134,18 @@ export class DailyOperationsService {
         onLeave: leaves.some((l) => l.userId === m.userId),
         appointments: events.filter((e) => attends(e, m.userId)).map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, endAt: e.endAt })),
       })),
-      tasks: rows.map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority,
+      tasks: rows.map((t) => { const update = latestUpdate.get(t.id); const blocker = update?.body.split('\nติดอะไร: ')[1]?.trim(); return { id: t.id, title: t.title, status: t.status, priority: t.priority,
         assigneeId: t.assigneeId, workerId: t.assigneeId,
         reviewerId: t.reviewerId, requiresReview: t.requiresReview, caseId: t.caseId, case: t.case,
         workType: t.workType, size: t.size, dueDate: t.dueDate, scheduledFor: t.scheduledFor, queuePosition: t.queuePosition,
         assignedAt: t.assignedAt, acknowledgedAt: t.acknowledgedAt, completedAt: t.completedAt,
         planConfirmedAt: t.planConfirmedAt,
-        followedUpAt: followUps.find((f) => f.taskId === t.id)?.createdAt ?? null,
-        blocker: t.comments[0]?.body.split('\nติดอะไร: ')[1]?.trim() && t.comments[0].body.split('\nติดอะไร: ')[1].trim() !== 'ไม่มี' ? t.comments[0].body.split('\nติดอะไร: ')[1].trim() : null,
+        followedUpAt: followedUpAt.get(t.id) ?? null,
+        blocker: blocker && blocker !== 'ไม่มี' ? blocker : null,
         holdReason: t.onHold && !t.onHold.endedAt ? t.onHold.reason : null,
         blockedBy: t.blockedBy && t.blockedBy.status !== TaskStatus.DONE ? t.blockedBy.title : null,
-        latestUpdate: t.comments[0] ? { body: t.comments[0].body, createdAt: t.comments[0].createdAt, authorId: t.comments[0].authorId, authorName: `${t.comments[0].author.firstName} ${t.comments[0].author.lastName}` } : null,
-      })),
+        latestUpdate: update ? { body: update.body, createdAt: update.createdAt, authorId: update.authorId, authorName: `${update.firstName} ${update.lastName}` } : null,
+      }; }),
     };
   }
 
