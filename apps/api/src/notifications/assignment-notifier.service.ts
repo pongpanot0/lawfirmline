@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
-import { EventType, LeavePeriod, NotificationCategory } from '../generated/prisma';
+import { EventType, LeavePeriod, LeaveStatus, LeaveType, NotificationCategory } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService, QuickReplyItem } from './line-messaging.service';
 import { FirmLinkService } from './firm-link.service';
@@ -12,13 +12,13 @@ import { isBangkokWorkingDay, LEAVE_SPLIT_HOUR, usersOff, usersOnLeave } from '.
 import { bangkokDateOnly, bangkokDayEnd, bangkokDayStart, bangkokHour, formatBangkokDateThai, formatBangkokTime } from '../common/utils/bangkok-time';
 import { formatCaseNotificationReference } from './reference-label';
 import { CaseAccessService } from '../common/services/case-access.service';
-import { ANNOUNCED_LEAVE, pendingMark } from '../leave/leave-visibility';
+import { ANNOUNCED_LEAVE, LEAVE_TYPE_LABEL, pendingMark } from '../leave/leave-visibility';
 
 /** `firmId:userId` → a manager's one-line team summary for the 09:00 brief (built by TeamDigestScheduler). */
 export type TeamBriefLines = Map<string, { lineUserId: string; summary: string }>;
 
 /** The firm's day for the 09:00 brief. */
-type FirmDay = { out: { userId: string; text: string }[]; court: { caseId: string; text: string; path: string }[] };
+type FirmDay = { out: { userId: string; name: string; type: LeaveType; period: LeavePeriod | null; status: LeaveStatus }[]; court: { caseId: string; text: string; path: string }[] };
 const HALF_DAY: Record<LeavePeriod, string> = { MORNING: 'ครึ่งเช้า', AFTERNOON: 'ครึ่งบ่าย' };
 
 export interface NotifyParams {
@@ -230,7 +230,9 @@ export class AssignmentNotifierService {
           sections.push([title, ...detailed, ...list.slice(SUMMARY_LINES)].join('\n'));
         }
         const out = day?.out.filter((o) => o.userId !== userId) ?? [];
-        if (out.length) sections.push(['📅 วันนี้ไม่อยู่', ...out.map((o) => o.text)].join('\n'));
+        // Everyone is told why a colleague is out (firm decision 2026-11-25), not only approvers.
+        if (out.length) sections.push(['📅 วันนี้ไม่อยู่', ...out.map((o) =>
+          `• ${o.name} · ${LEAVE_TYPE_LABEL[o.type]}${o.period ? ` ${HALF_DAY[o.period]}` : ''}${pendingMark(o)}`)].join('\n'));
         // Only court dates of cases this person may open — the same rule as the calendar and case pages.
         const court = day?.court.length && role ? await this.visibleCourt(firmId, userId, role, day.court) : [];
         if (court.length) {
@@ -270,7 +272,7 @@ export class AssignmentNotifierService {
     const [leaves, events] = await Promise.all([
       this.prisma.leaveRequest.findMany({
         where: { firmId: { in: firmIds }, ...ANNOUNCED_LEAVE, startDate: { lte: today }, endDate: { gte: today } },
-        select: { firmId: true, userId: true, period: true, status: true, user: { select: { firstName: true, lastName: true } } },
+        select: { firmId: true, userId: true, type: true, period: true, status: true, user: { select: { firstName: true, lastName: true } } },
         orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
       }),
       this.prisma.calendarEvent.findMany({
@@ -290,7 +292,7 @@ export class AssignmentNotifierService {
     };
     const name = (u: { firstName: string; lastName: string }) => `${u.firstName} ${u.lastName}`.trim();
     for (const l of leaves) {
-      day(l.firmId).out.push({ userId: l.userId, text: `• ${name(l.user)}${l.period ? ` (${HALF_DAY[l.period]})` : ''}${pendingMark(l)}` });
+      day(l.firmId).out.push({ userId: l.userId, name: name(l.user), type: l.type, period: l.period, status: l.status });
     }
     for (const e of events) {
       const people = e.assignees.length ? e.assignees.map((a) => name(a.user)) : [name(e.case.leadLawyer)];
