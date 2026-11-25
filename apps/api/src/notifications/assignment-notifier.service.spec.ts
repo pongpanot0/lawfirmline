@@ -139,7 +139,10 @@ describe('AssignmentNotifierService', () => {
     ]);
     prisma.case.findMany.mockImplementation(async () => [{ id: 'c9' }]);
     prisma.leaveRequest.findMany
-      .mockResolvedValueOnce([{ firmId: 'f1', userId: 'u4', period: 'AFTERNOON', user: { firstName: 'อรนันท์', lastName: 'ยุบลเพลิด' } }])
+      .mockResolvedValueOnce([
+        { firmId: 'f1', userId: 'u4', type: 'PERSONAL', period: 'AFTERNOON', status: 'APPROVED', user: { firstName: 'อรนันท์', lastName: 'ยุบลเพลิด' } },
+        { firmId: 'f1', userId: 'u5', type: 'SICK', period: null, status: 'PENDING', user: { firstName: 'ขนิษฐา', lastName: 'ก' } },
+      ])
       .mockResolvedValueOnce([]); // nobody off at 09:00 (u4 is off only in the afternoon)
     prisma.calendarEvent.findMany.mockResolvedValueOnce([{
       startAt: new Date('2026-09-14T02:30:00Z'), courtName: null, assignees: [{ user: { firstName: 'พงศ์ปณต', lastName: 'ส' } }],
@@ -151,10 +154,13 @@ describe('AssignmentNotifierService', () => {
     const forU2 = line.pushTo.mock.calls.find((c: any[]) => c[0] === 'L2')[1];
     expect(forU2).toContain('☀️ สรุปเช้านี้');
     expect(forU2).toContain('• 🗓 คำขอลา · รออนุมัติ\n  ขนิษฐา · ลาป่วย\n  🔗 https://acme.example.com/leaves');
-    expect(forU2).toContain('📅 วันนี้ไม่อยู่\n• อรนันท์ ยุบลเพลิด (ครึ่งบ่าย)');
+    // Everyone sees why someone is out.
+    expect(forU2).toContain('📅 วันนี้ไม่อยู่\n• อรนันท์ ยุบลเพลิด · ลากิจ ครึ่งบ่าย\n• ขนิษฐา ก · ลาป่วย (รออนุมัติ)');
     expect(forU2).toContain('⚖️ นัดศาลวันนี้ 1 นัด\n• 09:30 พงศ์ปณต ส — ศาลแพ่งกรุงเทพใต้\n  คดี นาย ก กับพวก · หมายเลขคดีดำ พ.12/2569 · หมายเลขคดีแดง พ.34/2569\n  🔗 https://acme.example.com/cases/c9');
     const forU4 = line.pushTo.mock.calls.find((c: any[]) => c[0] === 'L4')[1];
-    expect(forU4).not.toContain('วันนี้ไม่อยู่'); // not told about their own leave
+    // Not told about their own leave; a non-approver sees the leave type too.
+    expect(forU4).toContain('📅 วันนี้ไม่อยู่\n• ขนิษฐา ก · ลาป่วย (รออนุมัติ)\n');
+    expect(forU4).not.toContain('อรนันท์');
     expect(forU4).toContain('⚖️ นัดศาลวันนี้');
     expect(push.send).toHaveBeenCalledTimes(1); // push stays the held summary only
     // Each recipient's list is checked against the calendar's case-access rule for their role.

@@ -8,13 +8,7 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 import { NotificationCenterService } from '../notifications/notification-center.service';
 import { addBangkokDays, bangkokDayKey, bangkokDayStart, bangkokDayEnd, formatBangkokDateThai, formatBangkokDateTime, isBangkokWeekend, bangkokHour } from '../common/utils/bangkok-time';
 import { eventForUserWhere } from '../calendar/event-people';
-import { ANNOUNCED_LEAVE, canSeeLeaveDetail, isAnnounced, leaveVisibleWhere, pendingMark } from './leave-visibility';
-
-const LABEL: Record<LeaveType, string> = {
-  SICK: 'ลาป่วย',
-  PERSONAL: 'ลากิจ',
-  VACATION: 'พักร้อน',
-};
+import { ANNOUNCED_LEAVE, canSeeLeaveDetail, isAnnounced, LEAVE_TYPE_LABEL as LABEL, leaveVisibleWhere, pendingMark } from './leave-visibility';
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const key = (value: Date) => value.toISOString().slice(0, 10);
 /** The "who's out today" round goes at 09:00; anything approved for today after that goes out as an add-on. */

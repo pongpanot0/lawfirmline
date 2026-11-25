@@ -3,6 +3,12 @@ import { LeaveStatus, LeaveType, Prisma } from '../generated/prisma';
 
 type Viewer = Pick<AuthUser, 'id' | 'firmId' | 'firmRole'>;
 
+export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
+  SICK: 'ลาป่วย',
+  PERSONAL: 'ลากิจ',
+  VACATION: 'พักร้อน',
+};
+
 /**
  * Leave the whole firm is told about: approved leave, and sick or personal leave
  * from the moment it is filed (shown as รออนุมัติ — people need to know who is out
