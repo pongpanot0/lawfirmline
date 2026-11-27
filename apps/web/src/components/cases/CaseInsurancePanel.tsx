@@ -1,198 +1,150 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import {
-  InsuranceClaimStage,
-  INSURANCE_CLAIM_STAGE_ORDER,
-  INSURANCE_CLAIM_STAGE_LABELS,
-} from '@lawfirm/shared';
+import { useState } from 'react';
+import { InsuranceClaimStage, INSURANCE_CLAIM_STAGE_LABELS, INSURANCE_CLAIM_STAGE_ORDER, POLICY_TYPES, POLICY_TYPE_LABELS } from '@lawfirm/shared';
+import { ChevronRight } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, InsuranceClaimItem } from '@/lib/api';
+import { api, type ClaimCurrency, type InsuranceClaimItem } from '@/lib/api';
+import { bangkokDateInputValue } from '@/lib/bangkok';
 import { formatDate } from '@/lib/utils';
-import { PageLoading } from '@/components/ui/misc';
-import { LoadFailed } from '@/components/ui/LoadFailed';
-import { Button } from '@/components/ui/button';
-import { ChevronRight, Pencil } from 'lucide-react';
-import { InsurerSelect } from '@/components/InsurerSelect';
-import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { InsurerSelect } from '@/components/InsurerSelect';
+import { ActionWithHint } from '@/components/ui/ActionWithHint';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
-export function CaseInsurancePanel({ caseId }: { caseId: string }) {
-  const id = caseId;
+const CURRENCIES: ClaimCurrency[] = ['THB', 'USD', 'EUR'];
+const CLAIM_LABELS = {
+  insurerName: 'บริษัทประกัน', claimNumber: 'Claim no.', policyNumber: 'Policy no.',
+  assuredName: 'Assured (ผู้เอาประกัน)', policyType: 'ชนิดของกรมธรรม์', claimAmount: 'Claim amount (ยอดเรียกร้อง)', incidentDate: 'วันเกิดเหตุ',
+};
+const TEXT_FIELDS = ['claimNumber', 'policyNumber', 'assuredName'] as const;
+const selectClass = 'min-h-11 w-full rounded-md border border-input bg-background px-2 text-sm';
+
+function editValues(claim: InsuranceClaimItem | null) {
+  return {
+    insurerName: claim?.insurerName ?? '', claimNumber: claim?.claimNumber ?? '', policyNumber: claim?.policyNumber ?? '',
+    assuredName: claim?.assuredName ?? '', policyType: claim?.policyType ?? '', claimAmount: claim?.claimAmount?.toString() ?? '',
+    claimCurrency: claim?.claimCurrency ?? 'THB', incidentDate: claim?.incidentDate ? bangkokDateInputValue(claim.incidentDate) : '',
+  };
+}
+
+export function CaseInsurancePanel({ caseId, claim, readOnly, onChanged }: {
+  caseId: string; claim: InsuranceClaimItem | null; readOnly: boolean; onChanged: (updated: InsuranceClaimItem) => void;
+}) {
   const { token } = useAuth();
-  const [claim, setClaim] = useState<InsuranceClaimItem | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ insurerName: '', policyNumber: '', claimNumber: '', incidentDate: '' });
-  const [submitting, setSubmitting] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  const load = () => {
-    if (!token || !id) return;
-    setLoading(true);
-    setError(null);
-    setLoadError(null);
-    api
-      .getInsuranceClaim(token, id)
-      .then(setClaim)
-      .catch((err) => {
-        const isNotFound =
-          err instanceof ApiError
-            ? err.status === 404
-            : err instanceof Error && /no insurance claim tracked/i.test(err.message);
-        if (isNotFound) {
-          setClaim(null);
-        } else {
-          setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลเคลมประกันไม่สำเร็จ');
-        }
-      })
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
-  }, [token, id]);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !id) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await api.createInsuranceClaim(token, id, {
-        insurerName: form.insurerName,
-        policyNumber: form.policyNumber || undefined,
-        claimNumber: form.claimNumber || undefined,
-        incidentDate: form.incidentDate,
-      });
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'สร้างรายการติดตามเคลมไม่สำเร็จ ลองใหม่อีกครั้ง');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  /** แก้ข้อมูลประกันของคดีได้ในที่เดียวกับที่มันแสดง ไม่ต้องไปหน้าอื่น */
+  const [form, setForm] = useState(() => editValues(claim));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const startEdit = () => {
-    if (!claim) return;
-    setForm({
-      insurerName: claim.insurerName,
-      policyNumber: claim.policyNumber ?? '',
-      claimNumber: claim.claimNumber ?? '',
-      incidentDate: claim.incidentDate.slice(0, 10),
-    });
+    setForm(editValues(claim));
+    setError('');
     setEditing(true);
   };
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !id) return;
+    if (!token || submitting || readOnly || !form.incidentDate || !form.insurerName.trim()) return;
     setSubmitting(true);
-    setError(null);
+    setError('');
+    const data = {
+      insurerName: form.insurerName.trim(), claimNumber: form.claimNumber.trim() || null, policyNumber: form.policyNumber.trim() || null,
+      assuredName: form.assuredName.trim() || null, policyType: POLICY_TYPES.find((value) => value === form.policyType) ?? null,
+      claimAmount: form.claimAmount === '' ? null : Number(form.claimAmount), claimCurrency: form.claimCurrency,
+    };
     try {
-      await api.updateInsuranceClaim(token, id, {
-        insurerName: form.insurerName,
-        policyNumber: form.policyNumber || undefined,
-        claimNumber: form.claimNumber || undefined,
-        incidentDate: form.incidentDate,
-      });
+      const updated = claim
+        ? await api.updateInsuranceClaim(token, caseId, { ...data, ...(form.incidentDate !== bangkokDateInputValue(claim.incidentDate) ? { incidentDate: form.incidentDate } : {}) })
+        : await api.createInsuranceClaim(token, caseId, { ...data, incidentDate: form.incidentDate });
       setEditing(false);
-      load();
+      onChanged(updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'บันทึกข้อมูลประกันไม่สำเร็จ ลองใหม่อีกครั้ง');
+      setError(err instanceof Error ? err.message : 'บันทึกข้อมูลเคลมไม่สำเร็จ');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleAdvance = async (stage: InsuranceClaimStage) => {
-    if (!token || !id) return;
-    const label = INSURANCE_CLAIM_STAGE_LABELS[stage];
-    if (!await confirmDialog(`เปลี่ยนสถานะเป็น "${label}"? ระบบจะสร้างงาน/เตือนที่เกี่ยวข้องให้อัตโนมัติ`)) return;
+    if (!token || submitting || readOnly) return;
+    if (!await confirmDialog(`เปลี่ยนสถานะเป็น “${INSURANCE_CLAIM_STAGE_LABELS[stage]}” และสร้างงานที่เกี่ยวข้องหรือไม่?`)) return;
     setSubmitting(true);
-    setError(null);
+    setError('');
     try {
-      await api.advanceInsuranceClaimStage(token, id, stage);
-      load();
+      onChanged(await api.advanceInsuranceClaimStage(token, caseId, stage));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เปลี่ยนสถานะไม่สำเร็จ ลองใหม่อีกครั้ง');
+      setError(err instanceof Error ? err.message : 'เปลี่ยนสถานะไม่สำเร็จ');
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <PageLoading title="กำลังโหลดเคลมประกัน" lines={2} />;
-  if (loadError) return <LoadFailed message={loadError} onRetry={load} />;
-
+  const values = claim && {
+    ...claim,
+    policyType: claim.policyType ? POLICY_TYPE_LABELS[claim.policyType] : null,
+    claimAmount: claim.claimAmount == null ? null : `${Number(claim.claimAmount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${claim.claimCurrency === 'THB' ? 'บาท' : claim.claimCurrency}`,
+    incidentDate: formatDate(claim.incidentDate),
+  };
   return (
-    <div className="rounded-xl border bg-card p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="font-semibold text-foreground">ประกันภัย</h2>
-        {claim && !editing && (
-          <Button type="button" variant="ghost" size="sm" onClick={startEdit}>
-            <Pencil aria-hidden="true" className="h-4 w-4" />แก้ไขข้อมูลเคลม
-          </Button>
-        )}
+    <section className="space-y-4 border-y border-border py-4 text-sm" aria-label="ข้อมูลเคลมประกัน">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h3 className="font-semibold">ข้อมูลเคลมประกัน</h3>
+        {!readOnly && !editing && <ActionWithHint variant="link" className="px-0 underline" hint={claim ? 'แก้ข้อมูลเคลมของคดีนี้' : 'ระบุกรมธรรม์และยอดเรียกร้อง'} disabled={submitting} onClick={startEdit}>
+          {claim ? 'แก้ไข' : 'เพิ่มข้อมูลเคลม'}
+        </ActionWithHint>}
       </div>
-
-      {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
-
-      {!claim || editing ? (
-        <form onSubmit={editing ? handleSaveEdit : handleCreate} className="max-w-md space-y-4">
-          {!claim && (
-            <p className="text-sm text-muted-foreground">ยังไม่มีการติดตามเคลมประกันในคดีนี้</p>
-          )}
-          <div>
-            <label htmlFor="claim-insurer" className="block text-sm font-medium text-foreground">บริษัทประกัน</label>
-            <InsurerSelect
-              id="claim-insurer"
-              value={form.insurerName}
-              onChange={(name) => setForm({ ...form, insurerName: name })}
-            />
-          </div>
-          <div>
-            <label htmlFor="claim-policy" className="block text-sm font-medium text-foreground">เลขกรมธรรม์</label>
-            <input
-              id="claim-policy"
-              className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
-              value={form.policyNumber}
-              onChange={(e) => setForm({ ...form, policyNumber: e.target.value })}
-            />
-          </div>
-          <div>
-            <label htmlFor="claim-number" className="block text-sm font-medium text-foreground">เลขเคลม</label>
-            <input
-              id="claim-number"
-              className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
-              value={form.claimNumber}
-              onChange={(e) => setForm({ ...form, claimNumber: e.target.value })}
-            />
-          </div>
-          <div>
-            <label htmlFor="claim-incident-date" className="block text-sm font-medium text-foreground">วันวินาศภัย<span aria-hidden="true" className="ml-1 text-destructive">*</span></label>
-            <ThaiDateInput
-              id="claim-incident-date"
-              required
-              className="mt-1"
-              value={form.incidentDate}
-              onChange={(v) => setForm({ ...form, incidentDate: v })}
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <Button type="submit" disabled={submitting}>
-              {editing ? 'บันทึกข้อมูลเคลม' : 'เริ่มติดตามเคลมประกัน'}
-            </Button>
-            {editing && (
-              <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
-                ยกเลิก
-              </Button>
-            )}
+      {values ? (
+        <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+          {(Object.keys(CLAIM_LABELS) as (keyof typeof CLAIM_LABELS)[]).map((field) => (
+            <div key={field} className="min-w-0">
+              <dt className="text-xs text-muted-foreground">{CLAIM_LABELS[field]}</dt>
+              <dd className="break-words font-medium">{values[field] ?? '—'}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : <p className="text-muted-foreground">ยังไม่มีข้อมูลเคลมประกันในคดีนี้</p>}
+      {error && <p role="alert" className="text-destructive">{error}</p>}
+      {editing && !readOnly && (
+        <form onSubmit={save} className="space-y-4 rounded-lg border bg-muted/30 p-4">
+          <h4 className="font-semibold">{claim ? 'แก้ไขข้อมูลเคลมประกัน' : 'เพิ่มข้อมูลเคลมประกัน'}</h4>
+          <fieldset disabled={submitting} className="grid items-start gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="claim-insurer">{CLAIM_LABELS.insurerName}</label>
+              <InsurerSelect id="claim-insurer" value={form.insurerName} onChange={(insurerName) => setForm({ ...form, insurerName })} />
+            </div>
+            {TEXT_FIELDS.map((field) => <label key={field} className="grid gap-1">{CLAIM_LABELS[field]}
+              <Input value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })} />
+            </label>)}
+            <label className="grid gap-1" htmlFor="claim-policy-type">{CLAIM_LABELS.policyType}
+              <Select id="claim-policy-type" className={selectClass} value={form.policyType} onChange={(e) => setForm({ ...form, policyType: e.target.value })}>
+                <option value="">ยังไม่ระบุ</option>
+                {POLICY_TYPES.map((type) => <option key={type} value={type}>{POLICY_TYPE_LABELS[type]}</option>)}
+              </Select>
+            </label>
+            <div>
+              <label htmlFor="claim-amount">{CLAIM_LABELS.claimAmount}</label>
+              <div className="mt-1 grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
+                <Input id="claim-amount" type="number" min="0" max="9999999999999.99" step="0.01" value={form.claimAmount} onChange={(e) => setForm({ ...form, claimAmount: e.target.value })} />
+                <Select aria-label="สกุลเงิน" className={selectClass} value={form.claimCurrency} onChange={(e) => setForm({ ...form, claimCurrency: e.target.value as ClaimCurrency })}>
+                  {CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}
+                </Select>
+              </div>
+            </div>
+            <div><p className="mb-1">{CLAIM_LABELS.incidentDate}</p>
+              <ThaiDateInput label={CLAIM_LABELS.incidentDate} required value={form.incidentDate} onChange={(incidentDate) => setForm({ ...form, incidentDate })} />
+            </div>
+          </fieldset>
+          <div className="flex flex-wrap gap-3">
+            <ActionWithHint type="submit" hint="ใช้ข้อมูลเคลมที่บันทึก" disabled={submitting || !form.incidentDate || !form.insurerName.trim()}>{submitting ? 'กำลังบันทึก…' : 'บันทึก'}</ActionWithHint>
+            <ActionWithHint variant="outline" hint="ปิดฟอร์มและคืนค่าเดิม" disabled={submitting} onClick={() => { setEditing(false); setError(''); }}>ยกเลิก</ActionWithHint>
           </div>
         </form>
-      ) : (
-        <div className="space-y-5">
+      )}
+      {claim && !editing && <details className="min-w-0">
+        <summary className="cursor-pointer py-2 text-muted-foreground">ขั้นตอนเคลมและวันติดตาม</summary>
+        <div className="space-y-4">
           <div>
             <ol aria-label="ขั้นตอนเคลม" className="flex items-center justify-between overflow-x-auto pb-1">
               {INSURANCE_CLAIM_STAGE_ORDER.filter(
@@ -218,19 +170,7 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
             </ol>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-            <div>
-              <p className="text-sm text-muted-foreground">บริษัทประกัน</p>
-              <p className="font-medium text-foreground">{claim.insurerName}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">เลขกรมธรรม์ / เลขเคลม</p>
-              <p className="font-medium text-foreground">{claim.policyNumber ?? '—'} / {claim.claimNumber ?? '—'}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">วันวินาศภัย</p>
-              <p className="font-medium text-foreground">{formatDate(claim.incidentDate)}</p>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <p className="text-sm text-muted-foreground">วันครบอายุความ</p>
               <p className="font-medium text-foreground">
@@ -251,28 +191,30 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
             </div>
           </div>
 
-          <div className="border-t pt-4">
-            <p className="mb-3 text-sm font-medium text-foreground">เปลี่ยนสถานะ</p>
-            <div className="flex flex-wrap gap-2">
-              {INSURANCE_CLAIM_STAGE_ORDER.filter(
-                (s) => INSURANCE_CLAIM_STAGE_ORDER.indexOf(s) > INSURANCE_CLAIM_STAGE_ORDER.indexOf(claim.stage),
-              ).map((stage) => (
-                <Button
-                  key={stage}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={submitting}
-                  onClick={() => handleAdvance(stage)}
-                >
-                  <ChevronRight aria-hidden="true" className="h-4 w-4" />
-                  {INSURANCE_CLAIM_STAGE_LABELS[stage]}
-                </Button>
-              ))}
+          {!readOnly && (
+            <div className="border-t pt-4">
+              <p className="mb-3 text-sm font-medium text-foreground">เปลี่ยนสถานะ</p>
+              <div className="flex flex-wrap gap-2">
+                {INSURANCE_CLAIM_STAGE_ORDER.filter(
+                  (s) => INSURANCE_CLAIM_STAGE_ORDER.indexOf(s) > INSURANCE_CLAIM_STAGE_ORDER.indexOf(claim.stage),
+                ).map((stage) => (
+                  <ActionWithHint hint="ปรับสถานะและงานที่เกี่ยวข้อง"
+                    key={stage}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={submitting}
+                    onClick={() => handleAdvance(stage)}
+                  >
+                    <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                    {INSURANCE_CLAIM_STAGE_LABELS[stage]}
+                  </ActionWithHint>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
-    </div>
+      </details>}
+    </section>
   );
 }

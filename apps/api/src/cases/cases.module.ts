@@ -21,6 +21,8 @@ import { DeadlinesModule } from '../deadlines/deadlines.module';
 import { ConflictCheckModule } from '../conflict-check/conflict-check.module';
 import { CaseProceedingsService } from './case-proceedings.service';
 import { CaseProceedingsController } from './case-proceedings.controller';
+import { CourtWorkflowController } from './court-workflow.controller';
+import { CourtWorkflowService } from './court-workflow.service';
 
 @Module({
   imports: [FeePackagesModule, forwardRef(() => CalendarModule), forwardRef(() => NotificationsModule), forwardRef(() => IntakeModule), forwardRef(() => CargoClaimsModule), forwardRef(() => DeadlinesModule), ConflictCheckModule],
@@ -31,6 +33,7 @@ import { CaseProceedingsController } from './case-proceedings.controller';
     ContactCaseAccessController,
     CaseMessageController,
     CaseProceedingsController,
+    CourtWorkflowController,
   ],
   providers: [
     CasesService,
@@ -41,6 +44,7 @@ import { CaseProceedingsController } from './case-proceedings.controller';
     CaseMessageRateLimiterService,
     CaseCommentsService,
     CaseProceedingsService,
+    CourtWorkflowService,
     FirmRoleGuard,
   ],
   exports: [CasesService, CaseMessageService, CaseCommentsService],

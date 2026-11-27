@@ -39,6 +39,14 @@ describe('intakeJourney', () => {
     expect(states({ ...intake, decision: 'PENDING', status: 'CONVERTED', hasCase: true })).toEqual(['done', 'done', 'done', 'current']);
     expect(states({ ...intake, decision: 'FILE_SUIT', status: 'ACCEPTED', hasCase: false })).toEqual(['done', 'done', 'done', 'done']);
   });
+  it.each([
+    [undefined, 'current'],
+    ['PENDING', 'current'],
+    ['FILE', 'done'],
+    ['DROP', 'done'],
+  ])('uses the client decision of %s for NOT_WORTH_FILING', (clientDecision, state) => {
+    expect(states({ ...intake, decision: 'NOT_WORTH_FILING', clientDecision })[3]).toBe(state);
+  });
   it.each(['REJECTED', 'CONSULTED'])('a %s matter is closed without a case', (status) => {
     const result = intakeJourney({ ...intake, decision: 'DO_NOT_FILE', status, hasCase: false }, clear, []);
     expect(result.steps.every((s) => s.state === 'done')).toBe(true);

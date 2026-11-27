@@ -461,7 +461,12 @@ describe('DeadlineRulesService', () => {
       await service.provisionDefaults();
 
       const { data } = mockPrisma.deadlineRule.createMany.mock.calls[0][0];
-      expect(data).toHaveLength(11);
+      expect(data).toHaveLength(10);
+      // Answer-due and default-check rules moved to court follow-ups / the managed answer deadline.
+      expect(data.some((r: { trigger: DeadlineTrigger }) => r.trigger === DeadlineTrigger.COMPLAINT_SERVED)).toBe(false);
+      expect(data).toContainEqual(
+        expect.objectContaining({ label: 'ยื่นบันทึกถ้อยคำพยานต่อศาลและส่งคู่ความ', offsetDays: -7, courtEventKind: 'WITNESS_HEARING' }),
+      );
       expect(data.every((r: { firmId?: string }) => r.firmId === undefined)).toBe(true);
       expect(data).toContainEqual(
         expect.objectContaining({

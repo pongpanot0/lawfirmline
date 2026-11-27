@@ -1,4 +1,4 @@
-import type { TemplateLayout } from '@lawfirm/shared';
+import type { AnswerDeadlineItem, AnswerExtensionItem, CourtFollowUpItem, IntakeDecision, POLICY_TYPES, ServiceMethod, TemplateLayout } from '@lawfirm/shared';
 import type { CustomFieldDefinitionDto, CustomFieldEntity, CustomFieldValue } from '@lawfirm/shared';
 import type { BillingUsage, AiCreditsEstimate, AddOnKind } from '@lawfirm/shared';
 import { PLAN_LIMIT_AI, fetchWithRetry } from '@lawfirm/shared';
@@ -8,6 +8,7 @@ import { taskUpdatePath } from './task-detail';
 import type { CaseProceedingItem } from './proceedings';
 import type { DailyBriefData, MatterBrief, McpNoticeDraft, SecretaryCard, OutlookCalendarItemsResponse } from '@lawfirm/shared';
 
+export type { AnswerDeadlineItem, AnswerExtensionItem, CourtFollowUpItem } from '@lawfirm/shared';
 export type { CaseProceedingItem } from './proceedings';
 
 /** A lawyer's licence (พ.ร.บ.ทนายความ); expiry is YYYY-MM-DD, null for LIFETIME or unset. */
@@ -583,12 +584,31 @@ export interface CargoClaimItem extends CargoClaimInput {
   requirements: CargoDocumentRequirementItem[];
 }
 
+export type ClaimCurrency = 'THB' | 'USD' | 'EUR';
+type PolicyType = (typeof POLICY_TYPES)[number];
+
+interface InsuranceClaimFields {
+  insurerName: string;
+  incidentDate: string;
+  policyNumber?: string | null;
+  claimNumber?: string | null;
+  assuredName?: string | null;
+  policyType?: PolicyType | null;
+  claimCurrency?: ClaimCurrency;
+  claimAmount?: number | null;
+  claimedDate?: string;
+}
+
 export interface InsuranceClaimItem {
   id: string;
   caseId: string;
   insurerName: string;
   policyNumber?: string | null;
   claimNumber?: string | null;
+  assuredName: string | null;
+  policyType: PolicyType | null;
+  claimAmount: string | number | null;
+  claimCurrency: ClaimCurrency;
   incidentDate: string;
   claimedDate?: string | null;
   denialReason?: string | null;
@@ -1357,6 +1377,7 @@ export interface IntakeItem {
   caseStrength?: string | null;
   assessmentNotes?: string | null;
   decisionNotes?: string | null;
+  clientDecision?: string | null;
   noticeIssuedAt?: string | null;
   noticeRecipient?: string | null;
   noticeDeadline?: string | null;
@@ -2798,8 +2819,26 @@ export const api = {
   recordFiling: (token: string, caseId: string, data: { filedAt: string; blackCaseNumber?: string }) =>
     request<ProceedingActionResult>(`/cases/${caseId}/proceedings/filing`, { method: 'POST', token, body: JSON.stringify(data) }),
 
-  recordService: (token: string, caseId: string, data: { servedAt: string; method: 'PERSONAL' | 'POSTED' }) =>
+  recordService: (token: string, caseId: string, data: { servedAt: string; method: `${ServiceMethod}` }) =>
     request<ProceedingActionResult>(`/cases/${caseId}/proceedings/service`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  getCourtFollowUps: (token: string, caseId: string) =>
+    request<CourtFollowUpItem[]>(`/cases/${caseId}/follow-ups`, { token }),
+
+  recordCourtFollowUp: (token: string, caseId: string, kind: CourtFollowUpItem['kind'], data: { result: string; done: boolean; retryInDays?: number }) =>
+    request<CourtFollowUpItem>(`/cases/${caseId}/follow-ups/${kind}/result`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  getAnswerDeadline: (token: string, caseId: string) =>
+    request<AnswerDeadlineItem>(`/cases/${caseId}/answer-deadline`, { token }),
+
+  setAnswerDeadline: (token: string, caseId: string, data: { answerDueAt: string }) =>
+    request<AnswerDeadlineItem>(`/cases/${caseId}/answer-deadline`, { method: 'PUT', token, body: JSON.stringify(data) }),
+
+  createAnswerExtension: (token: string, caseId: string, data: { filedAt: string; requestedUntil: string }) =>
+    request<AnswerDeadlineItem>(`/cases/${caseId}/answer-extensions`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  updateAnswerExtension: (token: string, caseId: string, extId: string, data: Pick<AnswerExtensionItem, 'status'> & { grantedUntil?: string }) =>
+    request<AnswerDeadlineItem>(`/cases/${caseId}/answer-extensions/${extId}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
   recordJudgment: (
     token: string,
@@ -3118,14 +3157,17 @@ export const api = {
   getInsuranceClaim: (token: string, caseId: string) =>
     request<InsuranceClaimItem>(`/cases/${caseId}/insurance-claim`, { token }),
 
-  createInsuranceClaim: (token: string, caseId: string, data: Record<string, unknown>) =>
+  createInsuranceClaim: (token: string, caseId: string, data: InsuranceClaimFields) =>
     request<InsuranceClaimItem>(`/cases/${caseId}/insurance-claim`, {
       method: 'POST',
       token,
       body: JSON.stringify(data),
     }),
 
-  updateInsuranceClaim: (token: string, caseId: string, data: Record<string, unknown>) =>
+  updateInsuranceClaim: (token: string, caseId: string, data: Partial<InsuranceClaimFields> & {
+    denialReason?: string; demandLetterSentAt?: string; demandLetterDeadline?: string;
+    oicComplaintNumber?: string; oicComplaintDate?: string; oicOutcome?: string;
+  }) =>
     request<InsuranceClaimItem>(`/cases/${caseId}/insurance-claim`, {
       method: 'PATCH',
       token,
@@ -3983,7 +4025,10 @@ export const api = {
   assessIntake: (token: string, id: string, data: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/assess`, { method: 'POST', token, body: JSON.stringify(data) }),
 
-  decideIntake: (token: string, id: string, data: Record<string, unknown>) =>
+  decideIntake: (token: string, id: string, data: {
+    decision: `${IntakeDecision}`; clientDecision?: string; decisionNotes?: string;
+    title?: string; leadLawyerId?: string; caseTypeId?: string; claimedAmount?: number; conflictOverrideReason?: string;
+  }) =>
     request<IntakeItem>(`/intake/${id}/decide`, { method: 'POST', token, body: JSON.stringify(data) }),
 
   noticeIntake: (token: string, id: string, data: Record<string, unknown>) =>

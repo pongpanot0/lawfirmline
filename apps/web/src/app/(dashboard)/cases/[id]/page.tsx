@@ -19,6 +19,7 @@ import { allowedStageChange } from '@/components/journey/allowed-stage-change';
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CasePrintForms } from '@/components/cases/CasePrintForms';
 import { CaseOverviewForm, caseOverviewCustomFields, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
+import { CaseInsurancePanel } from '@/components/cases/CaseInsurancePanel';
 import { CaseProceedingsCard } from '@/components/cases/CaseProceedingsCard';
 import { PaperFileCard } from '@/components/cases/PaperFileCard';
 import { CaseBriefCard } from '@/components/cases/CaseBriefCard';
@@ -823,7 +824,7 @@ export default function CaseDetailPage() {
 
   const customFields = legalCase.customFields as Record<string, string> | null;
   const chargeSection = typeof legalCase.customFields?.chargeSection === 'string' ? legalCase.customFields.chargeSection.trim() : '';
-  const policyRef = legalCase.insuranceClaim?.policyNumber?.trim() || '—';
+  const workflowReadOnly = legalCase.status === CaseStatus.CLOSED || legalCase.status === CaseStatus.ARCHIVED;
   const clientDisplay = legalCase.client?.name ?? caseClientName(legalCase.clientName);
   // ลูกความ = คนที่เราว่าความให้ / ลูกค้า = ผู้ว่าจ้างที่เราวางบิล — คนละคนกันในงานประกัน
   const customerDisplay = formatCustomers(legalCase.customers);
@@ -1218,10 +1219,13 @@ export default function CaseDetailPage() {
                     <p className="text-xs text-muted-foreground">ประเภทคดี</p>
                     <p className="font-medium">{legalCase.caseType?.name ?? '—'}</p>
                   </div>
-                  {legalCase.insuranceClaim && <div>
-                    <p className="text-xs text-muted-foreground">Policy Ref</p>
-                    <p className="font-medium">{policyRef}</p>
-                  </div>}
+          </dl>
+          <CaseInsurancePanel key={legalCase.id} caseId={legalCase.id} claim={legalCase.insuranceClaim ? { ...legalCase.insuranceClaim, limitationDeadline: legalCase.limitationDeadline ?? null } : null} readOnly={workflowReadOnly}
+            onChanged={(updated) => {
+              setCase((current) => current?.id === updated.caseId ? { ...current, insuranceClaim: updated, limitationDeadline: updated.limitationDeadline } : current);
+              loadCase();
+            }} />
+          <dl className="grid grid-cols-1 gap-x-8 gap-y-4 text-sm sm:grid-cols-2">
                   <div>
                     <p className="text-xs text-muted-foreground">Customer Ref</p>
                     <p className="font-medium">{legalCase.customerRef ?? '—'}</p>
@@ -1357,6 +1361,9 @@ export default function CaseDetailPage() {
 
 
           <CaseProceedingsCard
+            key={legalCase.id}
+            partyRole={legalCase.partyRole ?? null}
+            readOnly={workflowReadOnly}
             caseId={legalCase.id}
             proceedings={legalCase.proceedings ?? []}
             currentLevel={legalCase.courtLevel ?? null}

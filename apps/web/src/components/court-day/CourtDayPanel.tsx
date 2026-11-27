@@ -43,6 +43,18 @@ const inputClass =
 const linkClass =
   'inline-flex min-h-11 items-center gap-2 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
+const EXPENSE_CATEGORY_EN: Record<(typeof EXPENSE_CATEGORIES)[number], string> = {
+  ค่าเดินทาง: 'Travel',
+  ค่าธรรมเนียมศาล: 'Court fees',
+  ค่านำหมาย: 'Service of process',
+  ค่าพยาน: 'Witness fees',
+  ค่าใช้จ่ายในการดำเนินคดี: 'Litigation expenses',
+  ค่าคัดสำเนา: 'Copies',
+  ค่าอุปกรณ์สำนักงาน: 'Office supplies',
+  ค่าที่พัก: 'Accommodation',
+  อื่นๆ: 'Other',
+};
+
 export function CourtDayPanel({ eventId }: { eventId: string }) {
   const { token, user } = useAuth();
   const draftKey = user
@@ -944,18 +956,9 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                         edit({ expenseCategory: e.target.value })
                       }
                     >
-                      {EXPENSE_CATEGORIES.map((category, i) => (
+                      {EXPENSE_CATEGORIES.map((category) => (
                         <option key={category} value={category}>
-                          {locale === 'th'
-                            ? category
-                            : [
-                                'Travel',
-                                'Court fees',
-                                'Copies',
-                                'Office supplies',
-                                'Accommodation',
-                                'Other',
-                              ][i]}
+                          {locale === 'th' ? category : EXPENSE_CATEGORY_EN[category]}
                         </option>
                       ))}
                     </Select>

@@ -4,6 +4,7 @@ import {
   bangkokDateInputToIso,
   bangkokDateInputValue,
   bangkokDayLabel,
+  bangkokDaysBetween,
   bangkokInputToIso,
   bangkokInputValue,
   bangkokTime,
@@ -50,4 +51,11 @@ test('round-trips an instant through the input and back unchanged', () => {
 test('reads a date-only input as Bangkok midnight', () => {
   assert.equal(bangkokDateInputToIso('2026-09-08'), '2026-09-07T17:00:00.000Z');
   assert.equal(bangkokDateInputValue('2026-09-07T17:30:00Z'), '2026-09-08');
+});
+
+test('counts court days across Bangkok midnight even when both instants have the same UTC date', () => {
+  const before = '2026-12-31T16:59:00Z';
+  const after = '2026-12-31T17:00:00Z';
+  assert.equal(bangkokDaysBetween(before, after), 1);
+  assert.equal(bangkokDaysBetween(after, before), -1);
 });

@@ -8,6 +8,7 @@ export interface IntakeLike {
     | 'COMPLAIN_TO_AUTHORITY'
     | 'PENDING'
     | 'CONSULTATION_ONLY'
+    | 'NOT_WORTH_FILING'
     | null;
 }
 

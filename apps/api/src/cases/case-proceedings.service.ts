@@ -19,6 +19,7 @@ import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { syncLimitationReminder } from '../common/limitation-reminder';
 import { formatBangkokDateThai } from '../common/utils/bangkok-time';
+import { CourtWorkflowService } from './court-workflow.service';
 import {
   currentLevel,
   ensureProceeding,
@@ -59,6 +60,7 @@ export class CaseProceedingsService {
     private caseFeed: CaseFeedService,
     @Inject(forwardRef(() => DeadlineRulesService)) private deadlines: DeadlineRulesService,
     private notifier: AssignmentNotifierService,
+    private workflow: CourtWorkflowService,
   ) {}
 
   private async openCase(user: AuthUser, caseId: string, allowClosed = false) {
@@ -177,8 +179,9 @@ export class CaseProceedingsService {
       await this.clearPending(caseId, DeadlineTrigger.FILED, level);
     }
     const suggestions = await this.fire(user, legalCase, DeadlineTrigger.FILED, filedAt, { courtLevel: level });
-    const proceeding = await this.prisma.$transaction(async (tx) => {
+    const { proceeding, reminder } = await this.prisma.$transaction(async (tx) => {
       await this.prepare(tx, legalCase, level);
+      const reminder = await this.workflow.recordFiling(tx, user, caseId, level, filedAt);
       const row = await tx.caseProceeding.upsert({
         where: key(caseId, level),
         create: { caseId, courtLevel: level, filedAt },
@@ -198,25 +201,30 @@ export class CaseProceedingsService {
         tx,
       );
       await this.advanceStage(tx, user, legalCase, CaseStage.FILING);
-      return row;
+      return { proceeding: row, reminder };
     });
     await this.syncLimitation(caseId);
+    if (reminder) await this.workflow.syncAfterProceeding(user, caseId, reminder);
     return { proceeding, suggestions };
   }
 
   async recordService(user: AuthUser, caseId: string, dto: RecordServiceDto) {
     const legalCase = await this.openCase(user, caseId);
     const servedAt = new Date(dto.servedAt);
-    // Never clears pending cards: each defendant served on its own day needs its own
-    // answer deadline (ม.177). The engine dedupes per rule and due day.
+    // Firm rules for service still get separate suggestions per rule and due day.
     const suggestions = await this.fire(user, legalCase, DeadlineTrigger.COMPLAINT_SERVED, servedAt, {
       serviceMethod: dto.method,
     });
-    await this.caseFeed.log({
-      caseId, userId: user.id, type: ActivityType.DEADLINE,
-      title: `ส่งหมายเรียกและสำเนาคำฟ้องแล้ว (${SERVICE_METHOD_LABELS[dto.method]})`,
-      at: servedAt,
+    const reminder = await this.prisma.$transaction(async (tx) => {
+      const target = await this.workflow.recordService(tx, user, caseId, servedAt, dto.method);
+      await this.caseFeed.log({
+        caseId, userId: user.id, type: ActivityType.DEADLINE,
+        title: `ส่งหมายเรียกและสำเนาคำฟ้องแล้ว (${SERVICE_METHOD_LABELS[dto.method]})`,
+        at: servedAt,
+      }, tx);
+      return target;
     });
+    if (reminder) await this.workflow.syncAfterProceeding(user, caseId, reminder);
     const proceeding = await this.prisma.caseProceeding.findUnique({ where: key(caseId, currentLevel(legalCase)) });
     return { proceeding, suggestions };
   }

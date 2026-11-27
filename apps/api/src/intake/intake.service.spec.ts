@@ -1135,6 +1135,57 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     );
   });
 
+  it('starts the notice workflow when a client elects to file despite the assessment', async () => {
+    arrange({ preLitigationStatus: 'NOT_STARTED' });
+
+    await service.decide(user, 'intake-1', { decision: 'NOT_WORTH_FILING' as any, clientDecision: 'FILE' });
+
+    expect(mockPrisma.case.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.intake.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        decision: 'NOT_WORTH_FILING', clientDecision: 'FILE', preLitigationStatus: 'NOTICE_TO_SEND',
+      }),
+    }));
+  });
+
+  it.each(['PENDING', undefined])('keeps the intake open for a client decision of %s', async (clientDecision) => {
+    arrange({ status: 'ASSESSING', stage: 'ASSESS' });
+
+    await service.decide(user, 'intake-1', { decision: 'NOT_WORTH_FILING' as any, clientDecision });
+
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+    expect(cases.close).not.toHaveBeenCalled();
+    const data = mockPrisma.intake.update.mock.calls[0][0].data;
+    expect(data).toEqual(expect.objectContaining({ decision: 'NOT_WORTH_FILING', clientDecision: 'PENDING' }));
+    expect(data).not.toHaveProperty('status');
+    expect(data).not.toHaveProperty('stage');
+  });
+
+  it('closes a pre-litigation case when the client drops the claim', async () => {
+    arrange({ case: { id: 'case-1', status: 'OPEN', stage: 'PRE_LITIGATION' } });
+
+    await service.decide(user, 'intake-1', { decision: 'NOT_WORTH_FILING' as any, clientDecision: 'DROP' });
+
+    expect(cases.close).toHaveBeenCalledWith(user, 'case-1', expect.objectContaining({ outcome: 'WITHDRAWN' }));
+    expect(mockPrisma.intake.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'REJECTED', decision: 'NOT_WORTH_FILING', clientDecision: 'DROP' }),
+    }));
+  });
+
+  it('validates the client decision only for NOT_WORTH_FILING', async () => {
+    arrange();
+
+    await expect(service.decide(user, 'intake-1', {
+      decision: 'NOT_WORTH_FILING' as any, clientDecision: 'ข้อความอิสระ',
+    })).rejects.toThrow('clientDecision');
+    expect(mockPrisma.intake.update).not.toHaveBeenCalled();
+
+    await service.decide(user, 'intake-1', { decision: 'DO_NOT_FILE' as any, clientDecision: 'ข้อความอิสระ' });
+    expect(mockPrisma.intake.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ clientDecision: 'ข้อความอิสระ' }),
+    }));
+  });
+
   // conflict check ไม่ใช่ด่านแล้ว — ตรวจได้ แต่ไม่กั้นการรับดำเนินการ
   it('accepts even when conflict is not cleared (conflict check is advisory)', async () => {
     arrange();

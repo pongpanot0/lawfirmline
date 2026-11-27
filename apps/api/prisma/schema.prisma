@@ -190,6 +190,7 @@ enum IntakeDecision {
   COMPLAIN_TO_AUTHORITY
   CONSULTATION_ONLY
   PENDING
+  NOT_WORTH_FILING
 }
 
 enum PreLitigationType {
@@ -339,6 +340,19 @@ enum CourtEventKind {
 enum ServiceMethod {
   PERSONAL
   POSTED
+  POSTED_ABROAD
+}
+
+enum CourtFollowUpKind {
+  ACCEPTANCE
+  SERVICE
+  ANSWER
+}
+
+enum AnswerExtensionStatus {
+  PENDING
+  GRANTED
+  DENIED
 }
 
 enum JudgmentOutcome {
@@ -1123,6 +1137,8 @@ model Case {
   limitationDeadline   DateTime?
   /// event "ครบอายุความ" ที่ระบบดูแลให้ (ดู common/limitation-reminder.ts)
   limitationEventId    String?
+  answerDueAt          DateTime?
+  answerDeadlineEventId String?
   referralSource       String?
   intakeId             String?     @unique
   closingSummary       String?     @db.Text
@@ -1175,6 +1191,8 @@ model Case {
   comments               CaseComment[]
   workflowRuns           WorkflowRun[]
   proceedings            CaseProceeding[]
+  courtFollowUps         CourtFollowUp[]
+  answerExtensions       AnswerExtension[]
   conflictChecks         ConflictCheck[]
   emailThreads           EmailThread[]             @relation("CaseEmailThreads")
   externalLinks          CaseExternalLink[]
@@ -2567,12 +2585,50 @@ model ClosingEmailDraft {
   @@index([recipientClientId])
 }
 
+model CourtFollowUp {
+  id              String            @id @default(uuid())
+  caseId          String
+  kind            CourtFollowUpKind
+  dueAt           DateTime
+  doneAt          DateTime?
+  lastResult      String?           @db.Text
+  attempts        Int               @default(0)
+  calendarEventId String?           @unique
+  createdById     String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, kind])
+}
+
+model AnswerExtension {
+  id             String                @id @default(uuid())
+  caseId         String
+  filedAt        DateTime
+  requestedUntil DateTime
+  status         AnswerExtensionStatus @default(PENDING)
+  grantedUntil   DateTime?
+  createdById    String
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
 model InsuranceClaim {
   id                   String              @id @default(uuid())
   caseId               String              @unique
   insurerName          String
+  assuredName          String?
   policyNumber         String?
+  policyType           String?
   claimNumber          String?
+  claimAmount          Decimal?            @db.Decimal(15, 2)
+  claimCurrency        String              @default("THB")
   incidentDate         DateTime
   claimedDate          DateTime?
   denialReason         String?             @db.Text

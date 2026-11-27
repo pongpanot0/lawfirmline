@@ -1,4 +1,4 @@
-import { DocRequestStatus, IntakeStage } from '@lawfirm/shared';
+import { DocRequestStatus, IntakeDecision, IntakeStage } from '@lawfirm/shared';
 import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { UpsertCargoClaimDto } from '../../cargo-claims/dto/cargo-claim.dto';
@@ -14,15 +14,7 @@ export enum IntakeStatus {
   NO_RESPONSE = 'NO_RESPONSE',
 }
 
-export enum IntakeDecision {
-  FILE_SUIT = 'FILE_SUIT',
-  DO_NOT_FILE = 'DO_NOT_FILE',
-  NEGOTIATE_FIRST = 'NEGOTIATE_FIRST',
-  SEND_NOTICE = 'SEND_NOTICE',
-  COMPLAIN_TO_AUTHORITY = 'COMPLAIN_TO_AUTHORITY',
-  CONSULTATION_ONLY = 'CONSULTATION_ONLY',
-  PENDING = 'PENDING',
-}
+export { IntakeDecision };
 
 export enum PreLitigationType {
   GENERAL = 'GENERAL',

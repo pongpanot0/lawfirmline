@@ -1,7 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
+  answerDaysFor,
+  answerDueDate,
+  PartyRole,
+  PARTY_ROLE_LABELS,
   CASE_NUMBER_HINT,
   CASE_NUMBER_HTML,
   COURT_LEVEL_LABELS,
@@ -15,7 +19,10 @@ import { useAuth } from '@/lib/auth';
 import { api, ProceedingActionResult } from '@/lib/api';
 import { CaseProceedingItem, judgmentLine, proceedingNumbers, sortProceedings } from '@/lib/proceedings';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { ActionWithHint } from '@/components/ui/ActionWithHint';
+import { CourtWorkflowSection } from './CourtWorkflowSection';
+import { formatDate } from '@/lib/utils';
+import { bangkokDateInputToIso as toIso } from '@/lib/bangkok';
 import { Input } from '@/components/ui/input';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { InlineEmptyState } from '@/components/ui/misc';
@@ -23,29 +30,35 @@ import { Select } from '@/components/ui/select';
 
 type Action = 'filing' | 'service' | 'judgment' | 'appeal';
 
-const ACTIONS: { id: Action; label: string }[] = [
-  { id: 'filing', label: 'บันทึกการยื่นฟ้อง' },
-  { id: 'service', label: 'บันทึกการส่งหมาย' },
-  { id: 'judgment', label: 'บันทึกคำพิพากษา' },
-  { id: 'appeal', label: 'บันทึกการได้รับสำเนาอุทธรณ์' },
+const ACTIONS: { id: Action; label: string; hint: string }[] = [
+  { id: 'filing', label: 'บันทึกการยื่นฟ้อง', hint: 'ระบุวันฟ้องและเลขคดีดำ' },
+  { id: 'service', label: 'บันทึกการส่งหมาย', hint: 'ระบุวันและวิธีส่งหมาย' },
+  { id: 'judgment', label: 'บันทึกคำพิพากษา', hint: 'ระบุผลคำพิพากษา' },
+  { id: 'appeal', label: 'บันทึกการได้รับสำเนาอุทธรณ์', hint: 'ระบุวันที่ได้รับสำเนา' },
 ];
 
 const SELECT = 'h-10 w-full rounded-md border border-input bg-background px-3 text-sm';
-const toIso = (day: string) => new Date(`${day}T00:00:00+07:00`).toISOString();
 
 /** ศาล / เลขคดี: one row per court level, plus the four facts that start procedural clocks. */
 export function CaseProceedingsCard({
   caseId,
   proceedings,
   currentLevel,
+  partyRole,
+  readOnly,
   onChanged,
 }: {
   caseId: string;
   proceedings: CaseProceedingItem[];
   currentLevel: CourtLevel | null;
+  partyRole: PartyRole | null;
+  readOnly: boolean;
   onChanged: () => void;
 }) {
   const { token } = useAuth();
+  const [workflowVersion, setWorkflowVersion] = useState(0);
+  const defendant = partyRole === PartyRole.DEFENDANT || partyRole === PartyRole.RESPONDENT;
+  const actionForm = useRef<HTMLFormElement>(null);
   const [action, setAction] = useState<Action | null>(null);
   const [date, setDate] = useState('');
   const [number, setNumber] = useState('');
@@ -58,10 +71,11 @@ export function CaseProceedingsCard({
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const open = (next: Action) => {
+  const open = (next: Action, forceOpen = false) => {
     if (busy) return;
     setMessage('');
-    setAction(action === next ? null : next);
+    setAction(action === next && !forceOpen ? null : next);
+    setMethod(ServiceMethod.PERSONAL);
     setDate(''); setNumber(''); setOutcome(''); setAmount(''); setNote(''); setError('');
     setLevel(currentLevel ?? CourtLevel.TRIAL);
   };
@@ -89,6 +103,7 @@ export function CaseProceedingsCard({
       } else {
         result = await api.recordAppealServed(token, caseId, { servedAt: toIso(date) });
       }
+      if (action === 'filing' || action === 'service') setWorkflowVersion((value) => value + 1);
       setMessage(
         result.suggestions > 0
           ? `บันทึกแล้ว — เสนอวันครบกำหนด ${result.suggestions} รายการ ตรวจและยืนยันที่แท็บไทม์ไลน์`
@@ -104,6 +119,7 @@ export function CaseProceedingsCard({
   };
 
   const rows = sortProceedings(proceedings);
+  const trialFiledAt = rows.find((row) => row.courtLevel === CourtLevel.TRIAL)?.filedAt ?? null;
 
   return (
     <Card data-testid="case-proceedings">
@@ -121,26 +137,27 @@ export function CaseProceedingsCard({
                   {COURT_LEVEL_LABELS[p.courtLevel]}
                   {p.courtName && p.courtName !== COURT_LEVEL_LABELS[p.courtLevel] ? ` · ${p.courtName}` : ''}
                   {p.courtLevel === (currentLevel ?? CourtLevel.TRIAL) && (
-                    <span className="ml-2 rounded bg-accent px-1.5 py-0.5 text-xs text-primary">ชั้นปัจจุบัน</span>
+                    <span className="ml-2 whitespace-nowrap rounded bg-accent px-1.5 py-0.5 text-xs text-primary">ชั้นปัจจุบัน</span>
                   )}
                 </p>
                 <p className="text-muted-foreground">{proceedingNumbers(p)}</p>
+                <p className="text-muted-foreground">{[p.filedAt && `วันยื่นฟ้อง ${formatDate(p.filedAt)}`, partyRole && `ทนาย${PARTY_ROLE_LABELS[partyRole]}`].filter(Boolean).join(' · ')}</p>
                 {judgmentLine(p) && <p className="text-muted-foreground">{judgmentLine(p)}</p>}
               </li>
             ))}
           </ul>
         )}
 
-        <div className="flex flex-wrap gap-2">
+        {!readOnly && <div className="flex flex-wrap gap-2">
           {ACTIONS.map((a) => (
-            <Button key={a.id} type="button" size="sm" variant={action === a.id ? 'secondary' : 'outline'} onClick={() => open(a.id)}>
+            <ActionWithHint key={a.id} hint={a.hint} aria-expanded={action === a.id} disabled={busy} type="button" size="sm" variant={action === a.id ? 'secondary' : 'outline'} onClick={() => open(a.id)}>
               {a.label}
-            </Button>
+            </ActionWithHint>
           ))}
-        </div>
+        </div>}
 
-        {action && (
-          <form onSubmit={submit} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
+        {action && !readOnly && (
+          <form ref={actionForm} onSubmit={submit} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-muted-foreground">
                 {action === 'filing' ? 'วันยื่นฟ้อง' : action === 'service' ? 'วันที่จำเลยได้รับหมาย' : action === 'judgment' ? 'วันอ่านคำพิพากษา' : 'วันได้รับสำเนาอุทธรณ์'}
@@ -161,6 +178,9 @@ export function CaseProceedingsCard({
                 </Select>
               </label>
             )}
+            {action === 'service' && date && <p aria-live="polite" className="rounded-md bg-muted/50 p-3 sm:col-span-2">
+              จำเลยต้องยื่นคำให้การภายใน {answerDaysFor(method)} วันนับแต่{method === ServiceMethod.PERSONAL ? 'รับหมาย' : 'ปิดหมาย'} · <strong>ครบ {formatDate(answerDueDate(new Date(toIso(date)), method))}</strong>
+            </p>}
             {action === 'judgment' && (
               <>
                 <label className="block">
@@ -192,11 +212,19 @@ export function CaseProceedingsCard({
             )}
             {error && <p role="alert" className="text-destructive sm:col-span-2">{error}</p>}
             <div className="sm:col-span-2">
-              <Button type="submit" size="sm" disabled={busy || !date}>{busy ? 'กำลังบันทึก…' : ACTIONS.find((a) => a.id === action)?.label ?? 'บันทึก'}</Button>
+              <ActionWithHint type="submit" hint={action === 'service' ? 'เก็บการส่งหมายและตั้งวันเตือน' : 'เก็บข้อมูลในสำนวนคดี'} disabled={busy || !date}>{busy ? 'กำลังบันทึก…' : ACTIONS.find((a) => a.id === action)?.label ?? 'บันทึก'}</ActionWithHint>
             </div>
           </form>
         )}
         {message && <p role="status" className="text-muted-foreground">{message}</p>}
+        {token && (defendant || !currentLevel || currentLevel === CourtLevel.TRIAL) && (
+          <CourtWorkflowSection key={`${caseId}-${defendant}-${workflowVersion}`} token={token} caseId={caseId}
+            defendant={defendant} filedAt={trialFiledAt} readOnly={readOnly} refreshBoth={workflowVersion > 0} onChanged={onChanged}
+            onService={() => {
+              open('service', true);
+              requestAnimationFrame(() => actionForm.current?.querySelector('input')?.focus());
+            }} />
+        )}
       </CardContent>
     </Card>
   );

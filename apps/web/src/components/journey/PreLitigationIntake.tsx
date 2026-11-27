@@ -10,6 +10,12 @@ import { ResearchWorkspace } from '@/components/research/ResearchWorkspace';
 import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
 import {
   AI_UPLOAD_MAX_FILES,
+  CLIENT_DECISIONS,
+  CLIENT_DECISION_LABELS,
+  INTAKE_DECISION_LABELS,
+  IntakeDecision,
+  type ClientDecision,
+  effectiveIntakeDecision,
   canAssignFirmRole,
   documentHintsFor,
   FirmRole,
@@ -36,6 +42,7 @@ import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
 import { ConflictCheckPanel } from '@/components/intake/ConflictCheckPanel';
 import { IntakeFollowUpPanel } from '@/components/intake/IntakeFollowUpPanel';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { ActionWithHint } from '@/components/ui/ActionWithHint';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -72,15 +79,7 @@ const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
 };
 
 
-const DECISION_LABELS: Record<string, string> = {
-  FILE_SUIT: 'ฟ้อง',
-  DO_NOT_FILE: 'ไม่ฟ้อง',
-  NEGOTIATE_FIRST: 'เจรจาก่อน',
-  SEND_NOTICE: 'ออกหนังสือทวงถาม',
-  COMPLAIN_TO_AUTHORITY: 'ร้องเรียน',
-  CONSULTATION_ONLY: 'ให้คำปรึกษาเท่านั้น (ไม่รับเป็นคดี)',
-  PENDING: 'รอตัดสินใจ',
-};
+const ACCEPT_DECISIONS = ['FILE_SUIT', 'NEGOTIATE_FIRST', 'SEND_NOTICE', 'COMPLAIN_TO_AUTHORITY'];
 
 const REFERRAL_TYPE_LABELS: Record<string, string> = {
   INDIVIDUAL: 'บุคคลทั่วไป',
@@ -297,7 +296,8 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   // Decide form
-  const [decision, setDecision] = useState('PENDING');
+  const [decision, setDecision] = useState<IntakeDecision>(IntakeDecision.PENDING);
+  const [clientDecision, setClientDecision] = useState<ClientDecision>('PENDING');
   const [decisionNotes, setDecisionNotes] = useState('');
   // ตัดสินใจรับ = เปิดคดีทันที — field ชุดเดิมของ convert modal ย้ายมาที่นี่
   const [decideTitle, setDecideTitle] = useState('');
@@ -572,17 +572,27 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
     }
   };
 
-  const ACCEPT_DECISIONS = ['FILE_SUIT', 'NEGOTIATE_FIRST', 'SEND_NOTICE', 'COMPLAIN_TO_AUTHORITY'];
+  const effectiveDecision = effectiveIntakeDecision(decision, clientDecision);
+  const accepted = ACCEPT_DECISIONS.includes(effectiveDecision);
+  const savedClientDecision = CLIENT_DECISIONS.find((value) => value === intake?.clientDecision) ?? 'PENDING';
+
+  const openDecide = () => {
+    setDecision(Object.values(IntakeDecision).find((value) => value === intake?.decision) ?? IntakeDecision.PENDING);
+    setClientDecision(savedClientDecision);
+    setDecisionNotes(intake?.decisionNotes ?? '');
+    setError('');
+    setModal('decide');
+  };
 
   const handleDecide = async (conflictOverrideReason?: string) => {
     if (!token || !id) return;
     setSubmitting(true);
     setError('');
-    const accepted = ACCEPT_DECISIONS.includes(decision);
-    if (intake?.case && ['DO_NOT_FILE', 'CONSULTATION_ONLY'].includes(decision) && !await confirmDialog('การตัดสินใจนี้จะปิดคดี โดยเก็บงานและเอกสารไว้ ยืนยันหรือไม่?')) { setSubmitting(false); return; }
+    if (intake?.case && ['DO_NOT_FILE', 'CONSULTATION_ONLY'].includes(effectiveDecision) && !await confirmDialog('การตัดสินใจนี้จะปิดคดี โดยเก็บงานและเอกสารไว้ ยืนยันหรือไม่?')) { setSubmitting(false); return; }
     try {
       const result = (await api.decideIntake(token, id, {
         decision,
+        ...(decision === IntakeDecision.NOT_WORTH_FILING ? { clientDecision } : {}),
         decisionNotes: decisionNotes || undefined,
         ...(accepted
           ? {
@@ -594,7 +604,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
           : {}),
       })) as IntakeItem;
       setModal(null);
-      setDecision('PENDING');
+      setDecision(IntakeDecision.PENDING);
       setDecisionNotes('');
       setDecideTitle('');
       setDecideLeadLawyerId('');
@@ -1399,7 +1409,7 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       </Card>
 
       </div>,
-    DECISION: <div className="space-y-4"><div className="flex flex-wrap gap-2">{(!intake.assessedAt || !intake.case) && <Button onClick={() => setModal('assess')}>บันทึกผลประเมิน</Button>}{(intake.assessedAt || intake.status === 'ASSESSING') && <Button variant="outline" onClick={() => setModal('decide')}>ตัดสินใจแนวทาง</Button>}</div>        {(intake.assessmentNotes || intake.caseStrength || intake.assessor) && (
+    DECISION: <div className="space-y-4"><div className="flex flex-wrap gap-2">{(!intake.assessedAt || !intake.case) && <Button onClick={() => setModal('assess')}>บันทึกผลประเมิน</Button>}{(intake.assessedAt || intake.status === 'ASSESSING') && <Button variant="outline" onClick={openDecide}>ตัดสินใจแนวทาง</Button>}</div>        {(intake.assessmentNotes || intake.caseStrength || intake.assessor) && (
           <Card>
             <CardHeader><CardTitle className="text-base">ผลการประเมิน</CardTitle></CardHeader>
             <CardContent className="space-y-0">
@@ -1414,7 +1424,8 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
           <Card>
             <CardHeader><CardTitle className="text-base">การตัดสินใจ</CardTitle></CardHeader>
             <CardContent className="space-y-0">
-              <InfoRow label="การตัดสินใจ" value={DECISION_LABELS[intake.decision] ?? intake.decision} />
+              <InfoRow label="การตัดสินใจ" value={INTAKE_DECISION_LABELS[intake.decision as IntakeDecision] ?? intake.decision} />
+              {intake.decision === IntakeDecision.NOT_WORTH_FILING && <InfoRow label="ลูกความตัดสินใจ" value={CLIENT_DECISION_LABELS[savedClientDecision]} />}
               <InfoRow label="หมายเหตุ" value={intake.decisionNotes} />
             </CardContent>
           </Card>
@@ -1754,7 +1765,9 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
       {/* Modals */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-          <div className={`max-h-[90dvh] w-full overflow-y-auto rounded-xl bg-background p-6 shadow-xl ${modal === 'details' || modal === 'quote' ? 'max-w-lg' : 'max-w-md'}`}>
+          <div role={modal === 'decide' ? 'dialog' : undefined} aria-modal={modal === 'decide' || undefined}
+            aria-labelledby={modal === 'decide' ? 'intake-decision-title' : undefined}
+            className={`max-h-[90dvh] w-full overflow-y-auto rounded-xl bg-background p-6 shadow-xl ${modal === 'details' || modal === 'quote' ? 'max-w-lg' : 'max-w-md'}`}>
             {modal === 'assess' && (
               <>
                 <h2 className="mb-4 text-lg font-semibold">บันทึกผลการประเมิน</h2>
@@ -1796,30 +1809,49 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
 
             {modal === 'decide' && (
               <>
-                <h2 className="mb-4 text-lg font-semibold">บันทึกการตัดสินใจ</h2>
+                <h2 id="intake-decision-title" className="mb-4 text-lg font-semibold">บันทึกการตัดสินใจ</h2>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium">การตัดสินใจ</label>
+                    <label htmlFor="intake-decision" className="block text-sm font-medium">การตัดสินใจ</label>
                     <Select
+                      id="intake-decision"
                       value={decision}
-                      onChange={(e) => setDecision(e.target.value)}
+                      onChange={(e) => setDecision(e.target.value as IntakeDecision)}
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                     >
-                      {Object.entries(DECISION_LABELS).map(([k, v]) => (
+                      {Object.entries(INTAKE_DECISION_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>{v}</option>
                       ))}
                     </Select>
                   </div>
+                  {decision === IntakeDecision.NOT_WORTH_FILING && (
+                    <fieldset className="space-y-2">
+                      <legend className="font-semibold">ลูกความตัดสินใจ</legend>
+                      <div className="flex flex-wrap gap-1">
+                        {CLIENT_DECISIONS.map((value) => (
+                          <label key={value} className="cursor-pointer">
+                            <input className="peer sr-only" type="radio" name="clientDecision" value={value}
+                              checked={clientDecision === value} onChange={() => setClientDecision(value)} />
+                            <span className="inline-flex min-h-11 items-center whitespace-nowrap rounded-md border border-input px-2 text-sm peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
+                              {CLIENT_DECISION_LABELS[value]}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">ถ้าลูกความให้ฟ้องต่อ ระบบจะเริ่มจากออกหนังสือทวงถามก่อน แล้วค่อยทำคำฟ้อง</p>
+                    </fieldset>
+                  )}
                   <div>
-                    <label className="block text-sm font-medium">หมายเหตุ</label>
+                    <label htmlFor="decision-notes" className="block text-sm font-medium">หมายเหตุ</label>
                     <textarea
+                      id="decision-notes"
                       value={decisionNotes}
                       onChange={(e) => setDecisionNotes(e.target.value)}
                       rows={3}
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
                     />
                   </div>
-                  {!intake.case && ACCEPT_DECISIONS.includes(decision) && (
+                  {!intake.case && accepted && (
                     <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
                       <p className="text-sm font-medium">รับดำเนินการ = เปิดคดีทันที (ขั้นก่อนฟ้อง)</p>
                       <div>
@@ -1874,10 +1906,10 @@ export function PreLitigationIntake({ id, history = false }: { id: string; histo
                   )}
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setModal(null)}>ยกเลิก</Button>
-                  <Button onClick={() => handleDecide()} disabled={submitting}>
+                  <ActionWithHint variant="outline" hint="ปิดโดยไม่บันทึก" disabled={submitting} onClick={() => setModal(null)}>ยกเลิก</ActionWithHint>
+                  <ActionWithHint hint="เก็บผลการตัดสินใจ" onClick={() => handleDecide()} disabled={submitting}>
                     {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
-                  </Button>
+                  </ActionWithHint>
                 </div>
               </>
             )}

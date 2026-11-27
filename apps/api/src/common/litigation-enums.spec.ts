@@ -1,9 +1,12 @@
 import * as Db from '../generated/prisma';
 import {
+  AnswerExtensionStatus,
   CourtEventKind,
+  CourtFollowUpKind,
   DeadlineDayBasis,
   DeadlineTrigger,
   JudgmentOutcome,
+  IntakeDecision,
   ParticipantRole,
   PartyRole,
   ServiceMethod,
@@ -16,6 +19,9 @@ describe('litigation enums match the database', () => {
   it.each([
     ['CourtEventKind', CourtEventKind],
     ['ServiceMethod', ServiceMethod],
+    ['CourtFollowUpKind', CourtFollowUpKind],
+    ['AnswerExtensionStatus', AnswerExtensionStatus],
+    ['IntakeDecision', IntakeDecision],
     ['JudgmentOutcome', JudgmentOutcome],
     ['PartyRole', PartyRole],
     ['DeadlineTrigger', DeadlineTrigger],
