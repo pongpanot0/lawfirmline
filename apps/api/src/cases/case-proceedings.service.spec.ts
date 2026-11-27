@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { CourtWorkflowService } from './court-workflow.service';
 
 describe('CaseProceedingsService', () => {
   const user = { id: 'u1', firmId: 'firm-1', firmRole: 'LAWYER' } as any;
@@ -19,6 +20,7 @@ describe('CaseProceedingsService', () => {
   const feed = { log: jest.fn() };
   let deadlines: { applyTrigger: jest.Mock };
   let notifier: { notifyAssigned: jest.Mock };
+  let workflow: { recordFiling: jest.Mock; recordService: jest.Mock; syncAfterProceeding: jest.Mock };
   const legalCase = {
     id: 'case-1', firmId: 'firm-1', caseTypeId: null, status: 'IN_PROGRESS', stage: 'PRE_LITIGATION',
     courtLevel: null, courtName: 'ศาลแพ่ง', blackCaseNumber: null, redCaseNumber: null,
@@ -31,6 +33,11 @@ describe('CaseProceedingsService', () => {
     inTx = false;
     deadlines = { applyTrigger: track('applyTrigger', 2) };
     notifier = { notifyAssigned: track('notifyAssigned') };
+    workflow = {
+      recordFiling: track('workflowFiling', 'follow-ups'),
+      recordService: track('workflowService', 'answer-deadline'),
+      syncAfterProceeding: track('workflowSync'),
+    };
     prisma = {
       case: {
         findFirst: jest.fn().mockResolvedValue(legalCase),
@@ -65,6 +72,7 @@ describe('CaseProceedingsService', () => {
         { provide: CaseFeedService, useValue: feed },
         { provide: DeadlineRulesService, useValue: deadlines },
         { provide: AssignmentNotifierService, useValue: notifier },
+        { provide: CourtWorkflowService, useValue: workflow },
       ],
     }).compile();
     service = module.get(CaseProceedingsService);
@@ -123,6 +131,21 @@ describe('CaseProceedingsService', () => {
     expect(deadlines.applyTrigger).toHaveBeenCalledWith(
       expect.objectContaining({ trigger: 'COMPLAINT_SERVED', serviceMethod: 'POSTED', triggerDate: new Date('2026-10-20T03:00:00.000Z') }),
     );
+  });
+
+  it('updates workflow records in the proceedings transaction and syncs calendar events after it', async () => {
+    await service.recordFiling(user, 'case-1', { filedAt: '2026-10-12' });
+    await service.recordService(user, 'case-1', { servedAt: '2026-10-20', method: 'POSTED_ABROAD' as any });
+
+    expect(workflow.recordFiling).toHaveBeenCalledWith(prisma, user, 'case-1', 'TRIAL', new Date('2026-10-12'));
+    expect(workflow.recordService).toHaveBeenCalledWith(prisma, user, 'case-1', new Date('2026-10-20'), 'POSTED_ABROAD');
+    expect(calledInTx.workflowFiling).toEqual([true]);
+    expect(calledInTx.workflowService).toEqual([true]);
+    expect(calledInTx.workflowSync).toEqual([false, false]);
+    expect(workflow.syncAfterProceeding.mock.calls).toEqual([
+      [user, 'case-1', 'follow-ups'],
+      [user, 'case-1', 'answer-deadline'],
+    ]);
   });
 
   it('judgment saves the result, fires JUDGMENT at the level and tells the lead the appeal deadline', async () => {

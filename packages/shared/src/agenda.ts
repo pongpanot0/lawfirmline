@@ -163,12 +163,29 @@ export enum ServiceMethod {
   PERSONAL = 'PERSONAL',
   /** ปิดหมาย — ม.79: service takes effect 15 days later */
   POSTED = 'POSTED',
+  POSTED_ABROAD = 'POSTED_ABROAD',
 }
 
 export const SERVICE_METHOD_LABELS: Record<ServiceMethod, string> = {
   [ServiceMethod.PERSONAL]: 'รับเอง',
   [ServiceMethod.POSTED]: 'ปิดหมาย',
+  [ServiceMethod.POSTED_ABROAD]: 'ปิดหมายตัวแทน (ส่งต่างประเทศ)',
 };
+
+const ANSWER_DAYS: Record<ServiceMethod, number> = {
+  [ServiceMethod.PERSONAL]: 15,
+  [ServiceMethod.POSTED]: 30,
+  [ServiceMethod.POSTED_ABROAD]: 60,
+};
+
+export function answerDaysFor(method: ServiceMethod): number {
+  return ANSWER_DAYS[method];
+}
+
+/** Bangkok is UTC+7 year-round, so a calendar day is always 24 hours. */
+export function answerDueDate(servedAt: Date, method: ServiceMethod): Date {
+  return new Date(servedAt.getTime() + answerDaysFor(method) * 86_400_000);
+}
 
 export interface DeadlineRuleItem {
   id: string;
@@ -266,9 +283,8 @@ const rule = (
 /** Platform defaults (spec L1). Every firm runs them unless it overrides one in /admin/deadline-rules. */
 export const DEFAULT_DEADLINE_RULES: ReadonlyArray<DefaultDeadlineRule> = [
   rule(DeadlineTrigger.FILED, 'ขอให้ส่งหมายเรียกและสำเนาคำฟ้อง', 7, DeadlineDayBasis.CALENDAR, { courtLevel: 'TRIAL' }), // ม.173, trial filing only
-  rule(DeadlineTrigger.COMPLAINT_SERVED, 'ครบกำหนดยื่นคำให้การ', 15, DeadlineDayBasis.CALENDAR, { serviceMethod: ServiceMethod.PERSONAL }), // ม.177
-  rule(DeadlineTrigger.COMPLAINT_SERVED, 'ครบกำหนดยื่นคำให้การ (ปิดหมาย)', 30, DeadlineDayBasis.CALENDAR, { serviceMethod: ServiceMethod.POSTED }), // ม.79 + ม.177
-  rule(DeadlineTrigger.COMPLAINT_SERVED, 'ตรวจขาดนัดยื่นคำให้การ / ขอให้พิพากษาโดยขาดนัด', 30, DeadlineDayBasis.CALENDAR, { partySide: 'PLAINTIFF' }), // ม.197–198
+  rule(DeadlineTrigger.COURT_DATE, 'เริ่มเตรียมพยาน: นัดประชุมลูกความ เลือกพยาน เก็บข้อเท็จจริง', -30, DeadlineDayBasis.CALENDAR, { courtEventKind: CourtEventKind.WITNESS_HEARING }),
+  rule(DeadlineTrigger.COURT_DATE, 'ยื่นบันทึกถ้อยคำพยานต่อศาลและส่งคู่ความ', -7, DeadlineDayBasis.CALENDAR, { courtEventKind: CourtEventKind.WITNESS_HEARING }), // ม.120/1
   rule(DeadlineTrigger.COURT_DATE, 'ยื่นบัญชีระบุพยาน', -7, DeadlineDayBasis.CALENDAR, { courtEventKind: CourtEventKind.WITNESS_HEARING }), // ม.88
   rule(DeadlineTrigger.COURT_DATE, 'สรุปผลนัดและรายงานลูกความ', 3, DeadlineDayBasis.BUSINESS),
   rule(DeadlineTrigger.JUDGMENT, 'ครบกำหนดยื่นอุทธรณ์', 1, DeadlineDayBasis.MONTHS, { courtLevel: 'TRIAL' }), // ม.229

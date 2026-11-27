@@ -55,6 +55,11 @@ export function bangkokDateInputValue(date: string | Date): string {
   return bangkokInputValue(date).slice(0, 10);
 }
 
+/** Distance between the two Bangkok calendar days, ignoring the time of day. */
+export function bangkokDaysBetween(start: string | Date, end: string | Date): number {
+  return (Date.parse(bangkokDateInputValue(end)) - Date.parse(bangkokDateInputValue(start))) / 86_400_000;
+}
+
 /** The instant an `<input type="datetime-local">` value names in Bangkok. */
 export function bangkokInputToIso(value: string): string {
   return new Date(`${value.length === 16 ? value : value.slice(0, 16)}:00+07:00`).toISOString();

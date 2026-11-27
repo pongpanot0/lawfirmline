@@ -1,3 +1,5 @@
+import { effectiveIntakeDecision, IntakeDecision } from '@lawfirm/shared';
+
 export type JourneyStep = {
   skippedAtOpen?: boolean;
   key: string;
@@ -19,6 +21,7 @@ type IntakeJourneyInput = {
   clientId: string | null;
   clientName: string | null;
   decision: string;
+  clientDecision?: string | null;
   status: string;
   /** The matter already became a (pre-litigation) case. */
   hasCase: boolean;
@@ -40,7 +43,7 @@ export function intakeJourney(
     missingInfo.length === 0,
     !!conflict && conflict.result !== 'NEEDS_REVIEW',
     unresolved === 0,
-    intake.decision !== 'PENDING',
+    effectiveIntakeDecision(intake.decision, intake.clientDecision) !== IntakeDecision.PENDING,
   ];
   const keys = ['INFO', 'CONFLICT', 'DOCUMENTS', 'DECISION'];
   const labels = ['รับเรื่อง / ข้อมูลครบ', 'ตรวจผลประโยชน์ขัดกัน', 'ขอเอกสารจากลูกความ', 'ประเมินและตัดสินใจรับเรื่อง'];

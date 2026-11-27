@@ -10,7 +10,9 @@ import {
   AuthUser,
   CaseStage,
   CaseOutcome,
+  CLIENT_DECISIONS,
   DocRequestStatus,
+  effectiveIntakeDecision,
   IntakeStage,
   redactForAi,
   AI_UPLOAD_MAX_BYTES,
@@ -908,8 +910,28 @@ export class IntakeService {
   }
 
   async decide(user: AuthUser, id: string, dto: DecideIntakeDto) {
+    const clientDecides = dto.decision === IntakeDecision.NOT_WORTH_FILING;
+    if (clientDecides && dto.clientDecision !== undefined && !CLIENT_DECISIONS.some((value) => value === dto.clientDecision)) {
+      throw new BadRequestException('clientDecision ต้องเป็น PENDING, FILE หรือ DROP');
+    }
     await assertFirmRefs(this.prisma, user.firmId, { userIds: [dto.leadLawyerId], caseTypeIds: [dto.caseTypeId] });
     const intake = await this.findOne(user, id);
+    const clientDecision = clientDecides ? dto.clientDecision ?? 'PENDING' : dto.clientDecision;
+    const decision = effectiveIntakeDecision(dto.decision, clientDecision);
+    const decisionData = {
+      decidedAt: new Date(),
+      decision: dto.decision,
+      decisionNotes: dto.decisionNotes,
+      clientDecision,
+    };
+
+    if (clientDecides && decision === IntakeDecision.PENDING) {
+      return this.prisma.intake.update({
+        where: { id },
+        data: decisionData,
+        include: this.intakeInclude,
+      });
+    }
 
     const acceptedDecisions: IntakeDecision[] = [
       IntakeDecision.FILE_SUIT,
@@ -920,7 +942,7 @@ export class IntakeService {
 
     // รับดำเนินการ = เปิดคดีทันที ในเฟสก่อนฟ้อง — งานโนติส/เจรจา/เอกสาร
     // คือคดีแล้ว ไม่ใช่ lead ที่รอแปลง. conflict gate จึงย้ายมาเฝ้าที่จุดนี้.
-    if (acceptedDecisions.includes(dto.decision)) {
+    if (acceptedDecisions.includes(decision)) {
       if (!intake.case && intake.relatedCaseId) {
         await this.attachToExistingCase(user, intake, dto);
       } else {
@@ -930,17 +952,18 @@ export class IntakeService {
       await this.prisma.intake.update({
         where: { id },
         data: {
-          decidedAt: new Date(),
-          decision: dto.decision as any,
-          decisionNotes: dto.decisionNotes,
-          clientDecision: dto.clientDecision,
+          ...decisionData,
+          ...(clientDecides && !intake.noticeIssuedAt &&
+            (!intake.preLitigationStatus || intake.preLitigationStatus === PreLitigationStatus.NOT_STARTED)
+            ? { preLitigationStatus: PreLitigationStatus.NOTICE_TO_SEND }
+            : {}),
         },
       });
       // openPreLitCase/attachToExistingCase ตั้ง status=CONVERTED + stage=CLOSED แล้ว
       return this.findOne(user, id);
     }
 
-    if (intake.case && !['CLOSED', 'ARCHIVED'].includes(intake.case.status) && [IntakeDecision.DO_NOT_FILE, IntakeDecision.CONSULTATION_ONLY].includes(dto.decision)) {
+    if (intake.case && !['CLOSED', 'ARCHIVED'].includes(intake.case.status) && [IntakeDecision.DO_NOT_FILE, IntakeDecision.CONSULTATION_ONLY].includes(decision)) {
       if (intake.case.stage !== CaseStage.PRE_LITIGATION) {
         throw new BadRequestException('คดีเลยขั้นก่อนฟ้องแล้ว ปิดคดีจากหน้าคดี');
       }
@@ -950,19 +973,16 @@ export class IntakeService {
       });
     }
 
-    const status = dto.decision === IntakeDecision.CONSULTATION_ONLY ? 'CONSULTED' : 'REJECTED';
+    const status = decision === IntakeDecision.CONSULTATION_ONLY ? 'CONSULTED' : 'REJECTED';
 
     return this.prisma.intake.update({
       where: { id },
       data: {
-        decidedAt: new Date(),
+        ...decisionData,
         status: status as any,
         statusChangedAt: new Date(),
         stage: (status === 'CONSULTED' ? IntakeStage.CONSULTED : IntakeStage.CLOSED) as never,
         stageChangedAt: new Date(),
-        decision: dto.decision as any,
-        decisionNotes: dto.decisionNotes,
-        clientDecision: dto.clientDecision,
       },
       include: this.intakeInclude,
     });
@@ -1001,8 +1021,9 @@ export class IntakeService {
         stage: IntakeStage.PRE_LITIGATION_NOTICE as never,
         stageChangedAt: new Date(),
         preLitigationStatus:
-          existing.preLitigationStatus === PreLitigationStatus.NOT_STARTED
-            ? (PreLitigationStatus.NOTICE_SENT as any)
+          existing.preLitigationStatus === PreLitigationStatus.NOT_STARTED ||
+          existing.preLitigationStatus === PreLitigationStatus.NOTICE_TO_SEND
+            ? PreLitigationStatus.NOTICE_SENT
             : undefined,
       },
       include: this.intakeInclude,

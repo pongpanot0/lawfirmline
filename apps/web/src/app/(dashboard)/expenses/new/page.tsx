@@ -176,6 +176,7 @@ export default function NewExpensePage() {
 
             <SelectField
               label={d.expenses.category}
+              hint={d.expenses.categoryHint}
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
             >

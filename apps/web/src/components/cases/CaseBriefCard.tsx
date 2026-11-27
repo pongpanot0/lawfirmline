@@ -1,5 +1,6 @@
 'use client';
 
+import { INTAKE_DECISION_LABELS } from '@lawfirm/shared';
 import { caseClientName } from '@/lib/case-party-display';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -16,6 +17,7 @@ import { cn } from '@/lib/utils';
 const NO_DATA = 'ไม่มีข้อมูล';
 
 const DECISION_LABELS: Record<string, string> = {
+  NOT_WORTH_FILING: INTAKE_DECISION_LABELS.NOT_WORTH_FILING,
   FILE_SUIT: 'ฟ้องได้',
   DO_NOT_FILE: 'ไม่ควรฟ้อง',
   NEGOTIATE_FIRST: 'เจรจาก่อน',

@@ -544,6 +544,7 @@ export const dashboardCopy = {
       addOnDay: 'เพิ่มนัดวันที่ {day}',
     },
     expenses: {
+      categoryHint: 'ค่าขึ้นศาลใช้หมวดค่าธรรมเนียมศาลเดิม รายการเก่าไม่ต้องย้าย',
       title: 'ค่าใช้จ่าย',
       description: 'บันทึกและติดตามค่าใช้จ่ายของสำนักงาน',
       newTitle: 'เพิ่มค่าใช้จ่าย',
@@ -1718,6 +1719,7 @@ export const dashboardCopy = {
       addOnDay: 'Add an event on day {day}',
     },
     expenses: {
+      categoryHint: 'Use the existing court fees category for filing fees. Earlier entries keep their category.',
       title: 'Expenses',
       description: 'Record and track the firm’s spending',
       newTitle: 'New expense',

@@ -1,12 +1,37 @@
 import {
   IsDateString,
   IsEnum,
+  IsIn,
+  IsNumber,
   IsOptional,
   IsString,
+  Max,
+  Min,
+  ValidateIf,
 } from 'class-validator';
-import { InsuranceClaimStage } from '@lawfirm/shared';
+import { InsuranceClaimStage, POLICY_TYPES } from '@lawfirm/shared';
 
-export class CreateInsuranceClaimDto {
+class InsuranceClaimDetailsDto {
+  @IsOptional()
+  @IsString()
+  assuredName?: string | null;
+
+  @IsOptional()
+  @IsIn(POLICY_TYPES)
+  policyType?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(9_999_999_999_999.99)
+  claimAmount?: number | null;
+
+  @ValidateIf((_dto, value) => value !== undefined)
+  @IsIn(['THB', 'USD', 'EUR'])
+  claimCurrency?: string;
+}
+
+export class CreateInsuranceClaimDto extends InsuranceClaimDetailsDto {
   @IsString()
   insurerName!: string;
 
@@ -26,7 +51,7 @@ export class CreateInsuranceClaimDto {
   claimedDate?: string;
 }
 
-export class UpdateInsuranceClaimDto {
+export class UpdateInsuranceClaimDto extends InsuranceClaimDetailsDto {
   @IsOptional()
   @IsString()
   insurerName?: string;

@@ -120,7 +120,7 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
   });
 
   it('ออกหนังสือแล้วได้ไฟล์ Word ในเอกสารคดี (มีคดีแล้ว)', async () => {
-    prisma.intake.findFirst.mockResolvedValue({ ...intake, case: { id: 'case-1' } });
+    prisma.intake.findFirst.mockResolvedValue({ ...intake, preLitigationStatus: 'NOTICE_TO_SEND', case: { id: 'case-1' } });
 
     const result = await service.issueNotice(user, 'intake-1', {
       noticeRecipient: 'บริษัท ก/ข',
@@ -135,6 +135,7 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
     );
     expect(documents.createFromBuffer.mock.calls[0][2].buffer.length).toBeGreaterThan(0);
     expect(result.noticeDocumentId).toBe('doc-1');
+    expect(prisma.intake.update.mock.calls[0][0].data.preLitigationStatus).toBe('NOTICE_SENT');
   });
 
   it('ยังไม่มีคดี → ไฟล์หนังสือเก็บเป็นไฟล์แนบของเรื่อง', async () => {

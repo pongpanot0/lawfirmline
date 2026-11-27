@@ -1111,6 +1111,9 @@ export const DEFAULT_THAI_COURTS = [
 export const EXPENSE_CATEGORIES = [
   'ค่าเดินทาง',
   'ค่าธรรมเนียมศาล',
+  'ค่านำหมาย',
+  'ค่าพยาน',
+  'ค่าใช้จ่ายในการดำเนินคดี',
   'ค่าคัดสำเนา',
   'ค่าอุปกรณ์สำนักงาน',
   'ค่าที่พัก',
@@ -1254,6 +1257,7 @@ export * from './validation';
 export * from './pii';
 export * from './agenda';
 export * from './litigation';
+export * from './lawyer-workflow';
 export * from './ai-redaction';
 export * from './ai-uploads';
 export * from './analysis-quality';
