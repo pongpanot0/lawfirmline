@@ -84,6 +84,11 @@ export function CourtFeeEstimator({ lang = 'th' }: { lang?: Lang } = {}) {
             </p>
           </div>
           <p className="mt-3 text-xs text-mk-ink-2">{c.s10}</p>
+          {lang === 'th' && (
+            <a href="/tools/court-fee" className="mt-2 inline-flex min-h-11 items-center text-sm underline underline-offset-4">
+              เปิดเครื่องคำนวณแบบเต็ม
+            </a>
+          )}
         </div>
       </div>
     </section>

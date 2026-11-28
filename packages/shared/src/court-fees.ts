@@ -48,6 +48,23 @@ export function monetaryCourtFee(claim: number, kind: keyof typeof RATES = 'GENE
   return { fee: Math.floor(first + excess), lines };
 }
 
+/**
+ * Civil enforcement fee (ค่าธรรมเนียมบังคับคดี) per event — ตาราง 5 as amended by ป.วิ.พ. ฉบับที่ 33,
+ * effective 10 ก.ย. 2568 (LED notice 12 ก.ย. 2568). Research §4.7: rounding and multi-event bases are
+ * UNVERIFIED, so this is one event at a time and excludes announcement costs and officer advances.
+ */
+export const ENFORCEMENT_FEE_RULE_VERSION = 'ประกาศกรมบังคับคดี 12 ก.ย. 2568';
+
+export type EnforcementEvent = 'SALE' | 'PAYOUT' | 'BID' | 'NO_SALE';
+
+const ENFORCEMENT_RATES: Record<EnforcementEvent, number> = { SALE: 0.02, PAYOUT: 0.01, BID: 0.01, NO_SALE: 0 };
+
+export function estimateEnforcementFee(input: { event: EnforcementEvent; amount?: number }): { fee: number; rate: number; ruleVersion: string } {
+  const rate = ENFORCEMENT_RATES[input.event];
+  const amount = Math.max(0, input.amount ?? 0);
+  return { fee: Math.floor(rate * amount), rate, ruleVersion: ENFORCEMENT_FEE_RULE_VERSION };
+}
+
 export function estimateCourtFee(input: CourtFeeInput): CourtFeeResult {
   const { kind, level } = input;
   const claim = Math.max(0, input.claimAmount ?? 0);

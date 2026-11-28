@@ -11,6 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${siteUrl}/register`, lastModified, priority: 0.8 },
     ...stages.flatMap(({ slug }) => sitemapPair(siteUrl, `/features/${slug}`, lastModified, 0.8)),
     ...sitemapPair(siteUrl, '/pricing', lastModified, 0.7),
+    { url: `${siteUrl}/tools/court-fee`, lastModified, priority: 0.7 },
     { url: `${siteUrl}/articles`, lastModified, priority: 0.6 },
     ...getArticles().map(({ slug, reviewed }) => ({
       url: `${siteUrl}/articles/${slug}`,
