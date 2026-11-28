@@ -10,7 +10,7 @@ import { ApiError } from '@/api/client';
 import { useCaseBrief } from '@/api/hooks';
 import { Text } from '@/components/AppText';
 import { Card, ErrorState, EVENT_KIND_LABEL, LoadingState, SectionLabel, TASK_STATUS_LABEL, Tag } from '@/components/ui';
-import { bangkokDay, formatMoney, thDate, thDateLong, thTime } from '@/format';
+import { bangkokDaysBetween, formatMoney, thDate, thDateLong, thTime } from '@/format';
 import { colors, radius, spacing, TOUCH, typeScale } from '@/theme';
 
 const DECISIONS: Record<string, string> = {
@@ -22,7 +22,7 @@ const DECISIONS: Record<string, string> = {
 
 /** "วันนี้" / "พรุ่งนี้" / "อีก 16 วัน", counted in Bangkok calendar days. */
 function daysAway(iso: string, now = new Date()): string {
-  const days = Math.round((Date.parse(bangkokDay(iso)) - Date.parse(bangkokDay(now.toISOString()))) / 86_400_000);
+  const days = bangkokDaysBetween(now.toISOString(), iso);
   return days <= 0 ? 'วันนี้' : days === 1 ? 'พรุ่งนี้' : `อีก ${days} วัน`;
 }
 

@@ -8,7 +8,7 @@ import { api, ApiError } from './client';
 import { transcribeSecretaryAudio } from './files';
 import { secretaryMessages, type SecretaryMessage } from '../lib/secretary';
 import { calendarRangeQuery } from '../format';
-import type { DailyBriefData, DailyWorkboard, MatterBrief, PersonWorkload, SecretaryCard, OutlookCalendarItemsResponse } from '@lawfirm/shared';
+import type { AnswerDeadlineItem, AnswerExtensionItem, CourtFollowUpItem, ServiceMethod, DailyBriefData, DailyWorkboard, MatterBrief, PersonWorkload, SecretaryCard, OutlookCalendarItemsResponse } from '@lawfirm/shared';
 import type {
   AppNotification,
   CalendarEventItem,
@@ -130,6 +130,78 @@ export function useCase(id: string) {
     queryKey: ['case', id],
     queryFn: () => api<CaseDetail>(`/cases/${id}`),
     enabled: !!id,
+  });
+}
+
+export function useCourtFollowUps(caseId: string) {
+  return useQuery({
+    queryKey: ['court-follow-ups', caseId],
+    queryFn: () => api<CourtFollowUpItem[]>(`/cases/${caseId}/follow-ups`),
+    enabled: !!caseId,
+  });
+}
+
+export function useAnswerDeadline(caseId: string) {
+  return useQuery({
+    queryKey: ['answer-deadline', caseId],
+    queryFn: () => api<AnswerDeadlineItem>(`/cases/${caseId}/answer-deadline`),
+    enabled: !!caseId,
+  });
+}
+
+function useCourtWorkflowInvalidation(caseId: string) {
+  const queryClient = useQueryClient();
+  return () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['court-follow-ups', caseId] }),
+    queryClient.invalidateQueries({ queryKey: ['answer-deadline', caseId] }),
+    queryClient.invalidateQueries({ queryKey: ['case', caseId] }),
+    queryClient.invalidateQueries({ queryKey: ['case-brief', caseId] }),
+    queryClient.invalidateQueries({ queryKey: ['case-events', caseId] }),
+    queryClient.invalidateQueries({ queryKey: ['calendar'] }),
+    queryClient.invalidateQueries({ queryKey: ['my-day'] }),
+    // The server moves or deletes the managed reminder events, which Home and the action list also show.
+    queryClient.invalidateQueries({ queryKey: ['actions'] }),
+    queryClient.invalidateQueries({ queryKey: ['daily-workboard'] }),
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+  ]);
+}
+
+export function useRecordCourtFollowUp(caseId: string) {
+  const invalidate = useCourtWorkflowInvalidation(caseId);
+  return useMutation({
+    mutationFn: ({ kind, ...body }: {
+      kind: CourtFollowUpItem['kind'];
+      result: string;
+    } & ({ done: false; retryInDays: number } | { kind: Exclude<CourtFollowUpItem['kind'], 'SERVICE'>; done: true })) =>
+      api<CourtFollowUpItem>(`/cases/${caseId}/follow-ups/${kind}/result`, { method: 'POST', body }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRecordService(caseId: string) {
+  const invalidate = useCourtWorkflowInvalidation(caseId);
+  return useMutation({
+    mutationFn: (body: { servedAt: string; method: ServiceMethod }) =>
+      api(`/cases/${caseId}/proceedings/service`, { method: 'POST', body }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useCreateAnswerExtension(caseId: string) {
+  const invalidate = useCourtWorkflowInvalidation(caseId);
+  return useMutation({
+    mutationFn: (body: { filedAt: string; requestedUntil: string }) =>
+      api<AnswerDeadlineItem>(`/cases/${caseId}/answer-extensions`, { method: 'POST', body }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateAnswerExtension(caseId: string) {
+  const invalidate = useCourtWorkflowInvalidation(caseId);
+  return useMutation({
+    mutationFn: ({ extensionId, ...body }: { extensionId: string; status: AnswerExtensionItem['status']; grantedUntil?: string }) =>
+      api<AnswerDeadlineItem>(`/cases/${caseId}/answer-extensions/${extensionId}`, { method: 'PATCH', body }),
+    onSuccess: invalidate,
   });
 }
 
@@ -503,6 +575,10 @@ export interface InsuranceClaim {
   stage: string;
   incidentDate: string;
   demandLetterDeadline: string | null;
+  assuredName?: string | null;
+  policyType?: string | null;
+  claimAmount?: string | number | null;
+  claimCurrency?: string | null;
 }
 
 export function useInsuranceClaim(caseId: string) {

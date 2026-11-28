@@ -102,6 +102,8 @@ export interface CaseDetail extends CaseListItem {
   client?: { id: string; name: string; phone?: string | null } | null;
   partyRole?: import('@lawfirm/shared').PartyRole | null;
   participants?: CaseParticipant[];
+  proceedings?: Array<{ courtLevel: string; filedAt: string | null }>;
+  activities?: Array<{ type: import('@lawfirm/shared').ActivityType; title: string; activityAt: string; createdAt: string }>;
 }
 
 export interface TaskItem {

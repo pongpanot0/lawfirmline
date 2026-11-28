@@ -4,7 +4,7 @@ import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, Check, ChevronRight, FilePlus2, FileText, Images, Inbox, LucideIcon, ShieldCheck } from 'lucide-react-native';
-import { groupParticipantsBySide, PARTICIPANT_ROLE_LABELS, PARTY_ROLE_LABELS, type ParticipantRole, type PartyRole, hasFirmCapability } from '@lawfirm/shared';
+import { CourtLevel, groupParticipantsBySide, PARTICIPANT_ROLE_LABELS, PARTY_ROLE_LABELS, PartyRole, POLICY_TYPES, POLICY_TYPE_LABELS, type ParticipantRole, hasFirmCapability } from '@lawfirm/shared';
 import { api, ApiError } from '@/api/client';
 import { useAuth } from '@/api/auth';
 import { canToggleTask } from '@/workflow';
@@ -16,6 +16,8 @@ import {
   useToggleTask,
 } from '@/api/hooks';
 import { ReassignSheet } from '@/components/ReassignSheet';
+import { AnswerDeadlineCard } from '@/components/AnswerDeadlineCard';
+import { CourtFollowUpsCard } from '@/components/CourtFollowUpsCard';
 import { CaseEmailTab } from '@/components/CaseEmailTab';
 import { CustomFieldsSection } from '@/components/CustomFieldsSection';
 import { CaseBriefCard, CaseNextHearing, CaseStageCard } from '@/components/CaseBriefCard';
@@ -76,7 +78,9 @@ function docTile(filename: string): { icon: LucideIcon; tone: TagTone | 'ink' } 
 }
 
 /** Label/value row; every row after the first sits under a divider hairline. */
-function InfoRow({ label, value, onPress, first = false }: { label: string; value: string | null | undefined; onPress?: () => void; first?: boolean }) {
+function InfoRow({ label, value, onPress, first = false, singleLineLabel = false, numeric = false }: {
+  label: string; value: string | null | undefined; onPress?: () => void; first?: boolean; singleLineLabel?: boolean; numeric?: boolean;
+}) {
   if (onPress && value) return <Pressable accessibilityRole="button" accessibilityLabel={`${label} ${value}`} accessibilityHint="เปิดรายละเอียด" onPress={onPress}
     style={({ pressed }) => [styles.infoRow, !first && styles.infoRowRule, { minHeight: TOUCH, alignItems: 'center' }, pressed && { opacity: 0.6 }]}>
     <Text style={styles.infoLabel}>{label}</Text>
@@ -85,8 +89,9 @@ function InfoRow({ label, value, onPress, first = false }: { label: string; valu
   </Pressable>;
   return (
     <View style={[styles.infoRow, !first && styles.infoRowRule]}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={[styles.infoValue, !value && { color: colors.muted }]}>
+      <Text numberOfLines={singleLineLabel ? 1 : undefined} adjustsFontSizeToFit={singleLineLabel}
+        style={[styles.infoLabel, singleLineLabel && styles.infoLabelOneLine]}>{label}</Text>
+      <Text style={[styles.infoValue, numeric && styles.infoNumber, !value && { color: colors.muted }]}>
         {value || '—'}
       </Text>
     </View>
@@ -133,6 +138,13 @@ export default function CaseDetailScreen() {
   const status = STATUS_LABEL[detail.status] ?? { label: detail.status, tone: 'plain' as TagTone };
   const manager = user?.firmRole === 'OWNER' || user?.role === 'ADMIN' || user?.role === 'LAWYER';
   const closed = detail.status === 'CLOSED' || detail.status === 'ARCHIVED';
+  const defendant = detail.partyRole === PartyRole.DEFENDANT || detail.partyRole === PartyRole.RESPONDENT;
+  const trial = (detail.courtLevel ?? CourtLevel.TRIAL) === CourtLevel.TRIAL;
+  const trialFiling = detail.proceedings?.find(row => row.courtLevel === CourtLevel.TRIAL);
+  const claim = insurance.data;
+  const policyType = POLICY_TYPES.find(type => type === claim?.policyType);
+  const claimAmount = claim?.claimAmount == null ? null : formatMoney(claim.claimAmount, { fixedDecimals: true });
+  const claimCurrency = claim?.claimCurrency || 'THB';
   const buddies = (detail.assignments ?? []).filter(item => item.assignmentType === 'BUDDY');
   const clientId = detail.client?.id;
   const caseRef = { id, ownRef: detail.ownRef, title: detail.title, leadLawyerId: detail.leadLawyer?.id };
@@ -156,7 +168,15 @@ export default function CaseDetailScreen() {
         refreshControl={
           <RefreshControl
             refreshing={caseQuery.isRefetching}
-            onRefresh={() => { caseQuery.refetch(); queryClient.invalidateQueries({ queryKey: ['case-brief', id] }); if (tab === 'อีเมล') queryClient.invalidateQueries({ queryKey: ['case-email-threads', id] }); }}
+            onRefresh={() => {
+              void caseQuery.refetch();
+              void queryClient.invalidateQueries({ queryKey: ['case-brief', id] });
+              if (tab === 'ภาพรวม') {
+                void queryClient.invalidateQueries({ queryKey: [defendant ? 'answer-deadline' : 'court-follow-ups', id] });
+                void queryClient.invalidateQueries({ queryKey: ['insurance-claim', id] });
+              }
+              if (tab === 'อีเมล') void queryClient.invalidateQueries({ queryKey: ['case-email-threads', id] });
+            }}
           />
         }
       >
@@ -190,6 +210,9 @@ export default function CaseDetailScreen() {
           <>
           {/* Court-first order: the next appointment, then the facts asked for at the counter, then progress and extras. */}
           <CaseNextHearing caseId={id} />
+          {defendant
+            ? <AnswerDeadlineCard key={id} caseId={id} readOnly={closed} activities={detail.activities} />
+            : <CourtFollowUpsCard key={id} caseId={id} trial={trial} readOnly={closed} filedAt={trialFiling?.filedAt} />}
           <Card>
             <Text accessibilityRole="header" style={styles.cardTitle}>ข้อมูลคดี</Text>
             <InfoRow
@@ -266,22 +289,26 @@ export default function CaseDetailScreen() {
             <ErrorState message="โหลดข้อมูลสินไหมประกันภัยไม่ได้" onRetry={() => insurance.refetch()} />
           </View>
         ) : null}
-        {tab === 'ภาพรวม' && insurance.data ? (
+        {tab === 'ภาพรวม' && claim ? (
           <Card style={{ marginTop: spacing.md }}>
             <View style={[styles.cardHead, { gap: spacing.sm, paddingBottom: spacing.sm }]}>
               <View style={styles.iconTile}><ShieldCheck size={18} color={colors.accentInk} /></View>
               <Text accessibilityRole="header" style={[styles.cardTitle, { flex: 1 }]}>สินไหมประกันภัย</Text>
               <Tag tone="court">
-                {INSURANCE_STAGE_LABEL[insurance.data.stage] ?? insurance.data.stage}
+                {INSURANCE_STAGE_LABEL[claim.stage] ?? claim.stage}
               </Tag>
             </View>
-            <InfoRow label="บริษัทประกัน" value={insurance.data.insurerName} />
-            <InfoRow label="เลขเคลม" value={insurance.data.claimNumber} />
-            <InfoRow label="เลขกรมธรรม์" value={insurance.data.policyNumber} />
-            {insurance.data.demandLetterDeadline ? (
+            <InfoRow label="บริษัทประกัน" value={claim.insurerName} />
+            <InfoRow label="เลขเคลม" value={claim.claimNumber} />
+            <InfoRow label="เลขกรมธรรม์" value={claim.policyNumber} />
+            <InfoRow singleLineLabel label="ผู้เอาประกัน (Assured)" value={claim.assuredName} />
+            <InfoRow singleLineLabel label="ชนิดกรมธรรม์" value={policyType ? POLICY_TYPE_LABELS[policyType] : claim.policyType} />
+            <InfoRow singleLineLabel numeric label="ยอดเรียกร้อง"
+              value={claimAmount && claimAmount !== '—' ? `${claimAmount} ${claimCurrency === 'THB' ? 'บาท' : claimCurrency}` : null} />
+            {claim.demandLetterDeadline ? (
               <InfoRow
                 label="กำหนด demand letter"
-                value={thDate(insurance.data.demandLetterDeadline)}
+                value={thDate(claim.demandLetterDeadline)}
               />
             ) : null}
           </Card>
@@ -550,7 +577,9 @@ const styles = StyleSheet.create({
   },
   infoRowRule: { borderTopWidth: 1, borderTopColor: colors.divider },
   infoLabel: { ...typeScale.overline, color: colors.muted, maxWidth: '35%' },
+  infoLabelOneLine: { maxWidth: '48%' },
   infoValue: { color: colors.text, fontSize: 15, lineHeight: 22, flex: 1, textAlign: 'right' },
+  infoNumber: { fontVariant: ['tabular-nums'] },
   description: { color: colors.text, fontSize: 14, lineHeight: 22, paddingTop: spacing.xs },
   divider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.xs },
   groupLabel: { ...typeScale.overline, color: colors.muted, marginBottom: spacing.xs },
