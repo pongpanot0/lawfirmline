@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>คำนวณค่าขึ้นศาล | สำนวน</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&amp;family=Trirong:wght@600&amp;display=swap">
+  <style>
+    .mk {
+      --mk-paper: #f7f4ed;
+      --mk-surface: #fffdfa;
+      --mk-sunk: #f0ede6;
+      --mk-ink: #142e43;
+      --mk-ink-2: #52616b;
+      --mk-rule: #dfe0dc;
+      --mk-brass: #8b6d32;
+      --mk-cta-muted: #c9d3da;
+      --radius: 8px;
+      --font-display: Trirong, "Noto Sans Thai", serif;
+      --font-sans: "Noto Sans Thai", system-ui, sans-serif;
+      --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+      margin: 0;
+      background: var(--mk-paper);
+      color: var(--mk-ink);
+      font: 400 1rem/1.6 var(--font-sans);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    h1, h2, p, ul, ol, dl, dd, fieldset { margin: 0; }
+    h1, h2 { font-family: var(--font-display); font-weight: 600; line-height: 1.32; text-wrap: balance; }
+    h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
+    h2 { font-size: clamp(1.5rem, 3vw, 2.25rem); }
+    p { text-wrap: pretty; }
+    ul, ol { padding: 0; }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    :is(a, button, input, select, summary, [tabindex]):focus-visible {
+      outline: 2px solid var(--mk-brass);
+      outline-offset: 2px;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .container { width: min(100%, 1240px); margin-inline: auto; padding-inline: 24px; }
+    .tool-main { width: min(100%, 1040px); }
+    .font-display { font-family: var(--font-display); }
+    .text-mk-ink-2 { color: var(--mk-ink-2); }
+    .text-mk-cta-muted { color: var(--mk-cta-muted); }
+    .bg-mk-ink { background: var(--mk-ink); }
+    .text-mk-paper { color: var(--mk-paper); }
+    .border-mk-rule { border-color: var(--mk-rule); }
+    .rounded-lg { border-radius: var(--radius); }
+    .rounded-2xl { border-radius: 16px; }
+    .icon { width: 18px; height: 18px; flex: none; }
+    .min-h-11 { min-height: 44px; }
+    .whitespace-nowrap, .hint { white-space: nowrap; }
+    .btn-primary, .btn-secondary {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn-primary { transition: transform 120ms var(--ease-out), background-color 160ms; }
+    .btn-primary:hover { transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary.bg-mk-ink:hover { background: #243c50; }
+    .btn-secondary { background: var(--mk-surface); border-color: var(--mk-rule); }
+    .btn-secondary:hover, .tab:hover { background: var(--mk-sunk); }
+    .hint { display: block; margin-top: 4px; color: var(--mk-ink-2); font-size: 0.75rem; line-height: 1.5; }
+    .text-mk-cta-muted.hint { color: var(--mk-cta-muted); }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-bottom: 1px solid var(--mk-rule);
+      background: rgb(247 244 237 / 95%);
+      backdrop-filter: blur(8px);
+    }
+    .nav-inner, .footer-inner { display: flex; align-items: center; justify-content: space-between; }
+    .nav-inner { height: 64px; }
+    .brand, .nav-links, .nav-actions, .lang, .site-footer a { display: flex; align-items: center; }
+    .brand { gap: 10px; flex-shrink: 0; font-weight: 600; }
+    .brand-mark { display: grid; place-items: center; width: 36px; height: 36px; }
+    .brand-name { font-size: 1.125rem; letter-spacing: -0.025em; }
+    .nav-links { gap: 32px; }
+    .nav-actions { gap: 16px; font-size: 0.875rem; }
+    .nav-links a, .login, .lang a { display: flex; align-items: center; font-size: 0.875rem; }
+    .nav-links a:hover, .login:hover, .site-footer a:hover { color: var(--mk-ink); text-decoration: underline; }
+    .lang { gap: 4px; }
+    .lang a, .lang strong { padding-inline: 4px; }
+    .nav-trial { text-align: center; }
+    .nav-trial .hint { margin-top: 0; font-size: 0.6875rem; }
+    .nav-trial .btn-primary { padding-block: 4px; }
+
+    .breadcrumb { margin-top: 16px; }
+    .breadcrumb ol { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; list-style: none; font-size: 0.8125rem; }
+    .breadcrumb a, .breadcrumb [aria-current] { display: inline-flex; align-items: center; min-height: 44px; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb [aria-current] { color: var(--mk-ink); }
+    .hero { margin-block: 16px 24px; }
+    .hero p { margin-top: 8px; max-width: 62ch; color: var(--mk-ink-2); }
+    .calculator {
+      scroll-margin-top: 80px;
+      border: 1px solid var(--mk-rule);
+      border-radius: 12px;
+      background: var(--mk-surface);
+    }
+    .tabs, .tab-hints { display: grid; grid-template-columns: 112px 120px; gap: 8px; }
+    .tabs { padding: 12px 24px 0; }
+    .tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 8px 16px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--mk-ink-2);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .tab[aria-selected="true"] { background: var(--mk-ink); color: var(--mk-paper); }
+    .tab-hints { padding: 0 24px 12px; border-bottom: 1px solid var(--mk-rule); text-align: center; }
+    .calc-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; padding: 24px; align-items: start; }
+    .fields { display: grid; gap: 16px; min-width: 0; }
+    .field { min-width: 0; padding: 0; border: 0; }
+    .field > :is(label, legend) { display: block; padding: 0; font-size: 0.875rem; font-weight: 600; }
+    .control, .segmented, .event-list { margin-top: 4px; }
+    .control {
+      display: block;
+      width: 100%;
+      min-height: 44px;
+      padding: 8px 12px;
+      border: 1px solid var(--mk-rule);
+      border-radius: var(--radius);
+      background: var(--mk-paper);
+    }
+    .select-wrap { position: relative; }
+    .select-wrap select { appearance: none; padding-inline-end: 36px; text-overflow: ellipsis; }
+    .select-wrap .icon { position: absolute; inset-inline-end: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+    .amount-input { font-size: 1.125rem; font-variant-numeric: tabular-nums; }
+    .field-help { margin-top: 4px; color: var(--mk-ink-2); font-size: 0.75rem; }
+    .segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+    .segmented label, .event-list label {
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      border: 1px solid var(--mk-rule);
+      border-radius: var(--radius);
+      background: var(--mk-paper);
+      cursor: pointer;
+    }
+    .segmented label { justify-content: center; font-size: 0.875rem; white-space: nowrap; }
+    .segmented input:checked + label { border-color: var(--mk-ink); background: var(--mk-ink); color: var(--mk-paper); }
+    .segmented input:focus-visible + label { outline: 2px solid var(--mk-brass); outline-offset: 2px; }
+    .event-list { display: grid; gap: 8px; }
+    .event-list label { gap: 8px; padding: 8px 12px; font-size: 0.8125rem; }
+    .event-list label:has(input:checked) { border-color: var(--mk-ink); background: var(--mk-surface); }
+    .event-list input { flex: none; margin: 0; accent-color: var(--mk-ink); }
+    .event-rate { margin-inline-start: auto; color: var(--mk-ink-2); text-align: end; }
+
+    .result { min-width: 0; padding: 24px; border-radius: var(--radius); background: var(--mk-sunk); }
+    .result-label { color: var(--mk-ink-2); font-size: 0.875rem; font-weight: 500; }
+    .result-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-top: 4px; }
+    .result-number { font: 600 clamp(2.25rem, 5vw, 3.5rem)/1.16 var(--font-display); color: var(--mk-brass); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .result-number.is-long { font-size: clamp(1.5rem, 4vw, 2.5rem); }
+    .result-unit { font-size: 0.875rem; }
+    .breakdown { margin-top: 16px; font-size: 0.875rem; }
+    .breakdown > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding-block: 8px; border-top: 1px solid var(--mk-rule); }
+    .breakdown dd { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .result-notes { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; color: var(--mk-ink-2); font-size: 0.8125rem; }
+    .result-notes .icon, .caution .icon { margin-top: 3px; }
+    .result-notes ul { list-style: none; }
+    .result-notes li + li { margin-top: 4px; }
+    .result-source { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--mk-rule); color: var(--mk-ink-2); font-size: 0.75rem; }
+    .calc-actions { display: flex; align-items: flex-start; justify-content: flex-end; flex-wrap: wrap; gap: 12px 16px; border-top: 1px solid var(--mk-rule); padding: 16px 24px; }
+    .action { text-align: center; }
+    .copy-button { min-width: 128px; }
+    .caution {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 12px 16px;
+      border: 1px solid var(--mk-rule);
+      border-radius: var(--radius);
+      background: var(--mk-sunk);
+      color: var(--mk-ink-2);
+      font-size: 0.875rem;
+    }
+    .text-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--mk-ink); text-decoration: underline; text-underline-offset: 3px; }
+
+    .page-section { margin-top: 64px; }
+    .examples-table { width: 100%; margin-top: 16px; border-collapse: collapse; font-size: 0.875rem; }
+    .examples-table :is(th, td) { padding: 12px 16px; border-bottom: 1px solid var(--mk-rule); text-align: start; vertical-align: middle; }
+    .examples-table thead { background: var(--mk-sunk); }
+    .examples-table tbody th { font-weight: 600; }
+    .examples-table .example-total { text-align: end; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .examples-table .example-action { text-align: end; }
+    .try-example {
+      min-height: 44px;
+      padding: 4px 0;
+      border: 0;
+      background: none;
+      font-weight: 600;
+      white-space: nowrap;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .benefits { display: grid; gap: 12px; margin-top: 16px; list-style: none; }
+    .benefits li { display: flex; align-items: flex-start; gap: 12px; }
+    .benefits .icon { margin-top: 4px; }
+    .cta-band { margin-top: 32px; padding: 56px 24px; text-align: center; }
+    .cta-band .btn-primary { margin-top: 24px; padding-inline: 32px; background: var(--mk-paper); }
+    .faq { margin-bottom: 80px; }
+    .faq-list { margin-top: 16px; border-block: 1px solid var(--mk-rule); }
+    .faq-list details { padding-block: 20px; }
+    .faq-list details + details { border-top: 1px solid var(--mk-rule); }
+    .faq-list summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-weight: 500; list-style: none; cursor: pointer; }
+    .faq-list summary::-webkit-details-marker { display: none; }
+    .faq-list .chev { transition: transform 200ms var(--ease-out); }
+    .faq-list details[open] .chev { transform: rotate(180deg); }
+    .faq-list p { margin-top: 12px; line-height: 1.7; }
+    .site-footer { border-top: 1px solid var(--mk-rule); }
+    .footer-inner { gap: 16px; padding-block: 40px; font-size: 0.875rem; }
+    .footer-brand, .footer-links { display: flex; align-items: center; gap: 8px; }
+    .footer-links { gap: 24px; flex-wrap: wrap; justify-content: center; }
+    .footer-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 4px; font-size: 0.75rem; }
+
+    @media (max-width: 767px) {
+      .container { padding-inline: 16px; }
+      .nav-links { display: none; }
+      .nav-actions { gap: 12px; }
+      .hero { margin-block: 8px 16px; }
+      .hero p { font-size: 0.875rem; }
+      .breadcrumb { margin-top: 8px; }
+      .tabs, .tab-hints { padding-inline: 16px; }
+      .calc-panel { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 16px; }
+      .result { padding: 16px; }
+      .calc-actions { justify-content: flex-start; padding-inline: 16px; }
+      .action { text-align: start; }
+      .page-section { margin-top: 48px; }
+      .examples-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+      .examples-table :is(tbody, th, td) { display: block; }
+      .examples-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--mk-rule); }
+      .examples-table tbody tr:last-child { border-bottom: 1px solid var(--mk-rule); }
+      .examples-table :is(th, td) { padding: 0; border: 0; }
+      .examples-table tbody :is(th, .example-method) { grid-column: 1 / -1; }
+      .examples-table .example-total { text-align: start; }
+      .cta-band { padding-block: 48px; }
+      .faq { margin-bottom: 48px; }
+      .footer-inner { flex-direction: column; }
+    }
+    @media (max-width: 639px) { .login { display: none; } }
+    @media (max-width: 399px) { .brand-name { display: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .mk *, .mk *::before, .mk *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body class="mk">
+  <header class="site-header border-mk-rule">
+    <div class="container nav-inner">
+      <a class="brand min-h-11 whitespace-nowrap" href="/" aria-label="Samnuan">
+        <span class="brand-mark rounded-lg bg-mk-ink font-display text-mk-paper" aria-hidden="true">ส</span>
+        <span class="brand-name font-display">SAMNUAN</span>
+      </a>
+      <nav class="nav-links text-mk-ink-2" aria-label="เมนูหลัก">
+        <a class="min-h-11 whitespace-nowrap" href="/#features">ฟีเจอร์</a>
+        <a class="min-h-11 whitespace-nowrap" href="/pricing">ราคา</a>
+        <a class="min-h-11 whitespace-nowrap" href="/articles">บทความ</a>
+      </nav>
+      <div class="nav-actions">
+        <span class="lang"><strong>TH</strong><span aria-hidden="true">|</span><a class="min-h-11" href="/en" hreflang="en" aria-label="อ่านเป็นภาษาอังกฤษ">EN</a></span>
+        <a class="login min-h-11 whitespace-nowrap" href="/login">เข้าสู่ระบบ</a>
+        <div class="nav-trial">
+          <a href="/register" class="btn-primary bg-mk-ink text-mk-paper" aria-describedby="nav-trial-hint">ทดลองใช้ฟรี</a>
+          <span class="hint" id="nav-trial-hint">ไม่ต้องใช้บัตรเครดิต</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container tool-main">
+    <nav class="breadcrumb text-mk-ink-2" aria-label="เส้นทางหน้า">
+      <ol>
+        <li><a href="/">หน้าแรก</a></li>
+        <li aria-hidden="true">›</li>
+        <li>เครื่องมือฟรี</li>
+        <li aria-hidden="true">›</li>
+        <li aria-current="page">คำนวณค่าขึ้นศาล</li>
+      </ol>
+    </nav>
+    <div class="hero">
+      <h1>คำนวณค่าขึ้นศาล</h1>
+      <p>ใส่ทุนทรัพย์ เลือกประเภทคดีและชั้นศาล แล้วดูค่าขึ้นศาลพร้อมวิธีคิดทีละขั้น ใช้ฟรี ไม่ต้องสมัคร</p>
+    </div>
+
+    <section class="calculator" id="calculator" aria-label="เครื่องคำนวณค่าธรรมเนียม">
+      <div class="tabs" role="tablist" aria-label="เลือกค่าธรรมเนียม">
+        <button type="button" class="tab" role="tab" id="court-tab" aria-controls="court-panel" aria-selected="true" aria-describedby="court-tab-hint">ค่าขึ้นศาล</button>
+        <button type="button" class="tab" role="tab" id="enforcement-tab" aria-controls="enforcement-panel" aria-selected="false" aria-describedby="enforcement-tab-hint" tabindex="-1">ค่าบังคับคดี</button>
+      </div>
+      <div class="tab-hints">
+        <span class="hint" id="court-tab-hint">ตามประเภทคดี</span>
+        <span class="hint" id="enforcement-tab-hint">ตามเหตุการณ์</span>
+      </div>
+      <div class="calc-panel" id="court-panel" role="tabpanel" aria-labelledby="court-tab">
+        <div class="fields">
+          <div class="field">
+            <label for="case-kind">ประเภทคดี</label>
+            <div class="select-wrap">
+              <select class="control" id="case-kind">
+                <optgroup label="มีทุนทรัพย์">
+                  <option value="GENERAL" selected>คำฟ้องคดีแพ่งทั่วไป</option>
+                  <option value="MORTGAGE">บังคับจำนองหรือเอาทรัพย์จำนองหลุด</option>
+                  <option value="ARBITRATION_DOMESTIC">คำชี้ขาดอนุญาโตตุลาการในประเทศ</option>
+                  <option value="ARBITRATION_FOREIGN">คำชี้ขาดอนุญาโตตุลาการต่างประเทศ</option>
+                  <option value="SMALL_CLAIM">คดีมโนสาเร่</option>
+                  <option value="MIXED">มีคำขอทั้งเป็นเงินและไม่เป็นเงิน</option>
+                  <option value="ADMIN">ศาลปกครอง คำขอให้ชดใช้เงิน</option>
+                </optgroup>
+                <optgroup label="อัตราคงที่">
+                  <option value="NON_MONETARY">คำขอที่ประเมินเป็นเงินไม่ได้</option>
+                  <option value="BANKRUPTCY">ฟ้องให้ล้มละลาย</option>
+                </optgroup>
+                <optgroup label="ได้รับยกเว้น">
+                  <option value="CONSUMER">คดีผู้บริโภค (ผู้บริโภคเป็นผู้ฟ้อง)</option>
+                  <option value="LABOUR">คดีแรงงาน</option>
+                </optgroup>
+              </select>
+              <i class="icon" data-lucide="chevron-down" aria-hidden="true"></i>
+            </div>
+          </div>
+          <fieldset class="field">
+            <legend>ชั้นศาล</legend>
+            <div class="segmented">
+              <input class="sr-only" type="radio" name="court-level" id="trial" value="TRIAL" checked><label for="trial">ชั้นต้น</label>
+              <input class="sr-only" type="radio" name="court-level" id="appeal" value="APPEAL"><label for="appeal">อุทธรณ์</label>
+              <input class="sr-only" type="radio" name="court-level" id="supreme" value="SUPREME"><label for="supreme">ฎีกา</label>
+            </div>
+          </fieldset>
+          <div class="field" id="claim-field">
+            <label for="claim-amount">ทุนทรัพย์ (บาท)</label>
+            <input class="control amount-input" id="claim-amount" type="text" inputmode="numeric" autocomplete="off" value="1,500,000" aria-describedby="claim-hint">
+            <p class="field-help" id="claim-hint">ใช้ทุนทรัพย์ตามคำฟ้องในชั้นนั้น ไม่ใช่ยอดตามสัญญา</p>
+          </div>
+          <p class="field-help" id="claim-unused" hidden>ประเภทนี้ไม่ใช้ทุนทรัพย์</p>
+        </div>
+        <div class="result">
+          <div role="status" aria-atomic="true">
+            <p class="result-label" id="court-result-label">ค่าขึ้นศาลโดยประมาณ</p>
+            <p class="result-total"><span class="result-number" id="court-fee">30,000</span><span class="result-unit">บาท</span></p>
+          </div>
+          <dl class="breakdown" id="court-lines">
+            <div><dt>ส่วนไม่เกิน 50 ล้าน: 2% (เพดาน 200,000)</dt><dd>30,000 บาท</dd></div>
+          </dl>
+          <div class="result-notes" id="court-notes" hidden>
+            <i class="icon" data-lucide="info" aria-hidden="true"></i><ul aria-label="หมายเหตุ"></ul>
+          </div>
+          <p class="result-source" id="court-source">อ้างอิง ป.วิ.พ. ตาราง 1 · ตรวจอัตราล่าสุด 15 พ.ย. 2569</p>
+        </div>
+      </div>
+
+      <div class="calc-panel" id="enforcement-panel" role="tabpanel" aria-labelledby="enforcement-tab" hidden>
+        <div class="fields">
+          <fieldset class="field">
+            <legend>เหตุการณ์</legend>
+            <div class="event-list">
+              <label><input type="radio" name="enforcement-event" value="sale" checked><span>ขายทอดตลาดหรือจำหน่ายทรัพย์</span><span class="event-rate">2% ของเงินที่ขายได้</span></label>
+              <label><input type="radio" name="enforcement-event" value="payment"><span>จ่ายเงินที่ยึดหรืออายัดให้เจ้าหนี้</span><span class="event-rate">1% ของเงินที่ยึดหรืออายัด</span></label>
+              <label><input type="radio" name="enforcement-event" value="bidding"><span>ประมูลระหว่างคู่ความ</span><span class="event-rate">1% ของราคาสูงสุด</span></label>
+              <label><input type="radio" name="enforcement-event" value="noSale"><span>ยึดหรืออายัดแล้วไม่มีการขาย</span><span class="event-rate">ไม่เรียกเก็บ</span></label>
+            </div>
+          </fieldset>
+          <div class="field" id="enforcement-field">
+            <label id="enforcement-amount-label" for="enforcement-amount">เงินที่ขายได้ (บาท)</label>
+            <input class="control amount-input" id="enforcement-amount" type="text" inputmode="numeric" autocomplete="off">
+          </div>
+        </div>
+        <div class="result">
+          <div role="status" aria-atomic="true">
+            <p class="result-label" id="enforcement-result-label">ค่าธรรมเนียมบังคับคดีโดยประมาณ</p>
+            <p class="result-total"><span class="result-number" id="enforcement-fee">0</span><span class="result-unit">บาท</span></p>
+          </div>
+          <div class="result-notes">
+            <i class="icon" data-lucide="info" aria-hidden="true"></i>
+            <p id="enforcement-note">อัตราใหม่ตาม ป.วิ.พ. ฉบับที่ 33 มีผล 10 ก.ย. 2568 ยังไม่รวมค่าประกาศ ค่าใช้สอย และเงินทดรองที่เจ้าพนักงานเรียกเก็บ</p>
+          </div>
+          <p class="result-source" id="enforcement-source">อ้างอิง ประกาศกรมบังคับคดี 12 ก.ย. 2568</p>
+        </div>
+      </div>
+
+      <div class="calc-actions">
+        <div class="action">
+          <button type="button" class="btn-secondary copy-button" id="copy-result" aria-describedby="copy-hint">
+            <i class="icon" data-lucide="copy" aria-hidden="true"></i><span>คัดลอกผล</span>
+          </button>
+          <p class="hint" id="copy-hint">คัดลอกยอดและวิธีคิดไปวางใน LINE หรืออีเมล</p>
+        </div>
+        <div class="action">
+          <a class="btn-primary bg-mk-ink text-mk-paper" href="/register?from=court-fee" aria-describedby="register-hint">บันทึกเข้าแฟ้มคดีในสำนวน<i class="icon" data-lucide="arrow-right" aria-hidden="true"></i></a>
+          <p class="hint" id="register-hint">เริ่มใช้ฟรี ไม่ต้องใช้บัตรเครดิต</p>
+        </div>
+        <span class="sr-only" id="copy-status" role="status"></span>
+      </div>
+    </section>
+
+    <aside class="caution">
+      <i class="icon" data-lucide="info" aria-hidden="true"></i>
+      <div>
+        <p>ตัวเลขนี้เป็นการประมาณเพื่อเตรียมงบ ยอดจริงดูจากใบเสร็จของศาล คดีที่มีหลายคำขอ หลายฝ่าย หรือขอยกเว้นค่าธรรมเนียม ให้ตรวจกับเจ้าหน้าที่ศาลอีกครั้ง</p>
+        <a class="text-link" href="https://fees.coj.go.th/">เทียบกับเครื่องคำนวณของศาลยุติธรรม</a>
+      </div>
+    </aside>
+
+    <section class="page-section" aria-labelledby="examples-title">
+      <h2 id="examples-title">ตัวอย่างการคิดค่าขึ้นศาล</h2>
+      <table class="examples-table" role="table" aria-labelledby="examples-title">
+        <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">กรณี</th><th scope="col" role="columnheader">วิธีคิด</th><th scope="col" role="columnheader" class="example-total">ค่าขึ้นศาล</th><th scope="col" role="columnheader"><span class="sr-only">ลองคำนวณ</span></th></tr></thead>
+        <tbody role="rowgroup">
+          <tr role="row">
+            <th scope="row" role="rowheader">คดีแพ่ง ทุนทรัพย์ 1,000,000 บาท</th><td role="cell" class="example-method">2% ของ 1,000,000</td><td role="cell" class="example-total">20,000 บาท</td>
+            <td role="cell" class="example-action"><button type="button" class="try-example" title="ใส่ตัวเลขนี้ในเครื่องคิดด้านบน" data-kind="GENERAL" data-amount="1000000">ลองคำนวณ</button></td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">คดีแพ่ง ทุนทรัพย์ 20,000,000 บาท</th><td role="cell" class="example-method">2% ได้ 400,000 แต่เพดานส่วนแรก 200,000</td><td role="cell" class="example-total">200,000 บาท</td>
+            <td role="cell" class="example-action"><button type="button" class="try-example" title="ใส่ตัวเลขนี้ในเครื่องคิดด้านบน" data-kind="GENERAL" data-amount="20000000">ลองคำนวณ</button></td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">คดีแพ่ง ทุนทรัพย์ 60,000,000 บาท</th><td role="cell" class="example-method">200,000 + 0.1% ของ 10,000,000 (ส่วนที่เกิน 50 ล้านบาท)</td><td role="cell" class="example-total">210,000 บาท</td>
+            <td role="cell" class="example-action"><button type="button" class="try-example" title="ใส่ตัวเลขนี้ในเครื่องคิดด้านบน" data-kind="GENERAL" data-amount="60000000">ลองคำนวณ</button></td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">คดีมโนสาเร่ ทุนทรัพย์ 80,000 บาท</th><td role="cell" class="example-method">2% ได้ 1,600 แต่ชั้นต้นเก็บไม่เกิน 1,000</td><td role="cell" class="example-total">1,000 บาท</td>
+            <td role="cell" class="example-action"><button type="button" class="try-example" title="ใส่ตัวเลขนี้ในเครื่องคิดด้านบน" data-kind="SMALL_CLAIM" data-amount="80000">ลองคำนวณ</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="page-section" aria-labelledby="benefits-title">
+      <h2 id="benefits-title">ในสำนวน ค่าขึ้นศาลคิดให้ตอนบันทึกค่าใช้จ่ายคดี</h2>
+      <ul class="benefits">
+        <li><i class="icon" data-lucide="calculator" aria-hidden="true"></i>เลือกประเภทคดีและใส่ทุนทรัพย์ ระบบใส่ค่าขึ้นศาลให้ทันที</li>
+        <li><i class="icon" data-lucide="folder-check" aria-hidden="true"></i>ทนายตรวจยอดก่อนบันทึก ทุกยอดผูกกับแฟ้มคดี</li>
+        <li><i class="icon" data-lucide="file-text" aria-hidden="true"></i>สรุปค่าใช้จ่ายส่งลูกความได้ ไม่ต้องคิดซ้ำในไฟล์ Excel</li>
+      </ul>
+    </section>
+
+    <section class="cta-band rounded-2xl bg-mk-ink" aria-labelledby="cta-title">
+      <h2 id="cta-title" class="text-mk-paper">ให้สำนวนคิดค่าขึ้นศาลในทุกคดีของคุณ</h2>
+      <a href="/register" class="btn-primary" aria-describedby="cta-hint">เริ่มใช้ฟรี</a>
+      <p class="hint text-mk-cta-muted" id="cta-hint">ไม่ต้องใช้บัตรเครดิต</p>
+    </section>
+
+    <section class="page-section faq" aria-labelledby="faq-title">
+      <h2 id="faq-title">คำถามที่พบบ่อย</h2>
+      <div class="faq-list border-mk-rule">
+        <details>
+          <summary class="min-h-11">ค่าขึ้นศาลคดีแพ่งคิดอย่างไร<i class="chev icon text-mk-ink-2" data-lucide="chevron-down" aria-hidden="true"></i></summary>
+          <p class="text-mk-ink-2">คิดร้อยละ 2 ของทุนทรัพย์ส่วนที่ไม่เกิน 50 ล้านบาท แต่ส่วนนี้ไม่เกิน 200,000 บาท แล้วบวกร้อยละ 0.1 ของส่วนที่เกิน 50 ล้านบาท เศษสตางค์ปัดทิ้ง</p>
+        </details>
+        <details>
+          <summary class="min-h-11">อุทธรณ์หรือฎีกาต้องเสียค่าขึ้นศาลอีกไหม<i class="chev icon text-mk-ink-2" data-lucide="chevron-down" aria-hidden="true"></i></summary>
+          <p class="text-mk-ink-2">ต้องเสียใหม่ โดยคิดจากทุนทรัพย์ที่ยังพิพาทในชั้นนั้น ไม่ใช่ทุนทรัพย์เดิมทั้งหมด (ป.วิ.พ. มาตรา 150)</p>
+        </details>
+        <details>
+          <summary class="min-h-11">คดีผู้บริโภคและคดีแรงงานเสียค่าขึ้นศาลไหม<i class="chev icon text-mk-ink-2" data-lucide="chevron-down" aria-hidden="true"></i></summary>
+          <p class="text-mk-ink-2">ผู้บริโภคที่ฟ้องคดีและคดีแรงงานได้รับยกเว้นค่าธรรมเนียม แต่ศาลอาจสั่งให้ชำระภายหลังได้ในบางกรณี</p>
+        </details>
+        <details>
+          <summary class="min-h-11">ค่าบังคับคดีเปลี่ยนเมื่อไร<i class="chev icon text-mk-ink-2" data-lucide="chevron-down" aria-hidden="true"></i></summary>
+          <p class="text-mk-ink-2">ตั้งแต่ 10 ก.ย. 2568 ค่าธรรมเนียมขายทอดตลาดเหลือร้อยละ 2 และการจ่ายเงินที่ยึดหรืออายัดเหลือร้อยละ 1</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer border-mk-rule">
+    <div class="container footer-inner text-mk-ink-2">
+      <span class="footer-brand"><span class="footer-mark bg-mk-ink font-display text-mk-paper" aria-hidden="true">ส</span>© Samnuan</span>
+      <span class="footer-links">
+        <a class="min-h-11 whitespace-nowrap" href="/privacy">นโยบายความเป็นส่วนตัว</a>
+        <a class="min-h-11 whitespace-nowrap" href="/delete-account">ขอลบบัญชี</a>
+      </span>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script>
+    // Filing-fee rules ported from packages/shared/src/court-fees.ts.
+    const COURT_FEE_RULE_VERSION = 'ป.วิ.พ. ตาราง 1 · ตรวจ 15 พ.ย. 2569';
+
+    const FIRST_TIER = 50_000_000;
+    const EXCESS_RATE = 0.001;
+    const RATES = {
+      GENERAL: { rate: 0.02, cap: 200_000 },
+      ARBITRATION_DOMESTIC: { rate: 0.005, cap: 50_000 },
+      ARBITRATION_FOREIGN: { rate: 0.01, cap: 100_000 },
+      MORTGAGE: { rate: 0.01, cap: 100_000 },
+    };
+    const FLAT_NON_MONETARY = 200;
+    const SMALL_CLAIM_TRIAL_CAP = 1_000;
+    const BANKRUPTCY_FEE = 500;
+
+    const baht = (n) => n.toLocaleString('th-TH');
+
+    /** Cap applies to the first 50 M only; the excess adds 0.1 %. Fractions of a baht are dropped. */
+    function monetaryCourtFee(claim, kind = 'GENERAL') {
+      const { rate, cap } = RATES[kind];
+      const first = Math.min(rate * Math.min(claim, FIRST_TIER), cap);
+      const excess = EXCESS_RATE * Math.max(claim - FIRST_TIER, 0);
+      const lines = [{ label: `ส่วนไม่เกิน 50 ล้าน: ${rate * 100}% (เพดาน ${baht(cap)})`, amount: Math.floor(first) }];
+      if (excess > 0) lines.push({ label: 'ส่วนที่เกิน 50 ล้าน: 0.1%', amount: Math.floor(excess) });
+      return { fee: Math.floor(first + excess), lines };
+    }
+
+    function estimateCourtFee(input) {
+      const { kind, level } = input;
+      const claim = Math.max(0, input.claimAmount ?? 0);
+      const notes = [];
+      const out = (fee, lines) => ({ fee, lines, notes, ruleVersion: COURT_FEE_RULE_VERSION });
+      const needsClaim = !['NON_MONETARY', 'CONSUMER', 'LABOUR', 'BANKRUPTCY'].includes(kind);
+      if (needsClaim && !(input.claimAmount > 0)) notes.push('ยังไม่ได้ระบุทุนทรัพย์ — ยอดที่แสดงยังไม่ใช่ค่าขึ้นศาลจริง');
+      if (level !== 'TRIAL') notes.push('ชั้นอุทธรณ์/ฎีกาคิดจากทุนทรัพย์ที่ยังพิพาทในชั้นนั้น (ม.150) ไม่ใช่ทุนทรัพย์เดิม');
+
+      switch (kind) {
+        case 'CONSUMER':
+          notes.push('ผู้บริโภคได้รับยกเว้นค่าธรรมเนียม (พ.ร.บ.วิธีพิจารณาคดีผู้บริโภค ม.18) — ศาลอาจสั่งให้ชำระภายหลังได้');
+          return out(0, [{ label: 'ยกเว้นค่าขึ้นศาล', amount: 0 }]);
+        case 'LABOUR':
+          notes.push('คดีแรงงานได้รับยกเว้นค่าฤชาธรรมเนียม (พ.ร.บ.จัดตั้งศาลแรงงานฯ ม.27)');
+          return out(0, [{ label: 'ยกเว้นค่าขึ้นศาล', amount: 0 }]);
+        case 'NON_MONETARY':
+          return out(FLAT_NON_MONETARY, [{ label: 'คำขอที่ประเมินเป็นเงินไม่ได้', amount: FLAT_NON_MONETARY }]);
+        case 'BANKRUPTCY':
+          notes.push('ต้องวางเงินประกันค่าใช้จ่ายอีก 5,000 บาท (ม.11) — บันทึกแยกเป็นค่าใช้จ่ายอีกรายการ');
+          return out(BANKRUPTCY_FEE, [{ label: 'ฟ้องให้ล้มละลาย (ม.179)', amount: BANKRUPTCY_FEE }]);
+        case 'MIXED': {
+          const monetary = monetaryCourtFee(claim);
+          const fee = Math.max(monetary.fee, FLAT_NON_MONETARY);
+          notes.push('มีคำขอทั้งเป็นเงินและไม่เป็นเงิน: คิดตามทุนทรัพย์ แต่ไม่น้อยกว่า 200 บาท');
+          return out(fee, monetary.fee >= FLAT_NON_MONETARY ? monetary.lines : [{ label: 'ขั้นต่ำคำขอที่ไม่เป็นเงิน', amount: FLAT_NON_MONETARY }]);
+        }
+        case 'SMALL_CLAIM': {
+          const monetary = monetaryCourtFee(claim);
+          if (level !== 'TRIAL') return out(monetary.fee, monetary.lines);
+          notes.push('มโนสาเร่ชั้นต้น: ค่าขึ้นศาลรวมไม่เกิน 1,000 บาท (ม.190 จัตวา)');
+          if (monetary.fee <= SMALL_CLAIM_TRIAL_CAP) return out(monetary.fee, monetary.lines);
+          notes.push(`ตามอัตราปกติจะเป็น ${baht(monetary.fee)} บาท`);
+          return out(SMALL_CLAIM_TRIAL_CAP, [{ label: 'มโนสาเร่ชั้นต้น (เพดาน 1,000 บาท)', amount: SMALL_CLAIM_TRIAL_CAP }]);
+        }
+        case 'ADMIN': {
+          // ระเบียบศาลปกครอง ข้อ 34: ทุนทรัพย์ต่ำกว่า 100 นับเป็น 100; เศษร้อยตั้งแต่ 50 ปัดขึ้น
+          const base = Math.max(100, 100 * Math.floor((claim + 50) / 100));
+          notes.push('ศาลปกครองเก็บค่าธรรมเนียมเฉพาะคำขอให้ชดใช้เงินหรือส่งมอบทรัพย์ (ม.45 วรรคสี่) ตรวจฉบับระเบียบล่าสุดก่อนใช้');
+          return out(monetaryCourtFee(base).fee, monetaryCourtFee(base).lines);
+        }
+        default: {
+          const monetary = monetaryCourtFee(claim, kind);
+          return out(monetary.fee, monetary.lines);
+        }
+      }
+    }
+
+    const enforcementEvents = {
+      sale: { rate: 0.02, label: 'เงินที่ขายได้ (บาท)' },
+      payment: { rate: 0.01, label: 'เงินที่ยึดหรืออายัด (บาท)' },
+      bidding: { rate: 0.01, label: 'ราคาประมูลสูงสุด (บาท)' },
+      noSale: { rate: 0, label: '' },
+    };
+
+    function estimateEnforcementFee(event, amount) {
+      return Math.floor(enforcementEvents[event].rate * amount);
+    }
+
+    const byId = (id) => document.getElementById(id);
+    const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+    const caseKind = byId('case-kind');
+    const claimInput = byId('claim-amount');
+    const enforcementInput = byId('enforcement-amount');
+    const courtNotes = byId('court-notes');
+    const copyButton = byId('copy-result');
+    const copyLabel = copyButton.querySelector('span');
+    const copyStatus = byId('copy-status');
+    const amountlessCases = ['NON_MONETARY', 'BANKRUPTCY', 'CONSUMER', 'LABOUR'];
+    let activeTab = tabs[0];
+    let copyTimer;
+    let courtSummary = '';
+    let enforcementSummary = '';
+
+    function readAmount(input) {
+      return Number(input.value.replaceAll(',', ''));
+    }
+
+    function formatInput(input) {
+      const caret = input.selectionStart;
+      const digitsAfterCaret = input.value.slice(caret).replace(/\D/g, '').length;
+      const digits = input.value.replace(/\D/g, '').slice(0, 15);
+      const formatted = digits ? baht(Number(digits)) : '';
+      if (formatted === input.value) return;
+      input.value = formatted;
+      let position = formatted.length;
+      let remaining = digitsAfterCaret;
+      while (position > 0 && remaining > 0) {
+        position -= 1;
+        if (formatted[position] !== ',') remaining -= 1;
+      }
+      input.setSelectionRange(position, position);
+    }
+
+    function showTotal(id, fee) {
+      const total = byId(id);
+      const formatted = baht(fee);
+      if (total.textContent !== formatted) total.textContent = formatted;
+      total.classList.toggle('is-long', formatted.length > 10);
+    }
+
+    function updateCourt() {
+      const kind = caseKind.value;
+      const level = document.querySelector('[name="court-level"]:checked');
+      const needsAmount = !amountlessCases.includes(kind);
+      byId('claim-field').hidden = !needsAmount;
+      byId('claim-unused').hidden = needsAmount;
+      claimInput.disabled = !needsAmount;
+
+      const claimAmount = readAmount(claimInput);
+      const result = estimateCourtFee({ kind, level: level.value, claimAmount });
+      showTotal('court-fee', result.fee);
+      const lines = result.lines.map(({ label, amount }) => {
+        const row = document.createElement('div');
+        const term = document.createElement('dt');
+        const value = document.createElement('dd');
+        term.textContent = label;
+        value.textContent = `${baht(amount)} บาท`;
+        row.append(term, value);
+        return row;
+      });
+      byId('court-lines').replaceChildren(...lines);
+
+      const notes = result.notes.map((note) => {
+        const item = document.createElement('li');
+        item.textContent = note;
+        return item;
+      });
+      courtNotes.querySelector('ul').replaceChildren(...notes);
+      courtNotes.hidden = !notes.length;
+
+      courtSummary = [
+        `${caseKind.selectedOptions[0].textContent} · ${level.labels[0].textContent}`,
+        needsAmount ? `ทุนทรัพย์ ${baht(claimAmount)} บาท` : '',
+        `${byId('court-result-label').textContent} ${baht(result.fee)} บาท`,
+        ...result.lines.map(({ label, amount }) => `${label} — ${baht(amount)} บาท`),
+        ...result.notes,
+        byId('court-source').textContent,
+      ].filter(Boolean).join('\n');
+    }
+
+    function updateEnforcement() {
+      const selected = document.querySelector('[name="enforcement-event"]:checked');
+      const event = selected.value;
+      const { rate, label } = enforcementEvents[event];
+      const needsAmount = Boolean(rate);
+      byId('enforcement-field').hidden = !needsAmount;
+      enforcementInput.disabled = !needsAmount;
+      byId('enforcement-amount-label').textContent = label;
+
+      const amount = readAmount(enforcementInput);
+      const fee = estimateEnforcementFee(event, amount);
+      showTotal('enforcement-fee', fee);
+      enforcementSummary = [
+        selected.labels[0].querySelector('span').textContent,
+        needsAmount ? `${label} ${baht(amount)}` : '',
+        `${byId('enforcement-result-label').textContent} ${baht(fee)} บาท`,
+        needsAmount ? `${rate * 100}% × ${baht(amount)} = ${baht(fee)} บาท (ปัดเศษลง)` : 'ไม่เรียกเก็บ',
+        byId('enforcement-note').textContent,
+        byId('enforcement-source').textContent,
+      ].filter(Boolean).join('\n');
+    }
+
+    function resetCopyFeedback() {
+      window.clearTimeout(copyTimer);
+      copyLabel.textContent = 'คัดลอกผล';
+      copyStatus.textContent = '';
+    }
+
+    function activateTab(tab, focus = false) {
+      activeTab = tab;
+      tabs.forEach((item) => {
+        const selected = item === tab;
+        item.setAttribute('aria-selected', selected);
+        item.tabIndex = selected ? 0 : -1;
+        byId(item.getAttribute('aria-controls')).hidden = !selected;
+      });
+      resetCopyFeedback();
+      if (focus) tab.focus();
+    }
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => activateTab(tab));
+      tab.addEventListener('keydown', (event) => {
+        const nextIndex = {
+          ArrowLeft: (index + tabs.length - 1) % tabs.length,
+          ArrowRight: (index + 1) % tabs.length,
+          Home: 0,
+          End: tabs.length - 1,
+        }[event.key];
+        if (nextIndex === undefined) return;
+        event.preventDefault();
+        activateTab(tabs[nextIndex], true);
+      });
+    });
+
+    caseKind.addEventListener('change', updateCourt);
+    document.querySelectorAll('[name="court-level"]').forEach((input) => input.addEventListener('change', updateCourt));
+    document.querySelectorAll('[name="enforcement-event"]').forEach((input) => input.addEventListener('change', updateEnforcement));
+    claimInput.addEventListener('input', () => {
+      formatInput(claimInput);
+      updateCourt();
+    });
+    enforcementInput.addEventListener('input', () => {
+      formatInput(enforcementInput);
+      updateEnforcement();
+    });
+
+    async function copyText(text) {
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch {
+          // Fall back for local-file previews and contexts that deny Clipboard API access.
+        }
+      }
+      const field = document.createElement('textarea');
+      field.value = text;
+      field.className = 'sr-only';
+      field.readOnly = true;
+      field.tabIndex = -1;
+      field.setAttribute('aria-label', 'ผลการคำนวณ');
+      document.body.append(field);
+      field.focus();
+      field.select();
+      try {
+        return document.execCommand('copy');
+      } catch {
+        return false;
+      } finally {
+        field.remove();
+        copyButton.focus({ preventScroll: true });
+      }
+    }
+
+    copyButton.addEventListener('click', async () => {
+      resetCopyFeedback();
+      const tab = activeTab;
+      const copied = await copyText(tab === tabs[0] ? courtSummary : enforcementSummary);
+      if (tab !== activeTab) return;
+      const message = copied ? 'คัดลอกแล้ว' : 'คัดลอกไม่สำเร็จ';
+      copyLabel.textContent = message;
+      copyStatus.textContent = message;
+      window.clearTimeout(copyTimer);
+      copyTimer = window.setTimeout(resetCopyFeedback, 2000);
+    });
+
+    document.querySelectorAll('.try-example').forEach((button) => {
+      button.addEventListener('click', () => {
+        activateTab(tabs[0]);
+        caseKind.value = button.dataset.kind;
+        byId('trial').checked = true;
+        claimInput.value = baht(Number(button.dataset.amount));
+        updateCourt();
+        tabs[0].focus({ preventScroll: true });
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        byId('calculator').scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+      });
+    });
+
+    updateCourt();
+    updateEnforcement();
+    window.lucide?.createIcons();
+
+    // Brief acceptance checks. The shared fee functions above remain unchanged.
+    const trialFee = (kind, claimAmount) => estimateCourtFee({ kind, level: 'TRIAL', claimAmount });
+    console.assert(trialFee('GENERAL', 1_000_000).fee === 20_000, 'General: 1 million');
+    console.assert(trialFee('GENERAL', 20_000_000).fee === 200_000, 'General: 20 million');
+    console.assert(trialFee('GENERAL', 60_000_000).fee === 210_000, 'General: 60 million');
+    console.assert(trialFee('SMALL_CLAIM', 80_000).fee === 1_000, 'Small claim: trial cap');
+    const zeroClaim = trialFee('GENERAL', 0);
+    console.assert(zeroClaim.fee === 0 && zeroClaim.notes.includes('ยังไม่ได้ระบุทุนทรัพย์ — ยอดที่แสดงยังไม่ใช่ค่าขึ้นศาลจริง'), 'General: zero claim and note');
+    console.assert(trialFee('ADMIN', 149).fee === monetaryCourtFee(100).fee && trialFee('ADMIN', 149).fee === 2, 'Admin: 149 → base 100');
+    console.assert(trialFee('ADMIN', 150).fee === monetaryCourtFee(200).fee && trialFee('ADMIN', 150).fee === 4, 'Admin: 150 → base 200');
+    console.assert(trialFee('MIXED', 5_000).fee === 200, 'Mixed: 200 minimum');
+    console.assert(estimateEnforcementFee('sale', 1_000_000) === 20_000, 'Enforcement: sale');
+  </script>
+</body>
+</html>
