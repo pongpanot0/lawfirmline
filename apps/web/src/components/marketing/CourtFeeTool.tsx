@@ -82,8 +82,20 @@ const enforcementNote =
   'อัตราใหม่ตาม ป.วิ.พ. ฉบับที่ 33 มีผล 10 ก.ย. 2568 ยังไม่รวมค่าประกาศ ค่าใช้สอย และเงินทดรองที่เจ้าพนักงานเรียกเก็บ';
 
 const baht = (amount: number) => amount.toLocaleString('th-TH');
-const toAmount = (digits: string) => digits === '' ? undefined : Number(digits);
-const formatAmount = (digits: string) => digits === '' ? '' : baht(Number(digits));
+// `digits` is the canonical field text: whole-baht digits, optionally "." and up to 2 satang digits.
+// Satang stay visible but never count; court fees are floored to whole baht.
+const wholeDigits = (digits: string) => digits.split('.')[0];
+const toAmount = (digits: string) => wholeDigits(digits) === '' ? undefined : Number(wholeDigits(digits));
+const formatAmount = (digits: string) => {
+  const [whole, satang] = digits.split('.');
+  if (whole === '' && satang === undefined) return '';
+  return (whole === '' ? '0' : baht(Number(whole))) + (satang === undefined ? '' : `.${satang}`);
+};
+const canonicalAmount = (text: string) => {
+  const [whole, ...rest] = text.replace(/[^\d.]/g, '').split('.');
+  const cleanWhole = whole.replace(/^0+(?=\d)/, '').slice(0, 15);
+  return rest.length ? `${cleanWhole}.${rest.join('').slice(0, 2)}` : cleanWhole;
+};
 const control = 'mt-1 block min-h-11 w-full rounded-lg border border-mk-rule bg-mk-paper px-3 py-2';
 const fieldLabel = 'block whitespace-nowrap text-sm leading-[1.6] font-semibold';
 const fieldHelp = 'mt-1 text-xs leading-[1.6] text-mk-ink-2';
@@ -104,13 +116,14 @@ function AmountField({ id, label, digits, onChange, help }: {
 }) {
   function changeAmount(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
-    const digitsAfterCaret = input.value.slice(input.selectionStart ?? input.value.length).replace(/\D/g, '').length;
-    const nextDigits = input.value.replace(/\D/g, '').slice(0, 15);
+    const significant = (s: string) => s.replace(/[^\d.]/g, '').length;
+    const charsAfterCaret = significant(input.value.slice(input.selectionStart ?? input.value.length));
+    const nextDigits = canonicalAmount(input.value);
     const formatted = formatAmount(nextDigits);
     if (input.value !== formatted) {
       input.value = formatted;
       let caret = formatted.length;
-      let remaining = digitsAfterCaret;
+      let remaining = Math.min(charsAfterCaret, significant(formatted));
       while (caret > 0 && remaining > 0) {
         caret -= 1;
         if (formatted[caret] !== ',') remaining -= 1;
@@ -126,7 +139,7 @@ function AmountField({ id, label, digits, onChange, help }: {
       <input
         id={id}
         type="text"
-        inputMode="numeric"
+        inputMode="decimal"
         autoComplete="off"
         aria-describedby={help ? `${id}-hint` : undefined}
         className={`${control} text-lg leading-[1.6] tabular-nums`}
