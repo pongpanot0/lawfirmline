@@ -37,6 +37,10 @@ export function bangkokDay(iso: string): string {
   return new Date(new Date(iso).getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+export function bangkokDaysBetween(from: string, to: string): number {
+  return (Date.parse(bangkokDay(to)) - Date.parse(bangkokDay(from))) / 86_400_000;
+}
+
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   // Thai leading vowels (เ แ โ ใ ไ) are written before the consonant they follow: "ใจดี" → "จ", not "ใ".
@@ -44,11 +48,11 @@ export function initials(name: string): string {
 }
 
 /** Western digits and comma groups for baht amounts on both Hermes and JS. */
-export function formatMoney(value: number | string): string {
+export function formatMoney(value: number | string, { fixedDecimals = false } = {}): string {
   const amount = Number(String(value).replace(/,/g, ''));
   if (!Number.isFinite(amount)) return '—';
   const [whole, fraction] = amount.toFixed(2).split('.');
-  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction === '00' ? '' : `.${fraction}`}`;
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${!fixedDecimals && fraction === '00' ? '' : `.${fraction}`}`;
 }
 
 /** Keep the expense form readable while preserving a decimal point in progress. */

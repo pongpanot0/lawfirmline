@@ -24,6 +24,7 @@ export function Button({
   accessibilityHint,
   icon: Icon,
   chevron = false,
+  singleLine = false,
 }: {
   title: string;
   onPress: () => void;
@@ -37,6 +38,7 @@ export function Button({
   icon?: LucideIcon;
   /** Links only: a trailing chevron that says "this goes somewhere". */
   chevron?: boolean;
+  singleLine?: boolean;
 }) {
   const kind: ButtonVariant = variant ?? (ghost ? 'secondary' : 'primary');
   const fg = kind === 'primary' ? colors.bg : kind === 'danger' ? colors.warn : kind === 'link' ? colors.info : colors.ink;
@@ -70,7 +72,8 @@ export function Button({
       ) : (
         <View style={[styles.content, kind === 'link' && styles.contentLink]}>
           {Icon ? <Icon size={18} color={fg} /> : null}
-          <Text style={[styles.buttonText, { color: fg }, kind === 'link' && styles.linkText]}>{title}</Text>
+          <Text numberOfLines={singleLine ? 1 : undefined} adjustsFontSizeToFit={singleLine}
+            style={[styles.buttonText, { color: fg }, kind === 'link' && styles.linkText]}>{title}</Text>
           {chevron && kind === 'link' ? <ChevronRight size={16} color={fg} /> : null}
         </View>
       )}
